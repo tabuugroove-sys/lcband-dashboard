@@ -473,6 +473,106 @@ function isOverdue(order) {
   } catch { return false; }
 }
 
+// ── Process rules data ────────────────────────────────────────────────────────
+const PROCESS_RULES = {
+  proc_tg_forwarder: {
+    name: 'TG Форвардер',
+    interval: 'Каждые 5 мин',
+    desc: 'Перехватывает заказы из Telegram-групп и отправляет коммерческое предложение',
+    rules: [
+      'Мониторит целевые чаты на новые сообщения с заказами',
+      'Определяет отправителя и тип заказа (кавер-группа / драм-шоу)',
+      'Генерирует персонализированный proposal через AI',
+      'Отправляет в личку через основную сессию',
+      'Пропускает дубли — не пишет дважды одному человеку',
+    ],
+  },
+  proc_ig_responder: {
+    name: 'IG Ответчик',
+    interval: 'Каждые 30 мин',
+    desc: 'Отвечает на сторис целевых профилей в Instagram',
+    rules: [
+      'Сканирует сторис из пула профилей (494 шт)',
+      'Отправляет персонализированный ответ на сторис',
+      'Ведёт историю — не дублирует ответы',
+      'Синхронизирует результаты в Google Sheet',
+    ],
+  },
+  proc_vk_responder: {
+    name: 'VK Ответчик',
+    interval: 'Каждые 60 мин',
+    desc: 'Отвечает на входящие сообщения в VK от имени группы',
+    rules: [
+      'Классифицирует входящие сообщения через AI',
+      'Автоматически отвечает на вопросы о ценах и услугах',
+      'Пропускает спам и нецелевые сообщения',
+    ],
+  },
+  proc_tg_monitor: {
+    name: 'TG Монитор',
+    interval: 'Каждые 90 мин',
+    desc: 'Мониторит Telegram-группы на новые заказы',
+    rules: [
+      'Сканирует целевые группы на новые посты',
+      'Классифицирует заказы по типу и релевантности',
+      'Записывает результаты в Google Sheets',
+    ],
+  },
+  proc_vk_monitor: {
+    name: 'VK Монитор',
+    interval: 'Каждые 90 мин',
+    desc: 'Мониторит VK-группы на новые заказы',
+    rules: [
+      'Сканирует VK-группы и стены на новые посты',
+      'Фильтрует по ключевым словам',
+      'Создаёт записи для outreach',
+    ],
+  },
+  proc_tg_followup: {
+    name: 'TG Follow-up',
+    interval: 'Ежедневно',
+    desc: 'Автоматический follow-up холодных лидов в Telegram',
+    rules: [
+      'Cooldown: 3 дня от последнего сообщения в чате',
+      'Интервал: каждые 3 дня между follow-up\'ами',
+      'Стоп: за 3 дня до мероприятия (дата извлекается AI)',
+      'AI-классификация: declined → закрывающее сообщение',
+      'AI-классификация: client → пропускает (уже заказчик)',
+      'Пропускает контакты в папке Customer',
+      'Макс. 15 отправок за запуск (safety cap)',
+    ],
+  },
+};
+
+function ProcessRulesModal({ processKey, onClose }) {
+  const info = PROCESS_RULES[processKey];
+  if (!info) return null;
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+        <div className="modal-handle" />
+        <div className="modal-header">
+          <div className="modal-title">{info.name}</div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div style={{fontSize:12,color:'var(--muted)',marginBottom:6}}>{info.interval}</div>
+        <div style={{fontSize:13,color:'var(--text)',marginBottom:14,lineHeight:1.5}}>{info.desc}</div>
+        <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'1.2px',color:'var(--muted)',marginBottom:8}}>Правила</div>
+        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+          {info.rules.map((r, i) => (
+            <div key={i} style={{
+              background:'var(--card2)',border:'1px solid var(--border)',
+              borderRadius:8,padding:'8px 12px',fontSize:12,color:'var(--text)',lineHeight:1.4,
+            }}>
+              <span style={{color:'var(--gold)',marginRight:6}}>•</span>{r}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Components ────────────────────────────────────────────────────────────────
 
 function ConnectionStatus({ connection }) {
@@ -651,25 +751,31 @@ function OrdersSection({ orders }) {
   );
 }
 
-function StatusSection({ status }) {
+function StatusSection({ status, onProcessClick }) {
   if (!status.length) return null;
   return (
     <div className="section" style={{ marginTop: 14 }}>
       <div className="section-title">Статус процессов</div>
       <div className="status-list">
-        {status.map(s => (
-          <div key={s.key} className="status-row" style={{flexWrap:'wrap'}}>
-            <span className={`dot ${dotClass(s.val)}`} />
-            <span className="status-name">{s.label}</span>
-            <span className="status-age">{s.val}</span>
-            {s.reason && (
-              <div style={{width:'100%',paddingLeft:20,marginTop:2,fontSize:11,color:'#f87171'}}>{s.reason}</div>
-            )}
-            {s.action && (
-              <div style={{width:'100%',paddingLeft:20,marginTop:1,fontSize:11,color:'var(--blue)'}}>{s.action}</div>
-            )}
-          </div>
-        ))}
+        {status.map(s => {
+          const hasRules = !!PROCESS_RULES[s.key];
+          return (
+            <div key={s.key} className="status-row"
+              style={{flexWrap:'wrap', cursor: hasRules ? 'pointer' : 'default'}}
+              onClick={() => hasRules && onProcessClick(s.key)}>
+              <span className={`dot ${dotClass(s.val)}`} />
+              <span className="status-name">{s.label}</span>
+              <span className="status-age">{s.val}</span>
+              {hasRules && <span style={{color:'var(--muted)',fontSize:14,marginLeft:2}}>›</span>}
+              {s.reason && (
+                <div style={{width:'100%',paddingLeft:20,marginTop:2,fontSize:11,color:'#f87171'}}>{s.reason}</div>
+              )}
+              {s.action && (
+                <div style={{width:'100%',paddingLeft:20,marginTop:1,fontSize:11,color:'var(--blue)'}}>{s.action}</div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -815,6 +921,7 @@ function App() {
   const [updatedAt, setUpdatedAt] = useState(null);
   const [offline,   setOffline]   = useState(!navigator.onLine);
   const [showTGModal, setShowTGModal] = useState(false);
+  const [showProcess, setShowProcess] = useState(null);
 
   useEffect(() => {
     const on  = () => setOffline(false);
@@ -904,12 +1011,18 @@ function App() {
           </div>
           <FunnelSection funnel={data.funnel}      />
           <OrdersSection orders={data.orders}      />
-          <StatusSection status={data.status}      />
+          <StatusSection status={data.status} onProcessClick={setShowProcess} />
           <FollowupsSection followups={data.followups} />
           {showTGModal && (
             <TGFunnelModal
               tgFunnel={data.tgFunnel || {}}
               onClose={() => setShowTGModal(false)}
+            />
+          )}
+          {showProcess && (
+            <ProcessRulesModal
+              processKey={showProcess}
+              onClose={() => setShowProcess(null)}
             />
           )}
         </>
