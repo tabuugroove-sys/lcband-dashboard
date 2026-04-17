@@ -919,7 +919,6 @@ function ScanStatus({ scan }) {
                   {r.event_date && <span>📅 Событие: {r.event_date}</span>}
                   {r.post_date && <span>✉ Пост: {r.post_date}</span>}
                   {r.budget && r.budget !== 'не указан' && <span style={{color:'var(--ok)'}}>💰 {r.budget}</span>}
-                  <span>💬 {r.chat || '—'}</span>
                 </div>
               </div>
             ))}
