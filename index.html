@@ -160,6 +160,17 @@
     .chip-customer   { background: rgba(16,185,129,.15);  color: var(--ok); }
     .chip-declined   { background: rgba(239,68,68,.15);   color: #f87171; }
 
+    /* ── Overdue order alert ── */
+    @keyframes pulse-overdue {
+      0%, 100% { border-color: rgba(239,68,68,.55); box-shadow: 0 0 8px rgba(239,68,68,.25); }
+      50% { border-color: rgba(239,68,68,1); box-shadow: 0 0 18px rgba(239,68,68,.55); }
+    }
+    .order-card-overdue {
+      animation: pulse-overdue 1.6s ease infinite;
+      border-color: rgba(239,68,68,.55) !important;
+      background: rgba(239,68,68,.05) !important;
+    }
+
     /* ── Loading skeleton ── */
     @keyframes shimmer {
       0%   { background-position: -400px 0; }
@@ -374,7 +385,7 @@ function processRows(rows) {
     if (section === 'Funnel')  funnel.push({ key: row.key, n: Number(row.value) || 0, label: row.label });
     if (section === 'Status') {
       const parts = (row.value || '').split('|');
-      status.push({ key: row.key, val: parts[0], reason: parts[1] || '', label: row.label });
+      status.push({ key: row.key, val: parts[0], reason: parts[1] || '', action: parts[2] || '', label: row.label });
     }
     if (section === 'Followup') {
       try { followups.push(JSON.parse(row.value)); } catch { followups.push({ user: row.label }); }
@@ -441,6 +452,25 @@ function fmtDate(iso) {
     const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
     return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
   } catch { return iso.slice(0, 10); }
+}
+
+// ── Order overdue check ───────────────────────────────────────────────────────
+function isOverdue(order) {
+  const s = (order.status || '').toLowerCase();
+  const waitKw = ['ждёт', 'ждет', 'обещал', 'pending', 'ожидает'];
+  if (!waitKw.some(kw => s.includes(kw))) return false;
+  const dateStr = order.date_posted || order.date_event;
+  if (!dateStr) return false;
+  try {
+    let d;
+    if (/^\d{2}\.\d{2}\.\d{4}/.test(dateStr)) {
+      const [day, month, year] = dateStr.split('.');
+      d = new Date(Number(year), Number(month) - 1, Number(day));
+    } else {
+      d = new Date(dateStr);
+    }
+    return (Date.now() - d.getTime()) > 2 * 24 * 60 * 60 * 1000;
+  } catch { return false; }
 }
 
 // ── Components ────────────────────────────────────────────────────────────────
@@ -594,10 +624,18 @@ function OrdersSection({ orders }) {
         <div className="orders-list">
           {orders.map((o, i) => {
             const [cls, txt] = orderBadge(o.status);
+            const overdue = isOverdue(o);
+            const clientEl = o.username
+              ? <a href={`https://t.me/${o.username}`} target="_blank" rel="noopener"
+                   style={{color:'var(--blue)',textDecoration:'none'}}>{o.client || o.username}</a>
+              : (o.client || '—');
             return (
-              <div key={i} className="order-card">
+              <div key={i} className={`order-card${overdue ? ' order-card-overdue' : ''}`}>
                 <div className="order-info">
-                  <div className="order-client">{o.client || '—'}</div>
+                  <div className="order-client">
+                    {clientEl}
+                    {overdue && <span style={{marginLeft:6,fontSize:10,color:'#f87171',fontWeight:700}}>⚠ просрочено</span>}
+                  </div>
                   <div className="order-meta">
                     {o.date_event && <span>📅 {o.date_event}</span>}
                     {o.location   && <span style={{marginLeft:8}}>📍 {o.location}</span>}
@@ -626,6 +664,9 @@ function StatusSection({ status }) {
             <span className="status-age">{s.val}</span>
             {s.reason && (
               <div style={{width:'100%',paddingLeft:20,marginTop:2,fontSize:11,color:'#f87171'}}>{s.reason}</div>
+            )}
+            {s.action && (
+              <div style={{width:'100%',paddingLeft:20,marginTop:1,fontSize:11,color:'var(--blue)'}}>{s.action}</div>
             )}
           </div>
         ))}
