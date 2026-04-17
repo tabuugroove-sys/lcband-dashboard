@@ -920,18 +920,29 @@ function ScanStatus({ scan }) {
             <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'1.2px',color:'var(--muted)',marginBottom:4}}>
               Найдено заявок: {scan.results.length}
             </div>
-            {scan.results.map((r, i) => (
+            {scan.results.map((r, i) => {
+              // Build a Telegram Web link that opens the chat directly.
+              // Priority: explicit post_link > @username (via contact or link) > none.
+              const unameMatch = (r.contact || '').match(/@([A-Za-z0-9_]+)/)
+                || (r.link || '').match(/t\.me\/([A-Za-z0-9_]+)/);
+              const uname = unameMatch && unameMatch[1];
+              const tgLink = r.post_link
+                ? r.post_link.replace(/^https?:\/\/t\.me\//, 'https://web.telegram.org/a/#')
+                : uname
+                  ? `https://web.telegram.org/a/#@${uname}`
+                  : null;
+              return (
               <div key={i} className="scan-result-item"
-                onClick={() => r.link && window.open(r.link, '_blank')}
-                style={{cursor: r.link ? 'pointer' : 'default'}}>
+                onClick={() => tgLink && window.open(tgLink, '_blank')}
+                style={{cursor: tgLink ? 'pointer' : 'default'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
                   <div>
                     <span style={{color:'var(--gold)',marginRight:6}}>•</span>
-                    {r.link
-                      ? <a href={r.link} target="_blank" rel="noopener" style={{color:'var(--blue)',textDecoration:'none',fontWeight:700}}>{r.who || '—'}</a>
+                    {tgLink
+                      ? <a href={tgLink} target="_blank" rel="noopener" style={{color:'var(--blue)',textDecoration:'none',fontWeight:700}}>{r.who || '—'}</a>
                       : <strong>{r.who || '—'}</strong>
                     }
-                    {r.contact && r.link && <span style={{color:'var(--muted)',fontSize:10,marginLeft:4}}>{r.contact}</span>}
+                    {r.contact && <span style={{color:'var(--muted)',fontSize:10,marginLeft:4}}>{r.contact}</span>}
                   </div>
                   {r.note && <span style={{color:'#f87171',fontSize:9,fontWeight:700,flexShrink:0}}>⚠ {r.note}</span>}
                 </div>
@@ -940,9 +951,11 @@ function ScanStatus({ scan }) {
                   {r.event_date && <span>📅 Событие: {r.event_date}</span>}
                   {r.post_date && <span>✉ Пост: {r.post_date}</span>}
                   {r.budget && r.budget !== 'не указан' && <span style={{color:'var(--ok)'}}>💰 {r.budget}</span>}
+                  {r.post_link && !r.post_link.includes('@') && <a href={tgLink} target="_blank" rel="noopener" style={{color:'var(--blue)'}}>→ открыть пост</a>}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
