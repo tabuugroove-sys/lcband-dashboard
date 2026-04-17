@@ -372,7 +372,10 @@ function processRows(rows) {
     const section = row.section;
     if (section === 'KPI')     kpi[row.key]    = row.value;
     if (section === 'Funnel')  funnel.push({ key: row.key, n: Number(row.value) || 0, label: row.label });
-    if (section === 'Status')  status.push({ key: row.key, val: row.value || '', label: row.label });
+    if (section === 'Status') {
+      const parts = (row.value || '').split('|');
+      status.push({ key: row.key, val: parts[0], reason: parts[1] || '', label: row.label });
+    }
     if (section === 'Followup') {
       try { followups.push(JSON.parse(row.value)); } catch { followups.push({ user: row.label }); }
     }
@@ -388,11 +391,18 @@ function processRows(rows) {
       }
     }
     if (section === 'Connection') {
-      if (row.key === 'conn_status')     connection.status    = row.value;
-      else if (row.key === 'conn_last_check') connection.lastCheck = row.value;
-      else if (row.key?.startsWith('conn_')) {
+      if (row.key === 'conn_status') {
+        const [st, reason] = (row.value || '').split('|');
+        connection.status = st;
+        connection.reason = reason || '';
+      } else if (row.key === 'conn_last_check') {
+        connection.lastCheck = row.value;
+      } else if (row.key?.startsWith('conn_')) {
         const sessName = row.label || row.key.replace('conn_', '');
-        connection.sessions[sessName] = row.value;
+        const [st, reason] = (row.value || '').split('|');
+        connection.sessions[sessName] = st;
+        if (!connection.sessionReasons) connection.sessionReasons = {};
+        if (reason) connection.sessionReasons[sessName] = reason;
       }
     }
   }
@@ -463,16 +473,21 @@ function ConnectionStatus({ connection }) {
         <div className={`conn-dot ${dotCls}`} />
         <div className="conn-info">
           <div className="conn-label" style={{color: labelColor}}>{label}</div>
+          {connection.reason && <div style={{fontSize:11,color:'#f87171',marginTop:2}}>{connection.reason}</div>}
           {timeAgo && <div className="conn-sub">Проверено: {timeAgo}</div>}
           {sessions.length > 0 && (
             <div className="conn-sessions">
               {sessions.map(([name, s]) => {
                 const chipCls = s === 'ok' ? 'conn-chip-ok' : s === 'error' ? 'conn-chip-err' : 'conn-chip-unk';
                 const icon = s === 'ok' ? '✓' : s === 'error' ? '✕' : '?';
+                const reason = (connection.sessionReasons || {})[name];
                 return (
-                  <span key={name} className={`conn-session-chip ${chipCls}`}>
-                    {icon} {name.replace('tg_session', 'main').replace('_fwd17', ' fwd')}
-                  </span>
+                  <div key={name} style={{display:'inline-block'}}>
+                    <span className={`conn-session-chip ${chipCls}`}>
+                      {icon} {name.replace('tg_session', 'main').replace('_fwd17', ' fwd')}
+                    </span>
+                    {reason && <div style={{fontSize:10,color:'#f87171',marginTop:1,paddingLeft:4}}>{reason}</div>}
+                  </div>
                 );
               })}
             </div>
@@ -605,10 +620,13 @@ function StatusSection({ status }) {
       <div className="section-title">Статус процессов</div>
       <div className="status-list">
         {status.map(s => (
-          <div key={s.key} className="status-row">
+          <div key={s.key} className="status-row" style={{flexWrap:'wrap'}}>
             <span className={`dot ${dotClass(s.val)}`} />
             <span className="status-name">{s.label}</span>
             <span className="status-age">{s.val}</span>
+            {s.reason && (
+              <div style={{width:'100%',paddingLeft:20,marginTop:2,fontSize:11,color:'#f87171'}}>{s.reason}</div>
+            )}
           </div>
         ))}
       </div>
