@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>LCB Dashboard</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a0a12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="LCB" />
+  <style>
+    :root {
+      --bg:       #0a0a12;
+      --card:     #13131f;
+      --card2:    #1a1a2a;
+      --border:   #23233a;
+      --gold:     #f5c518;
+      --gold-dim: #c9a20044;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --ok:       #10b981;
+      --warn:     #f59e0b;
+      --err:      #ef4444;
+      --blue:     #3b82f6;
+      --r:        12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior-y: contain;
+    }
+    #root { min-height: 100%; }
+
+    /* ── App shell ── */
+    .app { max-width: 480px; margin: 0 auto; padding-bottom: 40px; }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(180deg, #0f0f20 0%, #0a0a12 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px env(safe-area-inset-top, 0);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-row { display: flex; justify-content: space-between; align-items: center; }
+    .header-brand { display: flex; align-items: center; gap: 8px; }
+    .header-note { font-size: 20px; }
+    .header-title { font-size: 18px; font-weight: 700; color: var(--gold); letter-spacing: 0.3px; }
+    .header-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .refresh-btn {
+      background: rgba(245,197,24,.08);
+      border: 1px solid rgba(245,197,24,.2);
+      border-radius: 8px; color: var(--gold);
+      padding: 6px 14px; font-size: 13px; cursor: pointer;
+      transition: opacity .15s;
+    }
+    .refresh-btn:active { opacity: .6; }
+    .refresh-btn:disabled { opacity: .4; cursor: default; }
+    .spin { display: inline-block; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Sections ── */
+    .section { padding: 14px 14px 0; }
+    .section-title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.4px; color: var(--muted); margin-bottom: 10px;
+    }
+
+    /* ── KPI top row ── */
+    .kpi-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 8px; }
+    .kpi-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 12px 8px; text-align: center;
+    }
+    .kpi-emoji { font-size: 18px; margin-bottom: 4px; }
+    .kpi-val { font-size: 24px; font-weight: 800; color: var(--gold); line-height: 1; }
+    .kpi-lbl { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+    /* ── KPI secondary ── */
+    .kpi-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+    .kpi-mini {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 10px;
+    }
+    .kpi-mini-val { font-size: 18px; font-weight: 700; }
+    .kpi-mini-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Funnel ── */
+    .funnel-wrap {
+      display: flex; overflow-x: auto; gap: 0; padding: 2px 0 10px;
+      scrollbar-width: none;
+    }
+    .funnel-wrap::-webkit-scrollbar { display: none; }
+    .funnel-step { display: flex; align-items: center; flex-shrink: 0; }
+    .funnel-box {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 10px 12px; text-align: center; min-width: 76px;
+    }
+    .funnel-num { font-size: 22px; font-weight: 800; color: var(--gold); }
+    .funnel-name { font-size: 10px; color: var(--muted); margin-top: 2px; white-space: nowrap; }
+    .funnel-pct { font-size: 9px; color: var(--ok); margin-top: 2px; }
+    .funnel-arr { color: var(--muted); font-size: 14px; padding: 0 3px; flex-shrink: 0; }
+
+    /* ── Orders ── */
+    .orders-list { display: flex; flex-direction: column; gap: 8px; }
+    .order-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 12px 14px;
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
+    }
+    .order-info { flex: 1; min-width: 0; }
+    .order-client { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .order-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .badge {
+      font-size: 10px; font-weight: 700; padding: 3px 9px;
+      border-radius: 20px; white-space: nowrap; flex-shrink: 0;
+    }
+    .badge-new  { background: rgba(59,130,246,.15); color: #60a5fa; }
+    .badge-wip  { background: rgba(16,185,129,.15);  color: #34d399; }
+    .badge-done { background: rgba(245,197,24,.15);  color: var(--gold); }
+    .badge-no   { background: rgba(239,68,68,.15);   color: #f87171; }
+    .badge-gray { background: rgba(100,116,139,.15); color: var(--muted); }
+
+    /* ── Process status ── */
+    .status-list { display: flex; flex-direction: column; gap: 6px; }
+    .status-row {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 14px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .dot-ok   { background: var(--ok);   box-shadow: 0 0 6px var(--ok); }
+    .dot-warn { background: var(--warn); }
+    .dot-err  { background: var(--err);  }
+    .dot-unk  { background: var(--muted); }
+    .status-name { flex: 1; font-size: 13px; }
+    .status-age  { font-size: 11px; color: var(--muted); }
+
+    /* ── Followups ── */
+    .followup-list { display: flex; flex-direction: column; gap: 6px; }
+    .followup-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 14px;
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    }
+    .followup-left { min-width: 0; }
+    .followup-user { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .followup-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .chip {
+      font-size: 10px; font-weight: 600; padding: 2px 8px;
+      border-radius: 12px; flex-shrink: 0; white-space: nowrap;
+    }
+    .chip-noreply    { background: rgba(100,116,139,.15); color: var(--muted); }
+    .chip-interested { background: rgba(245,197,24,.15);  color: var(--gold); }
+    .chip-customer   { background: rgba(16,185,129,.15);  color: var(--ok); }
+    .chip-declined   { background: rgba(239,68,68,.15);   color: #f87171; }
+
+    /* ── Loading skeleton ── */
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+    .skel {
+      background: linear-gradient(90deg, var(--card) 25%, var(--card2) 50%, var(--card) 75%);
+      background-size: 400px 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: var(--r);
+    }
+
+    /* ── Error ── */
+    .err-box {
+      background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.25);
+      border-radius: var(--r); padding: 14px; margin: 14px;
+      font-size: 13px; color: #f87171; line-height: 1.5;
+    }
+    .err-box small { color: var(--muted); display: block; margin-top: 6px; }
+
+    /* ── Offline pill ── */
+    .offline-pill {
+      background: rgba(239,68,68,.15); border: 1px solid rgba(239,68,68,.3);
+      border-radius: 20px; padding: 3px 10px; font-size: 11px; color: #f87171;
+      display: inline-block; margin-left: 8px;
+    }
+
+    /* ── Connection status ── */
+    .conn-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 12px 14px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .conn-dot {
+      width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+    }
+    .conn-dot-ok    { background: var(--ok);   box-shadow: 0 0 8px var(--ok); }
+    .conn-dot-err   { background: var(--err);  box-shadow: 0 0 8px var(--err); animation: pulse-err 1.5s ease infinite; }
+    .conn-dot-unk   { background: var(--muted); }
+    @keyframes pulse-err {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .conn-info { flex: 1; }
+    .conn-label { font-size: 13px; font-weight: 600; }
+    .conn-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .conn-sessions { display: flex; gap: 8px; margin-top: 8px; }
+    .conn-session-chip {
+      font-size: 10px; padding: 2px 8px; border-radius: 10px;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .conn-chip-ok  { background: rgba(16,185,129,.12); color: var(--ok); }
+    .conn-chip-err { background: rgba(239,68,68,.12); color: #f87171; }
+    .conn-chip-unk { background: rgba(100,116,139,.12); color: var(--muted); }
+
+    /* ── Empty state ── */
+    .empty { text-align: center; color: var(--muted); padding: 20px 0; font-size: 13px; }
+
+    /* ── TG Leads button ── */
+    .tg-leads-btn {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 12px 14px; width: 100%;
+      display: flex; align-items: center; gap: 10px;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+      transition: background .15s;
+    }
+    .tg-leads-btn:active { background: var(--card2); }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,.72);
+      display: flex; align-items: flex-end;
+      animation: fadeIn .18s ease;
+    }
+    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    .modal-sheet {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px 20px 0 0; width: 100%; max-width: 480px;
+      margin: 0 auto; padding: 12px 16px 36px;
+      animation: slideUp .22s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(50px); opacity:.5; }
+      to   { transform: translateY(0);    opacity:1; }
+    }
+    .modal-handle {
+      width: 36px; height: 4px; border-radius: 2px;
+      background: var(--border); margin: 0 auto 12px;
+    }
+    .modal-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px;
+    }
+    .modal-title { font-size: 16px; font-weight: 700; color: var(--text); }
+    .modal-close {
+      background: none; border: none; color: var(--muted);
+      font-size: 20px; cursor: pointer; padding: 0 4px; line-height: 1;
+    }
+
+    /* ── Period tabs ── */
+    .period-tabs {
+      display: grid; grid-template-columns: repeat(4,1fr); gap: 6px;
+      margin-bottom: 18px;
+    }
+    .period-tab {
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--muted);
+      padding: 8px 4px; font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all .15s;
+    }
+    .period-tab.active {
+      background: rgba(245,197,24,.1); border-color: rgba(245,197,24,.35);
+      color: var(--gold);
+    }
+
+    /* ── TG Funnel in modal ── */
+    .tg-funnel-list { display: flex; flex-direction: column; gap: 14px; }
+    .tg-funnel-item-header {
+      display: flex; justify-content: space-between; margin-bottom: 6px;
+    }
+    .tg-funnel-item-label { font-size: 12px; color: var(--muted); }
+    .tg-funnel-item-conv  { font-size: 11px; color: var(--ok); font-weight: 600; }
+    .tg-funnel-bar-track  {
+      background: var(--card2); border-radius: 8px; height: 44px; overflow: hidden;
+    }
+    .tg-funnel-bar-fill {
+      height: 100%; border-radius: 8px; min-width: 44px;
+      display: flex; align-items: center; padding-left: 14px;
+      transition: width .35s ease;
+    }
+    .tg-funnel-bar-num { font-size: 20px; font-weight: 800; color: #fff; }
+    .tg-earned-row {
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 14px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .tg-earned-label { font-size: 13px; color: var(--muted); }
+    .tg-earned-val { font-size: 22px; font-weight: 800; color: var(--ok); }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useCallback } = React;
+
+// ── Config ───────────────────────────────────────────────────────────────────
+const SHEET_ID    = '1egw7DYnajhLfGcpxqHcjSvN_-WXDDkUZDVvKUFZyrWs';
+const REFRESH_MS  = 5 * 60 * 1000;  // 5 min
+
+// ── Google Sheets gviz parser ─────────────────────────────────────────────────
+function parseGviz(text) {
+  try {
+    const m = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)\s*;?\s*$/);
+    if (!m) throw new Error('No gviz wrapper');
+    const obj = JSON.parse(m[1]);
+    if (!obj.table) return [];
+    const { cols, rows } = obj.table;
+    const headers = cols.map(c => c.label || c.id || '');
+    return (rows || []).map(row =>
+      Object.fromEntries((row.c || []).map((cell, i) => [headers[i], cell?.v ?? null]))
+    );
+  } catch (e) {
+    console.error('[parseGviz]', e.message);
+    return [];
+  }
+}
+
+async function fetchSheet(sheetName) {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} для листа «${sheetName}»`);
+  return parseGviz(await resp.text());
+}
+
+// ── Data processing ───────────────────────────────────────────────────────────
+function processRows(rows) {
+  const kpi      = {};
+  const funnel   = [];
+  const status   = [];
+  const followups = [];
+  const orders   = [];
+  const tgFunnel = {};  // { day: {sent,leads,paid,earned}, week: {…}, … }
+  const connection = { status: 'unknown', lastCheck: null, sessions: {} };
+
+  for (const row of rows) {
+    if (!row.key) continue;
+    const section = row.section;
+    if (section === 'KPI')     kpi[row.key]    = row.value;
+    if (section === 'Funnel')  funnel.push({ key: row.key, n: Number(row.value) || 0, label: row.label });
+    if (section === 'Status')  status.push({ key: row.key, val: row.value || '', label: row.label });
+    if (section === 'Followup') {
+      try { followups.push(JSON.parse(row.value)); } catch { followups.push({ user: row.label }); }
+    }
+    if (section === 'Order') {
+      try { orders.push(JSON.parse(row.value)); } catch { /* skip */ }
+    }
+    if (section === 'TGFunnel') {
+      const m = (row.key || '').match(/^tg_funnel_(day|week|month|year)_(sent|leads|paid|earned)$/);
+      if (m) {
+        const [, period, metric] = m;
+        if (!tgFunnel[period]) tgFunnel[period] = {};
+        tgFunnel[period][metric] = Number(row.value) || 0;
+      }
+    }
+    if (section === 'Connection') {
+      if (row.key === 'conn_status')     connection.status    = row.value;
+      else if (row.key === 'conn_last_check') connection.lastCheck = row.value;
+      else if (row.key?.startsWith('conn_')) {
+        const sessName = row.label || row.key.replace('conn_', '');
+        connection.sessions[sessName] = row.value;
+      }
+    }
+  }
+  return { kpi, funnel, status, followups, orders, tgFunnel, connection };
+}
+
+// ── Status helpers ────────────────────────────────────────────────────────────
+function dotClass(val) {
+  if (!val || val === 'missing' || val.startsWith('stale')) return 'dot-warn';
+  if (val.startsWith('ok')) return 'dot-ok';
+  return 'dot-unk';
+}
+
+function orderBadge(status) {
+  const s = (status || '').toLowerCase();
+  if (s.includes('нов') || s === 'new')  return ['badge-new',  status];
+  if (s.includes('работ') || s === 'wip') return ['badge-wip', status];
+  if (s.includes('подтверж') || s.includes('confirm') || s.includes('готов'))
+    return ['badge-done', status];
+  if (s.includes('отказ') || s === 'declined') return ['badge-no', status];
+  return ['badge-gray', status || '—'];
+}
+
+function convChip(status) {
+  const s = (status || '').toLowerCase();
+  if (s === 'customer') return ['chip-customer', 'Клиент 🎉'];
+  if (s === 'interested') return ['chip-interested', 'Интерес'];
+  if (s === 'no_reply') return ['chip-noreply', 'Без ответа'];
+  if (s === 'declined') return ['chip-declined', 'Отказ'];
+  return ['chip-noreply', s || '—'];
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+  } catch { return iso.slice(0, 10); }
+}
+
+// ── Components ────────────────────────────────────────────────────────────────
+
+function ConnectionStatus({ connection }) {
+  const st = connection.status || 'unknown';
+  const dotCls = st === 'ok' ? 'conn-dot-ok' : st === 'error' ? 'conn-dot-err' : 'conn-dot-unk';
+  const label  = st === 'ok' ? 'Подключено' : st === 'error' ? 'Соединение потеряно' : 'Нет данных';
+  const labelColor = st === 'ok' ? 'var(--ok)' : st === 'error' ? '#f87171' : 'var(--muted)';
+
+  const lastCheck = connection.lastCheck;
+  let timeAgo = '';
+  if (lastCheck && lastCheck !== '—') {
+    try {
+      const d = new Date(lastCheck);
+      const mins = Math.round((Date.now() - d.getTime()) / 60000);
+      if (mins < 1) timeAgo = 'только что';
+      else if (mins < 60) timeAgo = mins + ' мин назад';
+      else if (mins < 1440) timeAgo = Math.round(mins / 60) + ' ч назад';
+      else timeAgo = Math.round(mins / 1440) + ' д назад';
+    } catch { timeAgo = lastCheck; }
+  }
+
+  const sessions = Object.entries(connection.sessions || {});
+
+  return (
+    <div className="section">
+      <div className="section-title">Telegram соединение</div>
+      <div className="conn-card">
+        <div className={`conn-dot ${dotCls}`} />
+        <div className="conn-info">
+          <div className="conn-label" style={{color: labelColor}}>{label}</div>
+          {timeAgo && <div className="conn-sub">Проверено: {timeAgo}</div>}
+          {sessions.length > 0 && (
+            <div className="conn-sessions">
+              {sessions.map(([name, s]) => {
+                const chipCls = s === 'ok' ? 'conn-chip-ok' : s === 'error' ? 'conn-chip-err' : 'conn-chip-unk';
+                const icon = s === 'ok' ? '✓' : s === 'error' ? '✕' : '?';
+                return (
+                  <span key={name} className={`conn-session-chip ${chipCls}`}>
+                    {icon} {name.replace('tg_session', 'main').replace('_fwd17', ' fwd')}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KPISection({ kpi }) {
+  const channels = [
+    { key: 'tg_active', emoji: '✈️', label: 'TG лиды' },
+    { key: 'vk_active', emoji: '🌐', label: 'VK лиды' },
+    { key: 'ig_total',  emoji: '📸', label: 'IG пул' },
+  ];
+  const secondary = [
+    { key: 'new_week',   label: 'За неделю' },
+    { key: 'conversion', label: 'Конверсия %' },
+    { key: 'customers',  label: 'Клиентов' },
+  ];
+
+  return (
+    <div className="section">
+      <div className="section-title">Лиды по каналам</div>
+      <div className="kpi-grid">
+        {channels.map(c => (
+          <div key={c.key} className="kpi-card">
+            <div className="kpi-emoji">{c.emoji}</div>
+            <div className="kpi-val">{kpi[c.key] ?? '—'}</div>
+            <div className="kpi-lbl">{c.label}</div>
+          </div>
+        ))}
+      </div>
+      <div className="kpi-row">
+        {secondary.map(c => (
+          <div key={c.key} className="kpi-mini">
+            <div className="kpi-mini-val"
+              style={{ color: c.key === 'customers' ? 'var(--ok)' : 'var(--text)' }}>
+              {kpi[c.key] ?? '—'}{c.key === 'conversion' && kpi[c.key] ? '%' : ''}
+            </div>
+            <div className="kpi-mini-lbl">{c.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FunnelSection({ funnel }) {
+  if (!funnel.length) return null;
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">Воронка (TG)</div>
+      <div className="funnel-wrap">
+        {funnel.map((step, i) => {
+          const prev = funnel[i - 1];
+          const pct  = prev && prev.n > 0 ? Math.round(step.n / prev.n * 100) + '%' : null;
+          return (
+            <div key={step.key} className="funnel-step">
+              {i > 0 && <span className="funnel-arr">›</span>}
+              <div className="funnel-box">
+                <div className="funnel-num">{step.n}</div>
+                <div className="funnel-name">{step.label}</div>
+                {pct && <div className="funnel-pct">{pct}</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function OrdersSection({ orders }) {
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">Ближайшие заказы</div>
+      {!orders.length ? (
+        <div className="empty">Нет данных — запусти sync_dashboard_data.py</div>
+      ) : (
+        <div className="orders-list">
+          {orders.map((o, i) => {
+            const [cls, txt] = orderBadge(o.status);
+            return (
+              <div key={i} className="order-card">
+                <div className="order-info">
+                  <div className="order-client">{o.client || '—'}</div>
+                  <div className="order-meta">
+                    {o.date_event && <span>📅 {o.date_event}</span>}
+                    {o.location   && <span style={{marginLeft:8}}>📍 {o.location}</span>}
+                  </div>
+                </div>
+                <span className={`badge ${cls}`}>{txt || '?'}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatusSection({ status }) {
+  if (!status.length) return null;
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">Статус процессов</div>
+      <div className="status-list">
+        {status.map(s => (
+          <div key={s.key} className="status-row">
+            <span className={`dot ${dotClass(s.val)}`} />
+            <span className="status-name">{s.label}</span>
+            <span className="status-age">{s.val}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FollowupsSection({ followups }) {
+  if (!followups.length) return null;
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">Последние фолоу-апы</div>
+      <div className="followup-list">
+        {followups.map((f, i) => {
+          const [cls, label] = convChip(f.status);
+          return (
+            <div key={i} className="followup-card">
+              <div className="followup-left">
+                <div className="followup-user">@{f.user}</div>
+                <div className="followup-date">
+                  {f.channel && <span style={{color:'var(--gold)', marginRight:4}}>{f.channel}</span>}
+                  {fmtDate(f.date)}
+                  {f.count > 1 && <span style={{color:'var(--muted)',marginLeft:4}}>×{f.count}</span>}
+                </div>
+              </div>
+              <span className={`chip ${cls}`}>{label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TGLeadsButton({ onClick, tgWeek }) {
+  const sent  = tgWeek?.sent  ?? null;
+  const leads = tgWeek?.leads ?? null;
+  const sub   = sent !== null
+    ? `за неделю: ${sent} отправлено · ${leads} лидов`
+    : 'воронка по периодам';
+  return (
+    <button className="tg-leads-btn" onClick={onClick}>
+      <span style={{fontSize:20}}>📊</span>
+      <div style={{flex:1, textAlign:'left'}}>
+        <div style={{fontSize:14, fontWeight:600, color:'var(--text)'}}>TG лиды</div>
+        <div style={{fontSize:11, color:'var(--muted)', marginTop:2}}>{sub}</div>
+      </div>
+      <span style={{color:'var(--muted)', fontSize:18}}>›</span>
+    </button>
+  );
+}
+
+function TGFunnelModal({ tgFunnel, onClose }) {
+  const [period, setPeriod] = useState('week');
+  const periods = [
+    { key: 'day',   label: 'День' },
+    { key: 'week',  label: 'Неделя' },
+    { key: 'month', label: 'Месяц' },
+    { key: 'year',  label: 'Год' },
+  ];
+  const cur    = tgFunnel[period] || { sent: 0, leads: 0, paid: 0, earned: 0 };
+  const maxVal = Math.max(cur.sent || 1, 1);
+  const steps  = [
+    { key: 'sent',  label: 'Отправлено ответов',  val: cur.sent,  color: '#3b82f6' },
+    { key: 'leads', label: 'Лиды (Customer TG)',  val: cur.leads, color: '#f5c518' },
+    { key: 'paid',  label: 'Оплатили',            val: cur.paid,  color: '#10b981' },
+  ];
+  const hasData = Object.keys(tgFunnel).length > 0;
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+        <div className="modal-handle" />
+        <div className="modal-header">
+          <div className="modal-title">TG Воронка</div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="period-tabs">
+          {periods.map(p => (
+            <button
+              key={p.key}
+              className={'period-tab' + (period === p.key ? ' active' : '')}
+              onClick={() => setPeriod(p.key)}
+            >{p.label}</button>
+          ))}
+        </div>
+        <div className="tg-funnel-list">
+          {steps.map((step, i) => {
+            const prev = steps[i - 1];
+            const conv = prev && prev.val > 0
+              ? Math.round(step.val / prev.val * 100) + '%'
+              : null;
+            const barW = Math.max(8, Math.round(step.val / maxVal * 100));
+            return (
+              <div key={step.key} className="tg-funnel-item">
+                <div className="tg-funnel-item-header">
+                  <span className="tg-funnel-item-label">{step.label}</span>
+                  {conv && i > 0 && <span className="tg-funnel-item-conv">{conv}</span>}
+                </div>
+                <div className="tg-funnel-bar-track">
+                  <div
+                    className="tg-funnel-bar-fill"
+                    style={{ width: barW + '%', background: step.color }}
+                  >
+                    <span className="tg-funnel-bar-num">{step.val}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          <div className="tg-earned-row">
+            <span className="tg-earned-label">Заработано</span>
+            <span className="tg-earned-val">
+              {cur.earned > 0 ? cur.earned.toLocaleString('ru-RU') + '\u00a0₽' : '—'}
+            </span>
+          </div>
+        </div>
+        {!hasData && (
+          <div style={{marginTop:14, fontSize:11, color:'var(--muted)', textAlign:'center'}}>
+            Запустите sync_dashboard_data.py для обновления данных
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SkeletonCards() {
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:8 }}>
+        {[0,1,2].map(i => <div key={i} className="skel" style={{ height:80 }} />)}
+      </div>
+      <div className="skel" style={{ height:50, marginBottom:8 }} />
+      <div className="skel" style={{ height:100 }} />
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────────
+function App() {
+  const [rows,      setRows]      = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [refreshing,setRefreshing]= useState(false);
+  const [error,     setError]     = useState(null);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [offline,   setOffline]   = useState(!navigator.onLine);
+  const [showTGModal, setShowTGModal] = useState(false);
+
+  useEffect(() => {
+    const on  = () => setOffline(false);
+    const off = () => setOffline(true);
+    window.addEventListener('online',  on);
+    window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
+
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    try {
+      const data = await fetchSheet('Dashboard');
+      setRows(data);
+      setError(null);
+      setUpdatedAt(new Date());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const t = setInterval(() => load(true), REFRESH_MS);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const data = useMemo(() => rows ? processRows(rows) : null, [rows]);
+
+  const timeStr = updatedAt
+    ? updatedAt.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' })
+    : null;
+
+  return (
+    <div className="app">
+      {/* Header */}
+      <div className="header">
+        <div className="header-row">
+          <div className="header-brand">
+            <span className="header-note">🎶</span>
+            <div>
+              <div className="header-title">
+                LCB Dashboard
+                {offline && <span className="offline-pill">offline</span>}
+              </div>
+              {timeStr && <div className="header-sub">Обновлено: {timeStr}</div>}
+            </div>
+          </div>
+          <button
+            className="refresh-btn"
+            onClick={() => load(true)}
+            disabled={refreshing}
+          >
+            <span className={refreshing ? 'spin' : ''}>↻</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="err-box">
+          ⚠️ {error}
+          <small>
+            Убедитесь что Google Sheets доступна публично.<br/>
+            Запустите: <code>python3 sync_dashboard_data.py</code>
+          </small>
+        </div>
+      )}
+
+      {/* Loading skeleton */}
+      {loading && !rows && <SkeletonCards />}
+
+      {/* Content */}
+      {data && (
+        <>
+          <ConnectionStatus connection={data.connection} />
+          <KPISection    kpi={data.kpi}           />
+          <div className="section" style={{ marginTop: 8 }}>
+            <TGLeadsButton
+              onClick={() => setShowTGModal(true)}
+              tgWeek={data.tgFunnel?.week}
+            />
+          </div>
+          <FunnelSection funnel={data.funnel}      />
+          <OrdersSection orders={data.orders}      />
+          <StatusSection status={data.status}      />
+          <FollowupsSection followups={data.followups} />
+          {showTGModal && (
+            <TGFunnelModal
+              tgFunnel={data.tgFunnel || {}}
+              onClose={() => setShowTGModal(false)}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+
+<script>
+// Service Worker registration
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(r => console.log('[SW] registered', r.scope))
+      .catch(e => console.log('[SW] failed', e));
+  });
+}
+</script>
+</body>
+</html>
