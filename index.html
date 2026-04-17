@@ -215,6 +215,23 @@
     .conn-chip-err { background: rgba(239,68,68,.12); color: #f87171; }
     .conn-chip-unk { background: rgba(100,116,139,.12); color: var(--muted); }
 
+    /* ── Action buttons ── */
+    .action-btns { display: flex; gap: 8px; margin: 4px 16px 0; }
+    .action-btn {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 10px 8px;
+      color: var(--text); font-size: 12px; font-weight: 600;
+      text-decoration: none; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background .15s;
+    }
+    .action-btn:active { background: var(--card2); }
+    .action-btn-restart { border-color: rgba(16,185,129,.3); }
+    .action-btn-restart:active { background: rgba(16,185,129,.08); }
+    .action-btn-status { border-color: rgba(59,130,246,.3); }
+    .action-btn-status:active { background: rgba(59,130,246,.08); }
+
     /* ── Empty state ── */
     .empty { text-align: center; color: var(--muted); padding: 20px 0; font-size: 13px; }
 
@@ -462,6 +479,28 @@ function ConnectionStatus({ connection }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ActionButtons() {
+  return (
+    <div className="action-btns">
+      <a href="https://t.me/lcband_notify_bot?text=/restart"
+         className="action-btn action-btn-restart"
+         target="_blank" rel="noopener">
+        🔄 Перезапуск
+      </a>
+      <a href="https://t.me/lcband_notify_bot?text=/status"
+         className="action-btn action-btn-status"
+         target="_blank" rel="noopener">
+        📊 Статус
+      </a>
+      <a href="https://t.me/lcband_notify_bot?text=/help"
+         className="action-btn"
+         target="_blank" rel="noopener">
+        ❓ Команды
+      </a>
     </div>
   );
 }
@@ -796,6 +835,7 @@ function App() {
       {data && (
         <>
           <ConnectionStatus connection={data.connection} />
+          <ActionButtons />
           <KPISection    kpi={data.kpi}           />
           <div className="section" style={{ marginTop: 8 }}>
             <TGLeadsButton
