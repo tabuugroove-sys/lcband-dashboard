@@ -137,7 +137,6 @@
     .dot-ok   { background: var(--ok);   box-shadow: 0 0 6px var(--ok); }
     .dot-warn { background: var(--warn); }
     .dot-err  { background: var(--err);  }
-    .dot-blue { background: var(--blue); box-shadow: 0 0 6px var(--blue); }
     .dot-unk  { background: var(--muted); }
     .status-name { flex: 1; font-size: 13px; }
     .status-age  { font-size: 11px; color: var(--muted); }
@@ -426,7 +425,6 @@ function dotClass(val) {
   if (!val || val === 'missing' || val.startsWith('stale')) return 'dot-warn';
   if (val.startsWith('error')) return 'dot-err';
   if (val.startsWith('ok')) return 'dot-ok';
-  if (val === 'manual') return 'dot-blue';
   return 'dot-unk';
 }
 
@@ -595,17 +593,6 @@ const PROCESS_RULES = {
       'Запись в таб Dashboard Google Sheet',
       'Чтение заказов и followup-ов',
       'Если этот процесс стоит — дашборд не обновляется',
-    ],
-  },
-  proc_tg_browser: {
-    name: 'TG Браузер-мониторинг',
-    interval: 'Вручную',
-    desc: 'Ручной мониторинг чатов через web.telegram.org (аккаунт MichaelDeLano)',
-    rules: [
-      'Используется пока API-сессии заблокированы',
-      'Открывает Telegram Web в браузере',
-      'Сканирование групповых чатов на заявки (кавер/драм-шоу)',
-      'Аккаунт: @MichaelDeLano (+971 50 277 6169)',
     ],
   },
 };
@@ -833,15 +820,7 @@ function StatusSection({ status, onProcessClick }) {
               <span className="status-name">{s.label}</span>
               <span className="status-age">{s.val}</span>
               {hasRules && <span style={{color:'var(--muted)',fontSize:14,marginLeft:2}}>›</span>}
-              {s.key === 'proc_tg_browser' && (
-                <button onClick={e => { e.stopPropagation(); window.open('https://web.telegram.org/a/', '_blank'); }}
-                  style={{
-                    marginLeft:8, background:'rgba(245,197,24,.12)', border:'1px solid rgba(245,197,24,.3)',
-                    borderRadius:6, color:'var(--gold)', padding:'3px 10px', fontSize:11,
-                    cursor:'pointer', fontWeight:600,
-                  }}>▶ Открыть TG</button>
-              )}
-              {s.reason && (
+{s.reason && (
                 <div style={{width:'100%',paddingLeft:20,marginTop:2,fontSize:11,color:'#f87171'}}>{s.reason}</div>
               )}
               {s.action && (
