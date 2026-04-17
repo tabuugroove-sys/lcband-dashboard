@@ -903,8 +903,11 @@ function ScanStatus({ scan }) {
               <div key={i} className="scan-result-item">
                 <span style={{color:'var(--gold)',marginRight:6}}>•</span>
                 <strong>{r.who || '—'}</strong> — {r.what || '—'}
-                {r.date && <span style={{color:'var(--muted)',marginLeft:6}}>📅 {r.date}</span>}
-                {r.chat && <span style={{color:'var(--muted)',marginLeft:6}}>💬 {r.chat}</span>}
+                {r.event_date && <span style={{color:'var(--gold)',marginLeft:6}}>📅 {r.event_date}</span>}
+                {r.post_date && <span style={{color:'var(--muted)',marginLeft:6}}>✉ {r.post_date}</span>}
+                {r.budget && r.budget !== 'не указан' && <span style={{color:'var(--ok)',marginLeft:6}}>💰 {r.budget}</span>}
+                {r.note && <span style={{color:'#f87171',marginLeft:6,fontSize:10}}>⚠ {r.note}</span>}
+                <div style={{color:'var(--muted)',fontSize:10,marginTop:2}}>💬 {r.chat || '—'}</div>
               </div>
             ))}
           </div>
