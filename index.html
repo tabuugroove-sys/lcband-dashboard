@@ -922,15 +922,44 @@ function ScanStatus({ scan }) {
             </div>
             {scan.results.map((r, i) => {
               // Build a Telegram Web link that opens the chat directly.
-              // Priority: explicit post_link > @username (via contact or link) > none.
+              // Priority: explicit post_link > @username (contact/link) > chat-source @username > source chat name map.
+              const chatNameMap = {
+                'Event Family': 'EventFamily',
+                'EventFamily': 'EventFamily',
+                'Event Russia': 'Event_Russian',
+                'Event_Russian': 'Event_Russian',
+                'Event Area': 'event_area',
+                'event_area': 'event_area',
+                'Event People': 'eventori',
+                'eventori': 'eventori',
+                'Event hunter': 'mskeventjob',
+                'mskeventjob': 'mskeventjob',
+                'myeventhunter': 'myeventhunter',
+                'Bigfinger': 'bigfingerchat',
+                'bigfingerchat': 'bigfingerchat',
+                'eventchatrussia': 'eventchatrussia',
+                'Event Мероприятия': 'eventchatrussia',
+              };
               const unameMatch = (r.contact || '').match(/@([A-Za-z0-9_]+)/)
-                || (r.link || '').match(/t\.me\/([A-Za-z0-9_]+)/);
-              const uname = unameMatch && unameMatch[1];
+                || (r.link || '').match(/t\.me\/([A-Za-z0-9_]+)/)
+                || (r.chat || '').match(/@([A-Za-z0-9_]+)/);
+              let uname = unameMatch && unameMatch[1];
+              // Fallback: use chat-name map when contact is "в ЛС" and link empty
+              if (!uname && r.chat) {
+                for (const [k, v] of Object.entries(chatNameMap)) {
+                  if (r.chat.toLowerCase().includes(k.toLowerCase())) { uname = v; break; }
+                }
+              }
               const tgLink = r.post_link
                 ? r.post_link.replace(/^https?:\/\/t\.me\//, 'https://web.telegram.org/a/#')
                 : uname
                   ? `https://web.telegram.org/a/#@${uname}`
                   : null;
+              // If we fell back to source chat, adjust label
+              const contactIsDM = (r.contact || '').trim() === 'в ЛС';
+              const linkLabel = contactIsDM && uname && !unameMatch
+                ? `→ чат @${uname}`
+                : null;
               return (
               <div key={i} className="scan-result-item"
                 onClick={() => tgLink && window.open(tgLink, '_blank')}
@@ -943,6 +972,7 @@ function ScanStatus({ scan }) {
                       : <strong>{r.who || '—'}</strong>
                     }
                     {r.contact && <span style={{color:'var(--muted)',fontSize:10,marginLeft:4}}>{r.contact}</span>}
+                    {linkLabel && <span style={{color:'var(--blue)',fontSize:10,marginLeft:6}}>{linkLabel}</span>}
                   </div>
                   {r.note && <span style={{color:'#f87171',fontSize:9,fontWeight:700,flexShrink:0}}>⚠ {r.note}</span>}
                 </div>
