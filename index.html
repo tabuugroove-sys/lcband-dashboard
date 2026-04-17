@@ -423,6 +423,7 @@ function processRows(rows) {
 // ── Status helpers ────────────────────────────────────────────────────────────
 function dotClass(val) {
   if (!val || val === 'missing' || val.startsWith('stale')) return 'dot-warn';
+  if (val.startsWith('error')) return 'dot-err';
   if (val.startsWith('ok')) return 'dot-ok';
   return 'dot-unk';
 }
