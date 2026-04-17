@@ -543,6 +543,58 @@ const PROCESS_RULES = {
       'Макс. 15 отправок за запуск (safety cap)',
     ],
   },
+  proc_tg_responder: {
+    name: 'TG Ответчик',
+    interval: 'Каждые 2 часа',
+    desc: 'Отвечает на входящие сообщения в Telegram от лидов',
+    rules: [
+      'Классифицирует входящие через AI (цена, дата, интерес)',
+      'Автоответ по базе знаний LC Band',
+      'Пропускает спам и нецелевые сообщения',
+      'Сохраняет категорию ответа в state',
+    ],
+  },
+  proc_bot_commander: {
+    name: 'Бот-командер',
+    interval: 'Постоянно (long-polling)',
+    desc: 'Слушает команды в @lcband_notify_bot и выполняет действия',
+    rules: [
+      'Long-polling через Telegram Bot API',
+      'Команды: /restart, /status, /help',
+      'Управление процессами через бот',
+    ],
+  },
+  proc_sheets_monitor: {
+    name: 'Монитор таблиц',
+    interval: 'Каждые 25 мин',
+    desc: 'Проверяет свежесть данных в Google Sheet «Чаты Отчеты»',
+    rules: [
+      'Проверяет timestamps в строках VK (20-27)',
+      'Если данные старше 25 мин — TG-алерт',
+      'Результат записывается в monitor_results.json',
+    ],
+  },
+  proc_verify_posts: {
+    name: 'Сверка постов',
+    interval: 'Ежедневно (23:55)',
+    desc: 'Считает реальное кол-во сообщений за сутки и записывает в Sheet',
+    rules: [
+      'Запуск раз в сутки в 23:55 MSK',
+      'Подсчёт без лимита 200 (полная сверка)',
+      'Результат в колонку E таблицы «Чаты Отчеты»',
+    ],
+  },
+  proc_dashboard_sync: {
+    name: 'Dashboard Sync',
+    interval: 'Каждые 5 мин',
+    desc: 'Собирает данные из всех state-файлов и пишет в Google Sheet для дашборда',
+    rules: [
+      'Агрегация KPI, воронки, статусов процессов',
+      'Запись в таб Dashboard Google Sheet',
+      'Чтение заказов и followup-ов',
+      'Если этот процесс стоит — дашборд не обновляется',
+    ],
+  },
 };
 
 function ProcessRulesModal({ processKey, onClose }) {
