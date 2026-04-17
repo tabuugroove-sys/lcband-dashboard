@@ -792,7 +792,8 @@ function FollowupsSection({ followups }) {
           return (
             <div key={i} className="followup-card">
               <div className="followup-left">
-                <div className="followup-user">@{f.user}</div>
+                <a className="followup-user" href={`https://t.me/${f.user}`} target="_blank" rel="noopener"
+                   style={{color:'var(--text)',textDecoration:'none'}}>@{f.user}</a>
                 <div className="followup-date">
                   {f.channel && <span style={{color:'var(--gold)', marginRight:4}}>{f.channel}</span>}
                   {fmtDate(f.date)}
