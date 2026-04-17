@@ -900,14 +900,27 @@ function ScanStatus({ scan }) {
               Найдено заявок: {scan.results.length}
             </div>
             {scan.results.map((r, i) => (
-              <div key={i} className="scan-result-item">
-                <span style={{color:'var(--gold)',marginRight:6}}>•</span>
-                <strong>{r.who || '—'}</strong> — {r.what || '—'}
-                {r.event_date && <span style={{color:'var(--gold)',marginLeft:6}}>📅 {r.event_date}</span>}
-                {r.post_date && <span style={{color:'var(--muted)',marginLeft:6}}>✉ {r.post_date}</span>}
-                {r.budget && r.budget !== 'не указан' && <span style={{color:'var(--ok)',marginLeft:6}}>💰 {r.budget}</span>}
-                {r.note && <span style={{color:'#f87171',marginLeft:6,fontSize:10}}>⚠ {r.note}</span>}
-                <div style={{color:'var(--muted)',fontSize:10,marginTop:2}}>💬 {r.chat || '—'}</div>
+              <div key={i} className="scan-result-item"
+                onClick={() => r.link && window.open(r.link, '_blank')}
+                style={{cursor: r.link ? 'pointer' : 'default'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                  <div>
+                    <span style={{color:'var(--gold)',marginRight:6}}>•</span>
+                    {r.link
+                      ? <a href={r.link} target="_blank" rel="noopener" style={{color:'var(--blue)',textDecoration:'none',fontWeight:700}}>{r.who || '—'}</a>
+                      : <strong>{r.who || '—'}</strong>
+                    }
+                    {r.contact && r.link && <span style={{color:'var(--muted)',fontSize:10,marginLeft:4}}>{r.contact}</span>}
+                  </div>
+                  {r.note && <span style={{color:'#f87171',fontSize:9,fontWeight:700,flexShrink:0}}>⚠ {r.note}</span>}
+                </div>
+                <div style={{marginTop:2}}>{r.what || '—'}</div>
+                <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:4,fontSize:10,color:'var(--muted)'}}>
+                  {r.event_date && <span>📅 Событие: {r.event_date}</span>}
+                  {r.post_date && <span>✉ Пост: {r.post_date}</span>}
+                  {r.budget && r.budget !== 'не указан' && <span style={{color:'var(--ok)'}}>💰 {r.budget}</span>}
+                  <span>💬 {r.chat || '—'}</span>
+                </div>
               </div>
             ))}
           </div>
