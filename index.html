@@ -398,6 +398,10 @@ function processRows(rows) {
   const status   = [];
   const followups = [];
   const orders   = [];
+  const refused  = { total: 0, recent: [] };
+  const attention = { total: 0, requires_user: 0, today: 0, overdue: 0, items: [] };
+  const refusalCategories = {};  // { low_budget: 15, format_mismatch: 1, ... }
+  const channels = {};  // { TG: 91, VK: 5, ... }
   const tgFunnel = {};  // { day: {sent,leads,paid,earned}, week: {…}, … }
   const connection = { status: 'unknown', lastCheck: null, sessions: {} };
   const scan = { status: 'idle', progress: 0, message: '', results: [], chatsChecked: [], updated: '' };
@@ -416,6 +420,31 @@ function processRows(rows) {
     }
     if (section === 'Order') {
       try { orders.push(JSON.parse(row.value)); } catch { /* skip */ }
+    }
+    if (section === 'Refused') {
+      if (row.key === 'refused_total') {
+        refused.total = Number(row.value) || 0;
+        kpi.refused_total = row.value;  // продублировать в KPI — для мини-плитки
+      } else if (row.key?.startsWith('refused_')) {
+        try { refused.recent.push(JSON.parse(row.value)); } catch { /* skip */ }
+      }
+    }
+    if (section === 'Attention') {
+      if (row.key === 'attention_total')    attention.total = Number(row.value) || 0;
+      if (row.key === 'attention_user')     attention.requires_user = Number(row.value) || 0;
+      if (row.key === 'attention_today')    attention.today = Number(row.value) || 0;
+      if (row.key === 'attention_overdue')  attention.overdue = Number(row.value) || 0;
+      if (row.key?.match(/^attention_\d+$/)) {
+        try { attention.items.push(JSON.parse(row.value)); } catch { /* skip */ }
+      }
+    }
+    if (section === 'RefusalCategory' && row.key?.startsWith('refcat_')) {
+      const cat = row.key.replace('refcat_', '');
+      refusalCategories[cat] = Number(row.value) || 0;
+    }
+    if (section === 'Channel' && row.key?.startsWith('channel_')) {
+      const ch = row.key.replace('channel_', '');
+      channels[ch] = Number(row.value) || 0;
     }
     if (section === 'TGFunnel') {
       const m = (row.key || '').match(/^tg_funnel_(day|week|month|year)_(sent|leads|paid|earned)$/);
@@ -453,7 +482,7 @@ function processRows(rows) {
       }
     }
   }
-  return { kpi, funnel, status, followups, orders, tgFunnel, connection, scan };
+  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, scan };
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -683,7 +712,12 @@ function ConnectionStatus({ connection }) {
     } catch { timeAgo = lastCheck; }
   }
 
-  const sessions = Object.entries(connection.sessions || {});
+  // Аккаунт показываем ОДИН раз: берём из connection.reason (общий) либо из
+  // первого session reason. Цвет — синий при ok, красный при error.
+  const sessionReasons = connection.sessionReasons || {};
+  const firstSessionReason = Object.values(sessionReasons).find(Boolean) || '';
+  const accountInfo = connection.reason || firstSessionReason;
+  const accountColor = st === 'ok' ? '#60a5fa' : '#f87171';
 
   return (
     <div className="section">
@@ -692,25 +726,12 @@ function ConnectionStatus({ connection }) {
         <div className={`conn-dot ${dotCls}`} />
         <div className="conn-info">
           <div className="conn-label" style={{color: labelColor}}>{label}</div>
-          {connection.reason && <div style={{fontSize:11,color:'#f87171',marginTop:2}}>{connection.reason}</div>}
-          {timeAgo && <div className="conn-sub">Проверено: {timeAgo}</div>}
-          {sessions.length > 0 && (
-            <div className="conn-sessions">
-              {sessions.map(([name, s]) => {
-                const chipCls = s === 'ok' ? 'conn-chip-ok' : s === 'error' ? 'conn-chip-err' : 'conn-chip-unk';
-                const icon = s === 'ok' ? '✓' : s === 'error' ? '✕' : '?';
-                const reason = (connection.sessionReasons || {})[name];
-                return (
-                  <div key={name} style={{display:'inline-block'}}>
-                    <span className={`conn-session-chip ${chipCls}`}>
-                      {icon} {name.replace('tg_session', 'main').replace('_fwd17', ' fwd')}
-                    </span>
-                    {reason && <div style={{fontSize:10,color:'#f87171',marginTop:1,paddingLeft:4}}>{reason}</div>}
-                  </div>
-                );
-              })}
+          {accountInfo && (
+            <div style={{fontSize:12,color:accountColor,marginTop:2,fontWeight:500}}>
+              {accountInfo}
             </div>
           )}
+          {timeAgo && <div className="conn-sub">Проверено: {timeAgo}</div>}
         </div>
       </div>
     </div>
@@ -746,9 +767,10 @@ function KPISection({ kpi }) {
     { key: 'ig_total',  emoji: '📸', label: 'IG пул' },
   ];
   const secondary = [
-    { key: 'new_week',   label: 'За неделю' },
-    { key: 'conversion', label: 'Конверсия %' },
-    { key: 'customers',  label: 'Клиентов' },
+    { key: 'new_week',      label: 'За неделю' },
+    { key: 'conversion',    label: 'Конверсия %' },
+    { key: 'customers',     label: 'Клиентов' },
+    { key: 'refused_total', label: 'Отказов' },
   ];
 
   return (
@@ -767,7 +789,9 @@ function KPISection({ kpi }) {
         {secondary.map(c => (
           <div key={c.key} className="kpi-mini">
             <div className="kpi-mini-val"
-              style={{ color: c.key === 'customers' ? 'var(--ok)' : 'var(--text)' }}>
+              style={{ color: c.key === 'customers' ? 'var(--ok)'
+                            : c.key === 'refused_total' ? '#f87171'
+                            : 'var(--text)' }}>
               {kpi[c.key] ?? '—'}{c.key === 'conversion' && kpi[c.key] ? '%' : ''}
             </div>
             <div className="kpi-mini-lbl">{c.label}</div>
@@ -831,6 +855,54 @@ function OrdersSection({ orders }) {
                   </div>
                 </div>
                 <span className={`badge ${cls}`}>{txt || '?'}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RefusedSection({ refused }) {
+  const [expanded, setExpanded] = React.useState(false);
+  if (!refused || !refused.total) return null;
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title"
+           style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }}
+           onClick={() => setExpanded(e => !e)}>
+        <span>Отказы <span style={{ color:'#f87171', fontWeight:700, marginLeft:6 }}>{refused.total}</span></span>
+        <span style={{ fontSize:12, color:'var(--muted)' }}>
+          {expanded ? '▲ свернуть' : '▼ последние 5'}
+        </span>
+      </div>
+      {expanded && (
+        <div className="orders-list">
+          {(refused.recent || []).slice().reverse().map((r, i) => {
+            const username = r.username && !r.username.startsWith('http')
+              ? r.username.replace(/^@/, '')
+              : '';
+            const tgUrl = username
+              ? `https://t.me/${username}`
+              : (r.username && r.username.startsWith('http') ? r.username : '');
+            const clientEl = tgUrl
+              ? <a href={tgUrl} target="_blank" rel="noopener"
+                   style={{color:'var(--blue)',textDecoration:'none'}}>{r.client || username || '—'}</a>
+              : (r.client || '—');
+            return (
+              <div key={i} className="order-card" style={{ opacity: 0.75 }}>
+                <div className="order-info">
+                  <div className="order-client">{clientEl}</div>
+                  <div className="order-meta">
+                    {r.date_event && r.date_event !== 'не указана' && <span>📅 {r.date_event}</span>}
+                    {r.location   && r.location !== 'не указано' && <span style={{marginLeft:8}}>📍 {r.location}</span>}
+                    {r.desc       && <span style={{ marginLeft:8, color:'var(--muted)' }}>— {r.desc.slice(0, 50)}…</span>}
+                  </div>
+                </div>
+                <span className="badge" style={{ background:'rgba(248,113,113,0.15)', color:'#f87171' }}>
+                  ❌ {r.status || 'отказ'}
+                </span>
               </div>
             );
           })}
@@ -950,10 +1022,12 @@ function ScanStatus({ scan }) {
                   if (r.chat.toLowerCase().includes(k.toLowerCase())) { uname = v; break; }
                 }
               }
-              const tgLink = r.post_link
-                ? r.post_link.replace(/^https?:\/\/t\.me\//, 'https://web.telegram.org/a/#')
-                : uname
-                  ? `https://web.telegram.org/a/#@${uname}`
+              // tg://resolve?domain=X opens Telegram Desktop DIRECTLY to the DM with that user.
+              // Fallback: https://t.me/X for leads without explicit uname (Telegram Desktop handles it too).
+              const tgLink = uname
+                ? `tg://resolve?domain=${uname}`
+                : r.post_link
+                  ? r.post_link
                   : null;
               // If we fell back to source chat, adjust label
               const contactIsDM = (r.contact || '').trim() === 'в ЛС';
@@ -971,7 +1045,10 @@ function ScanStatus({ scan }) {
                       ? <a href={tgLink} target="_blank" rel="noopener" style={{color:'var(--blue)',textDecoration:'none',fontWeight:700}}>{r.who || '—'}</a>
                       : <strong>{r.who || '—'}</strong>
                     }
-                    {r.contact && <span style={{color:'var(--muted)',fontSize:10,marginLeft:4}}>{r.contact}</span>}
+                    {r.contact && (tgLink && uname
+                      ? <a href={tgLink} style={{color:'var(--blue)',fontSize:10,marginLeft:4,textDecoration:'none'}} onClick={e=>e.stopPropagation()}>💬 {r.contact}</a>
+                      : <span style={{color:'var(--muted)',fontSize:10,marginLeft:4}}>{r.contact}</span>
+                    )}
                     {linkLabel && <span style={{color:'var(--blue)',fontSize:10,marginLeft:6}}>{linkLabel}</span>}
                   </div>
                   {r.note && <span style={{color:'#f87171',fontSize:9,fontWeight:700,flexShrink:0}}>⚠ {r.note}</span>}
@@ -1155,6 +1232,255 @@ function SkeletonCards() {
   );
 }
 
+// ── Tabs ────────────────────────────────────────────────────────
+function TabBar({ activeTab, setActiveTab, attentionCount, refusalCount }) {
+  const tabs = [
+    { id: 'overview',   label: 'Главная',     emoji: '📊' },
+    { id: 'attention',  label: 'Внимание',    emoji: '🔔', badge: attentionCount },
+    { id: 'refusals',   label: 'Отказы',      emoji: '❌', badge: refusalCount },
+    { id: 'broadcasts', label: 'Рассылки',    emoji: '📤' },
+  ];
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 4,
+      padding: '8px 0',
+      borderBottom: '1px solid var(--border, #333)',
+      marginBottom: 12,
+      overflowX: 'auto',
+    }}>
+      {tabs.map(t => (
+        <button
+          key={t.id}
+          onClick={() => setActiveTab(t.id)}
+          style={{
+            padding: '8px 14px',
+            border: 'none',
+            borderRadius: 8,
+            background: activeTab === t.id ? 'var(--blue)' : 'transparent',
+            color: activeTab === t.id ? 'white' : 'var(--text)',
+            fontWeight: activeTab === t.id ? 700 : 500,
+            fontSize: 13,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+          <span>{t.emoji}</span>
+          <span>{t.label}</span>
+          {t.badge > 0 && (
+            <span style={{
+              background: activeTab === t.id ? 'rgba(255,255,255,0.25)' : '#f87171',
+              color: 'white',
+              padding: '2px 7px',
+              borderRadius: 10,
+              fontSize: 11,
+              fontWeight: 700,
+            }}>{t.badge}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AttentionSection({ attention }) {
+  if (!attention.items.length) {
+    return (
+      <div className="section" style={{ marginTop: 14 }}>
+        <div className="section-title">🔔 Требуют внимания</div>
+        <div className="empty" style={{padding:20, textAlign:'center', color:'var(--muted)'}}>
+          ✅ Всё под контролем — ни одного просроченного лида
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title" style={{ display:'flex', alignItems:'center', gap:10 }}>
+        🔔 Требуют внимания
+        <span style={{background:'#f87171',color:'white',padding:'2px 8px',borderRadius:10,fontSize:11,fontWeight:700}}>
+          {attention.total}
+        </span>
+      </div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, fontSize:12 }}>
+        {attention.requires_user > 0 && (
+          <div style={{background:'rgba(248,113,113,0.15)',color:'#f87171',padding:'4px 10px',borderRadius:12,fontWeight:700}}>
+            🧑 Решение Михаила: {attention.requires_user}
+          </div>
+        )}
+        {attention.overdue > 0 && (
+          <div style={{background:'rgba(251,146,60,0.15)',color:'#fb923c',padding:'4px 10px',borderRadius:12,fontWeight:700}}>
+            ⏰ Просрочено: {attention.overdue}
+          </div>
+        )}
+        {attention.today > 0 && (
+          <div style={{background:'rgba(250,204,21,0.15)',color:'#facc15',padding:'4px 10px',borderRadius:12,fontWeight:700}}>
+            📅 На сегодня: {attention.today}
+          </div>
+        )}
+      </div>
+      <div className="orders-list">
+        {attention.items.slice(0, 20).map((item, i) => {
+          const uname = item.username;
+          const tgUrl = uname
+            ? `https://t.me/${uname}`
+            : (item.contact?.startsWith('http') ? item.contact : '');
+          const clientEl = tgUrl
+            ? <a href={tgUrl} target="_blank" rel="noopener" style={{color:'var(--blue)',textDecoration:'none'}}>{item.client || uname}</a>
+            : (item.client || '—');
+          const priorityEmoji = item.requires_user ? '🧑' : item.overdue ? '⏰' : item.today ? '📅' : '';
+          const bgTint = item.requires_user
+            ? 'rgba(248,113,113,0.08)'
+            : item.overdue ? 'rgba(251,146,60,0.08)'
+            : 'transparent';
+          return (
+            <div key={i} className="order-card" style={{background: bgTint}}>
+              <div className="order-info">
+                <div className="order-client">
+                  {priorityEmoji && <span style={{marginRight:6}}>{priorityEmoji}</span>}
+                  {clientEl}
+                </div>
+                <div className="order-meta" style={{fontSize:11}}>
+                  <span>📋 {item.status}</span>
+                  {item.event_date && <span style={{marginLeft:8}}>🎉 {item.event_date}</span>}
+                  {item.next_action && <span style={{marginLeft:8}}>➡️ {item.next_action}</span>}
+                  {item.channel && <span style={{marginLeft:8,opacity:0.6}}>{item.channel}</span>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function RefusalsSection({ refused, categories }) {
+  const REFUSAL_META = {
+    low_budget:      { emoji: '💰', label: 'Низкий бюджет',        color: '#fb923c' },
+    format_mismatch: { emoji: '🎭', label: 'Не тот формат',         color: '#a78bfa' },
+    already_found:  { emoji: '🏃',  label: 'Уже выбрали другого',   color: '#f87171' },
+    event_passed:   { emoji: '📅',  label: 'Событие прошло',        color: '#6b7280' },
+    ghosting:       { emoji: '👻',  label: 'Не отвечают (7+ дней)', color: '#9ca3af' },
+    wrong_service:  { emoji: '🚫',  label: 'Не наш профиль',        color: '#ef4444' },
+    region_out:     { emoji: '📍',  label: 'Не наш регион',         color: '#06b6d4' },
+    residence:      { emoji: '🏪',  label: 'ТРК / резидент',        color: '#8b5cf6' },
+    blocked:        { emoji: '🔒',  label: 'Заблокировал',          color: '#1f2937' },
+    unknown:        { emoji: '❓',  label: 'Причина неясна',        color: '#71717a' },
+  };
+  const total = Object.values(categories).reduce((a,b) => a+b, 0);
+  const sorted = Object.entries(categories).sort((a,b) => b[1]-a[1]);
+  return (
+    <div>
+      <div className="section" style={{ marginTop: 14 }}>
+        <div className="section-title">❌ Отказы по категориям</div>
+        <div style={{padding:'4px 0',color:'var(--muted)',fontSize:12,marginBottom:10}}>
+          Всего в архиве: <b style={{color:'var(--text)'}}>{total}</b> · используются для таргетированных рассылок
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))',gap:8}}>
+          {sorted.map(([cat, n]) => {
+            const meta = REFUSAL_META[cat] || { emoji: '❓', label: cat, color: '#71717a' };
+            return (
+              <div key={cat} style={{
+                padding: 10,
+                background: 'rgba(255,255,255,0.03)',
+                borderRadius: 8,
+                borderLeft: `3px solid ${meta.color}`,
+                cursor: 'pointer',
+              }}>
+                <div style={{fontSize:22, marginBottom:2}}>{meta.emoji}</div>
+                <div style={{fontSize:12, color:'var(--muted)'}}>{meta.label}</div>
+                <div style={{fontSize:20, fontWeight:700, color:'var(--text)'}}>{n}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {/* Последние 5 из старого refused блока */}
+      {refused && refused.recent?.length > 0 && (
+        <RefusedSection refused={refused} />
+      )}
+    </div>
+  );
+}
+
+function BroadcastsSection({ categories }) {
+  const REFUSAL_META = {
+    low_budget:      { emoji: '💰', label: 'Низкий бюджет',        template: 'Предложить дуэт/трио (Template D)' },
+    format_mismatch: { emoji: '🎭', label: 'Не тот формат',         template: 'Уточнить: камерный / полный' },
+    already_found:  { emoji: '🏃',  label: 'Уже выбрали другого',   template: 'Напомнить на будущее' },
+    event_passed:   { emoji: '📅',  label: 'Событие прошло',        template: 'На следующее мероприятие' },
+    ghosting:       { emoji: '👻',  label: 'Не отвечают',            template: 'Повторный soft-ping через месяц' },
+    wrong_service:  { emoji: '🚫',  label: 'Не наш профиль',        template: '— пропустить —' },
+    region_out:     { emoji: '📍',  label: 'Не наш регион',         template: 'Предложить выезд (×1.3)' },
+    residence:      { emoji: '🏪',  label: 'ТРК / резидент',        template: '— пропустить —' },
+    blocked:        { emoji: '🔒',  label: 'Заблокировал',          template: '— пропустить —' },
+    unknown:        { emoji: '❓',  label: 'Причина неясна',        template: 'Ручная проверка' },
+  };
+  const sorted = Object.entries(categories).sort((a,b) => b[1]-a[1]);
+  return (
+    <div>
+      <div className="section" style={{ marginTop: 14 }}>
+        <div className="section-title">📤 Персонализированные рассылки</div>
+        <div style={{padding:'4px 0',color:'var(--muted)',fontSize:12,marginBottom:14}}>
+          Выбери категорию и тип рассылки. Бэкенд запустит скрипт который отправит персональный текст на @username-ы из категории.
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {sorted.map(([cat, n]) => {
+            const meta = REFUSAL_META[cat] || { emoji: '❓', label: cat, template: '' };
+            const skip = meta.template.startsWith('—');
+            return (
+              <div key={cat} style={{
+                padding: 12,
+                background: 'rgba(255,255,255,0.03)',
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                opacity: skip ? 0.4 : 1,
+              }}>
+                <div style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:0}}>
+                  <span style={{fontSize:20}}>{meta.emoji}</span>
+                  <div style={{minWidth:0,flex:1}}>
+                    <div style={{fontSize:13,fontWeight:600}}>{meta.label} <span style={{color:'var(--muted)'}}>· {n}</span></div>
+                    <div style={{fontSize:11,color:'var(--muted)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                      {meta.template}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  disabled={skip}
+                  onClick={() => {
+                    alert(`Рассылка по "${meta.label}" (${n} лидов) — [TODO: подключить бэкенд]\n\nСкрипт: broadcast_${cat}.py\nТекст: ${meta.template}`);
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: skip ? '#444' : 'var(--blue)',
+                    color: 'white',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: skip ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}>
+                  {skip ? 'Пропустить' : '📤 Запустить'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{marginTop:16,padding:12,background:'rgba(59,130,246,0.08)',borderRadius:8,fontSize:11,color:'var(--muted)'}}>
+          💡 Рассылки идут через Telethon с anti-ban защитой (jitter 15-35сек, max 40/день). Перед стартом — проверка @SpamBot.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const [rows,      setRows]      = useState(null);
@@ -1165,6 +1491,12 @@ function App() {
   const [offline,   setOffline]   = useState(!navigator.onLine);
   const [showTGModal, setShowTGModal] = useState(false);
   const [showProcess, setShowProcess] = useState(null);
+  const [activeTab, setActiveTab] = useState(() => {
+    try { return localStorage.getItem('lcb_tab') || 'overview'; } catch { return 'overview'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('lcb_tab', activeTab); } catch {}
+  }, [activeTab]);
 
   useEffect(() => {
     const on  = () => setOffline(false);
@@ -1253,19 +1585,43 @@ function App() {
       {data && (
         <>
           <ConnectionStatus connection={data.connection} />
-          <ActionButtons />
-          <KPISection    kpi={data.kpi}           />
-          <div className="section" style={{ marginTop: 8 }}>
-            <TGLeadsButton
-              onClick={() => setShowTGModal(true)}
-              tgWeek={data.tgFunnel?.week}
-            />
-          </div>
-          <FunnelSection funnel={data.funnel}      />
-          <OrdersSection orders={data.orders}      />
-          <ScanStatus scan={data.scan} />
-          <StatusSection status={data.status} onProcessClick={setShowProcess} />
-          <FollowupsSection followups={data.followups} />
+          <TabBar
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            attentionCount={data.attention?.total || 0}
+            refusalCount={Object.values(data.refusalCategories || {}).reduce((a,b) => a+b, 0)}
+          />
+
+          {activeTab === 'overview' && (
+            <>
+              <ActionButtons />
+              <KPISection kpi={data.kpi} />
+              <div className="section" style={{ marginTop: 8 }}>
+                <TGLeadsButton
+                  onClick={() => setShowTGModal(true)}
+                  tgWeek={data.tgFunnel?.week}
+                />
+              </div>
+              <FunnelSection funnel={data.funnel} />
+              <OrdersSection orders={data.orders} />
+              <ScanStatus scan={data.scan} />
+              <StatusSection status={data.status} onProcessClick={setShowProcess} />
+              <FollowupsSection followups={data.followups} />
+            </>
+          )}
+
+          {activeTab === 'attention' && (
+            <AttentionSection attention={data.attention || {total:0, items:[]}} />
+          )}
+
+          {activeTab === 'refusals' && (
+            <RefusalsSection refused={data.refused} categories={data.refusalCategories || {}} />
+          )}
+
+          {activeTab === 'broadcasts' && (
+            <BroadcastsSection categories={data.refusalCategories || {}} />
+          )}
+
           {showTGModal && (
             <TGFunnelModal
               tgFunnel={data.tgFunnel || {}}
