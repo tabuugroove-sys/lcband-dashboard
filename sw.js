@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v8-tabs-wrap';
+const CACHE = 'lcb-v9-desktop-breathing';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {

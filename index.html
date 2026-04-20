@@ -38,6 +38,28 @@
     /* ── App shell ── */
     .app { max-width: 480px; margin: 0 auto; padding-bottom: 40px; }
 
+    /* Чуть шире на планшете/десктопе — контент дышит, но mobile не ломаем */
+    @media (min-width: 768px) {
+      .app { max-width: 720px; }
+    }
+    @media (min-width: 1024px) {
+      .app { max-width: 960px; padding-left: 16px; padding-right: 16px; }
+    }
+    @media (min-width: 1440px) {
+      .app { max-width: 1180px; }
+    }
+
+    /* Шире → KPI-плитки могут быть 4-6 в ряд */
+    @media (min-width: 768px) {
+      .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+      .kpi-row  { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (min-width: 1024px) {
+      .kpi-grid { grid-template-columns: repeat(6, 1fr); }
+      .kpi-row  { grid-template-columns: repeat(5, 1fr); }
+      .kpi-val  { font-size: 28px; }
+    }
+
     /* ── Header ── */
     .header {
       background: linear-gradient(180deg, #0f0f20 0%, #0a0a12 100%);
