@@ -823,14 +823,30 @@ function ActionButtons() {
   );
 }
 
+const NEW_PERIODS = [
+  { id: 'new_day',     label: 'День',    short: 'Д' },
+  { id: 'new_week',    label: 'Неделя',  short: 'Н' },
+  { id: 'new_month',   label: 'Месяц',   short: 'М' },
+  { id: 'new_quarter', label: 'Квартал', short: 'К' },
+];
+
 function KPISection({ kpi }) {
+  const [period, setPeriod] = useState(() => {
+    try { return localStorage.getItem('lcb_kpi_period') || 'new_month'; }
+    catch { return 'new_month'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('lcb_kpi_period', period); } catch {}
+  }, [period]);
+  const periodMeta = NEW_PERIODS.find(p => p.id === period) || NEW_PERIODS[2];
+
   const channels = [
     { key: 'tg_active', emoji: '✈️', label: 'TG лиды' },
     { key: 'vk_active', emoji: '🌐', label: 'VK лиды' },
     { key: 'ig_total',  emoji: '📸', label: 'IG пул' },
   ];
   const secondary = [
-    { key: 'new_week',      label: 'За неделю' },
+    { key: period,          label: `За ${periodMeta.label.toLowerCase()}`, togglable: true },
     { key: 'conversion',    label: 'Конверсия %' },
     { key: 'customers',     label: 'Клиентов' },
     { key: 'refused_total', label: 'Отказов' },
@@ -850,7 +866,7 @@ function KPISection({ kpi }) {
       </div>
       <div className="kpi-row">
         {secondary.map(c => (
-          <div key={c.key} className="kpi-mini">
+          <div key={c.label} className="kpi-mini" style={{position:'relative'}}>
             <div className="kpi-mini-val"
               style={{ color: c.key === 'customers' ? 'var(--ok)'
                             : c.key === 'refused_total' ? '#f87171'
@@ -858,6 +874,24 @@ function KPISection({ kpi }) {
               {kpi[c.key] ?? '—'}{c.key === 'conversion' && kpi[c.key] ? '%' : ''}
             </div>
             <div className="kpi-mini-lbl">{c.label}</div>
+            {c.togglable && (
+              <div style={{display:'flex',gap:3,justifyContent:'center',marginTop:6}}>
+                {NEW_PERIODS.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => setPeriod(p.id)}
+                    title={p.label}
+                    style={{
+                      padding:'2px 7px', fontSize:10, lineHeight:1,
+                      border:'1px solid ' + (period === p.id ? 'var(--blue)' : 'var(--border)'),
+                      background: period === p.id ? 'rgba(96,165,250,0.18)' : 'transparent',
+                      color: period === p.id ? 'var(--blue)' : 'var(--muted)',
+                      borderRadius: 6, cursor:'pointer', fontWeight:600,
+                    }}
+                  >{p.short}</button>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
