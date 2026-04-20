@@ -1445,6 +1445,78 @@ function AttentionSection({ attention }) {
   );
 }
 
+function PaidSection({ paid }) {
+  const chatCtx = React.useContext(ChatContext);
+  const hoverTimer = React.useRef(null);
+  if (!paid.items.length) {
+    return (
+      <div className="section" style={{ marginTop: 14 }}>
+        <div className="section-title">💰 Оплатили</div>
+        <div className="empty" style={{padding:20, textAlign:'center', color:'var(--muted)'}}>
+          Пока ни одного клиента со статусом ОПЛАТИЛА
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">💰 Оплатили ({paid.total})</div>
+      <div style={{padding:'4px 0',color:'var(--muted)',fontSize:12,marginBottom:10}}>
+        Клиенты, оплатившие выступление. Наведи мышь — откроется переписка.
+      </div>
+      <div className="orders-list">
+        {paid.items.map((item, i) => {
+          const canChat = item.channel === 'TG' && !!item.username;
+          const openTarget = () => chatCtx?.openChat({
+            user_id: null, username: item.username, client: item.client
+          });
+          const onEnter = canChat ? () => {
+            clearTimeout(hoverTimer.current);
+            hoverTimer.current = setTimeout(openTarget, 200);
+          } : undefined;
+          const onLeave = canChat ? () => clearTimeout(hoverTimer.current) : undefined;
+          return (
+            <div
+              key={i}
+              className="order-card"
+              data-clickable={canChat ? 'true' : undefined}
+              style={{background: 'rgba(34,197,94,0.06)'}}
+              onMouseEnter={onEnter}
+              onMouseLeave={onLeave}
+              onClick={canChat ? openTarget : undefined}
+              title={canChat ? 'Открыть чат' : undefined}
+            >
+              <div className="order-info">
+                <div className="order-client">
+                  <span style={{marginRight:6}}>💰</span>
+                  {canChat
+                    ? <span style={{color:'var(--blue)'}}>{item.client}</span>
+                    : <span>{item.client}</span>}
+                </div>
+                <div className="order-meta" style={{fontSize:11}}>
+                  {item.event_date && <span>🎉 {item.event_date}</span>}
+                  {item.city && <span style={{marginLeft:8}}>📍 {item.city}</span>}
+                  {item.channel && <span style={{marginLeft:8,opacity:0.6}}>{item.channel}</span>}
+                </div>
+                {item.order && (
+                  <div style={{fontSize:11,color:'var(--muted)',marginTop:4,opacity:0.8}}>
+                    {item.order.slice(0, 140)}{item.order.length > 140 ? '…' : ''}
+                  </div>
+                )}
+                {item.note && (
+                  <div style={{fontSize:11,color:'#a3e635',marginTop:4,fontStyle:'italic'}}>
+                    {item.note.slice(0, 180)}{item.note.length > 180 ? '…' : ''}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function RefusalsSection({ refused, categories }) {
   const REFUSAL_META = {
     low_budget:      { emoji: '💰', label: 'Низкий бюджет',        color: '#fb923c' },
@@ -2037,6 +2109,10 @@ function App() {
 
           {activeTab === 'attention' && (
             <AttentionSection attention={data.attention || {total:0, items:[]}} />
+          )}
+
+          {activeTab === 'paid' && (
+            <PaidSection paid={data.paid || {total:0, items:[]}} />
           )}
 
           {activeTab === 'refusals' && (
