@@ -39,6 +39,7 @@
     .app { max-width: 480px; margin: 0 auto; padding-bottom: 40px; }
 
     /* Чуть шире на планшете/десктопе — контент дышит, но mobile не ломаем */
+    .app { transition: max-width .25s ease, margin .25s ease; }
     @media (min-width: 768px) {
       .app { max-width: 720px; }
     }
@@ -47,6 +48,16 @@
     }
     @media (min-width: 1440px) {
       .app { max-width: 1180px; }
+    }
+
+    /* Когда открыт чат-панель (440px справа) — сдвигаем .app так,
+       чтобы правая граница контента упиралась в левый край панели */
+    @media (min-width: 900px) {
+      body.chat-open .app {
+        max-width: calc(100vw - 440px - 32px);
+        margin-left: 16px;
+        margin-right: calc(440px + 16px);
+      }
     }
 
     /* Шире → KPI-плитки могут быть 4-6 в ряд */
@@ -2269,6 +2280,13 @@ function App() {
   useEffect(() => {
     try { localStorage.setItem('lcb_tab', activeTab); } catch {}
   }, [activeTab]);
+
+  // На десктопе при открытом чате сдвигаем .app так, чтобы правая граница
+  // упиралась в левый край слайд-панели (440px)
+  useEffect(() => {
+    document.body.classList.toggle('chat-open', !!chatTarget);
+    return () => document.body.classList.remove('chat-open');
+  }, [chatTarget]);
 
   useEffect(() => {
     const on  = () => setOffline(false);

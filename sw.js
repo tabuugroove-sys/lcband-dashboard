@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v9-desktop-breathing';
+const CACHE = 'lcb-v10-app-shift-on-chat';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
