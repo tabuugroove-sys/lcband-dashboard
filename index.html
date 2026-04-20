@@ -1469,7 +1469,21 @@ function AttentionSection({ attention }) {
   const chatCtx = React.useContext(ChatContext);
   const aiCtx = React.useContext(AiTagsContext);
   const hoverTimer = React.useRef(null);
-  if (!attention.items.length) {
+  const [showAll, setShowAll] = useState(false);
+
+  // Лиды с ярлыком decline (уже отказал) и awaiting_client (рано пушить)
+  // скрываем из списка по умолчанию — они не требуют твоего времени прямо сейчас.
+  const HIDDEN_CATEGORIES = new Set(['decline', 'awaiting_client']);
+  const rawItems = attention.items || [];
+  const filteredItems = showAll ? rawItems : rawItems.filter(it => {
+    const uname = (it.username || '').toLowerCase();
+    const tag = uname ? aiCtx.tags[uname] : null;
+    if (!tag) return true;                 // нет классификации — оставляем
+    return !HIDDEN_CATEGORIES.has(tag.category);
+  });
+  const hiddenCount = rawItems.length - filteredItems.length;
+
+  if (!rawItems.length) {
     return (
       <div className="section" style={{ marginTop: 14 }}>
         <div className="section-title">🔔 Требуют внимания</div>
@@ -1503,9 +1517,24 @@ function AttentionSection({ attention }) {
             📅 На сегодня: {attention.today}
           </div>
         )}
+        {hiddenCount > 0 && (
+          <button
+            onClick={() => setShowAll(v => !v)}
+            style={{
+              marginLeft:'auto', padding:'4px 10px', fontSize:11, fontWeight:600,
+              background:'transparent', color:'var(--muted)',
+              border:'1px solid var(--border)', borderRadius:12, cursor:'pointer',
+            }}
+            title="По умолчанию скрыты карточки с ярлыками ❌ Отказ и ⏳ Ждём ответа — они не требуют действий прямо сейчас"
+          >
+            {showAll
+              ? '🙈 Скрыть отказы/ожидающих'
+              : `👁️ Показать все (+${hiddenCount} скрыто)`}
+          </button>
+        )}
       </div>
       <div className="orders-list">
-        {attention.items.slice(0, 20).map((item, i) => {
+        {filteredItems.slice(0, 20).map((item, i) => {
           const uname = item.username;
           const tgUrl = uname
             ? `https://t.me/${uname}`
