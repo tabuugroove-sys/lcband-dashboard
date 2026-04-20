@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v10-app-shift-on-chat';
+const CACHE = 'lcb-v11-flush-to-chat';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {

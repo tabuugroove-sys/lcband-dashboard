@@ -51,12 +51,12 @@
     }
 
     /* Когда открыт чат-панель (440px справа) — сдвигаем .app так,
-       чтобы правая граница контента упиралась в левый край панели */
+       чтобы правая граница контента УПИРАЛАСЬ в левый край панели */
     @media (min-width: 900px) {
       body.chat-open .app {
-        max-width: calc(100vw - 440px - 32px);
+        max-width: calc(100vw - 440px - 16px);
         margin-left: 16px;
-        margin-right: calc(440px + 16px);
+        margin-right: 440px;
       }
     }
 
