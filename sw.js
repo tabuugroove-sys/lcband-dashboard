@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v16-live-monitor-scan';
+const CACHE = 'lcb-v17-status-top';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {

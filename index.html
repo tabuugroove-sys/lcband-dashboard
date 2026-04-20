@@ -2552,6 +2552,7 @@ function App() {
 
           {activeTab === 'overview' && (
             <>
+              <StatusSection status={data.status} onProcessClick={setShowProcess} />
               <ActionButtons />
               <KPISection kpi={data.kpi} />
               <div className="section" style={{ marginTop: 8 }}>
@@ -2563,7 +2564,6 @@ function App() {
               <FunnelSection funnel={data.funnel} />
               <OrdersSection orders={data.orders} />
               <ScanStatus scan={data.scan} />
-              <StatusSection status={data.status} onProcessClick={setShowProcess} />
               <FollowupsSection followups={data.followups} />
             </>
           )}
