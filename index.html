@@ -1558,7 +1558,10 @@ function BroadcastsSection({ categories }) {
 }
 
 // ── Chat panel (CRM-style side panel) ────────────────────────────────────────
-const CHAT_BACKEND = 'http://127.0.0.1:8878';
+// Same-origin if we're already served by the backend (http://localhost:8878/),
+// otherwise hit 127.0.0.1:8878 explicitly (works only on the same machine + browsers
+// that allow mixed content to loopback — Chrome yes, Safari mostly no).
+const CHAT_BACKEND = (location.port === '8878') ? '' : 'http://127.0.0.1:8878';
 const ChatContext = React.createContext(null);
 
 function ChatPanel({ target, onClose }) {
