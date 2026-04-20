@@ -452,11 +452,14 @@ function processRows(rows) {
   const orders   = [];
   const refused  = { total: 0, recent: [] };
   const attention = { total: 0, requires_user: 0, today: 0, overdue: 0, items: [] };
+  const paid = { total: 0, items: [] };
   const refusalCategories = {};  // { low_budget: 15, format_mismatch: 1, ... }
   const channels = {};  // { TG: 91, VK: 5, ... }
   const tgFunnel = {};  // { day: {sent,leads,paid,earned}, week: {…}, … }
   const connection = { status: 'unknown', lastCheck: null, sessions: {} };
   const scan = { status: 'idle', progress: 0, message: '', results: [], chatsChecked: [], updated: '' };
+  const agents = { total: 0, running: 0, missing: 0, items: [] };
+  const newLeads = { total: 0, items: [] };
 
   for (const row of rows) {
     if (!row.key) continue;
@@ -488,6 +491,12 @@ function processRows(rows) {
       if (row.key === 'attention_overdue')  attention.overdue = Number(row.value) || 0;
       if (row.key?.match(/^attention_\d+$/)) {
         try { attention.items.push(JSON.parse(row.value)); } catch { /* skip */ }
+      }
+    }
+    if (section === 'Paid') {
+      if (row.key === 'paid_total') paid.total = Number(row.value) || 0;
+      if (row.key?.match(/^paid_\d+$/)) {
+        try { paid.items.push(JSON.parse(row.value)); } catch { /* skip */ }
       }
     }
     if (section === 'RefusalCategory' && row.key?.startsWith('refcat_')) {
@@ -533,8 +542,22 @@ function processRows(rows) {
         if (reason) connection.sessionReasons[sessName] = reason;
       }
     }
+    if (section === 'Agents') {
+      if (row.key === 'agents_total')   agents.total = Number(row.value) || 0;
+      else if (row.key === 'agents_running') agents.running = Number(row.value) || 0;
+      else if (row.key === 'agents_missing') agents.missing = Number(row.value) || 0;
+      else if (row.key?.match(/^agent_\d+$/)) {
+        try { agents.items.push(JSON.parse(row.value)); } catch { /* skip */ }
+      }
+    }
+    if (section === 'NewLeads') {
+      if (row.key === 'newleads_total') newLeads.total = Number(row.value) || 0;
+      else if (row.key?.match(/^newlead_\d+$/)) {
+        try { newLeads.items.push(JSON.parse(row.value)); } catch { /* skip */ }
+      }
+    }
   }
-  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, scan };
+  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, scan, agents, newLeads, paid };
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -1273,12 +1296,15 @@ function SkeletonCards() {
 }
 
 // ── Tabs ────────────────────────────────────────────────────────
-function TabBar({ activeTab, setActiveTab, attentionCount, refusalCount }) {
+function TabBar({ activeTab, setActiveTab, attentionCount, refusalCount, paidCount, newLeadsCount, agentsMissing }) {
   const tabs = [
     { id: 'overview',   label: 'Главная',     emoji: '📊' },
+    { id: 'new',        label: 'Новые',       emoji: '🆕', badge: newLeadsCount },
     { id: 'attention',  label: 'Внимание',    emoji: '🔔', badge: attentionCount },
+    { id: 'paid',       label: 'Оплатили',    emoji: '💰', badge: paidCount },
     { id: 'refusals',   label: 'Отказы',      emoji: '❌', badge: refusalCount },
     { id: 'broadcasts', label: 'Рассылки',    emoji: '📤' },
+    { id: 'processes',  label: 'Процессы',    emoji: '🛡️', badge: agentsMissing },
   ];
   return (
     <div style={{
@@ -1544,6 +1570,152 @@ function BroadcastsSection({ categories }) {
     </div>
   );
 }
+
+// ── Processes (launchd agents) ───────────────────────────────────────────────
+function ProcessesSection({ agents }) {
+  const fmtInterval = (sec) => {
+    if (!sec) return 'постоянно';
+    if (sec < 60) return `${sec}с`;
+    if (sec < 3600) return `${Math.round(sec/60)}м`;
+    return `${Math.round(sec/3600)}ч`;
+  };
+  const stateColor = (st) => {
+    if (st === 'running')   return { dot:'#10b981', label:'работает',   bg:'rgba(16,185,129,0.1)' };
+    if (st === 'not')       return { dot:'#f5c518', label:'ждёт',       bg:'rgba(245,197,24,0.08)' };
+    if (st === 'missing')   return { dot:'#f87171', label:'НЕ В LAUNCHCTL', bg:'rgba(248,113,113,0.15)' };
+    if (st === 'error')     return { dot:'#f87171', label:'ошибка',     bg:'rgba(248,113,113,0.15)' };
+    return { dot:'#6b7280', label: st || '?', bg:'rgba(107,114,128,0.1)' };
+  };
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">🛡️ Процессы (launchd)</div>
+      <div style={{display:'flex',gap:16,padding:'4px 0',fontSize:12,color:'var(--muted)',marginBottom:10}}>
+        <span>Всего: <b style={{color:'var(--text)'}}>{agents.total}</b></span>
+        <span>● <b style={{color:'#10b981'}}>{agents.running}</b> работает</span>
+        {agents.missing > 0 && <span>⚠️ <b style={{color:'#f87171'}}>{agents.missing}</b> не в launchctl</span>}
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+        {(agents.items || []).map((a, i) => {
+          const sc = stateColor(a.state);
+          const okExit = a.last_exit === '0' || a.last_exit === '(never exited)' || !a.last_exit;
+          return (
+            <div key={i} style={{
+              padding:'8px 12px',
+              background: sc.bg,
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}>
+              <span style={{
+                width:8,height:8,borderRadius:'50%',
+                background: sc.dot,
+                boxShadow: a.state === 'running' ? `0 0 6px ${sc.dot}` : 'none',
+                flexShrink:0,
+              }} />
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                  {a.desc}
+                </div>
+                <div style={{fontSize:10,color:'var(--muted)',marginTop:2}}>
+                  <span style={{fontFamily:'monospace'}}>{a.label.replace('com.lcband.','')}</span>
+                  <span style={{marginLeft:8}}>· {fmtInterval(a.interval)}</span>
+                  {a.pid && <span style={{marginLeft:8}}>· pid {a.pid}</span>}
+                  {!okExit && <span style={{marginLeft:8,color:'#f87171'}}>· exit {a.last_exit}</span>}
+                </div>
+              </div>
+              <span style={{
+                fontSize:10,fontWeight:700,
+                padding:'2px 8px',borderRadius:10,
+                background:'rgba(0,0,0,0.25)',
+                color:sc.dot,
+                whiteSpace:'nowrap',
+              }}>
+                {sc.label.toUpperCase()}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{marginTop:12,padding:10,background:'rgba(59,130,246,0.08)',borderRadius:8,fontSize:11,color:'var(--muted)'}}>
+        💡 Watchdog каждые 30 минут проверяет этот список. Если критичный агент пропал — автоматически поднимает через launchctl bootstrap + шлёт пуш.
+      </div>
+    </div>
+  );
+}
+
+// ── New Leads today ──────────────────────────────────────────────────────────
+function NewLeadsSection({ newLeads }) {
+  const items = newLeads.items || [];
+  if (items.length === 0) {
+    return (
+      <div className="section" style={{marginTop:14}}>
+        <div className="section-title">🆕 Новые клиенты сегодня</div>
+        <div style={{padding:20,textAlign:'center',color:'var(--muted)',fontSize:13}}>
+          Сегодня новых лидов ещё нет. Monitor сканит каждые 10 минут.
+        </div>
+      </div>
+    );
+  }
+  const statusColor = (st) => {
+    const m = {
+      'Новый':      '#60a5fa',
+      'Написал':    '#f5c518',
+      'Follow-up':  '#a78bfa',
+      'Переговоры': '#34d399',
+      'Подтверждён':'#10b981',
+    };
+    return m[st] || 'var(--muted)';
+  };
+  return (
+    <div className="section" style={{marginTop:14}}>
+      <div className="section-title">🆕 Новые клиенты сегодня ({newLeads.total})</div>
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {items.map((ld, i) => {
+          const tgLink = (ld.contact || '').match(/t\.me\/[\w_]+/);
+          return (
+            <div key={i} style={{
+              padding:10,
+              background:'rgba(255,255,255,0.03)',
+              borderRadius:8,
+              border:'1px solid var(--border)',
+            }}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:4}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:0}}>
+                  <span style={{
+                    fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:4,
+                    background:'rgba(0,0,0,0.3)',color:statusColor(ld.status),
+                    whiteSpace:'nowrap',
+                  }}>{ld.status || 'Новый'}</span>
+                  <span style={{fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                    {ld.name || '(без имени)'}
+                  </span>
+                </div>
+                {ld.channel && <span style={{fontSize:10,color:'var(--muted)',whiteSpace:'nowrap'}}>{ld.channel}</span>}
+              </div>
+              <div style={{fontSize:12,color:'var(--text)',lineHeight:1.4,marginBottom:4}}>
+                {ld.desc || ld.event_date}
+              </div>
+              <div style={{display:'flex',gap:10,fontSize:10,color:'var(--muted)',flexWrap:'wrap'}}>
+                {ld.event_date && ld.event_date !== 'не указана' && <span>📅 {ld.event_date}</span>}
+                {ld.place && ld.place !== 'не указано' && <span>📍 {ld.place}</span>}
+                {ld.budget && <span>💰 {ld.budget}</span>}
+                {tgLink && (
+                  <a href={`https://${tgLink[0]}`} target="_blank" rel="noopener"
+                     style={{color:'#60a5fa',textDecoration:'none'}}>
+                    → {ld.contact.replace(/^https?:\/\//, '').slice(0,40)}
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 
 // ── Chat panel (CRM-style side panel) ────────────────────────────────────────
 // Same-origin if we're already served by the backend (http://localhost:8878/),
@@ -1836,6 +2008,9 @@ function App() {
             setActiveTab={setActiveTab}
             attentionCount={data.attention?.total || 0}
             refusalCount={Object.values(data.refusalCategories || {}).reduce((a,b) => a+b, 0)}
+            paidCount={data.paid?.total || 0}
+            newLeadsCount={data.newLeads?.total || 0}
+            agentsMissing={data.agents?.missing || 0}
           />
 
           {activeTab === 'overview' && (
@@ -1856,6 +2031,10 @@ function App() {
             </>
           )}
 
+          {activeTab === 'new' && (
+            <NewLeadsSection newLeads={data.newLeads || {total:0, items:[]}} />
+          )}
+
           {activeTab === 'attention' && (
             <AttentionSection attention={data.attention || {total:0, items:[]}} />
           )}
@@ -1866,6 +2045,10 @@ function App() {
 
           {activeTab === 'broadcasts' && (
             <BroadcastsSection categories={data.refusalCategories || {}} />
+          )}
+
+          {activeTab === 'processes' && (
+            <ProcessesSection agents={data.agents || {total:0, running:0, missing:0, items:[]}} />
           )}
 
           {showTGModal && (

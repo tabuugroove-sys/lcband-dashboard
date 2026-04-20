@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v5-conn-account-once';
+const CACHE = 'lcb-v6-processes-newleads';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
