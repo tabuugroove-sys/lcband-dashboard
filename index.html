@@ -2484,11 +2484,10 @@ function App() {
     const missing = usernames.filter(u => !(u in aiTags));
     if (!missing.length) return;
     setAiLoading(true);
-    fetch(`${CHAT_BACKEND}/api/classify_leads`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ usernames: missing }),
-    })
+    // Читаем из кэша (attention_classify_cache.py пишет каждые 15 мин).
+    // Cloudflare-tunnel-safe — endpoint отвечает <100мс, не завязан на Sonnet.
+    const q = missing.map(encodeURIComponent).join(',');
+    fetch(`${CHAT_BACKEND}/api/classifications?usernames=${q}`)
       .then(r => r.json())
       .then(j => {
         if (!j || typeof j !== 'object' || j.error) return;
