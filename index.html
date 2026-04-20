@@ -1561,7 +1561,21 @@ function BroadcastsSection({ categories }) {
 // Same-origin if we're already served by the backend (http://localhost:8878/),
 // otherwise hit 127.0.0.1:8878 explicitly (works only on the same machine + browsers
 // that allow mixed content to loopback — Chrome yes, Safari mostly no).
-const CHAT_BACKEND = (location.port === '8878') ? '' : 'http://127.0.0.1:8878';
+let CHAT_BACKEND = (location.port === '8878') ? '' : 'http://127.0.0.1:8878';
+// Public Cloudflare tunnel URL, published by tunnel_watcher.py. If present,
+// overrides the 127.0.0.1 fallback so the chat works on GitHub Pages (no mixed
+// content — tunnel terminates HTTPS).
+(async () => {
+  if (CHAT_BACKEND === '') return;
+  try {
+    const r = await fetch('./backend_url.json', { cache: 'no-store' });
+    if (!r.ok) return;
+    const j = await r.json();
+    if (j && typeof j.url === 'string' && /^https:\/\//.test(j.url)) {
+      CHAT_BACKEND = j.url;
+    }
+  } catch { /* leave fallback */ }
+})();
 const ChatContext = React.createContext(null);
 
 function ChatPanel({ target, onClose }) {
