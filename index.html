@@ -1577,6 +1577,9 @@ let CHAT_BACKEND = (location.port === '8878') ? '' : 'http://127.0.0.1:8878';
   } catch { /* leave fallback */ }
 })();
 const ChatContext = React.createContext(null);
+// Module-level cache: q → { meta, messages }. Survives panel open/close so
+// we don't re-download a conversation the user already looked at.
+const CHAT_CACHE = new Map();
 
 function ChatPanel({ target, onClose }) {
   const [data, setData] = useState(null);
@@ -1584,30 +1587,71 @@ function ChatPanel({ target, onClose }) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const bodyRef = React.useRef(null);
+  const abortRef = React.useRef(null);
 
   const q = target?.username || (target?.user_id ? String(target.user_id) : '');
 
-  const fetchChat = useCallback(async () => {
+  const fetchChat = useCallback(async (sinceId) => {
     if (!q) return;
+    // Abort any previous in-flight fetch so responses for a DIFFERENT chat
+    // (user hovered another card) don't land here and corrupt the panel.
+    if (abortRef.current) abortRef.current.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const activeQ = q;
+    const url = sinceId
+      ? `${CHAT_BACKEND}/api/chat?q=${encodeURIComponent(q)}&since_id=${sinceId}`
+      : `${CHAT_BACKEND}/api/chat?q=${encodeURIComponent(q)}&limit=40`;
     try {
-      const r = await fetch(`${CHAT_BACKEND}/api/chat?q=${encodeURIComponent(q)}&limit=40`);
+      const r = await fetch(url, { signal: ctrl.signal });
       const j = await r.json();
-      if (j.error) setErr(j.error);
-      else { setErr(''); setData(j); }
+      // If the user hovered another card while we were waiting, drop the response.
+      if (activeQ !== q) return;
+      if (j.error) { setErr(j.error); return; }
+      setErr('');
+      if (j.incremental) {
+        // Merge new messages onto cached set (dedupe by id).
+        const prev = CHAT_CACHE.get(activeQ) || data || { messages: [], meta: j.meta };
+        const seen = new Set(prev.messages.map(m => m.id));
+        const merged = prev.messages.concat(j.messages.filter(m => !seen.has(m.id)));
+        const next = { meta: prev.meta || j.meta, messages: merged };
+        CHAT_CACHE.set(activeQ, next);
+        setData(next);
+      } else {
+        CHAT_CACHE.set(activeQ, { meta: j.meta, messages: j.messages });
+        setData({ meta: j.meta, messages: j.messages });
+      }
     } catch (e) {
+      if (e.name === 'AbortError') return;
       setErr(`Backend не отвечает (${e.message}). Запусти dashboard_backend.py.`);
     }
-  }, [q]);
+  }, [q, data]);
 
   useEffect(() => {
     if (!target) return;
-    setData(null); setErr(''); setDraft('');
-    fetchChat();
-    // Autorefresh every 15s — slower than 5s so backend doesn't open too many
-    // Telethon clients at once (each call spawns a fresh client connection).
-    const id = setInterval(fetchChat, 15000);
-    return () => clearInterval(id);
-  }, [target, fetchChat]);
+    setErr(''); setDraft('');
+    // Instant paint from cache (if we've seen this chat before), then request
+    // only the tail (messages newer than what's cached).
+    const cached = CHAT_CACHE.get(q);
+    if (cached) {
+      setData(cached);
+      const lastId = cached.messages.length ? cached.messages[cached.messages.length - 1].id : 0;
+      fetchChat(lastId);
+    } else {
+      setData(null);
+      fetchChat();
+    }
+    // Autorefresh — incremental only, cheap on backend.
+    const id = setInterval(() => {
+      const c = CHAT_CACHE.get(q);
+      const lastId = c && c.messages.length ? c.messages[c.messages.length - 1].id : 0;
+      fetchChat(lastId || undefined);
+    }, 15000);
+    return () => {
+      clearInterval(id);
+      if (abortRef.current) abortRef.current.abort();
+    };
+  }, [target]);   // intentionally NOT depending on fetchChat — avoid reset loops
 
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
@@ -1625,7 +1669,12 @@ function ChatPanel({ target, onClose }) {
       });
       const j = await r.json();
       if (j.error) setErr(j.error);
-      else { setDraft(''); fetchChat(); }
+      else {
+        setDraft('');
+        const c = CHAT_CACHE.get(q);
+        const lastId = c && c.messages.length ? c.messages[c.messages.length - 1].id : 0;
+        fetchChat(lastId || undefined);
+      }
     } catch (e) {
       setErr(e.message);
     } finally {
