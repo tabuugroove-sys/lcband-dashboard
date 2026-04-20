@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v12-sla-sleeping';
+const CACHE = 'lcb-v13-monitor-5min';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
