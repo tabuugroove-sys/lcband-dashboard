@@ -1603,7 +1603,9 @@ function ChatPanel({ target, onClose }) {
     if (!target) return;
     setData(null); setErr(''); setDraft('');
     fetchChat();
-    const id = setInterval(fetchChat, 5000);
+    // Autorefresh every 15s — slower than 5s so backend doesn't open too many
+    // Telethon clients at once (each call spawns a fresh client connection).
+    const id = setInterval(fetchChat, 15000);
     return () => clearInterval(id);
   }, [target, fetchChat]);
 
