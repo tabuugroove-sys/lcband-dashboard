@@ -852,6 +852,27 @@ const NEW_PERIODS = [
   { id: 'new_quarter', label: 'Квартал', short: 'К' },
 ];
 
+// Business-контекст для метрик (показываем на hover).
+const KPI_HINTS = {
+  tg_active:     'Активные заказы из Telegram. Основной канал — 80%+ выручки.',
+  vk_active:     'Активные заказы из ВКонтакте. Дополнительный канал, малая доля.',
+  ig_total:      'База организаторов в Instagram (≈494), бот отвечает на сторис и прогревает к заказам.',
+  new_day:       'Сколько новых заявок пришло за последний день. Индикатор входящего потока.',
+  new_week:      'Новые заявки за 7 дней. Цикл для недельных планёрок.',
+  new_month:     'Новые заявки за 30 дней. Главный показатель роста воронки.',
+  new_quarter:   'Новые заявки за 90 дней. Для долгосрочных трендов и сезонности.',
+  conversion:    'Доля оплативших из тех, кому отправили КП. Ключевой показатель эффективности воронки.',
+  customers:     'Сколько клиентов оплатили. Конечная бизнес-цель.',
+  refused_total: 'Архив отказов — база для таргетированных рассылок и анализа причин потерь.',
+};
+const FUNNEL_HINTS = {
+  funnel_new:        'Свежие лиды, которым ещё не писали КП. Сырой поток от скана event-чатов и outreach.',
+  funnel_contacted:  'Кому отправили КП — холодный аутрич + ручные письма. Старт воронки.',
+  funnel_replied:    'Кто вступил в диалог — любой ответ от клиента (включая вялые отказы).',
+  funnel_interested: 'Горячие лиды: подтвердили дату/прайс/райдер. Реальные покупатели, деньги отсюда.',
+  funnel_client:     'Оплатили — выступление состоялось или запланировано.',
+};
+
 function KPISection({ kpi }) {
   const [period, setPeriod] = useState(() => {
     try { return localStorage.getItem('lcb_kpi_period') || 'new_month'; }
@@ -879,7 +900,7 @@ function KPISection({ kpi }) {
       <div className="section-title">Лиды по каналам</div>
       <div className="kpi-grid">
         {channels.map(c => (
-          <div key={c.key} className="kpi-card">
+          <div key={c.key} className="kpi-card" title={KPI_HINTS[c.key] || ''}>
             <div className="kpi-emoji">{c.emoji}</div>
             <div className="kpi-val">{kpi[c.key] ?? '—'}</div>
             <div className="kpi-lbl">{c.label}</div>
@@ -888,7 +909,7 @@ function KPISection({ kpi }) {
       </div>
       <div className="kpi-row">
         {secondary.map(c => (
-          <div key={c.label} className="kpi-mini" style={{position:'relative'}}>
+          <div key={c.label} className="kpi-mini" style={{position:'relative'}} title={KPI_HINTS[c.key] || ''}>
             <div className="kpi-mini-val"
               style={{ color: c.key === 'customers' ? 'var(--ok)'
                             : c.key === 'refused_total' ? '#f87171'
@@ -931,7 +952,7 @@ function FunnelSection({ funnel }) {
           const prev = funnel[i - 1];
           const pct  = prev && prev.n > 0 ? Math.round(step.n / prev.n * 100) + '%' : null;
           return (
-            <div key={step.key} className="funnel-step">
+            <div key={step.key} className="funnel-step" title={FUNNEL_HINTS[step.key] || ''}>
               {i > 0 && <span className="funnel-arr">›</span>}
               <div className="funnel-box">
                 <div className="funnel-num">{step.n}</div>
@@ -1367,29 +1388,30 @@ function TabBar({ activeTab, setActiveTab, attentionCount, refusalCount, paidCou
   return (
     <div style={{
       display: 'flex',
+      flexWrap: 'wrap',
       gap: 4,
       padding: '8px 0',
       borderBottom: '1px solid var(--border, #333)',
       marginBottom: 12,
-      overflowX: 'auto',
     }}>
       {tabs.map(t => (
         <button
           key={t.id}
           onClick={() => setActiveTab(t.id)}
           style={{
-            padding: '8px 14px',
+            padding: '7px 11px',
             border: 'none',
             borderRadius: 8,
             background: activeTab === t.id ? 'var(--blue)' : 'transparent',
             color: activeTab === t.id ? 'white' : 'var(--text)',
             fontWeight: activeTab === t.id ? 700 : 500,
-            fontSize: 13,
+            fontSize: 12.5,
             cursor: 'pointer',
             whiteSpace: 'nowrap',
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
+            gap: 5,
+            flexShrink: 0,
           }}>
           <span>{t.emoji}</span>
           <span>{t.label}</span>
@@ -1397,10 +1419,11 @@ function TabBar({ activeTab, setActiveTab, attentionCount, refusalCount, paidCou
             <span style={{
               background: activeTab === t.id ? 'rgba(255,255,255,0.25)' : '#f87171',
               color: 'white',
-              padding: '2px 7px',
+              padding: '2px 6px',
               borderRadius: 10,
-              fontSize: 11,
+              fontSize: 10.5,
               fontWeight: 700,
+              lineHeight: 1,
             }}>{t.badge}</span>
           )}
         </button>

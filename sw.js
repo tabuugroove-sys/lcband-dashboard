@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v7-ai-timeline-sla';
+const CACHE = 'lcb-v8-tabs-wrap';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
