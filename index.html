@@ -1467,6 +1467,7 @@ function TabBar({ activeTab, setActiveTab, attentionCount, refusalCount, paidCou
 
 function AttentionSection({ attention }) {
   const chatCtx = React.useContext(ChatContext);
+  const aiCtx = React.useContext(AiTagsContext);
   const hoverTimer = React.useRef(null);
   if (!attention.items.length) {
     return (
@@ -1543,6 +1544,28 @@ function AttentionSection({ attention }) {
                 <div className="order-client">
                   {priorityEmoji && <span style={{marginRight:6}}>{priorityEmoji}</span>}
                   {clientEl}
+                  {(() => {
+                    const tag = uname ? aiCtx.tags[uname.toLowerCase()] : null;
+                    if (!tag) return null;
+                    const meta = AI_TAG_META[tag.category] || AI_TAG_META.unknown;
+                    if (meta.label === '—') return null;
+                    return (
+                      <span
+                        title={`${meta.hint}${tag.reason ? '\n\n' + tag.reason : ''}`}
+                        style={{
+                          marginLeft: 8,
+                          padding: '2px 7px',
+                          fontSize: 10,
+                          fontWeight: 600,
+                          borderRadius: 6,
+                          background: meta.color + '22',
+                          color: meta.color,
+                          border: '1px solid ' + meta.color + '55',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >{meta.emoji} {meta.label}</span>
+                    );
+                  })()}
                 </div>
                 <div className="order-meta" style={{fontSize:11}}>
                   <span>📋 {item.status}</span>
@@ -2107,6 +2130,42 @@ const ChatContext = React.createContext(null);
 // we don't re-download a conversation the user already looked at.
 const CHAT_CACHE = new Map();
 
+// AI-classification tags for attention leads (keyed by lowercased username).
+// Populated by App via POST /api/classify_leads and read by AttentionSection.
+const AiTagsContext = React.createContext({ tags: {}, loading: false });
+const AI_TAG_META = {
+  decline:         { label: 'Отказ',         emoji: '❌', color: '#f87171', hint: 'Клиент отказал/выбрал конкурентов. Можно переносить в «Не актуальные».' },
+  awaiting_client: { label: 'Ждём ответа',    emoji: '⏳', color: '#9ca3af', hint: 'Мы написали <3 дней назад, клиент молчит. Ещё рано пушить.' },
+  followup_ready:  { label: 'Нужен follow-up', emoji: '🔔', color: '#fb923c', hint: 'Мы писали >3 дней назад, ответа нет. Время прислать нудж.' },
+  awaiting_us:     { label: 'Ждёт нас',        emoji: '💬', color: '#60a5fa', hint: 'Клиент задал вопрос / ждёт нашего ответа — надо ответить.' },
+  hot:             { label: 'Горячий',         emoji: '🔥', color: '#22c55e', hint: 'Активная сделка: подтверждают дату/прайс/райдер. Скоро оплата.' },
+  unknown:         { label: '—',              emoji: '',  color: '#6b7280', hint: 'AI не смог классифицировать.' },
+};
+
+function UnreadBadge() {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const fetchUnread = async () => {
+      try {
+        const r = await fetch(`${CHAT_BACKEND}/api/unread`, { cache: 'no-store' });
+        const j = await r.json();
+        if (alive && !j.error) setData(j);
+      } catch {}
+    };
+    fetchUnread();
+    const id = setInterval(fetchUnread, 60000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+  if (!data) return null;
+  return (
+    <div className="header-sub" style={{marginTop:3}}
+      title={`Непрочитанные сообщения в Telegram: ${data.dm} ЛС + ${data.groups} в чатах`}>
+      ✉️ {data.total} непрочитанных <span style={{opacity:0.6}}>({data.dm} DM · {data.groups} чаты)</span>
+    </div>
+  );
+}
+
 function ChatPanel({ target, onClose }) {
   const [data, setData] = useState(null);
   const [err, setErr]   = useState('');
@@ -2274,6 +2333,8 @@ function App() {
   const [showTGModal, setShowTGModal] = useState(false);
   const [showProcess, setShowProcess] = useState(null);
   const [chatTarget, setChatTarget] = useState(null);
+  const [aiTags, setAiTags] = useState({});
+  const [aiLoading, setAiLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     try { return localStorage.getItem('lcb_tab') || 'overview'; } catch { return 'overview'; }
   });
@@ -2319,6 +2380,33 @@ function App() {
 
   const data = useMemo(() => rows ? processRows(rows) : null, [rows]);
 
+  // После загрузки attention — классифицируем лиды через /api/classify_leads.
+  // Кэшируем в aiTags, чтобы не гонять Claude каждый раз.
+  useEffect(() => {
+    const items = data?.attention?.items || [];
+    const usernames = [...new Set(items
+      .filter(it => it.channel === 'TG' && it.username)
+      .map(it => String(it.username).toLowerCase()))];
+    const missing = usernames.filter(u => !(u in aiTags));
+    if (!missing.length) return;
+    setAiLoading(true);
+    fetch(`${CHAT_BACKEND}/api/classify_leads`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ usernames: missing }),
+    })
+      .then(r => r.json())
+      .then(j => {
+        if (!j || typeof j !== 'object' || j.error) return;
+        const normalized = {};
+        for (const [k, v] of Object.entries(j)) normalized[k.toLowerCase()] = v;
+        setAiTags(prev => ({ ...prev, ...normalized }));
+      })
+      .catch(() => {})
+      .finally(() => setAiLoading(false));
+  }, [data?.attention?.items?.length]);
+
+
   // Fast polling (30s) when scan is active
   useEffect(() => {
     if (!data || !data.scan) return;
@@ -2333,6 +2421,7 @@ function App() {
     : null;
 
   return (
+    <AiTagsContext.Provider value={{ tags: aiTags, loading: aiLoading }}>
     <ChatContext.Provider value={{ openChat: setChatTarget }}>
     <div className="app">
       {/* Header */}
@@ -2346,6 +2435,7 @@ function App() {
                 {offline && <span className="offline-pill">offline</span>}
               </div>
               {timeStr && <div className="header-sub">Обновлено: {timeStr}</div>}
+              <UnreadBadge />
             </div>
           </div>
           <button
@@ -2454,6 +2544,7 @@ function App() {
       {chatTarget && <ChatPanel target={chatTarget} onClose={() => setChatTarget(null)} />}
     </div>
     </ChatContext.Provider>
+    </AiTagsContext.Provider>
   );
 }
 
