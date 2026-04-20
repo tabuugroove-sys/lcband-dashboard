@@ -490,6 +490,7 @@ function processRows(rows) {
   const channels = {};  // { TG: 91, VK: 5, ... }
   const tgFunnel = {};  // { day: {sent,leads,paid,earned}, week: {…}, … }
   const connection = { status: 'unknown', lastCheck: null, sessions: {} };
+  const vkConnection = { status: 'unknown', lastCheck: null, reason: '', tokens: {} };
   const scan = { status: 'idle', progress: 0, message: '', results: [], chatsChecked: [], updated: '' };
   const agents = { total: 0, running: 0, missing: 0, staleSla: 0, items: [] };
   const newLeads = { total: 0, items: [] };
@@ -577,6 +578,19 @@ function processRows(rows) {
         if (reason) connection.sessionReasons[sessName] = reason;
       }
     }
+    if (section === 'VKConnection') {
+      if (row.key === 'vk_conn_status') {
+        const [st, reason] = (row.value || '').split('|');
+        vkConnection.status = st;
+        vkConnection.reason = reason || '';
+      } else if (row.key === 'vk_conn_last_check') {
+        vkConnection.lastCheck = row.value;
+      } else if (row.key?.startsWith('vk_conn_')) {
+        const tokenName = row.key.replace('vk_conn_', '');
+        const [st, reason] = (row.value || '').split('|');
+        vkConnection.tokens[tokenName] = { status: st, reason, label: row.label };
+      }
+    }
     if (section === 'Agents') {
       if (row.key === 'agents_total')   agents.total = Number(row.value) || 0;
       else if (row.key === 'agents_running') agents.running = Number(row.value) || 0;
@@ -612,7 +626,7 @@ function processRows(rows) {
       }
     }
   }
-  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, scan, agents, newLeads, paid, aiUsage, timeline };
+  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, vkConnection, scan, agents, newLeads, paid, aiUsage, timeline };
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -811,47 +825,73 @@ function ProcessRulesModal({ processKey, onClose }) {
 
 // ── Components ────────────────────────────────────────────────────────────────
 
-function ConnectionStatus({ connection }) {
-  const st = connection.status || 'unknown';
+function _fmtAgo(lastCheck) {
+  if (!lastCheck || lastCheck === '—') return '';
+  try {
+    const d = new Date(lastCheck);
+    const mins = Math.round((Date.now() - d.getTime()) / 60000);
+    if (mins < 1) return 'только что';
+    if (mins < 60) return mins + ' мин назад';
+    if (mins < 1440) return Math.round(mins / 60) + ' ч назад';
+    return Math.round(mins / 1440) + ' д назад';
+  } catch { return lastCheck; }
+}
+
+function ConnectionRow({ title, status, reason, lastCheck }) {
+  const st = status || 'unknown';
   const dotCls = st === 'ok' ? 'conn-dot-ok' : st === 'error' ? 'conn-dot-err' : 'conn-dot-unk';
   const label  = st === 'ok' ? 'Подключено' : st === 'error' ? 'Соединение потеряно' : 'Нет данных';
   const labelColor = st === 'ok' ? 'var(--ok)' : st === 'error' ? '#f87171' : 'var(--muted)';
-
-  const lastCheck = connection.lastCheck;
-  let timeAgo = '';
-  if (lastCheck && lastCheck !== '—') {
-    try {
-      const d = new Date(lastCheck);
-      const mins = Math.round((Date.now() - d.getTime()) / 60000);
-      if (mins < 1) timeAgo = 'только что';
-      else if (mins < 60) timeAgo = mins + ' мин назад';
-      else if (mins < 1440) timeAgo = Math.round(mins / 60) + ' ч назад';
-      else timeAgo = Math.round(mins / 1440) + ' д назад';
-    } catch { timeAgo = lastCheck; }
-  }
-
-  // Аккаунт показываем ОДИН раз: берём из connection.reason (общий) либо из
-  // первого session reason. Цвет — синий при ok, красный при error.
-  const sessionReasons = connection.sessionReasons || {};
-  const firstSessionReason = Object.values(sessionReasons).find(Boolean) || '';
-  const accountInfo = connection.reason || firstSessionReason;
   const accountColor = st === 'ok' ? '#60a5fa' : '#f87171';
+  const timeAgo = _fmtAgo(lastCheck);
+  return (
+    <div className="conn-card" style={{marginBottom:8}}>
+      <div className={`conn-dot ${dotCls}`} />
+      <div className="conn-info">
+        <div style={{fontSize:11,color:'var(--muted)',fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,marginBottom:2}}>
+          {title}
+        </div>
+        <div className="conn-label" style={{color: labelColor}}>{label}</div>
+        {reason && (
+          <div style={{fontSize:12,color:accountColor,marginTop:2,fontWeight:500}}>
+            {reason}
+          </div>
+        )}
+        {timeAgo && <div className="conn-sub">Проверено: {timeAgo}</div>}
+      </div>
+    </div>
+  );
+}
+
+function ConnectionStatus({ connection, vkConnection }) {
+  const sessionReasons = connection?.sessionReasons || {};
+  const firstSessionReason = Object.values(sessionReasons).find(Boolean) || '';
+  const tgReason = connection?.reason || firstSessionReason;
+
+  const vkTokens = vkConnection?.tokens || {};
+  // Для VK формируем reason из первого ok токена (обычно Kate Mobile — показывает имя аккаунта)
+  const kateReason = vkTokens.kate_mobile?.reason || '';
+  const svcReason  = vkTokens.service_key?.reason || '';
+  const vkReason = vkConnection?.reason ||
+    (kateReason && svcReason ? `${kateReason} · ${svcReason}` : (kateReason || svcReason));
 
   return (
     <div className="section">
-      <div className="section-title">Telegram соединение</div>
-      <div className="conn-card">
-        <div className={`conn-dot ${dotCls}`} />
-        <div className="conn-info">
-          <div className="conn-label" style={{color: labelColor}}>{label}</div>
-          {accountInfo && (
-            <div style={{fontSize:12,color:accountColor,marginTop:2,fontWeight:500}}>
-              {accountInfo}
-            </div>
-          )}
-          {timeAgo && <div className="conn-sub">Проверено: {timeAgo}</div>}
-        </div>
-      </div>
+      <div className="section-title">Соединения</div>
+      <ConnectionRow
+        title="📨 Telegram"
+        status={connection?.status}
+        reason={tgReason}
+        lastCheck={connection?.lastCheck}
+      />
+      {vkConnection && vkConnection.status !== 'unknown' && (
+        <ConnectionRow
+          title="🌐 VK (Kate Mobile + Service)"
+          status={vkConnection.status}
+          reason={vkReason}
+          lastCheck={vkConnection.lastCheck}
+        />
+      )}
     </div>
   );
 }
@@ -2498,7 +2538,7 @@ function App() {
       {/* Content */}
       {data && (
         <>
-          <ConnectionStatus connection={data.connection} />
+          <ConnectionStatus connection={data.connection} vkConnection={data.vkConnection} />
           <TabBar
             activeTab={activeTab}
             setActiveTab={setActiveTab}

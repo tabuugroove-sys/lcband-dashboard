@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v14-priority-schedule';
+const CACHE = 'lcb-v15-vk-connection';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
