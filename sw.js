@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v11-flush-to-chat';
+const CACHE = 'lcb-v12-sla-sleeping';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {

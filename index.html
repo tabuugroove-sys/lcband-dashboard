@@ -1803,9 +1803,10 @@ function ProcessesSection({ agents }) {
     return { dot:'#6b7280', label: st || '?', bg:'rgba(107,114,128,0.1)' };
   };
   const slaColor = (sla) => {
-    if (sla === 'green')  return '#10b981';
-    if (sla === 'yellow') return '#f5c518';
-    if (sla === 'red')    return '#f87171';
+    if (sla === 'green')    return '#10b981';
+    if (sla === 'yellow')   return '#f5c518';
+    if (sla === 'red')      return '#f87171';
+    if (sla === 'sleeping') return '#60a5fa';  // синий — штатный сон
     return 'var(--muted)';
   };
   return (
@@ -1844,10 +1845,13 @@ function ProcessesSection({ agents }) {
                 </div>
                 <div style={{fontSize:10,color:'var(--muted)',marginTop:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
                   <span style={{fontFamily:'monospace'}}>{a.label.replace('com.lcband.','')}</span>
-                  <span style={{marginLeft:8}}>· каждые {fmtInterval(a.interval)}</span>
+                  <span style={{marginLeft:8}}>
+                    · {a.note ? a.note : `каждые ${fmtInterval(a.interval)}`}
+                  </span>
                   {a.minutes_since_success != null && (
                     <span style={{marginLeft:8,color:slaCol,fontWeight:600}}>
                       · успех {fmtMinsAgo(a.minutes_since_success)}
+                      {a.sla === 'sleeping' && ' 💤'}
                     </span>
                   )}
                   {!okExit && <span style={{marginLeft:8,color:'#f87171'}}>· exit {a.last_exit}</span>}
@@ -1867,7 +1871,7 @@ function ProcessesSection({ agents }) {
         })}
       </div>
       <div style={{marginTop:12,padding:10,background:'rgba(59,130,246,0.08)',borderRadius:8,fontSize:11,color:'var(--muted)'}}>
-        💡 Watchdog каждые 30 минут проверяет этот список. SLA: зелёный — в пределах 2× интервала, жёлтый — просрочено, красный — больше 5× интервала.
+        💡 Watchdog каждые 30 минут проверяет. SLA: 🟢 зелёный в пределах 2× интервала, 🟡 жёлтый просрочен, 🔴 красный &gt; 5× интервала, 🔵 синий «спит» (по расписанию).
       </div>
     </div>
   );
