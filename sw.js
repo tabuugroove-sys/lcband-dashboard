@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v6-processes-newleads';
+const CACHE = 'lcb-v7-ai-timeline-sla';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
