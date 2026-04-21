@@ -192,8 +192,6 @@
     .order-tip {
       visibility: hidden; opacity: 0;
       position: absolute; z-index: 50;
-      top: calc(100% + 6px); left: 0; right: 0;
-      max-width: 520px;
       padding: 12px 14px;
       background: #0f172a; color: #e2e8f0;
       border: 1px solid #334155; border-radius: 8px;
@@ -201,6 +199,18 @@
       font-size: 12px; line-height: 1.5;
       transition: opacity .15s, visibility .15s;
       pointer-events: none;
+    }
+    .order-tip-side-left > .order-tip {
+      top: 0; right: calc(100% + 8px); left: auto;
+      width: 440px; max-width: calc(100vw - 40px);
+    }
+    .order-tip-side-right > .order-tip {
+      top: 0; left: calc(100% + 8px); right: auto;
+      width: 440px; max-width: calc(100vw - 40px);
+    }
+    .order-tip-side-bottom > .order-tip {
+      top: calc(100% + 6px); left: 0; right: 0;
+      max-width: 520px;
     }
     .order-card-hoverable:hover .order-tip,
     .order-card-hoverable:focus-within .order-tip { visibility: visible; opacity: 1; }
@@ -1367,14 +1377,35 @@ function OrderCard({ order: o }) {
     : (o.client || '—');
   const descPreview = (o.desc || '').slice(0, 140);
   const hasDetails = !!(o.desc || o.history);
-  // Parse last 3 history entries [timestamp] text
   const historyEntries = (o.history || '')
     .split(/\n(?=\[)/)
     .filter(Boolean)
     .slice(-3);
 
+  const cardRef = React.useRef(null);
+  const [tipSide, setTipSide] = React.useState('left');
+  React.useLayoutEffect(() => {
+    if (!hasDetails) return;
+    const card = cardRef.current;
+    if (!card) return;
+    const compute = () => {
+      const r = card.getBoundingClientRect();
+      const TIP_W = 440, GAP = 8, MARGIN = 8;
+      if (window.innerWidth <= 900) { setTipSide('bottom'); return; }
+      if (r.left >= TIP_W + GAP + MARGIN) setTipSide('left');
+      else if (window.innerWidth - r.right >= TIP_W + GAP + MARGIN) setTipSide('right');
+      else setTipSide('bottom');
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    return () => window.removeEventListener('resize', compute);
+  }, [hasDetails]);
+
   return (
-    <div className={`order-card order-card-hoverable${overdue ? ' order-card-overdue' : ''}`}>
+    <div
+      ref={cardRef}
+      className={`order-card order-card-hoverable order-tip-side-${tipSide}${overdue ? ' order-card-overdue' : ''}`}
+    >
       <div className="order-info">
         <div className="order-client">
           {clientEl}
