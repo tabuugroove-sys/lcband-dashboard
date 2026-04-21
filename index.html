@@ -150,6 +150,12 @@
     .kpi-info:hover + .kpi-tip,
     .kpi-info:focus + .kpi-tip { visibility: visible; opacity: 1; }
 
+    /* ── Клик по KPI-карточке = навигация к заказам/табу ── */
+    .kpi-clickable { cursor: pointer; transition: transform .12s, border-color .12s, background .12s; }
+    .kpi-clickable:hover { transform: translateY(-1px); border-color: var(--blue);
+                            background: rgba(96,165,250,0.06); }
+    .kpi-clickable:active { transform: translateY(0); }
+
     /* ── Funnel ── */
     .funnel-wrap {
       display: flex; overflow-x: auto; gap: 0; padding: 2px 0 10px;
@@ -982,7 +988,7 @@ const FUNNEL_HINTS = {
   funnel_client:     'Оплатили — выступление состоялось или запланировано.',
 };
 
-function KPISection({ kpi }) {
+function KPISection({ kpi, setActiveTab }) {
   const [period, setPeriod] = useState(() => {
     try { return localStorage.getItem('lcb_kpi_period') || 'new_month'; }
     catch { return 'new_month'; }
@@ -992,16 +998,25 @@ function KPISection({ kpi }) {
   }, [period]);
   const periodMeta = NEW_PERIODS.find(p => p.id === period) || NEW_PERIODS[2];
 
+  const scrollTo = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY - 10;
+    window.scrollTo({ top, behavior: 'smooth' });
+  };
+  const goOrders = () => scrollTo('orders-section');
+  const goFunnel = () => scrollTo('funnel-section');
+
   const channels = [
-    { key: 'tg_active', emoji: '✈️', label: 'TG лиды' },
-    { key: 'vk_active', emoji: '🌐', label: 'VK лиды' },
-    { key: 'ig_total',  emoji: '📸', label: 'IG пул' },
+    { key: 'tg_active', emoji: '✈️', label: 'TG лиды', onClick: goOrders },
+    { key: 'vk_active', emoji: '🌐', label: 'VK лиды', onClick: goOrders },
+    { key: 'ig_total',  emoji: '📸', label: 'IG пул',  onClick: goOrders },
   ];
   const secondary = [
-    { key: period,          label: `За ${periodMeta.label.toLowerCase()}`, togglable: true },
-    { key: 'conversion',    label: 'Конверсия %' },
-    { key: 'customers',     label: 'Клиентов' },
-    { key: 'refused_total', label: 'Отказов' },
+    { key: period,          label: `За ${periodMeta.label.toLowerCase()}`, togglable: true, onClick: goFunnel },
+    { key: 'conversion',    label: 'Конверсия %', onClick: goFunnel },
+    { key: 'customers',     label: 'Клиентов',    onClick: () => setActiveTab?.('paid') },
+    { key: 'refused_total', label: 'Отказов',     onClick: () => setActiveTab?.('refusals') },
   ];
 
   return (
@@ -1009,9 +1024,12 @@ function KPISection({ kpi }) {
       <div className="section-title">Лиды по каналам</div>
       <div className="kpi-grid">
         {channels.map(c => (
-          <div key={c.key} className="kpi-card">
+          <div key={c.key} className="kpi-card kpi-clickable"
+               onClick={c.onClick}
+               title="Перейти к списку активных заказов">
             {KPI_HINTS[c.key] && (<>
-              <span className="kpi-info" tabIndex="0" aria-label="Описание">i</span>
+              <span className="kpi-info" tabIndex="0" aria-label="Описание"
+                    onClick={e => e.stopPropagation()}>i</span>
               <div className="kpi-tip">{KPI_HINTS[c.key]}</div>
             </>)}
             <div className="kpi-emoji">{c.emoji}</div>
@@ -1022,9 +1040,11 @@ function KPISection({ kpi }) {
       </div>
       <div className="kpi-row">
         {secondary.map(c => (
-          <div key={c.label} className="kpi-mini">
+          <div key={c.label} className={'kpi-mini' + (c.onClick ? ' kpi-clickable' : '')}
+               onClick={c.onClick}>
             {KPI_HINTS[c.key] && (<>
-              <span className="kpi-info" tabIndex="0" aria-label="Описание">i</span>
+              <span className="kpi-info" tabIndex="0" aria-label="Описание"
+                    onClick={e => e.stopPropagation()}>i</span>
               <div className="kpi-tip">{KPI_HINTS[c.key]}</div>
             </>)}
             <div className="kpi-mini-val"
@@ -1039,7 +1059,7 @@ function KPISection({ kpi }) {
                 {NEW_PERIODS.map(p => (
                   <button
                     key={p.id}
-                    onClick={() => setPeriod(p.id)}
+                    onClick={e => { e.stopPropagation(); setPeriod(p.id); }}
                     title={p.label}
                     style={{
                       padding:'2px 7px', fontSize:10, lineHeight:1,
@@ -1062,7 +1082,7 @@ function KPISection({ kpi }) {
 function FunnelSection({ funnel }) {
   if (!funnel.length) return null;
   return (
-    <div className="section" style={{ marginTop: 14 }}>
+    <div id="funnel-section" className="section" style={{ marginTop: 14 }}>
       <div className="section-title">Воронка (TG)</div>
       <div className="funnel-wrap">
         {funnel.map((step, i) => {
@@ -1086,7 +1106,7 @@ function FunnelSection({ funnel }) {
 
 function OrdersSection({ orders }) {
   return (
-    <div className="section" style={{ marginTop: 14 }}>
+    <div id="orders-section" className="section" style={{ marginTop: 14 }}>
       <div className="section-title">Ближайшие заказы</div>
       {!orders.length ? (
         <div className="empty">Нет данных — запусти sync_dashboard_data.py</div>
@@ -2673,7 +2693,7 @@ function App() {
             <>
               <StatusSection status={data.status} onProcessClick={setShowProcess} />
               <ActionButtons />
-              <KPISection kpi={data.kpi} />
+              <KPISection kpi={data.kpi} setActiveTab={setActiveTab} />
               <div className="section" style={{ marginTop: 8 }}>
                 <TGLeadsButton
                   onClick={() => setShowTGModal(true)}
