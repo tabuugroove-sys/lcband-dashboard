@@ -1619,7 +1619,10 @@ function computePipeline(allLeads, archived, branchSpec) {
   const stage_interest = neg_all.filter(o => !hasNegotiationText(o));
   const stage_negot    = neg_all.filter(hasNegotiationText);
   const stage_prepaid  = active.filter(eq('ОПЛАТИЛА'));
-  const stage_concert  = active.filter(any(/^(Оплачен|Концерт|Сыграл|Выступил)/i));
+  // Stage 6 «Отзыв/контент» — post-event workflow: клиент отыграл, просим отзыв/фото/видео.
+  // DB-статусы: Оплачен (fully paid), Концерт/Сыграл/Выступил (explicit markers),
+  // Отзыв (future status when review collected).
+  const stage_review   = active.filter(any(/^(Оплачен|Концерт|Сыграл|Выступил|Отзыв)/i));
   const stage_followup = active.filter(eq('Follow-up'));
   const stage_cancel_active = active.filter(any(/^(Не актуал|Отказ|Отмена)/i));
   const stage_cancel_arch   = arch.filter(any(/(Неактуал|Не актуал|Отказ|Отмена)/i));
@@ -1638,7 +1641,7 @@ function computePipeline(allLeads, archived, branchSpec) {
     ...branches.filter(b => b.parent === 'interest'),
     { key: 'negot',    label: 'Переговоры',     leads: stage_negot,    kind: 'main' },
     { key: 'prepaid',  label: 'Предоплата',     leads: stage_prepaid,  kind: 'main' },
-    { key: 'concert',  label: 'Концерт',        leads: stage_concert,  kind: 'main' },
+    { key: 'review',   label: 'Отзыв/контент',  leads: stage_review,   kind: 'main' },
   ];
 }
 
@@ -1650,9 +1653,9 @@ const PIPELINE_HINTS = {
   interest:  'Клиент ответил. Нейтральная переписка без обсуждения цены/райдера.',
   followup:  'Молчат после питча. Автомат делает follow-up пинги (cooldown 3 дня, стоп за 3 дня до мероприятия).',
   cancelled: 'Отказались: «взяли других», «не актуально», бюджет не совпал.',
-  negot:     'Активно обсуждают цену, райдер, состав. Hot — нужна личная реакция.',
-  prepaid:   'Получили предоплату (статус ОПЛАТИЛА).',
-  concert:   'Концерт отыграли, полный расчёт.',
+  negot:     'Активно обсуждают цену, райдер, состав. Hot — нужна личная реакция. TG-папка «Переговоры» 🤝.',
+  prepaid:   'Получили предоплату (статус ОПЛАТИЛА, папка 💰).',
+  review:    'Концерт отыграли, полный расчёт. Post-event workflow: отзыв, фото/видео, реферралы. TG-папка «Отзыв/фото» ⭐.',
 };
 
 function FunnelSection({ title, allLeads, archived, branchSpec }) {
