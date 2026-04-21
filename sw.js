@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v23-manual-vk-rescan';
+const CACHE = 'lcb-v24-order-hover-details';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {

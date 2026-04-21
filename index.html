@@ -182,6 +182,41 @@
     .order-info { flex: 1; min-width: 0; }
     .order-client { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .order-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .order-desc-preview {
+      font-size: 11px; color: var(--muted); margin-top: 5px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      opacity: 0.8;
+    }
+    .order-card-hoverable { position: relative; }
+    .order-card-hoverable:hover { border-color: var(--blue); }
+    .order-tip {
+      visibility: hidden; opacity: 0;
+      position: absolute; z-index: 50;
+      top: calc(100% + 6px); left: 0; right: 0;
+      max-width: 520px;
+      padding: 12px 14px;
+      background: #0f172a; color: #e2e8f0;
+      border: 1px solid #334155; border-radius: 8px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+      font-size: 12px; line-height: 1.5;
+      transition: opacity .15s, visibility .15s;
+      pointer-events: none;
+    }
+    .order-card-hoverable:hover .order-tip,
+    .order-card-hoverable:focus-within .order-tip { visibility: visible; opacity: 1; }
+    .order-tip-label {
+      font-size: 10px; font-weight: 700; color: #94a3b8;
+      text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;
+    }
+    .order-tip-body {
+      font-size: 12px; color: #e2e8f0; white-space: pre-wrap;
+      max-height: 180px; overflow-y: auto;
+    }
+    .order-tip-history { font-size: 11px; color: #cbd5e1; }
+    .order-tip-hist-line {
+      padding: 3px 0; border-top: 1px solid #1e293b;
+    }
+    .order-tip-hist-line:first-child { border-top: none; }
     .badge {
       font-size: 10px; font-weight: 700; padding: 3px 9px;
       border-radius: 20px; white-space: nowrap; flex-shrink: 0;
@@ -1208,29 +1243,71 @@ function OrdersSection({ orders }) {
         <div className="empty">Нет данных — запусти sync_dashboard_data.py</div>
       ) : (
         <div className="orders-list">
-          {orders.map((o, i) => {
-            const [cls, txt] = orderBadge(o.status);
-            const overdue = isOverdue(o);
-            const clientEl = o.username
-              ? <a href={`https://t.me/${o.username}`} target="_blank" rel="noopener"
-                   style={{color:'var(--blue)',textDecoration:'none'}}>{o.client || o.username}</a>
-              : (o.client || '—');
-            return (
-              <div key={i} className={`order-card${overdue ? ' order-card-overdue' : ''}`}>
-                <div className="order-info">
-                  <div className="order-client">
-                    {clientEl}
-                    {overdue && <span style={{marginLeft:6,fontSize:10,color:'#f87171',fontWeight:700}}>⚠ просрочено</span>}
-                  </div>
-                  <div className="order-meta">
-                    {o.date_event && <span>📅 {o.date_event}</span>}
-                    {o.location   && <span style={{marginLeft:8}}>📍 {o.location}</span>}
-                  </div>
-                </div>
-                <span className={`badge ${cls}`}>{txt || '?'}</span>
+          {orders.map((o, i) => (
+            <OrderCard key={i} order={o} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrderCard({ order: o }) {
+  const [cls, txt] = orderBadge(o.status);
+  const overdue = isOverdue(o);
+  const clientEl = o.username
+    ? <a href={`https://t.me/${o.username}`} target="_blank" rel="noopener"
+         style={{color:'var(--blue)',textDecoration:'none'}}>{o.client || o.username}</a>
+    : (o.client || '—');
+  const descPreview = (o.desc || '').slice(0, 140);
+  const hasDetails = !!(o.desc || o.history);
+  // Parse last 3 history entries [timestamp] text
+  const historyEntries = (o.history || '')
+    .split(/\n(?=\[)/)
+    .filter(Boolean)
+    .slice(-3);
+
+  return (
+    <div className={`order-card order-card-hoverable${overdue ? ' order-card-overdue' : ''}`}>
+      <div className="order-info">
+        <div className="order-client">
+          {clientEl}
+          {overdue && <span style={{marginLeft:6,fontSize:10,color:'#f87171',fontWeight:700}}>⚠ просрочено</span>}
+        </div>
+        <div className="order-meta">
+          {o.date_event && <span>📅 {o.date_event}</span>}
+          {o.location   && <span style={{marginLeft:8}}>📍 {o.location}</span>}
+        </div>
+        {descPreview && (
+          <div className="order-desc-preview" title={o.desc}>
+            💬 {descPreview}{o.desc && o.desc.length > 140 ? '…' : ''}
+          </div>
+        )}
+      </div>
+      <span className={`badge ${cls}`}>{txt || '?'}</span>
+      {hasDetails && (
+        <div className="order-tip">
+          {o.desc && (
+            <>
+              <div className="order-tip-label">Изначальный запрос</div>
+              <div className="order-tip-body">{o.desc}</div>
+            </>
+          )}
+          {historyEntries.length > 0 && (
+            <>
+              <div className="order-tip-label" style={{marginTop:8}}>Переписка (последние {historyEntries.length})</div>
+              <div className="order-tip-body order-tip-history">
+                {historyEntries.map((e, i) => (
+                  <div key={i} className="order-tip-hist-line">{e.trim()}</div>
+                ))}
               </div>
-            );
-          })}
+            </>
+          )}
+          {o.source_chat && (
+            <div style={{marginTop:8, fontSize:10, color:'var(--muted)'}}>
+              Источник: {o.source_chat}
+            </div>
+          )}
         </div>
       )}
     </div>
