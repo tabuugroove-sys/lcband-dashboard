@@ -1646,6 +1646,9 @@ const PIPELINE_HINTS = {
 
 function FunnelSection({ title, allLeads, archived, branchSpec }) {
   const [expanded, setExpanded] = React.useState(null);
+  // 🔴 22.04: chat panel on hover/click для лидов внутри expanded stage
+  const chatCtx = React.useContext(ChatContext);
+  const hoverTimer = React.useRef(null);
   const pipeline = React.useMemo(
     () => computePipeline(allLeads, archived, branchSpec),
     [allLeads, archived, branchSpec]
@@ -1984,9 +1987,6 @@ function ApprovalButtons({ approvalId, draft, username }) {
 
 
 function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog }) {
-  const chatCtx = React.useContext(ChatContext);
-  const hoverTimer = React.useRef(null);
-
   const { bandLeads, bandArchived, drumLeads, drumArchived } = React.useMemo(() => {
     const bandL = [], drumL = [], bandA = [], drumA = [];
     (allLeads || []).forEach(o => (isDrumLead(o) ? drumL : bandL).push(o));
