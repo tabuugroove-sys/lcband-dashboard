@@ -568,6 +568,7 @@ function processRows(rows) {
   const aiUsage = { totalCalls: 0, totalCost: 0, skip: 0, adapt: 0, ok: 0, services: {} };
   const timeline = { total: 0, items: [] };
   const manualVk = { orders: 0, posts: 0, ranAt: '', hours: 24, status: 'idle' };
+  const manualTg = { orders: 0, posts: 0, ranAt: '', hours: 24, status: 'idle' };
 
   for (const row of rows) {
     if (!row.key) continue;
@@ -691,6 +692,13 @@ function processRows(rows) {
       else if (row.key === 'mvk_hours')  manualVk.hours  = Number(row.value) || 24;
       else if (row.key === 'mvk_status') manualVk.status = row.value || 'idle';
     }
+    if (section === 'ManualTG') {
+      if (row.key === 'mtg_orders') manualTg.orders = Number(row.value) || 0;
+      else if (row.key === 'mtg_posts')  manualTg.posts  = Number(row.value) || 0;
+      else if (row.key === 'mtg_ran_at') manualTg.ranAt  = row.value || '';
+      else if (row.key === 'mtg_hours')  manualTg.hours  = Number(row.value) || 24;
+      else if (row.key === 'mtg_status') manualTg.status = row.value || 'idle';
+    }
     if (section === 'AIUsage') {
       if (row.key === 'ai_total_calls')    aiUsage.totalCalls = Number(row.value) || 0;
       else if (row.key === 'ai_total_cost_usd') aiUsage.totalCost = Number(row.value) || 0;
@@ -711,7 +719,7 @@ function processRows(rows) {
       }
     }
   }
-  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, vkConnection, scan, agents, newLeads, aiSkips, paid, aiUsage, timeline, manualVk };
+  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, vkConnection, scan, agents, newLeads, aiSkips, paid, aiUsage, timeline, manualVk, manualTg };
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -1031,39 +1039,41 @@ const FUNNEL_HINTS = {
   funnel_client:     'Оплатили — выступление состоялось или запланировано.',
 };
 
-function ManualVkCard({ manualVk }) {
-  const [busy, setBusy] = React.useState(manualVk.status === 'running');
+function ManualScanCard({ source, label, hint, data }) {
+  // source: 'vk' | 'tg'  — label shown on card, data: {orders, posts, ranAt, hours, status}
+  const [busy, setBusy] = React.useState(data.status === 'running');
+  const [walkStatus, setWalkStatus] = React.useState(null);  // 'queued' | null
   const [localResult, setLocalResult] = React.useState(null);
   const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
-  const display = localResult || manualVk;
+  const display = localResult || data;
   const lastScan = display.ranAt ? new Date(display.ranAt) : null;
   const timeAgo = lastScan
     ? (() => {
         const m = Math.floor((Date.now() - lastScan.getTime()) / 60000);
         if (m < 1) return 'только что';
-        if (m < 60) return `${m} мин назад`;
+        if (m < 60) return `${m} мин`;
         const h = Math.floor(m / 60);
-        if (h < 24) return `${h} ч назад`;
-        return `${Math.floor(h/24)} дн назад`;
+        if (h < 24) return `${h} ч`;
+        return `${Math.floor(h/24)} дн`;
       })()
     : 'не было';
 
-  const runScan = async (e) => {
+  const runAIScan = async (e) => {
     e.stopPropagation();
     if (busy) return;
     setBusy(true);
+    const scanUrl = `${backendUrl}/api/manual_${source}_rescan`;
+    const statusUrl = `${backendUrl}/api/manual_${source}_rescan_status`;
     try {
-      const url = backendUrl ? `${backendUrl}/api/manual_vk_rescan` : '/api/manual_vk_rescan';
-      await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'},
-                          body: JSON.stringify({hours: 24})});
+      await fetch(scanUrl, { method: 'POST', headers: {'Content-Type':'application/json'},
+                              body: JSON.stringify({hours: 24}) });
     } catch (err) {
-      console.error('[manual_vk] trigger err:', err);
+      console.error('[rescan] trigger err:', err);
       setBusy(false);
       return;
     }
-    // Poll status endpoint for completion
-    const statusUrl = backendUrl ? `${backendUrl}/api/manual_vk_rescan_status` : '/api/manual_vk_rescan_status';
-    for (let i = 0; i < 40; i++) {
+    // TG can take 2-3 min, VK ~30-60s. Poll up to 5 min.
+    for (let i = 0; i < 200; i++) {
       await new Promise(r => setTimeout(r, 1500));
       try {
         const r = await fetch(statusUrl);
@@ -1084,41 +1094,68 @@ function ManualVkCard({ manualVk }) {
     setBusy(false);
   };
 
+  const requestWalk = async (e) => {
+    e.stopPropagation();
+    try {
+      await fetch(`${backendUrl}/api/browser_walk_request`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({source, hours: 24}),
+      });
+      setWalkStatus('queued');
+      setTimeout(() => setWalkStatus(null), 5000);
+    } catch (err) {
+      console.error('[walk] err:', err);
+    }
+  };
+
   return (
-    <div className="kpi-mini" style={{position:'relative'}} title="Повторная проверка всех VK-постов за 24ч (bypass кэша)">
+    <div className="kpi-mini" style={{position:'relative'}}>
       <span className="kpi-info" tabIndex="0" aria-label="Описание"
             onClick={e => e.stopPropagation()}>i</span>
-      <div className="kpi-tip">Ручной re-scan 8 VK-групп за последние 24ч с нуля. Используй если автоматика показывает 0 — проверишь, реально ли пусто.</div>
-      <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
-        <div>
+      <div className="kpi-tip">{hint}</div>
+      <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:6}}>
+        <div style={{minWidth:0}}>
           <div className="kpi-mini-val" style={{color: display.orders > 0 ? 'var(--ok)' : 'var(--text)'}}>
             {busy ? '…' : display.orders}
             <span style={{fontSize:11, color:'var(--muted)', fontWeight:500, marginLeft:3}}>/ {display.posts}</span>
           </div>
-          <div className="kpi-mini-lbl">Ручная сверка</div>
+          <div className="kpi-mini-lbl">{label}</div>
         </div>
-        <button onClick={runScan} disabled={busy}
-          title={busy ? 'Идёт сверка…' : 'Запустить ручную сверку VK за 24ч'}
-          style={{
-            width: 30, height: 30, borderRadius: '50%',
-            background: busy ? 'rgba(148,163,184,0.15)' : 'rgba(34,197,94,0.18)',
-            border: '1px solid ' + (busy ? 'var(--border)' : 'rgba(34,197,94,0.5)'),
-            color: busy ? 'var(--muted)' : 'var(--ok)',
-            fontSize: 14, lineHeight: 1, cursor: busy ? 'wait' : 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'inherit', padding: 0,
-          }}>
-          {busy ? '⏳' : '▶'}
-        </button>
+        <div style={{display:'flex', flexDirection:'column', gap:4}}>
+          <button onClick={runAIScan} disabled={busy}
+            title={busy ? 'Идёт AI-сверка…' : 'AI-пересверка: Sonnet проходит по каждому посту (0₽, Max)'}
+            style={{
+              width: 28, height: 24, borderRadius: 6,
+              background: busy ? 'rgba(148,163,184,0.15)' : 'rgba(34,197,94,0.18)',
+              border: '1px solid ' + (busy ? 'var(--border)' : 'rgba(34,197,94,0.5)'),
+              color: busy ? 'var(--muted)' : 'var(--ok)',
+              fontSize: 12, lineHeight: 1, cursor: busy ? 'wait' : 'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center', padding:0,
+            }}>
+            {busy ? '⏳' : '🤖'}
+          </button>
+          <button onClick={requestWalk}
+            title="Запросить ручной обход: Claude в браузере просмотрит каждый пост (работает только если открыт Claude Code)"
+            style={{
+              width: 28, height: 24, borderRadius: 6,
+              background: walkStatus === 'queued' ? 'rgba(96,165,250,0.28)' : 'rgba(96,165,250,0.12)',
+              border: '1px solid rgba(96,165,250,0.5)',
+              color: 'var(--blue)',
+              fontSize: 12, lineHeight: 1, cursor: 'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center', padding:0,
+            }}>
+            {walkStatus === 'queued' ? '✓' : '👁️'}
+          </button>
+        </div>
       </div>
       <div style={{fontSize:10, color:'var(--muted)', marginTop:4, textAlign:'center'}}>
-        {timeAgo}
+        {walkStatus === 'queued' ? 'ждёт Claude' : timeAgo + ' назад'}
       </div>
     </div>
   );
 }
 
-function KPISection({ kpi, setActiveTab, manualVk }) {
+function KPISection({ kpi, setActiveTab, manualVk, manualTg }) {
   const [period, setPeriod] = useState(() => {
     try { return localStorage.getItem('lcb_kpi_period') || 'new_month'; }
     catch { return 'new_month'; }
@@ -1204,7 +1241,10 @@ function KPISection({ kpi, setActiveTab, manualVk }) {
             )}
           </div>
         ))}
-        <ManualVkCard manualVk={manualVk || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}} />
+        <ManualScanCard source="vk" label="Сверка VK" hint="Ручной AI-rescan 8 VK-групп за 24ч (Sonnet, 0₽) + запрос ручного браузер-обхода"
+                        data={manualVk || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}} />
+        <ManualScanCard source="tg" label="Сверка TG" hint="Ручной AI-rescan 18 TG-чатов за 24ч (Sonnet, 0₽) + запрос ручного браузер-обхода"
+                        data={manualTg || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}} />
       </div>
     </div>
   );
@@ -2711,6 +2751,7 @@ function ChatPanel({ target, onClose }) {
 // ── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const [rows,      setRows]      = useState(null);
+  const [dbSnapshot, setDbSnapshot] = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [refreshing,setRefreshing]= useState(false);
   const [error,     setError]     = useState(null);
@@ -2756,6 +2797,15 @@ function App() {
       setLoading(false);
       setRefreshing(false);
     }
+    // ── DB snapshot (fast, bot-written rows visible immediately) ──
+    try {
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      const r = await fetch(`${bu}/api/db/snapshot`, { cache: 'no-store' });
+      if (r.ok) {
+        const snap = await r.json();
+        setDbSnapshot(snap);
+      }
+    } catch { /* backend offline → fall back to gviz data only */ }
   }, []);
 
   useEffect(() => {
@@ -2764,7 +2814,44 @@ function App() {
     return () => clearInterval(t);
   }, [load]);
 
-  const data = useMemo(() => rows ? processRows(rows) : null, [rows]);
+  const data = useMemo(() => {
+    if (!rows) return null;
+    const d = processRows(rows);
+    // ── Override orders + refused with fresh DB snapshot when available.
+    // DB is populated by bots directly (instant) and by sheets_to_db_sync (60s).
+    // If backend is down, d.* stays as gviz-derived values.
+    if (dbSnapshot && dbSnapshot.active) {
+      d.orders = dbSnapshot.active.slice(0, 30).map(o => ({
+        status:       o.status,
+        date_posted:  o.posted,
+        date_event:   o.event_date,
+        client:       o.client,
+        username:     o.username,
+        contact:      o.contact,
+        desc:         o.desc,
+        location:     o.location,
+        source_chat:  o.source_chat,
+        history:      o.history,
+        channel:      o.channel,
+        last_activity: o.last_activity,
+      }));
+      d.dbSync = dbSnapshot.sync;
+    }
+    if (dbSnapshot && dbSnapshot.archived) {
+      const total = dbSnapshot.stats?.archived || dbSnapshot.archived.length;
+      d.refused = {
+        total,
+        recent: dbSnapshot.archived.slice(0, 10).map(o => ({
+          status:  o.status,
+          date:    o.last_activity || o.posted,
+          name:    o.client,
+          username: o.contact,
+          reason:  (o.history || '').slice(-200),
+        })),
+      };
+    }
+    return d;
+  }, [rows, dbSnapshot]);
 
   // После загрузки attention — классифицируем лиды через /api/classify_leads.
   // Кэшируем в aiTags, чтобы не гонять Claude каждый раз.
@@ -2867,7 +2954,8 @@ function App() {
               <StatusSection status={data.status} onProcessClick={setShowProcess} />
               <ActionButtons />
               <KPISection kpi={data.kpi} setActiveTab={setActiveTab}
-                          manualVk={data.manualVk || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}} />
+                          manualVk={data.manualVk || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}}
+                          manualTg={data.manualTg || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}} />
               <div className="section" style={{ marginTop: 8 }}>
                 <TGLeadsButton
                   onClick={() => setShowTGModal(true)}

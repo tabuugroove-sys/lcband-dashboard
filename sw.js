@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v24-order-hover-details';
+const CACHE = 'lcb-v25-orders-from-db';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
