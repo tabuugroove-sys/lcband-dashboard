@@ -1556,9 +1556,22 @@ const FUNNEL_NEGOTIATION_RE = /ц[ее]н[аы]|прайс|прайсик|рай
 const DRUM_DESC_RE     = /drum[-\s]*show|drum[-\s]*забег|барабанн(?:ое|ые)\s+(?:шоу|представлен|перформанс)|перкуссион(?:ное|ный)/i;
 const DRUM_RACE_RE     = /(?:забег|марафон)[^.\n]{0,60}барабан/i;
 const DRUM_WORKFLOW_RE = /vadimnoize|noize\s*drum|бриф.{0,30}вадим/i;
+// Negation context: negation fragment (не предлагать/без/исключая/кроме) появляется
+// в пределах ~80 chars ДО или ПОСЛЕ drum-фразы. Если да — клиент его ИСКЛЮЧИЛ.
+// Примеры false-positives:
+//   «Бумажное шоу, барабанное шоу и кавер группу не предлагать» (@nesvetsky 26.06)
+//   «Барабанное шоу — нет»
+//   «Без drum show»
+const NEG_FRAG   = '(?:не\\s+(?:предлаг|надо|нужн|интересн)|без\\s+|исключ|кроме\\s+|[—-]\\s*нет\\b)';
+const DRUM_WORD  = '(?:drum|барабан|перкусс)';
+const DRUM_NEG_BEFORE = new RegExp(NEG_FRAG + '[^.\\n]{0,80}' + DRUM_WORD, 'i');
+const DRUM_NEG_AFTER  = new RegExp(DRUM_WORD + '\\w*\\s*[^.\\n]{0,80}' + NEG_FRAG, 'i');
+
 function isDrumLead(o) {
   const d = o.desc || '';
   const h = (o.history || '') + ' ' + (o.next_action || '');
+  // Explicit negation (before or after drum-word) в desc → точно не drum-лид
+  if (DRUM_NEG_BEFORE.test(d) || DRUM_NEG_AFTER.test(d)) return false;
   return DRUM_DESC_RE.test(d) || DRUM_RACE_RE.test(d) || DRUM_WORKFLOW_RE.test(h);
 }
 
