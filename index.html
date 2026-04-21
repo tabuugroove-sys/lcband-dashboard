@@ -2322,10 +2322,103 @@ function StatusSection({ status, activity24h, onProcessClick }) {
                       textAlign:'left', fontSize:12, lineHeight:1.45,
                     }}
                     onClick={(e) => e.stopPropagation()}>
-                  {(!bwFeed || !Array.isArray(bwFeed.events) || bwFeed.events.length === 0) ? (
-                    <div style={{color:'#64748b', fontSize:11}}>
-                      Пока нет комментариев. Во время walk'а тут будут появляться решения Claude по каждому чату.
+                  {/* Секция 1 — Найденные лиды из последнего walk'а */}
+                  {Array.isArray(a?.last_leads) && a.last_leads.length > 0 && (
+                    <div style={{marginBottom:14}}>
+                      <div style={{fontSize:10, color:'#34d399', textTransform:'uppercase',
+                                   letterSpacing:0.5, marginBottom:8, fontWeight:700}}>
+                        🎯 Найдено лидов · {a.last_leads.length}{a.last_hours ? ` за ${a.last_hours}ч окно` : ''}
+                      </div>
+                      {a.last_leads.map((ld, i) => {
+                        const badge = ld.status === 'sent'            ? {c:'#10b981', t:'✅ Отправлено'}
+                                     : ld.status === 'urgent_pending'  ? {c:'#fbbf24', t:'🔥 Срочный'}
+                                     : ld.status === 'blocked_chat'    ? {c:'#a78bfa', t:'🔒 DM only'}
+                                     : ld.status === 'needs_alt_contact' ? {c:'#f87171', t:'⚠ Нужен контакт'}
+                                     : {c:'#93c5fd', t: ld.status || 'pending'};
+                        const uname = ld.username || '';
+                        const tgLink = uname ? `https://t.me/${uname.replace(/^@/,'')}`
+                                     : (ld.contact && ld.contact.includes('t.me/')) ? ld.contact
+                                     : '';
+                        return (
+                          <div key={i} style={{
+                                display:'flex', flexDirection:'column', gap:3,
+                                padding:'7px 10px', marginBottom:6,
+                                background:'rgba(52,211,153,0.08)',
+                                border:'1px solid rgba(52,211,153,0.25)',
+                                borderRadius:5,
+                              }}>
+                            <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
+                              <span style={{
+                                fontSize:9.5, padding:'2px 6px', borderRadius:3,
+                                background: badge.c + '22', color: badge.c,
+                                fontWeight:700, whiteSpace:'nowrap',
+                              }}>{badge.t}</span>
+                              <span style={{color:'#e2e8f0', fontWeight:700, fontSize:12}}>
+                                {ld.author || uname || '—'}
+                              </span>
+                              {tgLink && (
+                                <a href={tgLink} target="_blank" rel="noopener"
+                                   style={{color:'#60a5fa', fontSize:11, textDecoration:'none'}}>
+                                  @{uname.replace(/^@/,'')}
+                                </a>
+                              )}
+                              <span style={{color:'#64748b', fontSize:10.5, marginLeft:'auto'}}>
+                                {ld.date || ''}{ld.city ? ' · ' + ld.city : ''}
+                              </span>
+                            </div>
+                            {ld.format && (
+                              <div style={{color:'#cbd5e1', fontSize:11}}>
+                                📋 {ld.format}
+                              </div>
+                            )}
+                            {ld.source_chat && (
+                              <div style={{color:'#64748b', fontSize:10}}>
+                                из {ld.source_chat}
+                              </div>
+                            )}
+                            {ld.note && (
+                              <div style={{color:'#94a3b8', fontSize:10.5, fontStyle:'italic'}}>
+                                {ld.note}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
+                  )}
+
+                  {/* Секция 2 — Отказы из последнего walk'а */}
+                  {Array.isArray(a?.last_refusals) && a.last_refusals.length > 0 && (
+                    <div style={{marginBottom:14}}>
+                      <div style={{fontSize:10, color:'#f87171', textTransform:'uppercase',
+                                   letterSpacing:0.5, marginBottom:6, fontWeight:700}}>
+                        ❌ Отказы · {a.last_refusals.length}
+                      </div>
+                      {a.last_refusals.map((r_, i) => (
+                        <div key={i} style={{
+                              padding:'5px 9px', marginBottom:4, fontSize:11,
+                              background:'rgba(248,113,113,0.06)',
+                              border:'1px solid rgba(248,113,113,0.2)',
+                              borderRadius:4,
+                            }}>
+                          <div style={{color:'#e2e8f0', fontWeight:600}}>
+                            {r_.author || '?'} · {r_.date || ''}
+                          </div>
+                          <div style={{color:'#94a3b8', fontSize:10.5, marginTop:2}}>
+                            {r_.reason || ''}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Секция 3 — Решения Claude per chat (walk_event) */}
+                  {(!bwFeed || !Array.isArray(bwFeed.events) || bwFeed.events.length === 0) ? (
+                    (!Array.isArray(a?.last_leads) || a.last_leads.length === 0) ? (
+                      <div style={{color:'#64748b', fontSize:11}}>
+                        Пока нет данных. Следующий walk через ⏱ {a?.next_run_sec > 0 ? _fmtCountdown(a.next_run_sec) : 'скоро'}.
+                      </div>
+                    ) : null
                   ) : (
                     <>
                       <div style={{fontSize:10, color:'#64748b', textTransform:'uppercase',
