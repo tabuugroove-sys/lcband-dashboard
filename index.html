@@ -1742,8 +1742,28 @@ function FunnelSection({ title, allLeads, archived, branchSpec }) {
               {stageLeads.map((o, i) => {
                 const chatUrl = leadChatUrl(o);
                 const name = o.client || o.username || '—';
+                // 🔴 22.04: hover → открывает панель переписки справа (как в «Горячих»)
+                const uname = (o.username || '').replace(/^@/, '').trim();
+                const canChat = !!uname;
+                const openChatPanel = () => canChat && chatCtx?.openChat({
+                  user_id: null, username: uname, client: o.client || name,
+                });
+                const onEnter = canChat ? () => {
+                  clearTimeout(hoverTimer.current);
+                  hoverTimer.current = setTimeout(openChatPanel, 250);
+                } : undefined;
+                const onLeave = canChat ? () => clearTimeout(hoverTimer.current) : undefined;
                 return (
-                  <div key={o.id || (o.username + '-' + i)} className="funnel-lead-card">
+                  <div key={o.id || (o.username + '-' + i)} className="funnel-lead-card"
+                       onMouseEnter={onEnter}
+                       onMouseLeave={onLeave}
+                       onClick={canChat ? (e) => {
+                         // Не открывать если клик по approval-кнопке/input/a
+                         const tag = (e.target.tagName || '').toLowerCase();
+                         if (tag === 'button' || tag === 'textarea' || tag === 'a' || tag === 'input') return;
+                         openChatPanel();
+                       } : undefined}
+                       style={canChat ? {cursor: 'pointer'} : undefined}>
                     <div className="funnel-lead-info">
                       <div className="funnel-lead-name">
                         {name}
@@ -1778,7 +1798,8 @@ function FunnelSection({ title, allLeads, archived, branchSpec }) {
                         target="_blank"
                         rel="noopener"
                         className="funnel-lead-chat"
-                        title={`Открыть чат: ${chatUrl}`}
+                        title={`Открыть TG-чат в новой вкладке: ${chatUrl}`}
+                        onClick={(e) => e.stopPropagation()}
                       >
                         →
                       </a>
@@ -1963,6 +1984,9 @@ function ApprovalButtons({ approvalId, draft, username }) {
 
 
 function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog }) {
+  const chatCtx = React.useContext(ChatContext);
+  const hoverTimer = React.useRef(null);
+
   const { bandLeads, bandArchived, drumLeads, drumArchived } = React.useMemo(() => {
     const bandL = [], drumL = [], bandA = [], drumA = [];
     (allLeads || []).forEach(o => (isDrumLead(o) ? drumL : bandL).push(o));
