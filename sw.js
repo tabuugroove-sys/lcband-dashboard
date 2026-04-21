@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v18-status-fresh';
+const CACHE = 'lcb-v19-ai-skip-tab';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
