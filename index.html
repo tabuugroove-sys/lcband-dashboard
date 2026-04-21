@@ -1820,9 +1820,10 @@ function SkeletonCards() {
 }
 
 // ── Tabs ────────────────────────────────────────────────────────
-function TabBar({ activeTab, setActiveTab, attentionCount, refusalCount, paidCount, newLeadsCount, agentsMissing, aiCalls }) {
+function TabBar({ activeTab, setActiveTab, attentionCount, refusalCount, paidCount, newLeadsCount, agentsMissing, aiCalls, sessionCount }) {
   const tabs = [
     { id: 'overview',   label: 'Главная',     emoji: '📊' },
+    { id: 'session',    label: 'Сессия',      emoji: '📋', badge: sessionCount },
     { id: 'new',        label: 'Новые',       emoji: '🆕', badge: newLeadsCount },
     { id: 'attention',  label: 'Горячие',     emoji: '🔥', badge: attentionCount },
     { id: 'paid',       label: 'Оплатили',    emoji: '💰', badge: paidCount },
@@ -1875,6 +1876,172 @@ function TabBar({ activeTab, setActiveTab, attentionCount, refusalCount, paidCou
           )}
         </button>
       ))}
+    </div>
+  );
+}
+
+function SessionSection({ session }) {
+  const chatCtx = React.useContext(ChatContext);
+  const hoverTimer = React.useRef(null);
+  const items = session?.items || [];
+  const counts = session?.counts || {};
+  const sessions = session?.sessions || [];
+  const current = session?.session || '';
+
+  if (!items.length) {
+    return (
+      <div className="section" style={{ marginTop: 14 }}>
+        <div className="section-title">📋 Итоги сессии</div>
+        <div className="empty" style={{padding:20, textAlign:'center', color:'var(--muted)'}}>
+          Ни одной записи в session_actions.jsonl за эту сессию.
+        </div>
+      </div>
+    );
+  }
+
+  const STATUS_STYLE = {
+    sent:               { bg: 'rgba(16,185,129,0.15)', fg: '#10b981' },
+    awaiting_approve:   { bg: 'rgba(245,197,24,0.15)', fg: '#f5c518' },
+    awaiting_director:  { bg: 'rgba(245,197,24,0.15)', fg: '#f5c518' },
+    awaiting_client:    { bg: 'rgba(59,130,246,0.15)', fg: '#3b82f6' },
+    ai_skip:            { bg: 'rgba(239,68,68,0.12)',  fg: '#ef4444' },
+    needs_vk_flow:      { bg: 'rgba(239,68,68,0.12)',  fg: '#ef4444' },
+    declined:           { bg: 'rgba(239,68,68,0.12)',  fg: '#ef4444' },
+    followup:           { bg: 'rgba(168,85,247,0.15)', fg: '#a855f7' },
+    probe:              { bg: 'rgba(168,85,247,0.15)', fg: '#a855f7' },
+  };
+
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title" style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+        📋 Итоги сессии
+        <span style={{fontSize:12, color:'var(--muted)', fontWeight:500}}>· {current} · {items.length}</span>
+      </div>
+
+      <div style={{ display:'flex', gap:6, marginBottom:10, fontSize:11, flexWrap:'wrap' }}>
+        {counts.sent > 0 && (
+          <span style={{background:'rgba(16,185,129,0.15)',color:'#10b981',padding:'3px 8px',borderRadius:10,fontWeight:700}}>
+            ✅ Отправлено: {counts.sent}
+          </span>
+        )}
+        {counts.awaiting_approve > 0 && (
+          <span style={{background:'rgba(245,197,24,0.15)',color:'#f5c518',padding:'3px 8px',borderRadius:10,fontWeight:700}}>
+            ⏳ Ждёт approve: {counts.awaiting_approve}
+          </span>
+        )}
+        {counts.awaiting_director > 0 && (
+          <span style={{background:'rgba(245,197,24,0.15)',color:'#f5c518',padding:'3px 8px',borderRadius:10,fontWeight:700}}>
+            ⏳ Ждёт Вадима: {counts.awaiting_director}
+          </span>
+        )}
+        {counts.ai_skip > 0 && (
+          <span style={{background:'rgba(239,68,68,0.12)',color:'#ef4444',padding:'3px 8px',borderRadius:10,fontWeight:700}}>
+            ❌ AI-skip: {counts.ai_skip}
+          </span>
+        )}
+        {counts.needs_vk_flow > 0 && (
+          <span style={{background:'rgba(239,68,68,0.12)',color:'#ef4444',padding:'3px 8px',borderRadius:10,fontWeight:700}}>
+            ❌ VK-flow: {counts.needs_vk_flow}
+          </span>
+        )}
+        {counts.declined > 0 && (
+          <span style={{background:'rgba(239,68,68,0.12)',color:'#ef4444',padding:'3px 8px',borderRadius:10,fontWeight:700}}>
+            ❌ Отказ: {counts.declined}
+          </span>
+        )}
+      </div>
+
+      <div style={{ overflowX:'auto', margin:'0 -6px' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12.5, minWidth:720 }}>
+          <thead>
+            <tr style={{textAlign:'left', color:'var(--muted)', fontSize:11, textTransform:'uppercase', letterSpacing:'0.3px'}}>
+              <th style={{padding:'8px 6px', borderBottom:'1px solid var(--border)', width:28}}>#</th>
+              <th style={{padding:'8px 6px', borderBottom:'1px solid var(--border)'}}>Лид</th>
+              <th style={{padding:'8px 6px', borderBottom:'1px solid var(--border)'}}>Event</th>
+              <th style={{padding:'8px 6px', borderBottom:'1px solid var(--border)'}}>Статус</th>
+              <th style={{padding:'8px 6px', borderBottom:'1px solid var(--border)'}}>Детали</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it, i) => {
+              const style = STATUS_STYLE[it.status] || { bg:'rgba(100,116,139,0.12)', fg:'var(--muted)' };
+              const uname = it.username || '';
+              const canChat = it.channel === 'TG' && !!uname;
+              const displayName = it.client || uname || it.contact || '—';
+              const onEnter = canChat ? () => {
+                clearTimeout(hoverTimer.current);
+                hoverTimer.current = setTimeout(() => chatCtx?.openChat({
+                  user_id: null, username: uname, client: it.client,
+                }), 200);
+              } : undefined;
+              const onLeave = canChat ? () => clearTimeout(hoverTimer.current) : undefined;
+              const eventLine = [it.event_date, it.event_type, it.city]
+                .filter(Boolean).join(' · ');
+              return (
+                <tr
+                  key={i}
+                  onMouseEnter={onEnter}
+                  onMouseLeave={onLeave}
+                  onClick={canChat ? () => chatCtx?.openChat({user_id:null, username:uname, client:it.client}) : undefined}
+                  style={{
+                    cursor: canChat ? 'pointer' : 'default',
+                    background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+                  }}
+                >
+                  <td style={{padding:'10px 6px', borderBottom:'1px solid var(--border)', color:'var(--muted)', fontVariantNumeric:'tabular-nums'}}>
+                    {it.idx ?? (items.length - i)}
+                  </td>
+                  <td style={{padding:'10px 6px', borderBottom:'1px solid var(--border)'}}>
+                    <div style={{fontWeight:600}}>
+                      {canChat
+                        ? <span style={{color:'var(--blue)'}}>{displayName}</span>
+                        : <span>{displayName}</span>}
+                    </div>
+                    {uname && (
+                      <div style={{fontSize:11, color:'var(--muted)', marginTop:2}}>@{uname}</div>
+                    )}
+                    {!uname && it.contact && (
+                      <div style={{fontSize:11, color:'var(--muted)', marginTop:2}}>{it.contact}</div>
+                    )}
+                  </td>
+                  <td style={{padding:'10px 6px', borderBottom:'1px solid var(--border)', whiteSpace:'nowrap'}}>
+                    {eventLine || '—'}
+                    {it.guests ? <div style={{fontSize:11, color:'var(--muted)', marginTop:2}}>{it.guests} чел</div> : null}
+                  </td>
+                  <td style={{padding:'10px 6px', borderBottom:'1px solid var(--border)'}}>
+                    <span style={{
+                      display:'inline-block',
+                      padding:'3px 8px',
+                      borderRadius:10,
+                      fontSize:11,
+                      fontWeight:700,
+                      background: style.bg,
+                      color: style.fg,
+                      border: '1px solid ' + style.fg + '44',
+                      whiteSpace:'nowrap',
+                    }}>{it.status_label || it.status}</span>
+                  </td>
+                  <td style={{padding:'10px 6px', borderBottom:'1px solid var(--border)', color:'var(--text)', opacity:0.88}}>
+                    {it.details || '—'}
+                    {Array.isArray(it.msg_ids) && it.msg_ids.length > 0 && (
+                      <div style={{fontSize:10.5, color:'var(--muted)', marginTop:3, fontVariantNumeric:'tabular-nums'}}>
+                        msg {it.msg_ids.join(', ')}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {sessions.length > 1 && (
+        <div style={{marginTop:10, fontSize:11, color:'var(--muted)'}}>
+          Прошлые сессии: {sessions.slice(1, 6).join(' · ')}
+          {sessions.length > 6 ? ` · +${sessions.length - 6}` : ''}
+        </div>
+      )}
     </div>
   );
 }
@@ -2849,6 +3016,7 @@ function ChatPanel({ target, onClose }) {
 function App() {
   const [rows,      setRows]      = useState(null);
   const [dbSnapshot, setDbSnapshot] = useState(null);
+  const [sessionLog, setSessionLog] = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [refreshing,setRefreshing]= useState(false);
   const [error,     setError]     = useState(null);
@@ -2903,6 +3071,15 @@ function App() {
         setDbSnapshot(snap);
       }
     } catch { /* backend offline → fall back to gviz data only */ }
+
+    // ── Session actions (what Claude did in the current work session) ──
+    try {
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      const r = await fetch(`${bu}/api/session_actions?limit=100`, { cache: 'no-store' });
+      if (r.ok) {
+        setSessionLog(await r.json());
+      }
+    } catch { /* backend offline → session tab will show "not available" */ }
   }, []);
 
   useEffect(() => {
@@ -3044,6 +3221,7 @@ function App() {
             newLeadsCount={data.newLeads?.total || 0}
             agentsMissing={(data.agents?.missing || 0) + (data.agents?.staleSla || 0)}
             aiCalls={data.aiUsage?.totalCalls || 0}
+            sessionCount={sessionLog?.total || 0}
           />
 
           {activeTab === 'overview' && (
@@ -3065,6 +3243,10 @@ function App() {
               <ScanStatus scan={data.scan} />
               <FollowupsSection followups={data.followups} />
             </>
+          )}
+
+          {activeTab === 'session' && (
+            <SessionSection session={sessionLog || {total:0, items:[], counts:{}, sessions:[], session:''}} />
           )}
 
           {activeTab === 'new' && (
