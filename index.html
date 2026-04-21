@@ -1139,9 +1139,12 @@ function BrowserWalkCard({ data }) {
           ) : isDoneFresh ? (
             <>
               <div className="kpi-mini-val" style={{color: freshOrders > 0 ? '#fbbf24' : '#10b981', fontVariantNumeric:'tabular-nums'}}>
-                {freshOrders ?? 0}<span style={{fontSize:11,color:'var(--muted)',fontWeight:500,marginLeft:3}}>/ {freshPosts ?? 0}</span>
+                {freshOrders ?? 0}
+                <span style={{fontSize:11,color:'var(--muted)',fontWeight:500,marginLeft:4}}>
+                  {freshOrders === 1 ? 'лид' : 'лидов'} · {freshPosts ?? 0} постов
+                </span>
               </div>
-              <div className="kpi-mini-lbl">✓ Готово · лидов/постов</div>
+              <div className="kpi-mini-lbl">✓ Скан готов</div>
             </>
           ) : isError ? (
             <>
@@ -1184,12 +1187,16 @@ function BrowserWalkCard({ data }) {
             if (requesting || isRunning) return;
             setRequesting(true);
             try {
-              await fetch(`${backendUrl}/api/browser_walk_queue_real`, {
+              const r = await fetch(`${backendUrl}/api/browser_walk_deep`, {
                 method: 'POST', headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({hours: 48}),
+                body: JSON.stringify({hours: 168}),
               });
-              setRequestedNote('в очереди — попроси Claude');
-              setTimeout(() => setRequestedNote(null), 8000);
+              if (r.ok) {
+                setRequestedNote('глубокий скан 7д запущен');
+              } else {
+                setRequestedNote('уже идёт другой скан');
+              }
+              setTimeout(() => setRequestedNote(null), 5000);
             } catch (err) {
               setRequestedNote('ошибка');
               setTimeout(() => setRequestedNote(null), 4000);
@@ -1197,7 +1204,7 @@ function BrowserWalkCard({ data }) {
             setRequesting(false);
           }}
           disabled={requesting || isRunning}
-          title="👁️ Ручной обход глазами через computer-use MCP (15-20 мин). Добавит запрос в очередь — попроси Claude в чате «проверь browser walk queue»."
+          title="👁️ Глубокий AI-скан за 7 дней (manual_tg_rescan.py hours=168). 5-10 мин. Ловит то что monitor пропустил за неделю."
           style={{
             width: 30, height: 28, borderRadius: 6,
             background: 'rgba(245,197,24,0.12)',
@@ -1208,7 +1215,7 @@ function BrowserWalkCard({ data }) {
             display:'flex', alignItems:'center', justifyContent:'center', padding:0,
             flexShrink:0,
           }}>
-          👁️
+          7д
         </button>
       </div>
 
@@ -1241,18 +1248,6 @@ function BrowserWalkCard({ data }) {
         )}
       </div>
 
-      {progress?.real_walk?.queued && (
-        <div style={{
-          marginTop:4, padding:'4px 6px',
-          background:'rgba(245,197,24,0.12)',
-          border:'1px solid rgba(245,197,24,0.4)',
-          borderRadius:4, fontSize:10,
-          color:'var(--gold)', textAlign:'center', fontWeight:600,
-        }}
-        title="Ручной обход в очереди. Попроси Claude в чате: «проверь browser walk queue»">
-          👁️ Ручной в очереди · {fmtAgo(progress.real_walk.requested_at)}
-        </div>
-      )}
 
       {expanded && items.length > 0 && (
         <div style={{position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:55,
