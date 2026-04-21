@@ -2175,10 +2175,15 @@ function StatusSection({ status, activity24h, onProcessClick }) {
   if (!status.length) return null;
   const act = activity24h || {};
 
-  // Synthesize Browser Walk row (not a real launchd agent, but user wants it here).
+  // Browser Walk row — предпочитаем row из Google Sheet (sync_dashboard_data.py),
+  // потому что он уже стоит в правильной позиции (после TG Monitor).
+  // Если Sheet-row нет (на всякий случай) — синтезируем.
+  // 🔴 21.04 фикс дубля: раньше PUSH'или ещё одну строку — получали 2 Browser Walk'а
+  // (одна после TG Monitor от Sheet, вторая в самом конце от push). Убрано.
   const bw = act.proc_browser_walk;
-  const rows = [...status];
-  if (bw) {
+  const hasBwInStatus = status.some(s => s.key === 'proc_browser_walk');
+  let rows = [...status];
+  if (bw && !hasBwInStatus) {
     const running = bw.status === 'running';
     const queued  = bw.status === 'queued';
     const val = running
@@ -2189,13 +2194,20 @@ function StatusSection({ status, activity24h, onProcessClick }) {
             const h = Math.floor((Date.now() - new Date(bw.ran_at).getTime()) / 3600000);
             return h < 1 ? 'ok (<1h)' : `ok (${h}h)`;
           })() : 'idle');
-    rows.push({
+    // Вставляем сразу ПОСЛЕ proc_tg_monitor для правильного порядка
+    const tgIdx = rows.findIndex(s => s.key === 'proc_tg_monitor');
+    const newRow = {
       key: 'proc_browser_walk',
       label: '👁️ Browser Walk',
       val,
       reason: '',
       action: running && bw.progress?.current ? `сейчас: ${bw.progress.current}` : '',
-    });
+    };
+    if (tgIdx >= 0) {
+      rows = [...rows.slice(0, tgIdx + 1), newRow, ...rows.slice(tgIdx + 1)];
+    } else {
+      rows.push(newRow);
+    }
   }
 
   return (
