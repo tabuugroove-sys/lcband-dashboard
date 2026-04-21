@@ -1518,7 +1518,9 @@ function KPISection({ kpi, setActiveTab, browserWalk }) {
             )}
           </div>
         ))}
-        <BrowserWalkCard data={browserWalk || {leads:0, refusals:0, chats:0, ranAt:'', hours:48, items:[]}} />
+        {/* BrowserWalkCard удалён 21.04 — Browser Walk живёт только в StatusSection
+             («Процессы» вкладка или «Главная» внутри блока Статус процессов).
+             Дубль в KPI-row не нужен. */}
       </div>
     </div>
   );
@@ -2214,13 +2216,21 @@ function StatusSection({ status, activity24h, onProcessClick }) {
           const count_label = a && typeof a.count === 'number' && a.unit
             ? `${a.count} ${a.unit}${a.extra ? ' · ' + a.extra : ''}`
             : null;
+          // Для browser_walk при running state — override статуса (точки + текста),
+          // иначе showing stale от прошлого walk_result.json пока текущий walk ещё идёт.
+          const bwRunning = is_bw && a?.status === 'running';
+          const effectiveVal = bwRunning ? 'running' : s.val;
+          const effectiveDot = bwRunning ? 'warn' : dotClass(s.val);
           return (
             <div key={s.key} className="status-row"
               style={{flexWrap:'wrap', cursor: hasRules ? 'pointer' : 'default'}}
               onClick={() => hasRules && !is_bw && onProcessClick(s.key)}>
-              <span className={`dot ${dotClass(s.val)}`} />
+              <span className={`dot ${effectiveDot}`}
+                    style={bwRunning ? {animation:'pulse 1.5s ease-in-out infinite'} : undefined} />
               <span className="status-name">{s.label}</span>
-              <span className="status-age">{s.val}</span>
+              <span className="status-age" style={bwRunning ? {color:'var(--blue)', fontWeight:700} : undefined}>
+                {bwRunning ? `⟳ running ${a?.progress?.scanned ?? 0}/${a?.progress?.total ?? 17}` : s.val}
+              </span>
               {hasRules && !is_bw && <span style={{color:'var(--muted)',fontSize:14,marginLeft:2}}>›</span>}
               {is_bw && (
                 <button
@@ -2258,6 +2268,43 @@ function StatusSection({ status, activity24h, onProcessClick }) {
                       ✓ {a.success} успех{a.failures > 0 ? ` · ✗ ${a.failures} пропущ` : ''}
                     </span>
                   )}
+                </div>
+              )}
+              {is_bw && a?.status === 'running' && (
+                <div style={{width:'100%', paddingLeft:20, marginTop:6}}>
+                  {(() => {
+                    const sc = a?.progress?.scanned ?? 0;
+                    const tot = a?.progress?.total ?? 17;
+                    const pct = tot > 0 ? Math.min(100, Math.round((sc / tot) * 100)) : 0;
+                    const curr = a?.progress?.current || '';
+                    return (
+                      <>
+                        <div style={{fontSize:11, color:'var(--blue)', fontWeight:700,
+                                     fontVariantNumeric:'tabular-nums', marginBottom:3}}>
+                          ⟳ Walk идёт · {sc}/{tot} · {pct}%
+                        </div>
+                        <div style={{
+                          height:7, background:'rgba(59,130,246,0.18)',
+                          borderRadius:4, overflow:'hidden',
+                          border:'1px solid rgba(59,130,246,0.4)',
+                        }}>
+                          <div style={{
+                            width: pct + '%', height:'100%',
+                            background:'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)',
+                            transition:'width .4s ease',
+                            boxShadow: pct > 0 ? '0 0 8px rgba(59,130,246,0.5)' : 'none',
+                          }}></div>
+                        </div>
+                        {curr && (
+                          <div style={{fontSize:10.5, color:'var(--blue)', marginTop:3,
+                                       fontWeight:600, overflow:'hidden',
+                                       textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                            ▸ {curr}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
               {s.reason && (
