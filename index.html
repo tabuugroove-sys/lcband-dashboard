@@ -1577,6 +1577,18 @@ function KPISection({ kpi, setActiveTab, browserWalk }) {
 
 const FUNNEL_NEGOTIATION_RE = /ц[ее]н[аы]|прайс|прайсик|райдер|бюджет|депозит|аванс|предоплат|рассчит|смет|скидк|договор|контракт/i;
 
+// Strict drum-show detector: only the CLIENT'S own request should match.
+// History is checked only for explicit workflow markers (Vadim / Noize Drum brief),
+// so "we pitched drum as extra" doesn't misclassify a regular cover-band lead.
+const DRUM_DESC_RE     = /drum[-\s]*show|drum[-\s]*забег|барабанн(?:ое|ые)\s+(?:шоу|представлен|перформанс)|перкуссион(?:ное|ный)/i;
+const DRUM_RACE_RE     = /(?:забег|марафон)[^.\n]{0,60}барабан/i;
+const DRUM_WORKFLOW_RE = /vadimnoize|noize\s*drum|бриф.{0,30}вадим/i;
+function isDrumLead(o) {
+  const d = o.desc || '';
+  const h = (o.history || '') + ' ' + (o.next_action || '');
+  return DRUM_DESC_RE.test(d) || DRUM_RACE_RE.test(d) || DRUM_WORKFLOW_RE.test(h);
+}
+
 function leadChatUrl(o) {
   // Prefer TG username → direct t.me link. Fallback: contact URL (could be vk, tg, etc.)
   if (o.username) {
@@ -1589,10 +1601,12 @@ function leadChatUrl(o) {
   return '';
 }
 
-function computePipeline(allLeads, archived, pendingDrafts) {
+// computePipeline(active, archived, branchSpec)
+// branchSpec is an array of branch descriptors: {key, label, icon, parent, leads, hint?}
+// These are appended as branch rows under the main 6 stages.
+function computePipeline(allLeads, archived, branchSpec) {
   const active = allLeads || [];
   const arch = archived || [];
-  const pend = pendingDrafts || [];
   const hasNegotiationText = (o) =>
     FUNNEL_NEGOTIATION_RE.test((o.history || '') + ' ' + (o.desc || ''));
   const st = (o) => (o.status || '').trim();
@@ -1610,40 +1624,47 @@ function computePipeline(allLeads, archived, pendingDrafts) {
   const stage_cancel_active = active.filter(any(/^(Не актуал|Отказ|Отмена)/i));
   const stage_cancel_arch   = arch.filter(any(/(Неактуал|Не актуал|Отказ|Отмена)/i));
   const stage_cancel   = [...stage_cancel_active, ...stage_cancel_arch];
-  const stage_bot      = pend;
+
+  const branches = [];
+  (branchSpec || []).forEach(b => branches.push({ ...b, kind: 'branch' }));
+  branches.push({ key: 'followup',  label: 'Follow-up', leads: stage_followup, kind: 'branch', parent: 'interest', icon: '🔄' });
+  branches.push({ key: 'cancelled', label: 'Отмена',    leads: stage_cancel,   kind: 'branch', parent: 'interest', icon: '❌' });
 
   return [
-    { key: 'new',       label: 'Новые',          leads: stage_new,      kind: 'main' },
-    { key: 'sent',      label: 'Отправили питч', leads: stage_sent,     kind: 'main' },
-    { key: 'bot',       label: 'Питч в боте',    leads: stage_bot,      kind: 'branch', parent: 'sent',     icon: '🤖' },
-    { key: 'interest',  label: 'Интерес',        leads: stage_interest, kind: 'main' },
-    { key: 'followup',  label: 'Follow-up',      leads: stage_followup, kind: 'branch', parent: 'interest', icon: '🔄' },
-    { key: 'cancelled', label: 'Отмена',         leads: stage_cancel,   kind: 'branch', parent: 'interest', icon: '❌' },
-    { key: 'negot',     label: 'Переговоры',     leads: stage_negot,    kind: 'main' },
-    { key: 'prepaid',   label: 'Предоплата',     leads: stage_prepaid,  kind: 'main' },
-    { key: 'concert',   label: 'Концерт',        leads: stage_concert,  kind: 'main' },
+    { key: 'new',      label: 'Новые',          leads: stage_new,      kind: 'main' },
+    { key: 'sent',     label: 'Отправили питч', leads: stage_sent,     kind: 'main' },
+    ...branches.filter(b => b.parent === 'sent'),
+    { key: 'interest', label: 'Интерес',        leads: stage_interest, kind: 'main' },
+    ...branches.filter(b => b.parent === 'interest'),
+    { key: 'negot',    label: 'Переговоры',     leads: stage_negot,    kind: 'main' },
+    { key: 'prepaid',  label: 'Предоплата',     leads: stage_prepaid,  kind: 'main' },
+    { key: 'concert',  label: 'Концерт',        leads: stage_concert,  kind: 'main' },
   ];
 }
 
 const PIPELINE_HINTS = {
-  new:       'Новые заявки из TG event-чатов. Монитор только что классифицировал — ещё не тронуты.',
-  sent:      'Отправили питч (шаблон «Юли» или drum). Ждём первого ответа.',
+  new:       'Новые заявки. Монитор только что классифицировал — ещё не тронуты.',
+  sent:      'Отправили питч. Ждём первого ответа клиента.',
   bot:       'Бот подготовил draft, но не хватило правила для авто-отправки (язык/цирк/public-reply). Ждёт твоего ✅ в @lcband_notify_bot.',
-  interest:  'Клиент ответил. Нейтральная переписка, детали проекта обсуждаются, но без цены/райдера.',
-  followup:  'Молчат после питча. Автомат сделал follow-up пинг (cooldown 3 дня, стоп за 3 дня до мероприятия).',
-  cancelled: 'Отказались: «взяли других», «не актуально», бюджет не совпал. В листе «Не актуальные заказы».',
-  negot:     'Активно обсуждают цену, райдер, состав, бюджет. Hot — нужна личная реакция.',
-  prepaid:   'Получили предоплату (статус ОПЛАТИЛА, лежат в TG-папке).',
-  concert:   'Концерт отыграли, полный расчёт. Архив успешных сделок.',
+  brief:     'Бриф отправлен @vadimnoize (директор Noize Drum). Ждём его ✅/❌ прежде чем пит­чить клиенту.',
+  interest:  'Клиент ответил. Нейтральная переписка без обсуждения цены/райдера.',
+  followup:  'Молчат после питча. Автомат делает follow-up пинги (cooldown 3 дня, стоп за 3 дня до мероприятия).',
+  cancelled: 'Отказались: «взяли других», «не актуально», бюджет не совпал.',
+  negot:     'Активно обсуждают цену, райдер, состав. Hot — нужна личная реакция.',
+  prepaid:   'Получили предоплату (статус ОПЛАТИЛА).',
+  concert:   'Концерт отыграли, полный расчёт.',
 };
 
-function FunnelSection({ allLeads, archived, pendingDrafts }) {
+function FunnelSection({ title, allLeads, archived, branchSpec }) {
   const [expanded, setExpanded] = React.useState(null);
   const pipeline = React.useMemo(
-    () => computePipeline(allLeads, archived, pendingDrafts),
-    [allLeads, archived, pendingDrafts]
+    () => computePipeline(allLeads, archived, branchSpec),
+    [allLeads, archived, branchSpec]
   );
-  const hasAnyData = (allLeads || []).length > 0 || (archived || []).length > 0 || (pendingDrafts || []).length > 0;
+  const hasAnyData =
+    (allLeads || []).length > 0 ||
+    (archived || []).length > 0 ||
+    (branchSpec || []).some(b => (b.leads || []).length > 0);
   if (!hasAnyData) return null;
 
   const main     = pipeline.filter(s => s.kind === 'main');
@@ -1660,7 +1681,7 @@ function FunnelSection({ allLeads, archived, pendingDrafts }) {
 
   return (
     <div id="funnel-section" className="section" style={{ marginTop: 14 }}>
-      <div className="section-title">Воронка (TG)</div>
+      <div className="section-title">{title || 'Воронка (TG)'}</div>
       <div className="funnel-wrap">
         {main.map((step, i) => {
           const prev = main[i - 1];
@@ -1792,6 +1813,80 @@ function OrdersSection({ orders }) {
         </div>
       )}
     </div>
+  );
+}
+
+// Wrapper: splits leads into LC Band (main) and Drum Show (Noize Drum) pipelines,
+// passes appropriate branchSpec to each FunnelSection.
+function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog }) {
+  const { bandLeads, bandArchived, drumLeads, drumArchived } = React.useMemo(() => {
+    const bandL = [], drumL = [], bandA = [], drumA = [];
+    (allLeads || []).forEach(o => (isDrumLead(o) ? drumL : bandL).push(o));
+    (archived || []).forEach(o => (isDrumLead(o) ? drumA : bandA).push(o));
+    return { bandLeads: bandL, bandArchived: bandA, drumLeads: drumL, drumArchived: drumA };
+  }, [allLeads, archived]);
+
+  // "Бриф Вадиму" leads — session_actions where status=awaiting_director,
+  // joined with the drum lead (by username) to show real profile info.
+  const briefLeads = React.useMemo(() => {
+    const items = (sessionLog && sessionLog.items) ? sessionLog.items : [];
+    // Latest awaiting_director action per username
+    const latest = {};
+    items.forEach(it => {
+      if (it.status !== 'awaiting_director') return;
+      const u = (it.username || '').toLowerCase();
+      if (!u) return;
+      if (!latest[u] || (it.ts || '') > (latest[u].ts || '')) latest[u] = it;
+    });
+    // For each awaiting_director username, prefer the DB drum lead; otherwise synthesize from session action.
+    const byUsername = {};
+    drumLeads.forEach(o => {
+      const u = (o.username || '').toLowerCase();
+      if (u) byUsername[u] = o;
+    });
+    return Object.entries(latest).map(([u, sa]) => {
+      const dbLead = byUsername[u];
+      if (dbLead) {
+        // Augment with brief details
+        return {
+          ...dbLead,
+          status: 'Бриф Вадиму',
+          last_activity: (sa.ts || '').slice(0, 16).replace('T', ' ') || dbLead.last_activity,
+        };
+      }
+      // Synthesize a minimal lead card from session action
+      return {
+        username: sa.username,
+        client: sa.client || sa.username,
+        desc: sa.details || sa.event_type || '',
+        event_date: sa.event_date || '',
+        location: sa.city || '',
+        channel: sa.channel || 'TG',
+        status: 'Бриф Вадиму',
+        last_activity: (sa.ts || '').slice(0, 16).replace('T', ' '),
+      };
+    });
+  }, [sessionLog, drumLeads]);
+
+  return (
+    <>
+      <FunnelSection
+        title="Воронка LC Band (TG)"
+        allLeads={bandLeads}
+        archived={bandArchived}
+        branchSpec={[{
+          key: 'bot', label: 'Питч в боте', icon: '🤖', parent: 'sent', leads: pendingDrafts || [],
+        }]}
+      />
+      <FunnelSection
+        title="Воронка Drum Show (Noize Drum)"
+        allLeads={drumLeads}
+        archived={drumArchived}
+        branchSpec={[{
+          key: 'brief', label: 'Бриф Вадиму', icon: '🥁', parent: 'sent', leads: briefLeads,
+        }]}
+      />
+    </>
   );
 }
 
@@ -3721,10 +3816,11 @@ function App() {
                   tgWeek={data.tgFunnel?.week}
                 />
               </div>
-              <FunnelSection
+              <FunnelSplitSections
                 allLeads={data.allLeads || []}
                 archived={data.allArchived || []}
                 pendingDrafts={data.pendingDrafts || []}
+                sessionLog={sessionLog || null}
               />
               <OrdersSection orders={data.orders} />
               <ScanStatus scan={data.scan} />
