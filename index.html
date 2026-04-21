@@ -2180,6 +2180,26 @@ function ScanStatus({ scan }) {
 }
 
 function StatusSection({ status, activity24h, onProcessClick }) {
+  const [bwExpanded, setBwExpanded] = React.useState(false);
+  const [bwFeed, setBwFeed] = React.useState(null);
+  const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+
+  React.useEffect(() => {
+    if (!bwExpanded) return;
+    let cancelled = false;
+    const fetchFeed = async () => {
+      try {
+        const r = await fetch(`${backendUrl}/api/browser_walk_progress`, { cache: 'no-store' });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (!cancelled) setBwFeed(j);
+      } catch { /* offline */ }
+    };
+    fetchFeed();
+    const t = setInterval(fetchFeed, 3000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [bwExpanded, backendUrl]);
+
   if (!status.length) return null;
   const act = activity24h || {};
 
@@ -2227,11 +2247,24 @@ function StatusSection({ status, activity24h, onProcessClick }) {
           return (
             <div key={s.key} className="status-row"
               style={{flexWrap:'wrap', cursor: hasRules ? 'pointer' : 'default'}}
-              onClick={() => hasRules && onProcessClick(s.key)}>
+              onClick={() => hasRules && !is_bw && onProcessClick(s.key)}>
               <span className={`dot ${dotClass(s.val)}`} />
               <span className="status-name">{s.label}</span>
               <span className="status-age">{s.val}</span>
-              {hasRules && <span style={{color:'var(--muted)',fontSize:14,marginLeft:2}}>›</span>}
+              {hasRules && !is_bw && <span style={{color:'var(--muted)',fontSize:14,marginLeft:2}}>›</span>}
+              {is_bw && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setBwExpanded(v => !v); }}
+                  style={{
+                    marginLeft: 6, fontSize: 11, padding: '2px 8px',
+                    background: bwExpanded ? 'rgba(59,130,246,0.18)' : 'rgba(59,130,246,0.08)',
+                    border: '1px solid rgba(59,130,246,0.45)',
+                    borderRadius: 4, color: 'var(--blue)', fontWeight: 600,
+                    cursor: 'pointer',
+                  }}>
+                  {bwExpanded ? '▲ скрыть' : '▼ подробно'}
+                </button>
+              )}
               {count_label && (
                 <div style={{
                   width:'100%', paddingLeft:20, marginTop:2, fontSize:11,
@@ -2246,6 +2279,68 @@ function StatusSection({ status, activity24h, onProcessClick }) {
               )}
               {s.action && (
                 <div style={{width:'100%',paddingLeft:20,marginTop:1,fontSize:11,color:'var(--blue)'}}>{s.action}</div>
+              )}
+
+              {is_bw && bwExpanded && (
+                <div style={{
+                      width:'100%', marginTop:8, padding:'10px 12px',
+                      background:'#0f172a', border:'1px solid #334155',
+                      borderRadius:6, maxHeight:440, overflowY:'auto',
+                      textAlign:'left', fontSize:12, lineHeight:1.45,
+                    }}
+                    onClick={(e) => e.stopPropagation()}>
+                  {(!bwFeed || !Array.isArray(bwFeed.events) || bwFeed.events.length === 0) ? (
+                    <div style={{color:'#64748b', fontSize:11}}>
+                      Пока нет комментариев. Во время walk'а тут будут появляться решения Claude по каждому чату.
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{fontSize:10, color:'#64748b', textTransform:'uppercase',
+                                   letterSpacing:0.5, marginBottom:6, fontWeight:600}}>
+                        Решения Claude по постам · {bwFeed.events.length}
+                      </div>
+                      {bwFeed.events.slice().reverse().map((ev, i) => {
+                        const isSummary = ev.outcome === 'summary';
+                        const icon = ev.outcome === 'kept'     ? '✅'
+                                   : ev.outcome === 'dup'      ? '🔁'
+                                   : isSummary                 ? '📋'
+                                   : '❌';
+                        const color = ev.outcome === 'kept'    ? '#34d399'
+                                    : ev.outcome === 'dup'     ? '#fbbf24'
+                                    : isSummary                ? '#93c5fd'
+                                    : '#f87171';
+                        return (
+                          <div key={i} style={{
+                                display:'flex', gap:7,
+                                marginBottom: isSummary ? 9 : 5,
+                                padding: isSummary ? '8px 10px' : '3px 0',
+                                background: isSummary ? 'rgba(59,130,246,0.10)' : 'transparent',
+                                borderLeft: isSummary ? '3px solid #3b82f6' : 'none',
+                                borderRadius: isSummary ? 4 : 0,
+                              }}>
+                            <span style={{flexShrink:0, fontSize: isSummary ? 16 : 13,
+                                          lineHeight:1.3}}>{icon}</span>
+                            <span style={{flex:1, minWidth:0,
+                                          whiteSpace:'normal', wordBreak:'break-word'}}>
+                              <span style={{color:'#e2e8f0', fontWeight:700}}>{ev.chat}</span>
+                              {ev.excerpt && (
+                                <span style={{color: color}}> · {ev.excerpt}</span>
+                              )}
+                              {ev.reason && (
+                                <div style={{color: isSummary ? '#cbd5e1' : '#94a3b8',
+                                             fontSize: isSummary ? 12 : 11,
+                                             marginTop: 3,
+                                             fontStyle: isSummary ? 'normal' : 'italic'}}>
+                                  {isSummary ? '💭 ' : '— '}{ev.reason}
+                                </div>
+                              )}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
               )}
             </div>
           );
