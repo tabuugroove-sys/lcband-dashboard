@@ -1746,6 +1746,14 @@ function FunnelSection({ title, allLeads, archived, branchSpec }) {
                           📝 Draft: {o.draft}
                         </div>
                       )}
+                      {/* 🔴 22.04: approve buttons прямо в дашборде — не надо лезть в бот */}
+                      {o.draft && o.id && (o.status === 'Питч в боте' || o.status === 'pending') && (
+                        <ApprovalButtons
+                          approvalId={o.id}
+                          draft={o.draft || ''}
+                          username={o.username || ''}
+                        />
+                      )}
                     </div>
                     {chatUrl ? (
                       <a
@@ -1790,6 +1798,153 @@ function OrdersSection({ orders }) {
 
 // Wrapper: splits leads into LC Band (main) and Drum Show (Noize Drum) pipelines,
 // passes appropriate branchSpec to each FunnelSection.
+function ApprovalButtons({ approvalId, draft, username }) {
+  const [busy, setBusy] = React.useState(false);
+  const [status, setStatus] = React.useState(null);  // 'sent' | 'rejected' | 'error:...'
+  const [editing, setEditing] = React.useState(false);
+  const [editText, setEditText] = React.useState(draft || '');
+  const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+
+  const send = async (overrideText) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await fetch(`${backendUrl}/api/approval/send`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          approval_id: approvalId,
+          override_text: overrideText || undefined,
+        }),
+      });
+      const j = await r.json();
+      if (j.ok) {
+        setStatus('sent');
+        setEditing(false);
+      } else {
+        setStatus('error:' + (j.error || j.out || '').slice(0, 60));
+      }
+    } catch (e) {
+      setStatus('error:' + String(e).slice(0, 60));
+    }
+    setBusy(false);
+  };
+
+  const reject = async () => {
+    if (busy) return;
+    if (!confirm('Отклонить draft?')) return;
+    setBusy(true);
+    try {
+      const r = await fetch(`${backendUrl}/api/approval/reject`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({approval_id: approvalId}),
+      });
+      const j = await r.json();
+      if (j.ok) setStatus('rejected');
+      else setStatus('error:' + (j.error || '').slice(0, 60));
+    } catch (e) {
+      setStatus('error:' + String(e).slice(0, 60));
+    }
+    setBusy(false);
+  };
+
+  if (status === 'sent') {
+    return (
+      <div style={{marginTop:6, fontSize:11, color:'var(--ok)', fontWeight:700}}>
+        ✅ Отправлено {username && `@${username}`} — можно обновить дашборд
+      </div>
+    );
+  }
+  if (status === 'rejected') {
+    return (
+      <div style={{marginTop:6, fontSize:11, color:'#f87171', fontWeight:700}}>
+        ❌ Отклонён
+      </div>
+    );
+  }
+  if (status?.startsWith('error:')) {
+    return (
+      <div style={{marginTop:6, fontSize:11, color:'#f87171'}}>
+        ❌ {status.slice(6)}
+      </div>
+    );
+  }
+
+  if (editing) {
+    return (
+      <div style={{marginTop:6, display:'flex', flexDirection:'column', gap:5}}>
+        <textarea
+          value={editText}
+          onChange={e => setEditText(e.target.value)}
+          rows={4}
+          style={{
+            width:'100%', padding:'6px 8px', fontSize:12, lineHeight:1.4,
+            background:'rgba(255,255,255,0.04)', color:'var(--text)',
+            border:'1px solid var(--border)', borderRadius:5, resize:'vertical',
+            fontFamily:'inherit',
+          }}
+        />
+        <div style={{display:'flex', gap:6}}>
+          <button
+            onClick={() => send(editText)}
+            disabled={busy || !editText.trim()}
+            style={{
+              flex:1, padding:'5px 10px', fontSize:11, fontWeight:600,
+              background:'var(--ok)', color:'#0a0a12', border:'none',
+              borderRadius:4, cursor: busy ? 'wait' : 'pointer',
+            }}
+          >{busy ? '⏳' : '✅ Отправить с правками'}</button>
+          <button
+            onClick={() => { setEditing(false); setEditText(draft || ''); }}
+            disabled={busy}
+            style={{
+              padding:'5px 10px', fontSize:11,
+              background:'transparent', color:'var(--muted)',
+              border:'1px solid var(--border)', borderRadius:4, cursor:'pointer',
+            }}
+          >Отмена</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{marginTop:6, display:'flex', gap:5, flexWrap:'wrap'}}>
+      <button
+        onClick={() => send()}
+        disabled={busy}
+        style={{
+          padding:'4px 10px', fontSize:11, fontWeight:700,
+          background:'var(--ok)', color:'#0a0a12', border:'none',
+          borderRadius:4, cursor: busy ? 'wait' : 'pointer',
+        }}
+      >{busy ? '⏳ Отправка…' : '✅ Отправить'}</button>
+      <button
+        onClick={() => setEditing(true)}
+        disabled={busy}
+        style={{
+          padding:'4px 10px', fontSize:11, fontWeight:600,
+          background:'rgba(96,165,250,0.15)', color:'var(--blue)',
+          border:'1px solid rgba(96,165,250,0.4)',
+          borderRadius:4, cursor:'pointer',
+        }}
+      >✏️ Редактировать</button>
+      <button
+        onClick={reject}
+        disabled={busy}
+        style={{
+          padding:'4px 10px', fontSize:11, fontWeight:600,
+          background:'rgba(248,113,113,0.1)', color:'#f87171',
+          border:'1px solid rgba(248,113,113,0.35)',
+          borderRadius:4, cursor:'pointer',
+        }}
+      >❌ Отклонить</button>
+    </div>
+  );
+}
+
+
 function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog }) {
   const { bandLeads, bandArchived, drumLeads, drumArchived } = React.useMemo(() => {
     const bandL = [], drumL = [], bandA = [], drumA = [];
