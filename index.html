@@ -577,8 +577,6 @@ function processRows(rows) {
   const aiSkips = { total: 0, items: [] };
   const aiUsage = { totalCalls: 0, totalCost: 0, skip: 0, adapt: 0, ok: 0, services: {} };
   const timeline = { total: 0, items: [] };
-  const manualVk = { orders: 0, posts: 0, ranAt: '', hours: 24, status: 'idle' };
-  const manualTg = { orders: 0, posts: 0, ranAt: '', hours: 24, status: 'idle' };
   const browserWalk = { leads: 0, refusals: 0, chats: 0, ranAt: '', hours: 48, items: [] };
 
   for (const row of rows) {
@@ -696,20 +694,6 @@ function processRows(rows) {
         try { aiSkips.items.push(JSON.parse(row.value)); } catch { /* skip */ }
       }
     }
-    if (section === 'ManualVK') {
-      if (row.key === 'mvk_orders') manualVk.orders = Number(row.value) || 0;
-      else if (row.key === 'mvk_posts')  manualVk.posts  = Number(row.value) || 0;
-      else if (row.key === 'mvk_ran_at') manualVk.ranAt  = row.value || '';
-      else if (row.key === 'mvk_hours')  manualVk.hours  = Number(row.value) || 24;
-      else if (row.key === 'mvk_status') manualVk.status = row.value || 'idle';
-    }
-    if (section === 'ManualTG') {
-      if (row.key === 'mtg_orders') manualTg.orders = Number(row.value) || 0;
-      else if (row.key === 'mtg_posts')  manualTg.posts  = Number(row.value) || 0;
-      else if (row.key === 'mtg_ran_at') manualTg.ranAt  = row.value || '';
-      else if (row.key === 'mtg_hours')  manualTg.hours  = Number(row.value) || 24;
-      else if (row.key === 'mtg_status') manualTg.status = row.value || 'idle';
-    }
     if (section === 'BrowserWalk') {
       if (row.key === 'bw_leads')    browserWalk.leads    = Number(row.value) || 0;
       else if (row.key === 'bw_refusals') browserWalk.refusals = Number(row.value) || 0;
@@ -740,7 +724,7 @@ function processRows(rows) {
       }
     }
   }
-  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, vkConnection, scan, agents, newLeads, aiSkips, paid, aiUsage, timeline, manualVk, manualTg, browserWalk };
+  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, vkConnection, scan, agents, newLeads, aiSkips, paid, aiUsage, timeline, browserWalk };
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -1062,31 +1046,143 @@ const FUNNEL_HINTS = {
 
 function BrowserWalkCard({ data }) {
   const [expanded, setExpanded] = React.useState(false);
+  const [progress, setProgress] = React.useState(null);
+  const [requesting, setRequesting] = React.useState(false);
+  const [requestedNote, setRequestedNote] = React.useState(null);
+  const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+
   const leads = data?.leads || 0;
   const refusals = data?.refusals || 0;
-  const chats = data?.chats || 0;
+  const totalChats = data?.chats || 0;
   const items = data?.items || [];
   const ranAt = data?.ranAt ? new Date(data.ranAt) : null;
-  const timeAgo = ranAt ? (() => {
-    const h = Math.floor((Date.now() - ranAt.getTime()) / 3600000);
-    if (h < 1) return '<1ч назад';
+
+  const fmtAgo = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const m = Math.floor((Date.now() - d.getTime()) / 60000);
+    if (m < 1) return 'только что';
+    if (m < 60) return `${m} мин назад`;
+    const h = Math.floor(m / 60);
     if (h < 24) return `${h} ч назад`;
     return `${Math.floor(h/24)} дн назад`;
-  })() : 'не было';
+  };
+  const timeAgo = ranAt ? fmtAgo(ranAt.toISOString()) : 'не было';
+
+  // Poll progress endpoint every 10s (faster 3s while running).
+  React.useEffect(() => {
+    let cancelled = false;
+    const fetchProgress = async () => {
+      try {
+        const r = await fetch(`${backendUrl}/api/browser_walk_progress`, { cache: 'no-store' });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (!cancelled) setProgress(j);
+      } catch { /* offline */ }
+    };
+    fetchProgress();
+    const running = progress && progress.status === 'running';
+    const t = setInterval(fetchProgress, running ? 3000 : 10000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [backendUrl, progress?.status]);
+
+  const isRunning = progress?.status === 'running';
+  const isQueued = progress?.status === 'queued';
+  const scanned = progress?.scanned_chats ?? 0;
+  const totalPlan = progress?.total_chats ?? totalChats ?? 18;
+  const currentChat = progress?.current_chat || '';
+  const startedAt = progress?.started_at || progress?.requested_at;
+  const statusAge = fmtAgo(startedAt);
+
+  const requestWalk = async (e) => {
+    e.stopPropagation();
+    if (requesting || isRunning || isQueued) return;
+    setRequesting(true);
+    try {
+      await fetch(`${backendUrl}/api/browser_walk_request`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({source: 'tg', hours: 48}),
+      });
+      setRequestedNote('в очереди');
+      setTimeout(() => setRequestedNote(null), 6000);
+    } catch (err) {
+      console.error('[walk] err:', err);
+      setRequestedNote('ошибка');
+      setTimeout(() => setRequestedNote(null), 4000);
+    }
+    setRequesting(false);
+  };
+
+  const valColor = isRunning ? '#3b82f6' : (leads > 0 ? '#fbbf24' : 'var(--text)');
+  const pct = totalPlan > 0 ? Math.min(100, Math.round((scanned / totalPlan) * 100)) : 0;
 
   return (
     <div className="kpi-mini" style={{position:'relative'}}>
       <span className="kpi-info" tabIndex="0" aria-label="Описание"
             onClick={e => e.stopPropagation()}>i</span>
-      <div className="kpi-tip">Ручной обход чатов Claude через Chrome MCP (глаза, не regex/AI). Для сравнения: сколько автоматика пропустила.</div>
-      <div className="kpi-mini-val" style={{color: leads > 0 ? '#fbbf24' : 'var(--text)'}}>
-        {leads}
-        {refusals > 0 && <span style={{fontSize:11,color:'#f87171',fontWeight:500,marginLeft:4}}>· {refusals} ❌</span>}
+      <div className="kpi-tip">Ручной обход чатов Claude через Chrome/computer MCP (глаза, не regex/AI). Для сравнения: сколько автоматика пропустила.</div>
+
+      <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
+        <div style={{minWidth:0, flex:1}}>
+          {isRunning ? (
+            <>
+              <div className="kpi-mini-val" style={{color: valColor, fontVariantNumeric:'tabular-nums'}}>
+                {scanned}<span style={{fontSize:13, color:'var(--muted)', fontWeight:500}}> / {totalPlan}</span>
+              </div>
+              <div className="kpi-mini-lbl">👁️ Обход идёт…</div>
+            </>
+          ) : (
+            <>
+              <div className="kpi-mini-val" style={{color: valColor}}>
+                {leads}
+                {refusals > 0 && <span style={{fontSize:11,color:'#f87171',fontWeight:500,marginLeft:4}}>· {refusals} ❌</span>}
+              </div>
+              <div className="kpi-mini-lbl">👁️ Browser Walk · {totalChats} чат</div>
+            </>
+          )}
+        </div>
+        <button
+          onClick={requestWalk}
+          disabled={requesting || isRunning || isQueued}
+          title={
+            isRunning ? 'Обход уже идёт'
+            : isQueued ? 'В очереди — ждёт активную сессию Claude'
+            : 'Запустить ручной обход (выполнит Claude при следующем запуске)'
+          }
+          style={{
+            width: 30, height: 28, borderRadius: 6,
+            background: (isRunning || isQueued) ? 'rgba(59,130,246,0.18)' : 'rgba(96,165,250,0.12)',
+            border: '1px solid ' + ((isRunning || isQueued) ? 'rgba(59,130,246,0.6)' : 'rgba(96,165,250,0.5)'),
+            color: 'var(--blue)',
+            fontSize: 13, lineHeight: 1,
+            cursor: (requesting || isRunning || isQueued) ? 'wait' : 'pointer',
+            display:'flex', alignItems:'center', justifyContent:'center', padding:0,
+            flexShrink:0,
+          }}>
+          {isRunning ? '⟳' : isQueued ? '⏳' : '▶'}
+        </button>
       </div>
-      <div className="kpi-mini-lbl">👁️ Browser Walk · {chats} чат</div>
+
+      {isRunning && (
+        <div style={{marginTop:5}}>
+          <div style={{height:3, background:'rgba(59,130,246,0.2)', borderRadius:2, overflow:'hidden'}}>
+            <div style={{width: pct + '%', height:'100%', background:'#3b82f6', transition:'width .4s'}}></div>
+          </div>
+          {currentChat && (
+            <div style={{fontSize:9.5, color:'var(--muted)', marginTop:3, textAlign:'center',
+                         overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+              сейчас: {currentChat}
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{fontSize:10, color:'var(--muted)', marginTop:3, textAlign:'center'}}>
-        {timeAgo}
-        {items.length > 0 && (
+        {requestedNote ? <span style={{color:'var(--blue)'}}>✓ {requestedNote}</span>
+         : isRunning ? `запущен ${statusAge}`
+         : isQueued ? `в очереди ${statusAge}`
+         : `последний: ${timeAgo}`}
+        {!isRunning && !isQueued && items.length > 0 && (
           <button onClick={() => setExpanded(v => !v)}
             style={{marginLeft:5, fontSize:9, padding:'0 4px', background:'transparent',
                     color:'var(--blue)', border:'none', cursor:'pointer'}}>
@@ -1094,6 +1190,7 @@ function BrowserWalkCard({ data }) {
           </button>
         )}
       </div>
+
       {expanded && items.length > 0 && (
         <div style={{position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:55,
                       background:'#0f172a', border:'1px solid #334155', borderRadius:6,
@@ -1114,123 +1211,8 @@ function BrowserWalkCard({ data }) {
   );
 }
 
-function ManualScanCard({ source, label, hint, data }) {
-  // source: 'vk' | 'tg'  — label shown on card, data: {orders, posts, ranAt, hours, status}
-  const [busy, setBusy] = React.useState(data.status === 'running');
-  const [walkStatus, setWalkStatus] = React.useState(null);  // 'queued' | null
-  const [localResult, setLocalResult] = React.useState(null);
-  const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
-  const display = localResult || data;
-  const lastScan = display.ranAt ? new Date(display.ranAt) : null;
-  const timeAgo = lastScan
-    ? (() => {
-        const m = Math.floor((Date.now() - lastScan.getTime()) / 60000);
-        if (m < 1) return 'только что';
-        if (m < 60) return `${m} мин`;
-        const h = Math.floor(m / 60);
-        if (h < 24) return `${h} ч`;
-        return `${Math.floor(h/24)} дн`;
-      })()
-    : 'не было';
 
-  const runAIScan = async (e) => {
-    e.stopPropagation();
-    if (busy) return;
-    setBusy(true);
-    const scanUrl = `${backendUrl}/api/manual_${source}_rescan`;
-    const statusUrl = `${backendUrl}/api/manual_${source}_rescan_status`;
-    try {
-      await fetch(scanUrl, { method: 'POST', headers: {'Content-Type':'application/json'},
-                              body: JSON.stringify({hours: 24}) });
-    } catch (err) {
-      console.error('[rescan] trigger err:', err);
-      setBusy(false);
-      return;
-    }
-    // TG can take 2-3 min, VK ~30-60s. Poll up to 5 min.
-    for (let i = 0; i < 200; i++) {
-      await new Promise(r => setTimeout(r, 1500));
-      try {
-        const r = await fetch(statusUrl);
-        const j = await r.json();
-        if (j.state?.status === 'done' && j.result) {
-          setLocalResult({
-            orders: j.result.orders_total || 0,
-            posts:  j.result.posts_total  || 0,
-            ranAt:  j.result.ran_at       || '',
-            hours:  j.result.hours        || 24,
-            status: 'done',
-          });
-          break;
-        }
-        if (j.state?.status === 'error') break;
-      } catch {}
-    }
-    setBusy(false);
-  };
-
-  const requestWalk = async (e) => {
-    e.stopPropagation();
-    try {
-      await fetch(`${backendUrl}/api/browser_walk_request`, {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({source, hours: 24}),
-      });
-      setWalkStatus('queued');
-      setTimeout(() => setWalkStatus(null), 5000);
-    } catch (err) {
-      console.error('[walk] err:', err);
-    }
-  };
-
-  return (
-    <div className="kpi-mini" style={{position:'relative'}}>
-      <span className="kpi-info" tabIndex="0" aria-label="Описание"
-            onClick={e => e.stopPropagation()}>i</span>
-      <div className="kpi-tip">{hint}</div>
-      <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:6}}>
-        <div style={{minWidth:0}}>
-          <div className="kpi-mini-val" style={{color: display.orders > 0 ? 'var(--ok)' : 'var(--text)'}}>
-            {busy ? '…' : display.orders}
-            <span style={{fontSize:11, color:'var(--muted)', fontWeight:500, marginLeft:3}}>/ {display.posts}</span>
-          </div>
-          <div className="kpi-mini-lbl">{label}</div>
-        </div>
-        <div style={{display:'flex', flexDirection:'column', gap:4}}>
-          <button onClick={runAIScan} disabled={busy}
-            title={busy ? 'Идёт AI-сверка…' : 'AI-пересверка: Sonnet проходит по каждому посту (0₽, Max)'}
-            style={{
-              width: 28, height: 24, borderRadius: 6,
-              background: busy ? 'rgba(148,163,184,0.15)' : 'rgba(34,197,94,0.18)',
-              border: '1px solid ' + (busy ? 'var(--border)' : 'rgba(34,197,94,0.5)'),
-              color: busy ? 'var(--muted)' : 'var(--ok)',
-              fontSize: 12, lineHeight: 1, cursor: busy ? 'wait' : 'pointer',
-              display:'flex', alignItems:'center', justifyContent:'center', padding:0,
-            }}>
-            {busy ? '⏳' : '🤖'}
-          </button>
-          <button onClick={requestWalk}
-            title="Запросить ручной обход: Claude в браузере просмотрит каждый пост (работает только если открыт Claude Code)"
-            style={{
-              width: 28, height: 24, borderRadius: 6,
-              background: walkStatus === 'queued' ? 'rgba(96,165,250,0.28)' : 'rgba(96,165,250,0.12)',
-              border: '1px solid rgba(96,165,250,0.5)',
-              color: 'var(--blue)',
-              fontSize: 12, lineHeight: 1, cursor: 'pointer',
-              display:'flex', alignItems:'center', justifyContent:'center', padding:0,
-            }}>
-            {walkStatus === 'queued' ? '✓' : '👁️'}
-          </button>
-        </div>
-      </div>
-      <div style={{fontSize:10, color:'var(--muted)', marginTop:4, textAlign:'center'}}>
-        {walkStatus === 'queued' ? 'ждёт Claude' : timeAgo + ' назад'}
-      </div>
-    </div>
-  );
-}
-
-function KPISection({ kpi, setActiveTab, manualVk, manualTg, browserWalk }) {
+function KPISection({ kpi, setActiveTab, browserWalk }) {
   const [period, setPeriod] = useState(() => {
     try { return localStorage.getItem('lcb_kpi_period') || 'new_month'; }
     catch { return 'new_month'; }
@@ -1316,10 +1298,6 @@ function KPISection({ kpi, setActiveTab, manualVk, manualTg, browserWalk }) {
             )}
           </div>
         ))}
-        <ManualScanCard source="vk" label="Сверка VK" hint="Ручной AI-rescan 8 VK-групп за 24ч (Sonnet, 0₽) + запрос ручного браузер-обхода"
-                        data={manualVk || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}} />
-        <ManualScanCard source="tg" label="Сверка TG" hint="Ручной AI-rescan 18 TG-чатов за 24ч (Sonnet, 0₽) + запрос ручного браузер-обхода"
-                        data={manualTg || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}} />
         <BrowserWalkCard data={browserWalk || {leads:0, refusals:0, chats:0, ranAt:'', hours:48, items:[]}} />
       </div>
     </div>
@@ -1657,14 +1635,51 @@ function ScanStatus({ scan }) {
   );
 }
 
-function StatusSection({ status, onProcessClick }) {
+function StatusSection({ status, activity24h, onProcessClick }) {
   if (!status.length) return null;
+  const act = activity24h || {};
+
+  // Synthesize Browser Walk row (not a real launchd agent, but user wants it here).
+  const bw = act.proc_browser_walk;
+  const rows = [...status];
+  if (bw) {
+    const running = bw.status === 'running';
+    const queued  = bw.status === 'queued';
+    const val = running
+      ? (bw.progress ? `running ${bw.progress.scanned}/${bw.progress.total}` : 'running')
+      : queued
+        ? 'queued'
+        : (bw.ran_at ? (() => {
+            const h = Math.floor((Date.now() - new Date(bw.ran_at).getTime()) / 3600000);
+            return h < 1 ? 'ok (<1h)' : `ok (${h}h)`;
+          })() : 'idle');
+    rows.push({
+      key: 'proc_browser_walk',
+      label: '👁️ Browser Walk',
+      val,
+      reason: '',
+      action: running && bw.progress?.current ? `сейчас: ${bw.progress.current}` : '',
+    });
+  }
+
   return (
     <div className="section" style={{ marginTop: 14 }}>
-      <div className="section-title">Статус процессов</div>
+      <div className="section-title" style={{display:'flex', alignItems:'center', gap:10}}>
+        Статус процессов
+        {act._ai_calls_24h?.count > 0 && (
+          <span style={{
+            marginLeft:'auto', fontSize:11, color:'var(--muted)', fontWeight:500,
+          }}>🤖 {act._ai_calls_24h.count} AI-вызовов / 24ч</span>
+        )}
+      </div>
       <div className="status-list">
-        {status.map(s => {
+        {rows.map(s => {
           const hasRules = !!PROCESS_RULES[s.key];
+          const a = act[s.key];
+          const is_bw = s.key === 'proc_browser_walk';
+          const count_label = a && typeof a.count === 'number' && a.unit
+            ? `${a.count} ${a.unit}${a.extra ? ' · ' + a.extra : ''}`
+            : null;
           return (
             <div key={s.key} className="status-row"
               style={{flexWrap:'wrap', cursor: hasRules ? 'pointer' : 'default'}}
@@ -1673,7 +1688,16 @@ function StatusSection({ status, onProcessClick }) {
               <span className="status-name">{s.label}</span>
               <span className="status-age">{s.val}</span>
               {hasRules && <span style={{color:'var(--muted)',fontSize:14,marginLeft:2}}>›</span>}
-{s.reason && (
+              {count_label && (
+                <div style={{
+                  width:'100%', paddingLeft:20, marginTop:2, fontSize:11,
+                  color: is_bw ? '#fbbf24' : (a.count > 0 ? 'var(--ok)' : 'var(--muted)'),
+                  fontVariantNumeric:'tabular-nums',
+                }}>
+                  {is_bw ? '👁️ ' : '📊 за 24ч: '}{count_label}
+                </div>
+              )}
+              {s.reason && (
                 <div style={{width:'100%',paddingLeft:20,marginTop:2,fontSize:11,color:'#f87171'}}>{s.reason}</div>
               )}
               {s.action && (
@@ -1820,11 +1844,10 @@ function SkeletonCards() {
 }
 
 // ── Tabs ────────────────────────────────────────────────────────
-function TabBar({ activeTab, setActiveTab, attentionCount, refusalCount, paidCount, newLeadsCount, agentsMissing, aiCalls, sessionCount }) {
+function TabBar({ activeTab, setActiveTab, attentionCount, refusalCount, paidCount, agentsMissing, aiCalls, sessionCount }) {
   const tabs = [
     { id: 'overview',   label: 'Главная',     emoji: '📊' },
-    { id: 'session',    label: 'Сессия',      emoji: '📋', badge: sessionCount },
-    { id: 'new',        label: 'Новые',       emoji: '🆕', badge: newLeadsCount },
+    { id: 'new',        label: 'Новые заказы', emoji: '🆕', badge: sessionCount },
     { id: 'attention',  label: 'Горячие',     emoji: '🔥', badge: attentionCount },
     { id: 'paid',       label: 'Оплатили',    emoji: '💰', badge: paidCount },
     { id: 'refusals',   label: 'Отказы',      emoji: '❌', badge: refusalCount },
@@ -1891,9 +1914,9 @@ function SessionSection({ session }) {
   if (!items.length) {
     return (
       <div className="section" style={{ marginTop: 14 }}>
-        <div className="section-title">📋 Итоги сессии</div>
+        <div className="section-title">🆕 Новые заказы</div>
         <div className="empty" style={{padding:20, textAlign:'center', color:'var(--muted)'}}>
-          Ни одной записи в session_actions.jsonl за эту сессию.
+          За текущую сессию ни одного обработанного лида.
         </div>
       </div>
     );
@@ -1914,8 +1937,8 @@ function SessionSection({ session }) {
   return (
     <div className="section" style={{ marginTop: 14 }}>
       <div className="section-title" style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-        📋 Итоги сессии
-        <span style={{fontSize:12, color:'var(--muted)', fontWeight:500}}>· {current} · {items.length}</span>
+        🆕 Новые заказы
+        <span style={{fontSize:12, color:'var(--muted)', fontWeight:500}}>· сессия {current} · {items.length}</span>
       </div>
 
       <div style={{ display:'flex', gap:6, marginBottom:10, fontSize:11, flexWrap:'wrap' }}>
@@ -3017,6 +3040,7 @@ function App() {
   const [rows,      setRows]      = useState(null);
   const [dbSnapshot, setDbSnapshot] = useState(null);
   const [sessionLog, setSessionLog] = useState(null);
+  const [activity24h, setActivity24h] = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [refreshing,setRefreshing]= useState(false);
   const [error,     setError]     = useState(null);
@@ -3080,6 +3104,15 @@ function App() {
         setSessionLog(await r.json());
       }
     } catch { /* backend offline → session tab will show "not available" */ }
+
+    // ── Process activity over last 24h (counts per process + Browser Walk) ──
+    try {
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      const r = await fetch(`${bu}/api/process_activity_24h`, { cache: 'no-store' });
+      if (r.ok) {
+        setActivity24h(await r.json());
+      }
+    } catch { /* backend offline → status rows render without 24h counts */ }
   }, []);
 
   useEffect(() => {
@@ -3218,7 +3251,6 @@ function App() {
             attentionCount={data.attention?.total || 0}
             refusalCount={Object.values(data.refusalCategories || {}).reduce((a,b) => a+b, 0)}
             paidCount={data.paid?.total || 0}
-            newLeadsCount={data.newLeads?.total || 0}
             agentsMissing={(data.agents?.missing || 0) + (data.agents?.staleSla || 0)}
             aiCalls={data.aiUsage?.totalCalls || 0}
             sessionCount={sessionLog?.total || 0}
@@ -3226,11 +3258,9 @@ function App() {
 
           {activeTab === 'overview' && (
             <>
-              <StatusSection status={data.status} onProcessClick={setShowProcess} />
+              <StatusSection status={data.status} activity24h={activity24h} onProcessClick={setShowProcess} />
               <ActionButtons />
               <KPISection kpi={data.kpi} setActiveTab={setActiveTab}
-                          manualVk={data.manualVk || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}}
-                          manualTg={data.manualTg || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}}
                           browserWalk={data.browserWalk || {leads:0, refusals:0, chats:0, ranAt:'', hours:48, items:[]}} />
               <div className="section" style={{ marginTop: 8 }}>
                 <TGLeadsButton
@@ -3245,12 +3275,8 @@ function App() {
             </>
           )}
 
-          {activeTab === 'session' && (
-            <SessionSection session={sessionLog || {total:0, items:[], counts:{}, sessions:[], session:''}} />
-          )}
-
           {activeTab === 'new' && (
-            <NewLeadsSection newLeads={data.newLeads || {total:0, items:[]}} />
+            <SessionSection session={sessionLog || {total:0, items:[], counts:{}, sessions:[], session:''}} />
           )}
 
           {activeTab === 'attention' && (
