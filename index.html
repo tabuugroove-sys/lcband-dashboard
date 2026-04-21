@@ -171,6 +171,55 @@
     .funnel-name { font-size: 10px; color: var(--muted); margin-top: 2px; white-space: nowrap; }
     .funnel-pct { font-size: 9px; color: var(--ok); margin-top: 2px; }
     .funnel-arr { color: var(--muted); font-size: 14px; padding: 0 3px; flex-shrink: 0; }
+    .funnel-box--clickable { cursor: pointer; transition: border-color .15s, transform .12s; }
+    .funnel-box--clickable:hover { border-color: var(--gold); transform: translateY(-1px); }
+    .funnel-box--active { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+
+    /* ── Funnel expanded leads panel ── */
+    .funnel-expand {
+      margin-top: 12px; background: var(--card2); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 12px;
+    }
+    .funnel-expand-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px;
+    }
+    .funnel-expand-title { font-size: 13px; font-weight: 700; color: var(--fg); }
+    .funnel-expand-count { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 4px; }
+    .funnel-expand-close {
+      background: transparent; border: none; color: var(--muted);
+      font-size: 14px; cursor: pointer; padding: 4px 8px;
+    }
+    .funnel-expand-close:hover { color: var(--gold); }
+    .funnel-lead-list {
+      display: flex; flex-direction: column; gap: 6px;
+      max-height: 420px; overflow-y: auto;
+    }
+    .funnel-lead-card {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 10px;
+    }
+    .funnel-lead-info { flex: 1; min-width: 0; }
+    .funnel-lead-name { font-size: 13px; font-weight: 600; color: var(--fg); }
+    .funnel-lead-status { font-size: 10px; color: var(--blue); font-weight: 600; margin-left: 4px; }
+    .funnel-lead-meta {
+      font-size: 10px; color: var(--muted); margin-top: 3px;
+      display: flex; flex-wrap: wrap; gap: 10px;
+    }
+    .funnel-lead-desc {
+      font-size: 11px; color: var(--muted); margin-top: 4px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .funnel-lead-chat {
+      flex-shrink: 0; background: var(--card2); border: 1px solid var(--border);
+      color: var(--fg); border-radius: 6px; padding: 8px 12px;
+      font-size: 15px; text-decoration: none; font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: background .15s, border-color .15s, color .15s;
+    }
+    .funnel-lead-chat:hover { background: var(--gold); color: #000; border-color: var(--gold); }
+    .funnel-lead-chat--disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 
     /* ── Orders ── */
     .orders-list { display: flex; flex-direction: column; gap: 8px; }
@@ -796,32 +845,37 @@ const PROCESS_RULES = {
   },
   proc_vk_responder: {
     name: 'VK Ответчик',
-    interval: 'Каждые 60 мин',
-    desc: 'Отвечает на входящие сообщения в VK от имени группы',
+    interval: 'Постоянно (KeepAlive daemon)',
+    desc: 'Висит на event-loop VK API, реагирует на входящие в DM в реальном времени',
     rules: [
-      'Классифицирует входящие сообщения через AI',
-      'Автоматически отвечает на вопросы о ценах и услугах',
-      'Пропускает спам и нецелевые сообщения',
+      'Классифицирует входящие через Claude Sonnet CLI',
+      'Автоответ по шаблонам LC Band (цены, даты, форматы)',
+      'Отсеивает спам и off-topic',
+      'Пишет в vk_claude_decisions.jsonl',
+      'Перезапускается автоматически при падении (KeepAlive)',
     ],
   },
   proc_tg_monitor: {
     name: 'TG Монитор',
-    interval: 'Каждые 5 мин',
-    desc: 'Мониторит Telegram-группы на новые заказы',
+    interval: 'Каждые 5 мин (минуты 0, 5, 10, ..., 55)',
+    desc: 'Telethon-скан 17 event-чатов на новые посты — основной входящий поток',
     rules: [
-      'Сканирует целевые группы на новые посты',
-      'Классифицирует заказы по типу и релевантности',
-      'Записывает результаты в Google Sheets',
+      'Читает последние ~200 сообщений в каждом чате',
+      'Regex-фильтр кандидатов → Claude Sonnet CLI classify',
+      'music_band/drum_show → в orders.db + Google Sheet',
+      'Пишет в monitor_results.json + monitor_state.json',
+      'Акк @Luxurycover_ru, session_lock с responder/followup',
     ],
   },
   proc_vk_monitor: {
     name: 'VK Монитор',
-    interval: 'Каждые 10 мин',
-    desc: 'Мониторит VK-группы на новые заказы',
+    interval: 'Каждые 10 мин (600s)',
+    desc: 'VK API скан 8 event-групп на новые посты',
     rules: [
-      'Сканирует VK-группы и стены на новые посты',
-      'Фильтрует по ключевым словам',
-      'Создаёт записи для outreach',
+      'Читает стены + обсуждения в группах',
+      'Фильтр по ключам + Claude Sonnet classify',
+      'Пишет в vk_monitor_results.json',
+      'VK-контакты требуют отдельного vk_auto_responder пайплайна (не DM)',
     ],
   },
   proc_tg_followup: {
@@ -840,54 +894,106 @@ const PROCESS_RULES = {
   },
   proc_tg_responder: {
     name: 'TG Ответчик',
-    interval: 'Каждые 2 часа',
-    desc: 'Отвечает на входящие сообщения в Telegram от лидов',
+    interval: 'Постоянно (KeepAlive daemon)',
+    desc: 'Висит на Telethon event-loop, реагирует на входящие в DM лидов в реальном времени',
     rules: [
-      'Классифицирует входящие через AI (цена, дата, интерес)',
-      'Автоответ по базе знаний LC Band',
-      'Пропускает спам и нецелевые сообщения',
-      'Сохраняет категорию ответа в state',
+      'Классифицирует входящие через AI (цена, дата, decline, интерес, found_other)',
+      'Regex hard-check на отказные ключи ДО AI (feedback_followup_safety)',
+      'Автоответ коротким КП (эталон Юли) — feedback_short_kp_template',
+      'Один клик Send, верификация через sidebar (feedback_tg_send_protocol)',
+      'Анти-бан: jitter 15-35s, MAX 40/день, @SpamBot check',
+      'Пишет в tg_response_log.json',
+    ],
+  },
+  proc_tg_followup: {
+    name: 'TG Follow-up',
+    interval: 'Ежедневно в 10:09 MSK',
+    desc: 'Пушит старые лиды без ответа (тёплый re-engagement)',
+    rules: [
+      'Cooldown: 3 дня от последнего исходящего',
+      'Hard-regex pre-check на отказные ключи ДО AI (инцидент @lisitsyna_law 20.04)',
+      'Стоп: за 3 дня до мероприятия',
+      'AI-классификация: declined → закрывающее, client → skip',
+      'Пропускает контакты в папке Customer',
+      'Макс. 15 отправок за запуск (safety cap)',
+      'Пишет в tg_followup_log2.json',
     ],
   },
   proc_bot_commander: {
     name: 'Бот-командер',
     interval: 'Постоянно (long-polling)',
-    desc: 'Слушает команды в @lcband_notify_bot и выполняет действия',
+    desc: 'Бот @lcband_notify_bot пушит тебе pending_approvals и ловит ✅/❌/✏️ клики',
     rules: [
       'Long-polling через Telegram Bot API',
-      'Команды: /restart, /status, /help',
-      'Управление процессами через бот',
+      'Шлёт draft-питч для approve (AI:adapt, language-specialty, public_reply)',
+      'Твой ✅ → отправить, ❌ → skip, ✏️ → редактировать',
+      'Автопроцессит pending_approvals.json в реальном времени',
     ],
   },
   proc_sheets_monitor: {
     name: 'Монитор таблиц',
-    interval: 'Каждые 25 мин',
-    desc: 'Проверяет свежесть данных в Google Sheet «Чаты Отчеты»',
+    interval: 'Каждые 15 мин (900s)',
+    desc: 'Проверяет свежесть данных в Google Sheet и alertит если stale',
     rules: [
       'Проверяет timestamps в строках VK (20-27)',
       'Если данные старше 25 мин — TG-алерт',
-      'Результат записывается в monitor_results.json',
+      'Результат в monitor_sheets_freshness state',
     ],
   },
   proc_verify_posts: {
     name: 'Сверка постов',
-    interval: 'Ежедневно (23:55)',
-    desc: 'Считает реальное кол-во сообщений за сутки и записывает в Sheet',
+    interval: 'Ежедневно (23:55 MSK)',
+    desc: 'Полный подсчёт сообщений за сутки — eod reconciliation',
     rules: [
       'Запуск раз в сутки в 23:55 MSK',
       'Подсчёт без лимита 200 (полная сверка)',
       'Результат в колонку E таблицы «Чаты Отчеты»',
+      'TODO (21.04): добавить eod_reconciliation.py с обходом 17 чатов для сверки с monitor',
     ],
   },
   proc_dashboard_sync: {
     name: 'Dashboard Sync',
-    interval: 'Каждые 5 мин',
-    desc: 'Собирает данные из всех state-файлов и пишет в Google Sheet для дашборда',
+    interval: 'Каждые 10 мин (600s)',
+    desc: 'Агрегирует данные из всех state-файлов и пишет в Dashboard-лист Google Sheet',
     rules: [
-      'Агрегация KPI, воронки, статусов процессов',
-      'Запись в таб Dashboard Google Sheet',
-      'Чтение заказов и followup-ов',
-      'Если этот процесс стоит — дашборд не обновляется',
+      'Агрегация KPI, воронки, статусов процессов, browser_walk_result',
+      'Пишет ключи channel_*, funnel_*, proc_*, bw_*, newlead_*, refused_*',
+      'Дашборд читает таб Dashboard через gviz + /api/db/snapshot',
+      'Если стоит — дашборд не обновляется (KPI freezes)',
+    ],
+  },
+  proc_sheets_to_db_sync: {
+    name: 'Sheets → DB Sync',
+    interval: 'Каждую минуту (60s)',
+    desc: 'Двусторонняя синхронизация Google Sheet ↔ orders.db (SSoT)',
+    rules: [
+      'orders.db — Single Source of Truth (боты пишут в него первыми)',
+      'Sheet — backup для ручных правок человеком',
+      'Раз в минуту: Sheet changes → DB (если mtime свежее)',
+      'Дашборд читает ТОЛЬКО orders.db через /api/db/snapshot',
+    ],
+  },
+  proc_attention_auto_action: {
+    name: 'Attention Auto-Action',
+    interval: 'Каждые 30 мин (1800s)',
+    desc: 'Готовит AI-драфт для «горячих» лидов → в бот на approve',
+    rules: [
+      'Сканирует orders.db на лидов требующих reply',
+      'Claude Sonnet CLI генерирует draft-ответ с контекстом',
+      'Пишет в pending_approvals.json → бот-командер шлёт тебе',
+      'Тёплые лиды: подтвердили дату / задали вопрос',
+    ],
+  },
+  proc_browser_walk: {
+    name: 'Browser Walk',
+    interval: 'По запросу (ручной)',
+    desc: 'Ручной обход 17 event-чатов глазами через Chrome MCP (аудит автомата)',
+    rules: [
+      '▶ кнопка на тайле → быстрый AI-скан 48ч (manual_tg_rescan.py, 2-3 мин)',
+      '7д кнопка → глубокий AI-скан 7 дней (168h)',
+      '/browser-walk или «сделай обход» → я глазами через Chrome MCP (15-25 мин)',
+      'Live-прогресс в тайле: X/17 + текущий чат + walk_event тикер',
+      'Ловит картинки-с-текстом, нестандартные формулировки, креативы',
     ],
   },
 };
@@ -1433,8 +1539,41 @@ function KPISection({ kpi, setActiveTab, browserWalk }) {
   );
 }
 
-function FunnelSection({ funnel }) {
+// ── Funnel stage → status filter (matches backend sync_dashboard_data.py logic) ──
+// Cumulative funnel: каждая следующая стадия — подмножество предыдущей
+const FUNNEL_STAGE_FILTERS = {
+  funnel_new:        (o) => /Новый/i.test(o.status || ''),
+  funnel_contacted:  (o) => /Написал|Follow-up|Переговоры|ОПЛАТИЛА|Оплачен/i.test(o.status || ''),
+  funnel_replied:    (o) => /Переговоры|ОПЛАТИЛА|Оплачен/i.test(o.status || ''),
+  funnel_interested: (o) => /Переговоры|ОПЛАТИЛА|Оплачен/i.test(o.status || ''),
+  funnel_client:     (o) => /ОПЛАТИЛА|Оплачен/i.test(o.status || ''),
+};
+
+function leadChatUrl(o) {
+  // Prefer TG username → direct t.me link. Fallback: contact URL (could be vk, tg, etc.)
+  if (o.username) {
+    const u = String(o.username).replace(/^@/, '').trim();
+    if (u) return `https://t.me/${u}`;
+  }
+  const c = o.contact || '';
+  if (c.startsWith('http')) return c;
+  if (c.startsWith('@')) return `https://t.me/${c.slice(1)}`;
+  return '';
+}
+
+function FunnelSection({ funnel, allLeads }) {
+  const [expanded, setExpanded] = React.useState(null);
   if (!funnel.length) return null;
+  const filterFn = expanded ? FUNNEL_STAGE_FILTERS[expanded] : null;
+  const stageLeads = filterFn ? (allLeads || []).filter(filterFn) : [];
+  // Sort by event_date ascending (most urgent first); leads without date at end
+  stageLeads.sort((a, b) => {
+    const da = a.event_date || '9999-99-99';
+    const db = b.event_date || '9999-99-99';
+    return da.localeCompare(db);
+  });
+  const expandedLabel = expanded ? (funnel.find(s => s.key === expanded)?.label || '') : '';
+
   return (
     <div id="funnel-section" className="section" style={{ marginTop: 14 }}>
       <div className="section-title">Воронка (TG)</div>
@@ -1442,10 +1581,19 @@ function FunnelSection({ funnel }) {
         {funnel.map((step, i) => {
           const prev = funnel[i - 1];
           const pct  = prev && prev.n > 0 ? Math.round(step.n / prev.n * 100) + '%' : null;
+          const clickable = FUNNEL_STAGE_FILTERS[step.key] && (allLeads || []).length > 0;
+          const isActive  = expanded === step.key;
           return (
             <div key={step.key} className="funnel-step" title={FUNNEL_HINTS[step.key] || ''}>
               {i > 0 && <span className="funnel-arr">›</span>}
-              <div className="funnel-box">
+              <div
+                className={
+                  'funnel-box' +
+                  (clickable ? ' funnel-box--clickable' : '') +
+                  (isActive  ? ' funnel-box--active' : '')
+                }
+                onClick={() => clickable && setExpanded(isActive ? null : step.key)}
+              >
                 <div className="funnel-num">{step.n}</div>
                 <div className="funnel-name">{step.label}</div>
                 {pct && <div className="funnel-pct">{pct}</div>}
@@ -1454,6 +1602,59 @@ function FunnelSection({ funnel }) {
           );
         })}
       </div>
+      {expanded && (
+        <div className="funnel-expand">
+          <div className="funnel-expand-header">
+            <span className="funnel-expand-title">
+              {expandedLabel}
+              <span className="funnel-expand-count">({stageLeads.length})</span>
+            </span>
+            <button className="funnel-expand-close" onClick={() => setExpanded(null)}>✕</button>
+          </div>
+          {stageLeads.length === 0 ? (
+            <div className="empty">Нет лидов на этом этапе</div>
+          ) : (
+            <div className="funnel-lead-list">
+              {stageLeads.map((o, i) => {
+                const chatUrl = leadChatUrl(o);
+                const name = o.client || o.username || '—';
+                return (
+                  <div key={o.id || i} className="funnel-lead-card">
+                    <div className="funnel-lead-info">
+                      <div className="funnel-lead-name">
+                        {name}
+                        {o.status && <span className="funnel-lead-status">· {o.status}</span>}
+                      </div>
+                      <div className="funnel-lead-meta">
+                        {o.event_date && <span>📅 {o.event_date}</span>}
+                        {o.location   && <span>📍 {o.location}</span>}
+                        {o.channel    && <span style={{ color:'var(--gold)' }}>{o.channel}</span>}
+                        {o.last_activity && <span>🕑 {o.last_activity}</span>}
+                      </div>
+                      {o.desc && (
+                        <div className="funnel-lead-desc" title={o.desc}>{o.desc}</div>
+                      )}
+                    </div>
+                    {chatUrl ? (
+                      <a
+                        href={chatUrl}
+                        target="_blank"
+                        rel="noopener"
+                        className="funnel-lead-chat"
+                        title={`Открыть чат: ${chatUrl}`}
+                      >
+                        →
+                      </a>
+                    ) : (
+                      <span className="funnel-lead-chat funnel-lead-chat--disabled" title="Нет контакта">—</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -3271,6 +3472,8 @@ function App() {
         channel:      o.channel,
         last_activity: o.last_activity,
       }));
+      // Full list of active leads — for funnel stage drill-down (amoCRM-style click)
+      d.allLeads = dbSnapshot.active;
       d.dbSync = dbSnapshot.sync;
     }
     if (dbSnapshot && dbSnapshot.archived) {
@@ -3397,7 +3600,7 @@ function App() {
                   tgWeek={data.tgFunnel?.week}
                 />
               </div>
-              <FunnelSection funnel={data.funnel} />
+              <FunnelSection funnel={data.funnel} allLeads={data.allLeads || []} />
               <OrdersSection orders={data.orders} />
               <ScanStatus scan={data.scan} />
               <FollowupsSection followups={data.followups} />
