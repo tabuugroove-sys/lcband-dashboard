@@ -494,6 +494,7 @@ function processRows(rows) {
   const scan = { status: 'idle', progress: 0, message: '', results: [], chatsChecked: [], updated: '' };
   const agents = { total: 0, running: 0, missing: 0, staleSla: 0, items: [] };
   const newLeads = { total: 0, items: [] };
+  const aiSkips = { total: 0, items: [] };
   const aiUsage = { totalCalls: 0, totalCost: 0, skip: 0, adapt: 0, ok: 0, services: {} };
   const timeline = { total: 0, items: [] };
 
@@ -606,6 +607,12 @@ function processRows(rows) {
         try { newLeads.items.push(JSON.parse(row.value)); } catch { /* skip */ }
       }
     }
+    if (section === 'AISkip') {
+      if (row.key === 'aiskip_total') aiSkips.total = Number(row.value) || 0;
+      else if (row.key?.match(/^aiskip_\d+$/)) {
+        try { aiSkips.items.push(JSON.parse(row.value)); } catch { /* skip */ }
+      }
+    }
     if (section === 'AIUsage') {
       if (row.key === 'ai_total_calls')    aiUsage.totalCalls = Number(row.value) || 0;
       else if (row.key === 'ai_total_cost_usd') aiUsage.totalCost = Number(row.value) || 0;
@@ -626,7 +633,7 @@ function processRows(rows) {
       }
     }
   }
-  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, vkConnection, scan, agents, newLeads, paid, aiUsage, timeline };
+  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, vkConnection, scan, agents, newLeads, aiSkips, paid, aiUsage, timeline };
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -1743,6 +1750,61 @@ function PaidSection({ paid }) {
   );
 }
 
+function AISkipSection({ aiSkips }) {
+  if (!aiSkips || aiSkips.total === 0) {
+    return (
+      <div className="section" style={{ marginTop: 14 }}>
+        <div className="section-title">🤖 AI отсеял (за 24ч)</div>
+        <div style={{padding:16, textAlign:'center', color:'var(--muted)', fontSize:12}}>
+          За последние 24 часа AI ничего не отсеял — либо monitor не находил новых лидов, либо все прошли проверку.
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">🤖 AI отсеял за 24ч ({aiSkips.total})</div>
+      <div style={{padding:'4px 0', fontSize:11, color:'var(--muted)', marginBottom:10}}>
+        AI-review перед отправкой решил что это не наш профиль — в «Заказы» не попадают.
+      </div>
+      <div style={{display:'flex', flexDirection:'column', gap:6}}>
+        {aiSkips.items.map((s, i) => {
+          const tgLink = (s.contact || '').match(/t\.me\/[\w_]+/);
+          return (
+            <div key={i} style={{
+              padding:'8px 10px',
+              background:'rgba(248,113,113,0.05)',
+              borderLeft:'3px solid #f87171',
+              borderRadius:6,
+            }}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', gap:6, marginBottom:3}}>
+                <span style={{fontSize:12, fontWeight:700, color:'var(--text)'}}>
+                  {s.name || '(без имени)'}
+                </span>
+                <span style={{fontSize:10, color:'var(--muted)', whiteSpace:'nowrap'}}>{s.when}</span>
+              </div>
+              {s.desc && (
+                <div style={{fontSize:11, color:'var(--text)', marginBottom:4, lineHeight:1.35}}>
+                  {s.desc.slice(0, 180)}{s.desc.length > 180 ? '…' : ''}
+                </div>
+              )}
+              <div style={{fontSize:10, color:'#fca5a5', marginBottom:2, fontStyle:'italic'}}>
+                🤖 {s.reason}
+              </div>
+              {tgLink && (
+                <a href={`https://${tgLink[0]}`} target="_blank" rel="noopener"
+                   style={{fontSize:10, color:'#60a5fa', textDecoration:'none'}}>
+                  → {s.contact.replace(/^https?:\/\//, '').slice(0,50)}
+                </a>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function RefusalsSection({ refused, categories }) {
   const REFUSAL_META = {
     low_budget:      { emoji: '💰', label: 'Низкий бюджет',        color: '#fb923c' },
@@ -2601,7 +2663,10 @@ function App() {
           )}
 
           {activeTab === 'refusals' && (
-            <RefusalsSection refused={data.refused} categories={data.refusalCategories || {}} />
+            <>
+              <AISkipSection aiSkips={data.aiSkips} />
+              <RefusalsSection refused={data.refused} categories={data.refusalCategories || {}} />
+            </>
           )}
 
           {activeTab === 'broadcasts' && (
