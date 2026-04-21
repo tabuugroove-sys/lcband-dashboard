@@ -1061,6 +1061,17 @@ function ProcessRulesModal({ processKey, onClose }) {
 
 // ── Components ────────────────────────────────────────────────────────────────
 
+function _fmtCountdown(sec) {
+  if (!sec || sec <= 0) return '<1с';
+  if (sec < 60) return sec + 'с';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m < 60) return s === 0 ? `${m}м` : `${m}м ${s}с`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return mm === 0 ? `${h}ч` : `${h}ч ${mm}м`;
+}
+
 function _fmtAgo(lastCheck) {
   if (!lastCheck || lastCheck === '—') return '';
   try {
@@ -2230,7 +2241,23 @@ function StatusSection({ status, activity24h, onProcessClick }) {
                   color: is_bw ? '#fbbf24' : (a.count > 0 ? 'var(--ok)' : 'var(--muted)'),
                   fontVariantNumeric:'tabular-nums',
                 }}>
-                  {is_bw ? '👁️ ' : '📊 за 24ч: '}{count_label}
+                  {is_bw ? '👁️ за 24ч: ' : '📊 за 24ч: '}{count_label}
+                </div>
+              )}
+              {(a?.next_run_sec > 0 || typeof a?.success === 'number') && (
+                <div style={{
+                  width:'100%', paddingLeft:20, marginTop:2, fontSize:10.5,
+                  color:'var(--muted)', fontVariantNumeric:'tabular-nums',
+                  display:'flex', gap:10, flexWrap:'wrap',
+                }}>
+                  {a?.next_run_sec > 0 && (
+                    <span>⏱ до след: {_fmtCountdown(a.next_run_sec)}</span>
+                  )}
+                  {typeof a?.success === 'number' && (
+                    <span style={{color: a.failures > 0 ? '#fb923c' : 'var(--ok)'}}>
+                      ✓ {a.success} успех{a.failures > 0 ? ` · ✗ ${a.failures} пропущ` : ''}
+                    </span>
+                  )}
                 </div>
               )}
               {s.reason && (
