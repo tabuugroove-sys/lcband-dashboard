@@ -221,6 +221,24 @@
     .funnel-lead-chat:hover { background: var(--gold); color: #000; border-color: var(--gold); }
     .funnel-lead-chat--disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 
+    /* ── Funnel branches row (under main strip) ── */
+    .funnel-branches-wrap {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-top: 8px; padding: 0 2px;
+    }
+    .funnel-branch-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: transparent; border: 1px dashed var(--border);
+      border-radius: 8px; padding: 5px 9px;
+      font-size: 10px; color: var(--muted);
+      cursor: pointer; transition: all .15s;
+    }
+    .funnel-branch-chip:hover { border-color: var(--gold); color: var(--fg); border-style: solid; }
+    .funnel-branch-chip--active { border-color: var(--gold); border-style: solid; color: var(--fg); background: var(--card); }
+    .funnel-branch-chip-icon { font-size: 12px; }
+    .funnel-branch-chip-num { font-weight: 700; color: var(--fg); }
+    .funnel-branch-chip-parent { font-size: 9px; color: var(--muted); opacity: 0.7; }
+
     /* ── Orders ── */
     .orders-list { display: flex; flex-direction: column; gap: 8px; }
     .order-card {
@@ -1539,15 +1557,25 @@ function KPISection({ kpi, setActiveTab, browserWalk }) {
   );
 }
 
-// ── Funnel stage → status filter (matches backend sync_dashboard_data.py logic) ──
-// Cumulative funnel: каждая следующая стадия — подмножество предыдущей
-const FUNNEL_STAGE_FILTERS = {
-  funnel_new:        (o) => /Новый/i.test(o.status || ''),
-  funnel_contacted:  (o) => /Написал|Follow-up|Переговоры|ОПЛАТИЛА|Оплачен/i.test(o.status || ''),
-  funnel_replied:    (o) => /Переговоры|ОПЛАТИЛА|Оплачен/i.test(o.status || ''),
-  funnel_interested: (o) => /Переговоры|ОПЛАТИЛА|Оплачен/i.test(o.status || ''),
-  funnel_client:     (o) => /ОПЛАТИЛА|Оплачен/i.test(o.status || ''),
-};
+// ── Funnel pipeline (amoCRM-style) ─────────────────────────────────────────
+// 6 main stages + 3 branches, computed from dbSnapshot.active / .archived / .pending_drafts.
+//
+// Stage flow (exclusive assignment by lead status):
+//   1. Новые          — status "Новый"
+//   2. Отправили питч — status "Написал"
+//     └ 2b. Питч в боте — pending_approvals.json entries with status="pending"
+//   3. Интерес        — status "Переговоры" (responded, no deep negotiation yet)
+//     ├ 3b. Follow-up — status "Follow-up" (silent, we pinged)
+//     └ 3c. Отмена    — status "Не актуален" (active) + archived "Неактуально"
+//   4. Переговоры     — status "Переговоры" with history hints of price/rider discussion
+//   5. Предоплата     — status "ОПЛАТИЛА"
+//   6. Концерт        — status "Оплачен" (post-event, fully closed)
+//
+// The distinction between stage 3 (Интерес) and stage 4 (Переговоры) is:
+// both share DB status "Переговоры" but stage 4 is the subset whose history
+// contains commercial keywords (цена/прайс/райдер/бюджет/депозит/аванс).
+
+const FUNNEL_NEGOTIATION_RE = /ц[ее]н[аы]|прайс|прайсик|райдер|бюджет|депозит|аванс|предоплат|рассчит|смет|скидк|договор|контракт/i;
 
 function leadChatUrl(o) {
   // Prefer TG username → direct t.me link. Fallback: contact URL (could be vk, tg, etc.)
@@ -1561,30 +1589,87 @@ function leadChatUrl(o) {
   return '';
 }
 
-function FunnelSection({ funnel, allLeads }) {
+function computePipeline(allLeads, archived, pendingDrafts) {
+  const active = allLeads || [];
+  const arch = archived || [];
+  const pend = pendingDrafts || [];
+  const hasNegotiationText = (o) =>
+    FUNNEL_NEGOTIATION_RE.test((o.history || '') + ' ' + (o.desc || ''));
+  const st = (o) => (o.status || '').trim();
+  const eq = (s) => (o) => st(o).toLowerCase() === s.toLowerCase();
+  const any = (re) => (o) => re.test(st(o));
+
+  const stage_new      = active.filter(eq('Новый'));
+  const stage_sent     = active.filter(eq('Написал'));
+  const neg_all        = active.filter(eq('Переговоры'));
+  const stage_interest = neg_all.filter(o => !hasNegotiationText(o));
+  const stage_negot    = neg_all.filter(hasNegotiationText);
+  const stage_prepaid  = active.filter(eq('ОПЛАТИЛА'));
+  const stage_concert  = active.filter(any(/^(Оплачен|Концерт|Сыграл|Выступил)/i));
+  const stage_followup = active.filter(eq('Follow-up'));
+  const stage_cancel_active = active.filter(any(/^(Не актуал|Отказ|Отмена)/i));
+  const stage_cancel_arch   = arch.filter(any(/(Неактуал|Не актуал|Отказ|Отмена)/i));
+  const stage_cancel   = [...stage_cancel_active, ...stage_cancel_arch];
+  const stage_bot      = pend;
+
+  return [
+    { key: 'new',       label: 'Новые',          leads: stage_new,      kind: 'main' },
+    { key: 'sent',      label: 'Отправили питч', leads: stage_sent,     kind: 'main' },
+    { key: 'bot',       label: 'Питч в боте',    leads: stage_bot,      kind: 'branch', parent: 'sent',     icon: '🤖' },
+    { key: 'interest',  label: 'Интерес',        leads: stage_interest, kind: 'main' },
+    { key: 'followup',  label: 'Follow-up',      leads: stage_followup, kind: 'branch', parent: 'interest', icon: '🔄' },
+    { key: 'cancelled', label: 'Отмена',         leads: stage_cancel,   kind: 'branch', parent: 'interest', icon: '❌' },
+    { key: 'negot',     label: 'Переговоры',     leads: stage_negot,    kind: 'main' },
+    { key: 'prepaid',   label: 'Предоплата',     leads: stage_prepaid,  kind: 'main' },
+    { key: 'concert',   label: 'Концерт',        leads: stage_concert,  kind: 'main' },
+  ];
+}
+
+const PIPELINE_HINTS = {
+  new:       'Новые заявки из TG event-чатов. Монитор только что классифицировал — ещё не тронуты.',
+  sent:      'Отправили питч (шаблон «Юли» или drum). Ждём первого ответа.',
+  bot:       'Бот подготовил draft, но не хватило правила для авто-отправки (язык/цирк/public-reply). Ждёт твоего ✅ в @lcband_notify_bot.',
+  interest:  'Клиент ответил. Нейтральная переписка, детали проекта обсуждаются, но без цены/райдера.',
+  followup:  'Молчат после питча. Автомат сделал follow-up пинг (cooldown 3 дня, стоп за 3 дня до мероприятия).',
+  cancelled: 'Отказались: «взяли других», «не актуально», бюджет не совпал. В листе «Не актуальные заказы».',
+  negot:     'Активно обсуждают цену, райдер, состав, бюджет. Hot — нужна личная реакция.',
+  prepaid:   'Получили предоплату (статус ОПЛАТИЛА, лежат в TG-папке).',
+  concert:   'Концерт отыграли, полный расчёт. Архив успешных сделок.',
+};
+
+function FunnelSection({ allLeads, archived, pendingDrafts }) {
   const [expanded, setExpanded] = React.useState(null);
-  if (!funnel.length) return null;
-  const filterFn = expanded ? FUNNEL_STAGE_FILTERS[expanded] : null;
-  const stageLeads = filterFn ? (allLeads || []).filter(filterFn) : [];
+  const pipeline = React.useMemo(
+    () => computePipeline(allLeads, archived, pendingDrafts),
+    [allLeads, archived, pendingDrafts]
+  );
+  const hasAnyData = (allLeads || []).length > 0 || (archived || []).length > 0 || (pendingDrafts || []).length > 0;
+  if (!hasAnyData) return null;
+
+  const main     = pipeline.filter(s => s.kind === 'main');
+  const branches = pipeline.filter(s => s.kind === 'branch');
+
+  const expandedStage = expanded ? pipeline.find(s => s.key === expanded) : null;
+  const stageLeads    = expandedStage ? [...expandedStage.leads] : [];
   // Sort by event_date ascending (most urgent first); leads without date at end
   stageLeads.sort((a, b) => {
     const da = a.event_date || '9999-99-99';
     const db = b.event_date || '9999-99-99';
     return da.localeCompare(db);
   });
-  const expandedLabel = expanded ? (funnel.find(s => s.key === expanded)?.label || '') : '';
 
   return (
     <div id="funnel-section" className="section" style={{ marginTop: 14 }}>
       <div className="section-title">Воронка (TG)</div>
       <div className="funnel-wrap">
-        {funnel.map((step, i) => {
-          const prev = funnel[i - 1];
-          const pct  = prev && prev.n > 0 ? Math.round(step.n / prev.n * 100) + '%' : null;
-          const clickable = FUNNEL_STAGE_FILTERS[step.key] && (allLeads || []).length > 0;
+        {main.map((step, i) => {
+          const prev = main[i - 1];
+          const n = step.leads.length;
+          const pct = prev && prev.leads.length > 0 ? Math.round(n / prev.leads.length * 100) + '%' : null;
+          const clickable = n > 0;
           const isActive  = expanded === step.key;
           return (
-            <div key={step.key} className="funnel-step" title={FUNNEL_HINTS[step.key] || ''}>
+            <div key={step.key} className="funnel-step" title={PIPELINE_HINTS[step.key] || ''}>
               {i > 0 && <span className="funnel-arr">›</span>}
               <div
                 className={
@@ -1594,7 +1679,7 @@ function FunnelSection({ funnel, allLeads }) {
                 }
                 onClick={() => clickable && setExpanded(isActive ? null : step.key)}
               >
-                <div className="funnel-num">{step.n}</div>
+                <div className="funnel-num">{n}</div>
                 <div className="funnel-name">{step.label}</div>
                 {pct && <div className="funnel-pct">{pct}</div>}
               </div>
@@ -1602,11 +1687,40 @@ function FunnelSection({ funnel, allLeads }) {
           );
         })}
       </div>
-      {expanded && (
+
+      {branches.length > 0 && (
+        <div className="funnel-branches-wrap">
+          {branches.map(br => {
+            const n = br.leads.length;
+            const clickable = n > 0;
+            const isActive  = expanded === br.key;
+            const parentLabel = main.find(m => m.key === br.parent)?.label || '';
+            return (
+              <div
+                key={br.key}
+                className={
+                  'funnel-branch-chip' +
+                  (isActive ? ' funnel-branch-chip--active' : '')
+                }
+                onClick={() => clickable && setExpanded(isActive ? null : br.key)}
+                title={PIPELINE_HINTS[br.key] || ''}
+                style={{ cursor: clickable ? 'pointer' : 'default', opacity: clickable ? 1 : 0.45 }}
+              >
+                <span className="funnel-branch-chip-icon">{br.icon}</span>
+                <span>{br.label}</span>
+                <span className="funnel-branch-chip-num">{n}</span>
+                <span className="funnel-branch-chip-parent">· из «{parentLabel}»</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {expanded && expandedStage && (
         <div className="funnel-expand">
           <div className="funnel-expand-header">
             <span className="funnel-expand-title">
-              {expandedLabel}
+              {expandedStage.label}
               <span className="funnel-expand-count">({stageLeads.length})</span>
             </span>
             <button className="funnel-expand-close" onClick={() => setExpanded(null)}>✕</button>
@@ -1619,7 +1733,7 @@ function FunnelSection({ funnel, allLeads }) {
                 const chatUrl = leadChatUrl(o);
                 const name = o.client || o.username || '—';
                 return (
-                  <div key={o.id || i} className="funnel-lead-card">
+                  <div key={o.id || (o.username + '-' + i)} className="funnel-lead-card">
                     <div className="funnel-lead-info">
                       <div className="funnel-lead-name">
                         {name}
@@ -1633,6 +1747,11 @@ function FunnelSection({ funnel, allLeads }) {
                       </div>
                       {o.desc && (
                         <div className="funnel-lead-desc" title={o.desc}>{o.desc}</div>
+                      )}
+                      {o.draft && (
+                        <div className="funnel-lead-desc" style={{ color:'var(--blue)' }} title={o.draft}>
+                          📝 Draft: {o.draft}
+                        </div>
                       )}
                     </div>
                     {chatUrl ? (
@@ -3474,6 +3593,8 @@ function App() {
       }));
       // Full list of active leads — for funnel stage drill-down (amoCRM-style click)
       d.allLeads = dbSnapshot.active;
+      d.allArchived = dbSnapshot.archived || [];
+      d.pendingDrafts = dbSnapshot.pending_drafts || [];
       d.dbSync = dbSnapshot.sync;
     }
     if (dbSnapshot && dbSnapshot.archived) {
@@ -3600,7 +3721,11 @@ function App() {
                   tgWeek={data.tgFunnel?.week}
                 />
               </div>
-              <FunnelSection funnel={data.funnel} allLeads={data.allLeads || []} />
+              <FunnelSection
+                allLeads={data.allLeads || []}
+                archived={data.allArchived || []}
+                pendingDrafts={data.pendingDrafts || []}
+              />
               <OrdersSection orders={data.orders} />
               <ScanStatus scan={data.scan} />
               <FollowupsSection followups={data.followups} />
