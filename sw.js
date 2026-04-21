@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v20-fix-intervals';
+const CACHE = 'lcb-v21-kpi-info-tips';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {

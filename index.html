@@ -107,6 +107,7 @@
     .kpi-card {
       background: var(--card); border: 1px solid var(--border);
       border-radius: var(--r); padding: 12px 8px; text-align: center;
+      position: relative;
     }
     .kpi-emoji { font-size: 18px; margin-bottom: 4px; }
     .kpi-val { font-size: 24px; font-weight: 800; color: var(--gold); line-height: 1; }
@@ -117,9 +118,37 @@
     .kpi-mini {
       background: var(--card); border: 1px solid var(--border);
       border-radius: var(--r); padding: 10px;
+      position: relative;
     }
     .kpi-mini-val { font-size: 18px; font-weight: 700; }
     .kpi-mini-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Info-иконка + кастомная подсказка ── */
+    .kpi-info {
+      position: absolute; top: 5px; right: 6px;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: rgba(96,165,250,0.15); color: var(--blue);
+      font-size: 10px; font-weight: 700; font-family: serif;
+      display: inline-flex; align-items: center; justify-content: center;
+      cursor: help; opacity: 0.55; user-select: none;
+      transition: opacity .15s, background .15s;
+    }
+    .kpi-info:hover, .kpi-info:focus { opacity: 1; background: rgba(96,165,250,0.3); outline: none; }
+    .kpi-tip {
+      visibility: hidden; opacity: 0;
+      position: absolute; z-index: 60;
+      top: 24px; right: 0;
+      width: 220px; padding: 8px 10px;
+      background: #1e293b; color: #e2e8f0;
+      border: 1px solid var(--border); border-radius: 6px;
+      font-size: 11px; line-height: 1.4;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+      text-align: left; white-space: normal;
+      transition: opacity .15s, visibility .15s;
+      pointer-events: none;
+    }
+    .kpi-info:hover + .kpi-tip,
+    .kpi-info:focus + .kpi-tip { visibility: visible; opacity: 1; }
 
     /* ── Funnel ── */
     .funnel-wrap {
@@ -980,7 +1009,11 @@ function KPISection({ kpi }) {
       <div className="section-title">Лиды по каналам</div>
       <div className="kpi-grid">
         {channels.map(c => (
-          <div key={c.key} className="kpi-card" title={KPI_HINTS[c.key] || ''}>
+          <div key={c.key} className="kpi-card">
+            {KPI_HINTS[c.key] && (<>
+              <span className="kpi-info" tabIndex="0" aria-label="Описание">i</span>
+              <div className="kpi-tip">{KPI_HINTS[c.key]}</div>
+            </>)}
             <div className="kpi-emoji">{c.emoji}</div>
             <div className="kpi-val">{kpi[c.key] ?? '—'}</div>
             <div className="kpi-lbl">{c.label}</div>
@@ -989,7 +1022,11 @@ function KPISection({ kpi }) {
       </div>
       <div className="kpi-row">
         {secondary.map(c => (
-          <div key={c.label} className="kpi-mini" style={{position:'relative'}} title={KPI_HINTS[c.key] || ''}>
+          <div key={c.label} className="kpi-mini">
+            {KPI_HINTS[c.key] && (<>
+              <span className="kpi-info" tabIndex="0" aria-label="Описание">i</span>
+              <div className="kpi-tip">{KPI_HINTS[c.key]}</div>
+            </>)}
             <div className="kpi-mini-val"
               style={{ color: c.key === 'customers' ? 'var(--ok)'
                             : c.key === 'refused_total' ? '#f87171'
