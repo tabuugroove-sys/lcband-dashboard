@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v22-kpi-click-nav';
+const CACHE = 'lcb-v23-manual-vk-rescan';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
