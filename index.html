@@ -1011,14 +1011,21 @@ const PROCESS_RULES = {
   },
   proc_browser_walk: {
     name: 'Browser Walk',
-    interval: 'По запросу (ручной)',
-    desc: 'Ручной обход 17 event-чатов глазами через Chrome MCP (аудит автомата)',
+    interval: 'Каждый час в :00 SP time (launchd auto_browser_walk.sh, window=1ч)',
+    desc: 'Auto: Claude CLI (Opus 4.7) + Chrome MCP проходит 17 event-чатов глазами — ловит картинки, нестандартные формулировки, креативы которые Telethon-monitor не видит',
     rules: [
-      '▶ кнопка на тайле → быстрый AI-скан 48ч (manual_tg_rescan.py, 2-3 мин)',
-      '7д кнопка → глубокий AI-скан 7 дней (168h)',
-      '/browser-walk или «сделай обход» → я глазами через Chrome MCP (15-25 мин)',
-      'Live-прогресс в тайле: X/17 + текущий чат + walk_event тикер',
-      'Ловит картинки-с-текстом, нестандартные формулировки, креативы',
+      'launchd plist com.lcband.auto-browser-walk — StartCalendarInterval Minute=0',
+      'wrapper auto_browser_walk.sh → lock + sanity + claude CLI вызов',
+      'claude --model opus --dangerously-skip-permissions -p "..." + skill tg-leads-lcb',
+      'Chrome MCP: открывает web.telegram.org → screenshot + scroll + classify',
+      'Для каждого поста: walk_event(kept|filtered|dup) — live тикер на дашборде',
+      'Лиды → send_proposal через Telethon (с pre-send AI review)',
+      'В конце: walk_finish() + browser_walk_result.json + monitor_history.jsonl append',
+      'Метрика показывается в том же формате что TG Monitor: X лидов · Y постов · Z циклов (с 5:00 MSK)',
+      'Lock /tmp/lcband_auto_browser_walk.lock — единственная копия',
+      'Chrome должен быть запущен; Telegram Web залогинен заранее',
+      'TG-алерт при: CLI rc ≠ 0, Chrome не стартует, timeout 40 мин, status не done',
+      'Рядом с этим есть /browser-walk skill для ручного запуска (chat command)',
     ],
   },
 };
@@ -1256,99 +1263,41 @@ function BrowserWalkCard({ data }) {
     <div className="kpi-mini" style={{position:'relative'}}>
       <span className="kpi-info" tabIndex="0" aria-label="Описание"
             onClick={e => e.stopPropagation()}>i</span>
-      <div className="kpi-tip">Ручной обход чатов Claude через Chrome/computer MCP (глаза, не regex/AI). Для сравнения: сколько автоматика пропустила.</div>
+      <div className="kpi-tip">Auto Browser Walk — launchd запускает каждый час в :00 SP time через Claude CLI (Opus 4.7) + Chrome MCP. Проходит 17 event-чатов глазами, шлёт питчи через Telethon с pre-send AI review.</div>
 
-      <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:6}}>
-        <div style={{minWidth:0, flex:1}}>
-          {isRunning ? (
-            <>
-              <div className="kpi-mini-val" style={{color: valColor, fontVariantNumeric:'tabular-nums'}}>
-                {scanned}<span style={{fontSize:14, color:'var(--muted)', fontWeight:500}}> / {totalPlan}</span>
-                <span style={{fontSize:11, color:'var(--blue)', fontWeight:700, marginLeft:6}}>{pct}%</span>
-              </div>
-              <div className="kpi-mini-lbl">🤖 Скан идёт · {scanned} из {totalPlan} чатов</div>
-            </>
-          ) : isDoneFresh ? (
-            <>
-              <div className="kpi-mini-val" style={{color: freshOrders > 0 ? '#fbbf24' : '#10b981', fontVariantNumeric:'tabular-nums'}}>
-                {freshOrders ?? 0}
-                <span style={{fontSize:11,color:'var(--muted)',fontWeight:500,marginLeft:4}}>
-                  {freshOrders === 1 ? 'лид' : 'лидов'} · {freshPosts ?? 0} постов
-                </span>
-              </div>
-              <div className="kpi-mini-lbl">✓ Скан готов</div>
-            </>
-          ) : isError ? (
-            <>
-              <div className="kpi-mini-val" style={{color:'#ef4444'}}>err</div>
-              <div className="kpi-mini-lbl" style={{fontSize:10}}>{String(progress?.error || '').slice(0,32) || 'ошибка'}</div>
-            </>
-          ) : (
-            <>
-              <div className="kpi-mini-val" style={{color: valColor}}>
-                {leads}
-                {refusals > 0 && <span style={{fontSize:11,color:'#f87171',fontWeight:500,marginLeft:4}}>· {refusals} ❌</span>}
-              </div>
-              <div className="kpi-mini-lbl">👁️ Browser Walk · {totalChats} чат</div>
-            </>
-          )}
-        </div>
-        <button
-          onClick={requestWalk}
-          disabled={requesting || isRunning || isQueued}
-          title={
-            isRunning ? 'Скан идёт'
-            : isQueued ? 'В очереди'
-            : '▶ Быстрый AI-скан 18 чатов (2-3 мин, Telethon + Sonnet)'
-          }
-          style={{
-            width: 30, height: 28, borderRadius: 6,
-            background: (isRunning || isQueued) ? 'rgba(59,130,246,0.18)' : 'rgba(96,165,250,0.12)',
-            border: '1px solid ' + ((isRunning || isQueued) ? 'rgba(59,130,246,0.6)' : 'rgba(96,165,250,0.5)'),
-            color: 'var(--blue)',
-            fontSize: 13, lineHeight: 1,
-            cursor: (requesting || isRunning || isQueued) ? 'wait' : 'pointer',
-            display:'flex', alignItems:'center', justifyContent:'center', padding:0,
-            flexShrink:0,
-          }}>
-          {isRunning ? '⟳' : isQueued ? '⏳' : '▶'}
-        </button>
-        <button
-          onClick={async (e) => {
-            e.stopPropagation();
-            if (requesting || isRunning) return;
-            setRequesting(true);
-            try {
-              const r = await fetch(`${backendUrl}/api/browser_walk_deep`, {
-                method: 'POST', headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({hours: 168}),
-              });
-              if (r.ok) {
-                setRequestedNote('глубокий скан 7д запущен');
-              } else {
-                setRequestedNote('уже идёт другой скан');
-              }
-              setTimeout(() => setRequestedNote(null), 5000);
-            } catch (err) {
-              setRequestedNote('ошибка');
-              setTimeout(() => setRequestedNote(null), 4000);
-            }
-            setRequesting(false);
-          }}
-          disabled={requesting || isRunning}
-          title="👁️ Глубокий AI-скан за 7 дней (manual_tg_rescan.py hours=168). 5-10 мин. Ловит то что monitor пропустил за неделю."
-          style={{
-            width: 30, height: 28, borderRadius: 6,
-            background: 'rgba(245,197,24,0.12)',
-            border: '1px solid rgba(245,197,24,0.5)',
-            color: 'var(--gold)',
-            fontSize: 13, lineHeight: 1,
-            cursor: (requesting || isRunning) ? 'wait' : 'pointer',
-            display:'flex', alignItems:'center', justifyContent:'center', padding:0,
-            flexShrink:0,
-          }}>
-          7д
-        </button>
+      <div style={{minWidth:0}}>
+        {isRunning ? (
+          <>
+            <div className="kpi-mini-val" style={{color: valColor, fontVariantNumeric:'tabular-nums'}}>
+              {scanned}<span style={{fontSize:14, color:'var(--muted)', fontWeight:500}}> / {totalPlan}</span>
+              <span style={{fontSize:11, color:'var(--blue)', fontWeight:700, marginLeft:6}}>{pct}%</span>
+            </div>
+            <div className="kpi-mini-lbl">🤖 Скан идёт · {scanned} из {totalPlan} чатов</div>
+          </>
+        ) : isDoneFresh ? (
+          <>
+            <div className="kpi-mini-val" style={{color: freshOrders > 0 ? '#fbbf24' : '#10b981', fontVariantNumeric:'tabular-nums'}}>
+              {freshOrders ?? 0}
+              <span style={{fontSize:11,color:'var(--muted)',fontWeight:500,marginLeft:4}}>
+                {freshOrders === 1 ? 'лид' : 'лидов'} · {freshPosts ?? 0} постов
+              </span>
+            </div>
+            <div className="kpi-mini-lbl">✓ Скан готов</div>
+          </>
+        ) : isError ? (
+          <>
+            <div className="kpi-mini-val" style={{color:'#ef4444'}}>err</div>
+            <div className="kpi-mini-lbl" style={{fontSize:10}}>{String(progress?.error || '').slice(0,32) || 'ошибка'}</div>
+          </>
+        ) : (
+          <>
+            <div className="kpi-mini-val" style={{color: valColor}}>
+              {leads}
+              {refusals > 0 && <span style={{fontSize:11,color:'#f87171',fontWeight:500,marginLeft:4}}>· {refusals} ❌</span>}
+            </div>
+            <div className="kpi-mini-lbl">👁️ Browser Walk · {totalChats} чат · 🔁 auto 1h</div>
+          </>
+        )}
       </div>
 
       {isRunning && (
