@@ -1227,9 +1227,10 @@ function BrowserWalkCard({ data }) {
       )}
 
       <div style={{fontSize:10, color:'var(--muted)', marginTop:3, textAlign:'center'}}>
-        {requestedNote ? <span style={{color:'var(--blue)'}}>✓ {requestedNote}</span>
+        {requestedNote ? <span style={{color:'var(--gold)'}}>✓ {requestedNote}</span>
          : isRunning ? `запущен ${statusAge}`
          : isQueued ? `в очереди ${statusAge}`
+         : isDoneFresh ? `готово ${fmtAgo(finishedAt)}`
          : `последний: ${timeAgo}`}
         {!isRunning && !isQueued && items.length > 0 && (
           <button onClick={() => setExpanded(v => !v)}
@@ -1239,6 +1240,19 @@ function BrowserWalkCard({ data }) {
           </button>
         )}
       </div>
+
+      {progress?.real_walk?.queued && (
+        <div style={{
+          marginTop:4, padding:'4px 6px',
+          background:'rgba(245,197,24,0.12)',
+          border:'1px solid rgba(245,197,24,0.4)',
+          borderRadius:4, fontSize:10,
+          color:'var(--gold)', textAlign:'center', fontWeight:600,
+        }}
+        title="Ручной обход в очереди. Попроси Claude в чате: «проверь browser walk queue»">
+          👁️ Ручной в очереди · {fmtAgo(progress.real_walk.requested_at)}
+        </div>
+      )}
 
       {expanded && items.length > 0 && (
         <div style={{position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:55,
