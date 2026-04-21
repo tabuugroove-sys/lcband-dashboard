@@ -1088,11 +1088,16 @@ function BrowserWalkCard({ data }) {
 
   const isRunning = progress?.status === 'running';
   const isQueued = progress?.status === 'queued';
+  const isDoneFresh = progress?.status === 'done';
+  const isError = progress?.status === 'error';
   const scanned = progress?.scanned_chats ?? 0;
   const totalPlan = progress?.total_chats ?? totalChats ?? 18;
   const currentChat = progress?.current_chat || '';
   const startedAt = progress?.started_at || progress?.requested_at;
   const statusAge = fmtAgo(startedAt);
+  const freshPosts  = progress?.posts ?? null;
+  const freshOrders = progress?.orders ?? null;
+  const finishedAt  = progress?.finished_at || '';
 
   const requestWalk = async (e) => {
     e.stopPropagation();
@@ -1122,14 +1127,26 @@ function BrowserWalkCard({ data }) {
             onClick={e => e.stopPropagation()}>i</span>
       <div className="kpi-tip">Ручной обход чатов Claude через Chrome/computer MCP (глаза, не regex/AI). Для сравнения: сколько автоматика пропустила.</div>
 
-      <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
+      <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:6}}>
         <div style={{minWidth:0, flex:1}}>
           {isRunning ? (
             <>
               <div className="kpi-mini-val" style={{color: valColor, fontVariantNumeric:'tabular-nums'}}>
                 {scanned}<span style={{fontSize:13, color:'var(--muted)', fontWeight:500}}> / {totalPlan}</span>
               </div>
-              <div className="kpi-mini-lbl">👁️ Обход идёт…</div>
+              <div className="kpi-mini-lbl">🤖 Скан идёт…</div>
+            </>
+          ) : isDoneFresh ? (
+            <>
+              <div className="kpi-mini-val" style={{color: freshOrders > 0 ? '#fbbf24' : '#10b981', fontVariantNumeric:'tabular-nums'}}>
+                {freshOrders ?? 0}<span style={{fontSize:11,color:'var(--muted)',fontWeight:500,marginLeft:3}}>/ {freshPosts ?? 0}</span>
+              </div>
+              <div className="kpi-mini-lbl">✓ Готово · лидов/постов</div>
+            </>
+          ) : isError ? (
+            <>
+              <div className="kpi-mini-val" style={{color:'#ef4444'}}>err</div>
+              <div className="kpi-mini-lbl" style={{fontSize:10}}>{String(progress?.error || '').slice(0,32) || 'ошибка'}</div>
             </>
           ) : (
             <>
@@ -1145,9 +1162,9 @@ function BrowserWalkCard({ data }) {
           onClick={requestWalk}
           disabled={requesting || isRunning || isQueued}
           title={
-            isRunning ? 'Обход уже идёт'
-            : isQueued ? 'В очереди — ждёт активную сессию Claude'
-            : 'Запустить ручной обход (выполнит Claude при следующем запуске)'
+            isRunning ? 'Скан идёт'
+            : isQueued ? 'В очереди'
+            : '▶ Быстрый AI-скан 18 чатов (2-3 мин, Telethon + Sonnet)'
           }
           style={{
             width: 30, height: 28, borderRadius: 6,
@@ -1160,6 +1177,38 @@ function BrowserWalkCard({ data }) {
             flexShrink:0,
           }}>
           {isRunning ? '⟳' : isQueued ? '⏳' : '▶'}
+        </button>
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+            if (requesting || isRunning) return;
+            setRequesting(true);
+            try {
+              await fetch(`${backendUrl}/api/browser_walk_queue_real`, {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({hours: 48}),
+              });
+              setRequestedNote('в очереди — попроси Claude');
+              setTimeout(() => setRequestedNote(null), 8000);
+            } catch (err) {
+              setRequestedNote('ошибка');
+              setTimeout(() => setRequestedNote(null), 4000);
+            }
+            setRequesting(false);
+          }}
+          disabled={requesting || isRunning}
+          title="👁️ Ручной обход глазами через computer-use MCP (15-20 мин). Добавит запрос в очередь — попроси Claude в чате «проверь browser walk queue»."
+          style={{
+            width: 30, height: 28, borderRadius: 6,
+            background: 'rgba(245,197,24,0.12)',
+            border: '1px solid rgba(245,197,24,0.5)',
+            color: 'var(--gold)',
+            fontSize: 13, lineHeight: 1,
+            cursor: (requesting || isRunning) ? 'wait' : 'pointer',
+            display:'flex', alignItems:'center', justifyContent:'center', padding:0,
+            flexShrink:0,
+          }}>
+          👁️
         </button>
       </div>
 
