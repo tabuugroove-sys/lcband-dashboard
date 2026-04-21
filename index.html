@@ -1132,9 +1132,10 @@ function BrowserWalkCard({ data }) {
           {isRunning ? (
             <>
               <div className="kpi-mini-val" style={{color: valColor, fontVariantNumeric:'tabular-nums'}}>
-                {scanned}<span style={{fontSize:13, color:'var(--muted)', fontWeight:500}}> / {totalPlan}</span>
+                {scanned}<span style={{fontSize:14, color:'var(--muted)', fontWeight:500}}> / {totalPlan}</span>
+                <span style={{fontSize:11, color:'var(--blue)', fontWeight:700, marginLeft:6}}>{pct}%</span>
               </div>
-              <div className="kpi-mini-lbl">🤖 Скан идёт…</div>
+              <div className="kpi-mini-lbl">🤖 Скан идёт · {scanned} из {totalPlan} чатов</div>
             </>
           ) : isDoneFresh ? (
             <>
@@ -1220,14 +1221,24 @@ function BrowserWalkCard({ data }) {
       </div>
 
       {isRunning && (
-        <div style={{marginTop:5}}>
-          <div style={{height:3, background:'rgba(59,130,246,0.2)', borderRadius:2, overflow:'hidden'}}>
-            <div style={{width: pct + '%', height:'100%', background:'#3b82f6', transition:'width .4s'}}></div>
+        <div style={{marginTop:6}}>
+          <div style={{
+            height:8, background:'rgba(59,130,246,0.18)',
+            borderRadius:4, overflow:'hidden', position:'relative',
+            border:'1px solid rgba(59,130,246,0.35)',
+          }}>
+            <div style={{
+              width: pct + '%', height:'100%',
+              background:'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)',
+              transition:'width .4s ease',
+              boxShadow: pct > 0 ? '0 0 8px rgba(59,130,246,0.5)' : 'none',
+            }}></div>
           </div>
           {currentChat && (
-            <div style={{fontSize:9.5, color:'var(--muted)', marginTop:3, textAlign:'center',
-                         overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-              сейчас: {currentChat}
+            <div style={{fontSize:10, color:'var(--blue)', marginTop:4, textAlign:'center',
+                         overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+                         fontWeight:600}}>
+              ▸ {currentChat}
             </div>
           )}
         </div>
