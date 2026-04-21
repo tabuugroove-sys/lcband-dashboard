@@ -1770,7 +1770,12 @@ function FunnelSection({ title, allLeads, archived, branchSpec }) {
                     <div className="funnel-lead-info">
                       <div className="funnel-lead-name">
                         {name}
-                        {o.status && <span className="funnel-lead-status">· {o.status}</span>}
+                        {/* chip показывает ЭТАП воронки (куда лид реально попал),
+                            а не сырой DB-статус — чтобы при переносе лида chip
+                            обновлялся автоматически. */}
+                        {expandedStage.label && (
+                          <span className="funnel-lead-status">· {expandedStage.label}</span>
+                        )}
                       </div>
                       <div className="funnel-lead-meta">
                         {o.event_date && <span>📅 {o.event_date}</span>}
