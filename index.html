@@ -3852,8 +3852,26 @@ function App() {
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
+    // 🔴 21.04: primary path — /api/dashboard_data endpoint (live, no 10-min Sheet sync lag).
+    // Fallback: Google Sheet gviz (если backend упал).
     try {
-      const data = await fetchSheet('Dashboard');
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      let data = null;
+      try {
+        const r = await fetch(`${bu}/api/dashboard_data`, { cache: 'no-store' });
+        if (r.ok) {
+          const j = await r.json();
+          if (Array.isArray(j.rows)) {
+            data = j.rows;
+          }
+        }
+      } catch (e) {
+        console.warn('[load] /api/dashboard_data failed, trying Sheet fallback:', e?.message);
+      }
+      // Fallback to direct Sheet read if API didn't work
+      if (!data) {
+        data = await fetchSheet('Dashboard');
+      }
       setRows(data);
       setError(null);
       setUpdatedAt(new Date());
