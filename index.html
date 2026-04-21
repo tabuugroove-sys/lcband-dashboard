@@ -1383,7 +1383,7 @@ function OrderCard({ order: o }) {
     .slice(-3);
 
   const cardRef = React.useRef(null);
-  const [tipSide, setTipSide] = React.useState('left');
+  const [tipSide, setTipSide] = React.useState('right');
   React.useLayoutEffect(() => {
     if (!hasDetails) return;
     const card = cardRef.current;
@@ -1392,8 +1392,8 @@ function OrderCard({ order: o }) {
       const r = card.getBoundingClientRect();
       const TIP_W = 440, GAP = 8, MARGIN = 8;
       if (window.innerWidth <= 900) { setTipSide('bottom'); return; }
-      if (r.left >= TIP_W + GAP + MARGIN) setTipSide('left');
-      else if (window.innerWidth - r.right >= TIP_W + GAP + MARGIN) setTipSide('right');
+      if (window.innerWidth - r.right >= TIP_W + GAP + MARGIN) setTipSide('right');
+      else if (r.left >= TIP_W + GAP + MARGIN) setTipSide('left');
       else setTipSide('bottom');
     };
     compute();
