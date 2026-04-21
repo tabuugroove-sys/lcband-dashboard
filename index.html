@@ -569,6 +569,7 @@ function processRows(rows) {
   const timeline = { total: 0, items: [] };
   const manualVk = { orders: 0, posts: 0, ranAt: '', hours: 24, status: 'idle' };
   const manualTg = { orders: 0, posts: 0, ranAt: '', hours: 24, status: 'idle' };
+  const browserWalk = { leads: 0, refusals: 0, chats: 0, ranAt: '', hours: 48, items: [] };
 
   for (const row of rows) {
     if (!row.key) continue;
@@ -699,6 +700,16 @@ function processRows(rows) {
       else if (row.key === 'mtg_hours')  manualTg.hours  = Number(row.value) || 24;
       else if (row.key === 'mtg_status') manualTg.status = row.value || 'idle';
     }
+    if (section === 'BrowserWalk') {
+      if (row.key === 'bw_leads')    browserWalk.leads    = Number(row.value) || 0;
+      else if (row.key === 'bw_refusals') browserWalk.refusals = Number(row.value) || 0;
+      else if (row.key === 'bw_chats')    browserWalk.chats    = Number(row.value) || 0;
+      else if (row.key === 'bw_ran_at')   browserWalk.ranAt    = row.value || '';
+      else if (row.key === 'bw_hours')    browserWalk.hours    = Number(row.value) || 48;
+      else if (row.key?.match(/^bw_lead_\d+$/)) {
+        try { browserWalk.items.push(JSON.parse(row.value)); } catch {}
+      }
+    }
     if (section === 'AIUsage') {
       if (row.key === 'ai_total_calls')    aiUsage.totalCalls = Number(row.value) || 0;
       else if (row.key === 'ai_total_cost_usd') aiUsage.totalCost = Number(row.value) || 0;
@@ -719,7 +730,7 @@ function processRows(rows) {
       }
     }
   }
-  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, vkConnection, scan, agents, newLeads, aiSkips, paid, aiUsage, timeline, manualVk, manualTg };
+  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, vkConnection, scan, agents, newLeads, aiSkips, paid, aiUsage, timeline, manualVk, manualTg, browserWalk };
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -1039,6 +1050,60 @@ const FUNNEL_HINTS = {
   funnel_client:     'Оплатили — выступление состоялось или запланировано.',
 };
 
+function BrowserWalkCard({ data }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const leads = data?.leads || 0;
+  const refusals = data?.refusals || 0;
+  const chats = data?.chats || 0;
+  const items = data?.items || [];
+  const ranAt = data?.ranAt ? new Date(data.ranAt) : null;
+  const timeAgo = ranAt ? (() => {
+    const h = Math.floor((Date.now() - ranAt.getTime()) / 3600000);
+    if (h < 1) return '<1ч назад';
+    if (h < 24) return `${h} ч назад`;
+    return `${Math.floor(h/24)} дн назад`;
+  })() : 'не было';
+
+  return (
+    <div className="kpi-mini" style={{position:'relative'}}>
+      <span className="kpi-info" tabIndex="0" aria-label="Описание"
+            onClick={e => e.stopPropagation()}>i</span>
+      <div className="kpi-tip">Ручной обход чатов Claude через Chrome MCP (глаза, не regex/AI). Для сравнения: сколько автоматика пропустила.</div>
+      <div className="kpi-mini-val" style={{color: leads > 0 ? '#fbbf24' : 'var(--text)'}}>
+        {leads}
+        {refusals > 0 && <span style={{fontSize:11,color:'#f87171',fontWeight:500,marginLeft:4}}>· {refusals} ❌</span>}
+      </div>
+      <div className="kpi-mini-lbl">👁️ Browser Walk · {chats} чат</div>
+      <div style={{fontSize:10, color:'var(--muted)', marginTop:3, textAlign:'center'}}>
+        {timeAgo}
+        {items.length > 0 && (
+          <button onClick={() => setExpanded(v => !v)}
+            style={{marginLeft:5, fontSize:9, padding:'0 4px', background:'transparent',
+                    color:'var(--blue)', border:'none', cursor:'pointer'}}>
+            {expanded ? '▲' : '▼'}
+          </button>
+        )}
+      </div>
+      {expanded && items.length > 0 && (
+        <div style={{position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:55,
+                      background:'#0f172a', border:'1px solid #334155', borderRadius:6,
+                      padding:8, maxHeight:300, overflowY:'auto', fontSize:10,
+                      boxShadow:'0 4px 14px rgba(0,0,0,0.5)', textAlign:'left'}}>
+          {items.map((it, i) => (
+            <div key={i} style={{padding:'4px 0', borderTop: i ? '1px solid #1e293b' : 'none'}}>
+              <div style={{fontWeight:700, color: it.status==='sent' ? '#34d399' : it.status==='urgent_pending' ? '#fbbf24' : '#e2e8f0'}}>
+                {it.author} · {it.date} · {it.city}
+              </div>
+              <div style={{color:'#94a3b8'}}>{it.format}</div>
+              <div style={{color:'#64748b', fontSize:9}}>{it.source_chat} · {it.status}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ManualScanCard({ source, label, hint, data }) {
   // source: 'vk' | 'tg'  — label shown on card, data: {orders, posts, ranAt, hours, status}
   const [busy, setBusy] = React.useState(data.status === 'running');
@@ -1155,7 +1220,7 @@ function ManualScanCard({ source, label, hint, data }) {
   );
 }
 
-function KPISection({ kpi, setActiveTab, manualVk, manualTg }) {
+function KPISection({ kpi, setActiveTab, manualVk, manualTg, browserWalk }) {
   const [period, setPeriod] = useState(() => {
     try { return localStorage.getItem('lcb_kpi_period') || 'new_month'; }
     catch { return 'new_month'; }
@@ -1245,6 +1310,7 @@ function KPISection({ kpi, setActiveTab, manualVk, manualTg }) {
                         data={manualVk || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}} />
         <ManualScanCard source="tg" label="Сверка TG" hint="Ручной AI-rescan 18 TG-чатов за 24ч (Sonnet, 0₽) + запрос ручного браузер-обхода"
                         data={manualTg || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}} />
+        <BrowserWalkCard data={browserWalk || {leads:0, refusals:0, chats:0, ranAt:'', hours:48, items:[]}} />
       </div>
     </div>
   );
@@ -2955,7 +3021,8 @@ function App() {
               <ActionButtons />
               <KPISection kpi={data.kpi} setActiveTab={setActiveTab}
                           manualVk={data.manualVk || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}}
-                          manualTg={data.manualTg || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}} />
+                          manualTg={data.manualTg || {orders:0, posts:0, ranAt:'', hours:24, status:'idle'}}
+                          browserWalk={data.browserWalk || {leads:0, refusals:0, chats:0, ranAt:'', hours:48, items:[]}} />
               <div className="section" style={{ marginTop: 8 }}>
                 <TGLeadsButton
                   onClick={() => setShowTGModal(true)}
