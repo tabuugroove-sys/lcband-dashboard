@@ -4334,6 +4334,12 @@ function App() {
     return () => clearInterval(fast);
   }, [data?.scan?.status, load]);
 
+  useEffect(() => {
+    if (activity24h?.proc_browser_walk?.status !== 'running') return;
+    const fast = setInterval(() => load(true), 10000);
+    return () => clearInterval(fast);
+  }, [activity24h?.proc_browser_walk?.status, load]);
+
   const timeStr = updatedAt
     ? updatedAt.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' })
     : null;
