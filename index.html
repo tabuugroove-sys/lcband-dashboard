@@ -973,12 +973,26 @@ const PROCESS_RULES = {
   proc_verify_posts: {
     name: 'Сверка постов',
     interval: 'Ежедневно (23:55 MSK)',
-    desc: 'Полный подсчёт сообщений за сутки — eod reconciliation',
+    desc: 'Полный подсчёт сообщений за сутки — счётчик объёма чата',
     rules: [
       'Запуск раз в сутки в 23:55 MSK',
       'Подсчёт без лимита 200 (полная сверка)',
       'Результат в колонку E таблицы «Чаты Отчеты»',
-      'TODO (21.04): добавить eod_reconciliation.py с обходом 17 чатов для сверки с monitor',
+      'Только счётчик постов, не сверка с monitor/walk — для этого есть отдельный Morning Reconcile (05:00 MSK)',
+    ],
+  },
+  proc_morning_reconcile: {
+    name: 'Morning Reconcile',
+    interval: 'Ежедневно (05:00 MSK)',
+    desc: 'Пост-за-постом сверка 17 event-чатов с monitor (orders.db) и walk (session_actions.jsonl) за 24ч',
+    rules: [
+      'Запуск раз в сутки в 05:00 MSK (02:03 local GMT-3)',
+      'Обходит все 17 event-чатов без лимита 200',
+      'Для каждого поста: видел ли monitor (по username/desc в orders.db) + видел ли walk (по msg_id)',
+      'Непросмотренные прогоняются через regex + Claude CLI classify',
+      'Если CLI решает music_band|drum_show|solo_musician|abstract → это пропущенный лид',
+      'Результат: morning_reconciliation_result.json (счётчик missed + top-10 inline)',
+      'TG-alert через tg_alert если missed ≥ 1',
     ],
   },
   proc_dashboard_sync: {
@@ -2526,6 +2540,28 @@ function StatusSection({ status, activity24h, onProcessClick }) {
               )}
               {s.action && (
                 <div style={{width:'100%',paddingLeft:20,marginTop:1,fontSize:11,color:'var(--blue)'}}>{s.action}</div>
+              )}
+              {/* 🔴 22.04: Morning Reconcile — inline top-5 пропущенных */}
+              {s.key === 'proc_morning_reconcile' && Array.isArray(a?.missed_orders) && a.missed_orders.length > 0 && (
+                <div style={{width:'100%',paddingLeft:20,marginTop:6,fontSize:11}}>
+                  <div style={{color:'#fb923c',fontWeight:700,marginBottom:4}}>
+                    ⚠️ Пропущенные лиды (top {Math.min(5, a.missed_orders.length)} из {a.missed_orders.length}):
+                  </div>
+                  {a.missed_orders.slice(0, 5).map((m, i) => (
+                    <div key={i} style={{marginBottom:4,color:'var(--muted)'}}>
+                      <span style={{color:'#fbbf24'}}>• {m.chat}</span>
+                      {m.username && <span style={{color:'var(--fg)'}}> · @{m.username}</span>}
+                      {m.msg_date_msk && <span style={{color:'var(--muted)',fontSize:10.5}}> · {m.msg_date_msk}</span>}
+                      {m.ai_class && <span style={{color:'#60a5fa',fontSize:10.5}}> · {m.ai_class}</span>}
+                      {m.text_snippet && (
+                        <div style={{paddingLeft:12,fontSize:10.5,color:'var(--muted)',marginTop:2,
+                                     overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                          {m.text_snippet.slice(0, 120)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
 
               {is_bw && bwExpanded && (
