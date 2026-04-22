@@ -1559,6 +1559,21 @@ function KPISection({ kpi, setActiveTab, browserWalk }) {
 
 const FUNNEL_NEGOTIATION_RE = /ц[ее]н[аы]|прайс|прайсик|райдер|бюджет|депозит|аванс|предоплат|рассчит|смет|скидк|договор|контракт/i;
 
+const FUNNEL_STALE_DAYS = 3;
+function _funnelDaysSince(s) {
+  if (!s) return null;
+  const m = String(s).match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+  if (!m) return null;
+  const [, d, mo, y, h, mi] = m;
+  const dt = new Date(`${y}-${mo}-${d}T${h || '00'}:${mi || '00'}:00+03:00`);
+  if (isNaN(dt.getTime())) return null;
+  return (Date.now() - dt.getTime()) / 86400000;
+}
+function _funnelIsStaleNegotiation(o) {
+  const d = _funnelDaysSince(o.last_activity);
+  return d !== null && d >= FUNNEL_STALE_DAYS;
+}
+
 // Strict drum-show detector: only the CLIENT'S own request should match.
 // History is checked only for explicit workflow markers (Vadim / Noize Drum brief),
 // so "we pitched drum as extra" doesn't misclassify a regular cover-band lead.
@@ -1611,14 +1626,16 @@ function computePipeline(allLeads, archived, branchSpec) {
   const stage_new      = active.filter(eq('Новый'));
   const stage_sent     = active.filter(eq('Написал'));
   const neg_all        = active.filter(eq('Переговоры'));
-  const stage_interest = neg_all.filter(o => !hasNegotiationText(o));
-  const stage_negot    = neg_all.filter(hasNegotiationText);
+  const neg_stale      = neg_all.filter(_funnelIsStaleNegotiation);
+  const neg_fresh      = neg_all.filter(o => !_funnelIsStaleNegotiation(o));
+  const stage_interest = neg_fresh.filter(o => !hasNegotiationText(o));
+  const stage_negot    = neg_fresh.filter(hasNegotiationText);
   const stage_prepaid  = active.filter(eq('ОПЛАТИЛА'));
   // Stage 6 «Отзыв/контент» — post-event workflow: клиент отыграл, просим отзыв/фото/видео.
   // DB-статусы: Оплачен (fully paid), Концерт/Сыграл/Выступил (explicit markers),
   // Отзыв (future status when review collected).
   const stage_review   = active.filter(any(/^(Оплачен|Концерт|Сыграл|Выступил|Отзыв)/i));
-  const stage_followup = active.filter(eq('Follow-up'));
+  const stage_followup = [...active.filter(eq('Follow-up')), ...neg_stale];
   const stage_cancel_active = active.filter(any(/^(Не актуал|Отказ|Отмена)/i));
   const stage_cancel_arch   = arch.filter(any(/(Неактуал|Не актуал|Отказ|Отмена)/i));
   const stage_cancel   = [...stage_cancel_active, ...stage_cancel_arch];
