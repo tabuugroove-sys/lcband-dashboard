@@ -1560,17 +1560,24 @@ function KPISection({ kpi, setActiveTab, browserWalk }) {
 const FUNNEL_NEGOTIATION_RE = /ц[ее]н[аы]|прайс|прайсик|райдер|бюджет|депозит|аванс|предоплат|рассчит|смет|скидк|договор|контракт/i;
 
 const FUNNEL_STALE_DAYS = 3;
-function _funnelDaysSince(s) {
+function _funnelCalendarDaysSince(s) {
   if (!s) return null;
-  const m = String(s).match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+  const m = String(s).match(/^(\d{2})\.(\d{2})\.(\d{4})/);
   if (!m) return null;
-  const [, d, mo, y, h, mi] = m;
-  const dt = new Date(`${y}-${mo}-${d}T${h || '00'}:${mi || '00'}:00+03:00`);
-  if (isNaN(dt.getTime())) return null;
-  return (Date.now() - dt.getTime()) / 86400000;
+  const [, d, mo, y] = m;
+  const past = new Date(`${y}-${mo}-${d}T00:00:00+03:00`);
+  if (isNaN(past.getTime())) return null;
+  const nowMsk = new Date(Date.now());
+  const today = new Date(Date.UTC(
+    nowMsk.getUTCFullYear(), nowMsk.getUTCMonth(), nowMsk.getUTCDate()
+  ));
+  const pastUtc = new Date(Date.UTC(
+    past.getUTCFullYear(), past.getUTCMonth(), past.getUTCDate()
+  ));
+  return Math.round((today - pastUtc) / 86400000);
 }
 function _funnelIsStaleNegotiation(o) {
-  const d = _funnelDaysSince(o.last_activity);
+  const d = _funnelCalendarDaysSince(o.last_activity);
   return d !== null && d >= FUNNEL_STALE_DAYS;
 }
 
