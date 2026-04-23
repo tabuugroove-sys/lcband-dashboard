@@ -2388,7 +2388,43 @@ function ScanStatus({ scan }) {
 function StatusSection({ status, activity24h, onProcessClick }) {
   const [bwExpanded, setBwExpanded] = React.useState(false);
   const [bwFeed, setBwFeed] = React.useState(null);
+  // 🔴 23.04: универсальный expand для любого процесса (не только Browser Walk).
+  // procDetail[key] = {events, kind, summary, loading, error}
+  const [procExpanded, setProcExpanded] = React.useState({});
+  const [procDetail,   setProcDetail]   = React.useState({});
   const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+
+  const fetchProcDetail = React.useCallback(async (key) => {
+    setProcDetail(prev => ({ ...prev, [key]: { ...(prev[key]||{}), loading: true } }));
+    try {
+      const r = await fetch(`${backendUrl}/api/process_detail?key=${encodeURIComponent(key)}&limit=20`, { cache: 'no-store' });
+      const j = await r.json();
+      setProcDetail(prev => ({ ...prev, [key]: { ...j, loading: false } }));
+    } catch (e) {
+      setProcDetail(prev => ({ ...prev, [key]: { error: String(e), loading: false, events: [] } }));
+    }
+  }, [backendUrl]);
+
+  const toggleProc = (key) => {
+    setProcExpanded(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      if (next[key] && !procDetail[key]) fetchProcDetail(key);
+      return next;
+    });
+  };
+
+  const _fmtRelTime = (ts) => {
+    if (!ts) return '';
+    try {
+      const t = new Date(ts).getTime();
+      if (!t) return ts;
+      const diff = (Date.now() - t) / 1000;
+      if (diff < 60) return `${Math.round(diff)}с назад`;
+      if (diff < 3600) return `${Math.round(diff/60)}м назад`;
+      if (diff < 86400) return `${Math.round(diff/3600)}ч назад`;
+      return `${Math.round(diff/86400)}д назад`;
+    } catch { return ts; }
+  };
 
   React.useEffect(() => {
     if (!bwExpanded) return;
@@ -2491,6 +2527,20 @@ function StatusSection({ status, activity24h, onProcessClick }) {
                   {bwExpanded ? '▲ скрыть' : '▼ подробно'}
                 </button>
               )}
+              {/* 🔴 23.04: универсальный «подробно» для мониторов и ответчиков */}
+              {!is_bw && ['proc_tg_monitor','proc_vk_monitor','proc_tg_responder','proc_vk_responder'].includes(s.key) && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleProc(s.key); }}
+                  style={{
+                    marginLeft: 6, fontSize: 11, padding: '2px 8px',
+                    background: procExpanded[s.key] ? 'rgba(59,130,246,0.18)' : 'rgba(59,130,246,0.08)',
+                    border: '1px solid rgba(59,130,246,0.45)',
+                    borderRadius: 4, color: 'var(--blue)', fontWeight: 600,
+                    cursor: 'pointer',
+                  }}>
+                  {procExpanded[s.key] ? '▲ скрыть' : '▼ подробно'}
+                </button>
+              )}
               {count_label && (
                 <div style={{
                   width:'100%', paddingLeft:20, marginTop:2, fontSize:11,
@@ -2582,6 +2632,95 @@ function StatusSection({ status, activity24h, onProcessClick }) {
                 </div>
               )}
 
+              {/* 🔴 23.04: expand-блок для универсальных процессов (не browser walk) */}
+              {!is_bw && procExpanded[s.key] && (
+                <div style={{
+                      width:'100%', marginTop:8, padding:'10px 12px',
+                      background:'#0f172a', border:'1px solid #334155',
+                      borderRadius:6, maxHeight:360, overflowY:'auto',
+                      textAlign:'left', fontSize:11.5, lineHeight:1.45,
+                    }}
+                    onClick={(e) => e.stopPropagation()}>
+                  {(() => {
+                    const d = procDetail[s.key];
+                    if (!d || d.loading) return <div style={{color:'#64748b'}}>Загружаю…</div>;
+                    if (d.error) return <div style={{color:'#f87171'}}>Ошибка: {d.error}</div>;
+                    const evs = d.events || [];
+                    if (evs.length === 0) return <div style={{color:'#64748b'}}>Нет записей.</div>;
+                    const kind = d.kind || '';
+                    return (
+                      <>
+                        <div style={{fontSize:10, color:'#64748b', textTransform:'uppercase',
+                                     letterSpacing:0.5, marginBottom:6, fontWeight:600}}>
+                          {d.summary || `${evs.length} событий`}
+                        </div>
+                        {kind === 'monitor_cycles' && evs.map((e, i) => (
+                          <div key={i} style={{
+                                display:'grid', gridTemplateColumns:'auto 1fr auto',
+                                gap:8, padding:'4px 0',
+                                borderBottom: i < evs.length-1 ? '1px solid rgba(148,163,184,0.08)' : 'none',
+                              }}>
+                            <span style={{color:'#94a3b8', fontVariantNumeric:'tabular-nums'}}>
+                              {_fmtRelTime(e.ts)}
+                            </span>
+                            <span style={{color:'#cbd5e1'}}>
+                              {e.chats_checked || 0} чат · <b style={{color:'#e2e8f0'}}>{e.messages_read || 0}</b> постов · <b style={{color: e.orders > 0 ? '#34d399' : '#64748b'}}>{e.orders || 0}</b> лид{e.refusals ? ` · ${e.refusals}❌` : ''}
+                              {e.note ? <span style={{color:'#fb923c'}}> · {e.note}</span> : null}
+                            </span>
+                            <span style={{color:'#64748b', fontVariantNumeric:'tabular-nums'}}>
+                              {e.duration_sec ? `${e.duration_sec}s` : ''}
+                            </span>
+                          </div>
+                        ))}
+                        {kind === 'responder_log' && evs.map((e, i) => (
+                          <div key={i} style={{
+                                padding:'5px 0',
+                                borderBottom: i < evs.length-1 ? '1px solid rgba(148,163,184,0.08)' : 'none',
+                              }}>
+                            <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
+                              <span style={{color:'#94a3b8', fontVariantNumeric:'tabular-nums', fontSize:10.5}}>
+                                {_fmtRelTime(e.timestamp)}
+                              </span>
+                              <span style={{color:'#e2e8f0', fontWeight:600}}>@{e.username || '—'}</span>
+                              {e.category && (
+                                <span style={{
+                                  fontSize:9.5, padding:'1px 6px', borderRadius:3,
+                                  background:'rgba(96,165,250,0.15)', color:'#93c5fd',
+                                }}>{e.category}</span>
+                              )}
+                              {e.action && (
+                                <span style={{
+                                  fontSize:9.5, color: e.auto_sent ? '#34d399' : '#fbbf24',
+                                }}>{e.action}</span>
+                              )}
+                            </div>
+                            {e.incoming && (
+                              <div style={{color:'#94a3b8', fontSize:10.5, marginTop:2,
+                                           paddingLeft:8, borderLeft:'2px solid #334155'}}>
+                                «{e.incoming.slice(0,120)}{e.incoming.length > 120 ? '…' : ''}»
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {kind === 'responder_log_vk' && evs.map((e, i) => (
+                          <div key={i} style={{
+                                display:'grid', gridTemplateColumns:'auto 1fr', gap:8,
+                                padding:'4px 0',
+                                borderBottom: i < evs.length-1 ? '1px solid rgba(148,163,184,0.08)' : 'none',
+                              }}>
+                            <span style={{color:'#94a3b8', fontVariantNumeric:'tabular-nums', fontSize:10.5}}>
+                              {e.ts ? e.ts.slice(11,16) : ''}
+                            </span>
+                            <span style={{color:'#cbd5e1', fontSize:11}}>
+                              {e.text}
+                            </span>
+                          </div>
+                        ))}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
               {is_bw && bwExpanded && (
                 <div style={{
                       width:'100%', marginTop:8, padding:'10px 12px',
