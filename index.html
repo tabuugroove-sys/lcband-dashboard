@@ -1472,7 +1472,7 @@ function KPISection({ kpi, setActiveTab, browserWalk }) {
   const secondary = [
     { key: period,          label: `За ${periodMeta.label.toLowerCase()}`, togglable: true, onClick: goFunnel },
     { key: 'conversion',    label: 'Конверсия %', onClick: goFunnel },
-    { key: 'customers',     label: 'Клиентов',    onClick: () => setActiveTab?.('paid') },
+    { key: 'customers',     label: 'Оплат',       onClick: () => setActiveTab?.('paid') },
     { key: 'refused_total', label: 'Отказов',     onClick: () => setActiveTab?.('refusals') },
   ];
 
