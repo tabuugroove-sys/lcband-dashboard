@@ -1581,12 +1581,13 @@ function _funnelIsStaleNegotiation(o) {
   return d !== null && d >= FUNNEL_STALE_DAYS;
 }
 
-// Strict drum-show detector: only the CLIENT'S own request should match.
-// History is checked only for explicit workflow markers (Vadim / Noize Drum brief),
-// so "we pitched drum as extra" doesn't misclassify a regular cover-band lead.
+// Drum-show detector: client's own request OR explicit workflow (pitch routed to Noize Drum / brief to Вадим).
+// Workflow-regex matches "drum-питч отправлен" (auto drum pitch), "drum-show package",
+// "drum promo sent", "бриф вадиму", "@vadimnoize", "пит­ч Noize Drum (msg …)" — i.e. actual drum content
+// or Вадим routing. Bare "Noize Drum" mentions (e.g. "IG Noize Drum" in meta-notes) no longer match.
 const DRUM_DESC_RE     = /drum[-\s]*show|drum[-\s]*забег|барабанн(?:ое|ые)\s+(?:шоу|представлен|перформанс)|перкуссион(?:ное|ный)/i;
 const DRUM_RACE_RE     = /(?:забег|марафон)[^.\n]{0,60}барабан/i;
-const DRUM_WORKFLOW_RE = /vadimnoize|noize\s*drum|бриф.{0,30}вадим/i;
+const DRUM_WORKFLOW_RE = /vadimnoize|drum[-\s]*(?:show|пит[чц]|promo)|бриф.{0,30}вадим|пит[чц].{0,12}noize|noize\s*drum.{0,20}(?:msg|пит|отправ|бриф)/i;
 // Negation context: negation fragment (не предлагать/без/исключая/кроме) появляется
 // в пределах ~80 chars ДО или ПОСЛЕ drum-фразы. Если да — клиент его ИСКЛЮЧИЛ.
 // Примеры false-positives:
@@ -1599,6 +1600,8 @@ const DRUM_NEG_BEFORE = new RegExp(NEG_FRAG + '[^.\\n]{0,80}' + DRUM_WORD, 'i');
 const DRUM_NEG_AFTER  = new RegExp(DRUM_WORD + '\\w*\\s*[^.\\n]{0,80}' + NEG_FRAG, 'i');
 
 function isDrumLead(o) {
+  // Status set by drum-director brief flow ("Бриф Вадиму") → drum funnel regardless of desc/history.
+  if (/бриф\s*вадим/i.test(o.status || '')) return true;
   const d = o.desc || '';
   const h = (o.history || '') + ' ' + (o.next_action || '');
   // Explicit negation (before or after drum-word) в desc → точно не drum-лид
