@@ -1600,11 +1600,17 @@ const DRUM_NEG_BEFORE = new RegExp(NEG_FRAG + '[^.\\n]{0,80}' + DRUM_WORD, 'i');
 const DRUM_NEG_AFTER  = new RegExp(DRUM_WORD + '\\w*\\s*[^.\\n]{0,80}' + NEG_FRAG, 'i');
 
 function isDrumLead(o) {
-  // Status set by drum-director brief flow ("Бриф Вадиму") → drum funnel regardless of desc/history.
+  // Priority #1: AI-classifier result (funnel_brand column written by classify_brand.py).
+  // Opus решает с полным контекстом — надёжнее regex. Regex остаётся как fallback если
+  // AI ещё не классифицировал (новый лид, cold start).
+  const brand = (o.funnel_brand || '').toLowerCase();
+  if (brand === 'drum') return true;
+  if (brand === 'lcb')  return false;
+
+  // Fallback: regex-based routing (для лидов где AI ещё не прошёл).
   if (/бриф\s*вадим/i.test(o.status || '')) return true;
   const d = o.desc || '';
   const h = (o.history || '') + ' ' + (o.next_action || '');
-  // Explicit negation (before or after drum-word) в desc → точно не drum-лид
   if (DRUM_NEG_BEFORE.test(d) || DRUM_NEG_AFTER.test(d)) return false;
   return DRUM_DESC_RE.test(d) || DRUM_RACE_RE.test(d) || DRUM_WORKFLOW_RE.test(h);
 }
