@@ -1657,13 +1657,16 @@ function computePipeline(allLeads, archived, branchSpec) {
 
   const branches = [];
   (branchSpec || []).forEach(b => branches.push({ ...b, kind: 'branch' }));
-  branches.push({ key: 'followup',  label: 'Follow-up', leads: stage_followup, kind: 'branch', parent: 'interest', icon: '🔄' });
+  // 🔴 25.04: Follow-up — теперь обычный main stage между «Отправили питч» и «Интерес».
+  // Раньше был branch под «Интерес», но это смысловой шаг воронки: клиент что-то ответил,
+  // но дальше молчит. Per user 25.04: «обычный шаг воронки фолоуап».
   branches.push({ key: 'cancelled', label: 'Отмена',    leads: stage_cancel,   kind: 'branch', parent: 'interest', icon: '❌' });
 
   return [
     { key: 'new',      label: 'Новые',          leads: stage_new,      kind: 'main' },
     { key: 'sent',     label: 'Отправили питч', leads: stage_sent,     kind: 'main' },
     ...branches.filter(b => b.parent === 'sent'),
+    { key: 'followup', label: 'Follow-up',      leads: stage_followup, kind: 'main' },
     { key: 'interest', label: 'Интерес',        leads: stage_interest, kind: 'main' },
     ...branches.filter(b => b.parent === 'interest'),
     { key: 'negot',    label: 'Переговоры',     leads: stage_negot,    kind: 'main' },
@@ -1677,8 +1680,8 @@ const PIPELINE_HINTS = {
   sent:      'Отправили питч. Ждём первого ответа клиента.',
   bot:       'Бот подготовил draft, но не хватило правила для авто-отправки (язык/цирк/public-reply). Ждёт твоего ✅ в @lcband_notify_bot.',
   brief:     'Бриф отправлен @vadimnoize (директор Noize Drum). Ждём его ✅/❌ прежде чем пит­чить клиенту.',
-  interest:  'Клиент ответил. Нейтральная переписка без обсуждения цены/райдера.',
-  followup:  'Молчат после питча. Автомат делает follow-up пинги (cooldown 3 дня, стоп за 3 дня до мероприятия).',
+  followup:  'Клиент что-то ответил на питч (показал интерес), но дальше молчит. Автомат делает follow-up пинги через cooldown 3 дня, urgency override через 3 дня тишины.',
+  interest:  'Активная нейтральная переписка с клиентом без обсуждения цены/райдера. Опережает «Переговоры».',
   cancelled: 'Отказались: «взяли других», «не актуально», бюджет не совпал.',
   negot:     'Активно обсуждают цену, райдер, состав. Hot — нужна личная реакция. TG-папка «Переговоры» 🤝.',
   prepaid:   'Получили предоплату (статус ОПЛАТИЛА, папка 💰).',
