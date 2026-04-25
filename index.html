@@ -3117,6 +3117,39 @@ function TodoSection({ todos }) {
                   whiteSpace:'nowrap',
                 }}>{prioLabel[t.priority]}</span>
               )}
+              {/* 🔴 25.04: ручное удаление TODO (file перемещается в /tmp backup) */}
+              {t.file && (
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!confirm(`Удалить TODO «${t.title || t.file}»?\nФайл будет перемещён в /tmp как backup.`)) return;
+                    const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+                    try {
+                      const r = await fetch(`${bu}/api/todos/delete`, {
+                        method:'POST',
+                        headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({file: t.file}),
+                      });
+                      const j = await r.json();
+                      if (j.ok) {
+                        const card = e.currentTarget.closest('div[style*="borderLeft"]');
+                        if (card) { card.style.opacity = 0.25; card.style.pointerEvents = 'none'; }
+                        e.currentTarget.textContent = '✓';
+                      } else {
+                        alert(`Не удалось: ${j.error || '?'}`);
+                      }
+                    } catch (err) { alert(`Error: ${err}`); }
+                  }}
+                  title="Удалить TODO (move to /tmp backup)"
+                  style={{
+                    background:'rgba(248,113,113,0.10)',
+                    border:'1px solid rgba(248,113,113,0.35)',
+                    color:'#f87171',
+                    borderRadius:5, padding:'2px 7px', fontSize:10.5,
+                    cursor:'pointer', whiteSpace:'nowrap', marginLeft:'auto',
+                  }}
+                >✕</button>
+              )}
             </div>
             {t.description && (
               <div style={{fontSize:11.5, color:'var(--muted)', marginBottom:6, fontStyle:'italic'}}>
