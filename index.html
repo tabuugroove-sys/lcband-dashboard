@@ -989,6 +989,20 @@ const PROCESS_RULES = {
       'TG-alert через tg_alert если missed ≥ 1',
     ],
   },
+  proc_gap_detector: {
+    name: 'Gap Detector (3ч)',
+    interval: 'Каждые 3 часа (180 мин)',
+    desc: 'Лёгкая проверка свежих 3ч окна на пропуски: walk-coverage + monitor-coverage + Opus auto-recovery',
+    rules: [
+      'Окно 3ч rolling (now-3h → now), все 17 event-чатов',
+      'Сравнивает посты vs monitor (orders.db) vs walk (browser_walk_result.json per_chat_post_counts)',
+      'Слепые посты (не пойманы ни monitor ни walk) с regex-match → Opus CLI classify',
+      'Если Opus решил music_band|drum_show|solo_musician|abstract → record_tg_order АВТО → попадает в pipeline для first pitch',
+      'НЕТ «глянь сам» — Opus решает, post-fact лог Михаилу через TG-alert если recovered ≥1',
+      'Walk health-check: alert если browser_walk_result.json старее 90 минут',
+      'Результат: gap_detector_result.json (per_chat + recovered_orders)',
+    ],
+  },
   proc_dashboard_sync: {
     name: 'Dashboard Sync',
     interval: 'Каждые 10 мин (600s)',
@@ -2528,8 +2542,8 @@ function StatusSection({ status, activity24h, onProcessClick }) {
               <span className="status-age" style={bwRunning ? {color:'var(--blue)', fontWeight:700} : undefined}>
                 {bwRunning ? `⟳ running ${a?.progress?.scanned ?? 0}/${a?.progress?.total ?? 17}` : s.val}
               </span>
-              {/* 🔴 24.04: для morning_reconcile — 3 цифры в строчку справа: walk / monitor / posts (24ч) */}
-              {s.key === 'proc_morning_reconcile' && a?.posts_total != null && (
+              {/* 🔴 24.04: для morning_reconcile / gap_detector — 3-4 цифры в строчку справа */}
+              {(s.key === 'proc_morning_reconcile' || s.key === 'proc_gap_detector') && a?.posts_total != null && (
                 <span style={{
                   marginLeft: 'auto',
                   fontSize: 11,
@@ -2541,7 +2555,12 @@ function StatusSection({ status, activity24h, onProcessClick }) {
                 }}>
                   <span title="Browser Walk hits"><span style={{color: a.walk_total > 0 ? 'var(--ok)' : '#fb923c'}}>walk:</span> {a.walk_total ?? 0}</span>
                   <span title="TG Monitor hits"><span style={{color:'var(--blue)'}}>monitor:</span> {a.monitor_total ?? 0}</span>
-                  <span title="Всего постов в окне 24ч (05:00→04:59 MSK)"><span style={{color:'var(--gold)'}}>постов:</span> {a.posts_total}</span>
+                  <span title="Всего постов в окне"><span style={{color:'var(--gold)'}}>постов:</span> {a.posts_total}</span>
+                  {s.key === 'proc_gap_detector' && a?.blind_total != null && (
+                    <span title="Слепые посты (не видели ни walk ни monitor)">
+                      <span style={{color: a.blind_total > 0 ? '#fb923c' : 'var(--muted)'}}>слепых:</span> {a.blind_total}
+                    </span>
+                  )}
                 </span>
               )}
               {hasRules && !is_bw && <span style={{color:'var(--muted)',fontSize:14,marginLeft:2}}>›</span>}
@@ -2559,7 +2578,7 @@ function StatusSection({ status, activity24h, onProcessClick }) {
                 </button>
               )}
               {/* 🔴 23.04: универсальный «подробно» для мониторов и ответчиков */}
-              {!is_bw && ['proc_tg_monitor','proc_vk_monitor','proc_tg_responder','proc_vk_responder'].includes(s.key) && (
+              {!is_bw && ['proc_tg_monitor','proc_vk_monitor','proc_tg_responder','proc_vk_responder','proc_gap_detector'].includes(s.key) && (
                 <button
                   onClick={(e) => { e.stopPropagation(); toggleProc(s.key); }}
                   style={{
@@ -2747,6 +2766,85 @@ function StatusSection({ status, activity24h, onProcessClick }) {
                             </span>
                           </div>
                         ))}
+                        {/* 🔴 25.04: Gap Detector detail */}
+                        {kind === 'gap_detector' && (
+                          <>
+                            {d.window && (
+                              <div style={{color:'#94a3b8', fontSize:11, marginBottom:8}}>
+                                Окно: {d.window.from_msk} → {d.window.to_msk} MSK · {d.totals?.posts_scanned || 0} постов
+                              </div>
+                            )}
+                            {d.walk_health && (
+                              <div style={{
+                                fontSize:11, marginBottom:10, padding:'5px 8px',
+                                background: d.walk_health.stale ? 'rgba(251,146,60,0.12)' : 'rgba(52,211,153,0.10)',
+                                color:    d.walk_health.stale ? '#fb923c' : '#34d399',
+                                borderRadius:4, border:`1px solid ${d.walk_health.stale ? '#fb923c44' : '#34d39944'}`,
+                              }}>
+                                {d.walk_health.stale ? '⚠ Walk stale' : '✓ Walk health'}: result.json {d.walk_health.age_min ?? '?'} мин · threshold {d.walk_health.threshold_min} мин
+                              </div>
+                            )}
+                            {Array.isArray(d.recovered_orders) && d.recovered_orders.length > 0 && (
+                              <div style={{marginBottom:14}}>
+                                <div style={{fontSize:10, color:'#34d399', textTransform:'uppercase',
+                                             letterSpacing:0.5, marginBottom:6, fontWeight:700}}>
+                                  💡 Recovered Opus'ом · {d.recovered_orders.length}
+                                </div>
+                                {d.recovered_orders.map((r, i) => (
+                                  <div key={i} style={{
+                                        padding:'6px 9px', marginBottom:5,
+                                        background:'rgba(52,211,153,0.08)',
+                                        border:'1px solid rgba(52,211,153,0.25)',
+                                        borderRadius:4, fontSize:11,
+                                      }}>
+                                    <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
+                                      <span style={{color:'#fbbf24'}}>• {r.chat}</span>
+                                      {r.username && <span style={{color:'#e2e8f0',fontWeight:600}}>@{r.username}</span>}
+                                      {r.ai_class && <span style={{
+                                        fontSize:9.5, padding:'1px 5px', borderRadius:3,
+                                        background:'rgba(96,165,250,0.18)', color:'#93c5fd',
+                                      }}>{r.ai_class}</span>}
+                                      {r.msg_date_msk && <span style={{color:'#94a3b8',fontSize:10}}>{r.msg_date_msk}</span>}
+                                    </div>
+                                    {r.text_snippet && (
+                                      <div style={{color:'#cbd5e1',marginTop:3,fontStyle:'italic'}}>
+                                        «{r.text_snippet.slice(0,180)}{r.text_snippet.length>180 ? '…' : ''}»
+                                      </div>
+                                    )}
+                                    {r.recovered_id && <div style={{color:'#34d399',fontSize:10,marginTop:2}}>→ orders.db id={r.recovered_id}</div>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {Array.isArray(d.per_chat) && d.per_chat.length > 0 && (
+                              <div>
+                                <div style={{fontSize:10, color:'#64748b', textTransform:'uppercase',
+                                             letterSpacing:0.5, marginBottom:6, fontWeight:600}}>
+                                  Per-chat (17)
+                                </div>
+                                {d.per_chat.map((c, i) => (
+                                  <div key={i} style={{
+                                        display:'grid', gridTemplateColumns:'1fr auto', gap:8,
+                                        padding:'3px 0', fontSize:10.5,
+                                        borderBottom: i < d.per_chat.length-1 ? '1px solid rgba(148,163,184,0.06)' : 'none',
+                                      }}>
+                                    <span style={{color: c.error ? '#f87171' : '#cbd5e1', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                                      {c.chat}{c.error ? ` ⚠ ${c.error}` : ''}
+                                    </span>
+                                    <span style={{color:'#94a3b8',fontVariantNumeric:'tabular-nums'}}>
+                                      <span style={{color:'#fbbf24'}}>{c.posts || 0}п</span>
+                                      {' · '}
+                                      <span style={{color:'#60a5fa'}}>m:{c.monitor_hits || 0}</span>
+                                      {' · '}
+                                      <span style={{color: (c.walk_hits || 0) > 0 ? '#34d399' : '#fb923c'}}>w:{c.walk_hits || 0}</span>
+                                      {(c.blind || 0) > 0 && <span style={{color:'#fb923c'}}>{' · b:'}{c.blind}</span>}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
                       </>
                     );
                   })()}
