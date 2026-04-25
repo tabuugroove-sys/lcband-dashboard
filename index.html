@@ -1626,6 +1626,25 @@ function leadChatUrl(o) {
   return '';
 }
 
+// 🔴 26.04: extract VK screen_name or numeric id ("id12345") from item.
+// Used to enable hover-chat panel for VK leads (parallel to TG username).
+// Returns string or '' if no usable VK identifier found.
+function vkChatId(item) {
+  if (!item || (item.channel || '').toUpperCase() !== 'VK') return '';
+  // 1. username field (rare for VK rows but check first)
+  const u = String(item.username || '').trim();
+  if (u && /^[A-Za-z0-9_.]{2,32}$/.test(u)) return u;
+  // 2. contact field — common formats:
+  //    "https://vk.com/screen_name", "vk.com/id12345", "VK: screen_name"
+  const c = String(item.contact || '').trim();
+  if (!c) return '';
+  let s = c.replace(/^https?:\/\//, '').replace(/^vk\.com\//, '');
+  s = s.replace(/^VK:\s*/i, '').replace(/^@/, '').replace(/\/+$/, '').trim();
+  if (/^id\d+$/i.test(s)) return s.toLowerCase();
+  if (/^[A-Za-z0-9_.]{2,32}$/.test(s)) return s;
+  return '';
+}
+
 // computePipeline(active, archived, branchSpec)
 // branchSpec is an array of branch descriptors: {key, label, icon, parent, leads, hint?}
 // These are appended as branch rows under the main 6 stages.
@@ -1797,9 +1816,14 @@ function FunnelSection({ title, allLeads, archived, branchSpec }) {
                 const name = o.client || o.username || '—';
                 // 🔴 22.04: hover → открывает панель переписки справа (как в «Горячих»)
                 const uname = (o.username || '').replace(/^@/, '').trim();
-                const canChat = !!uname;
+                const vkId = vkChatId(o);
+                const canChat = !!uname || !!vkId;
+                const chatChannel = vkId ? 'VK' : 'TG';
                 const openChatPanel = () => canChat && chatCtx?.openChat({
-                  user_id: null, username: uname, client: o.client || name,
+                  user_id: null,
+                  username: vkId || uname,
+                  client: o.client || name,
+                  channel: chatChannel,
                 });
                 const onEnter = canChat ? () => {
                   clearTimeout(hoverTimer.current);
@@ -2731,20 +2755,52 @@ function StatusSection({ status, activity24h, onProcessClick }) {
                         </div>
                         {kind === 'monitor_cycles' && evs.map((e, i) => (
                           <div key={i} style={{
-                                display:'grid', gridTemplateColumns:'auto 1fr auto',
-                                gap:8, padding:'4px 0',
+                                padding:'4px 0',
                                 borderBottom: i < evs.length-1 ? '1px solid rgba(148,163,184,0.08)' : 'none',
                               }}>
-                            <span style={{color:'#94a3b8', fontVariantNumeric:'tabular-nums'}}>
-                              {_fmtRelTime(e.ts)}
-                            </span>
-                            <span style={{color:'#cbd5e1'}}>
-                              {e.chats_checked || 0} чат · <b style={{color:'#e2e8f0'}}>{e.messages_read || 0}</b> постов · <b style={{color: e.orders > 0 ? '#34d399' : '#64748b'}}>{e.orders || 0}</b> лид{e.refusals ? ` · ${e.refusals}❌` : ''}
-                              {e.note ? <span style={{color:'#fb923c'}}> · {e.note}</span> : null}
-                            </span>
-                            <span style={{color:'#64748b', fontVariantNumeric:'tabular-nums'}}>
-                              {e.duration_sec ? `${e.duration_sec}s` : ''}
-                            </span>
+                            <div style={{display:'grid', gridTemplateColumns:'auto 1fr auto', gap:8}}>
+                              <span style={{color:'#94a3b8', fontVariantNumeric:'tabular-nums'}}>
+                                {_fmtRelTime(e.ts)}
+                              </span>
+                              <span style={{color:'#cbd5e1'}}>
+                                {e.chats_checked || 0} чат · <b style={{color:'#e2e8f0'}}>{e.messages_read || 0}</b> постов · <b style={{color: e.orders > 0 ? '#34d399' : '#64748b'}}>{e.orders || 0}</b> лид{e.refusals ? ` · ${e.refusals}❌` : ''}
+                                {e.note ? <span style={{color:'#fb923c'}}> · {e.note}</span> : null}
+                              </span>
+                              <span style={{color:'#64748b', fontVariantNumeric:'tabular-nums'}}>
+                                {e.duration_sec ? `${e.duration_sec}s` : ''}
+                              </span>
+                            </div>
+                            {e.leads && e.leads.length > 0 && (
+                              <div style={{marginTop:4, marginLeft:8, paddingLeft:8,
+                                           borderLeft:'2px solid rgba(52,211,153,0.35)'}}>
+                                {e.leads.map((ld, li) => {
+                                  const tgUrl = ld.username ? `https://t.me/${ld.username}` : (ld.contact || '');
+                                  return (
+                                    <div key={li} style={{display:'flex', gap:6, alignItems:'center',
+                                                          flexWrap:'wrap', padding:'2px 0', fontSize:11}}>
+                                      {tgUrl ? (
+                                        <a href={tgUrl} target="_blank" rel="noopener noreferrer"
+                                           style={{color:'#93c5fd', textDecoration:'none', fontWeight:600}}>
+                                          {ld.username ? `@${ld.username}` : (ld.client || '—')}
+                                        </a>
+                                      ) : (
+                                        <span style={{color:'#e2e8f0', fontWeight:600}}>{ld.client || '—'}</span>
+                                      )}
+                                      {ld.source_chat && <span style={{color:'#64748b'}}>· {ld.source_chat}</span>}
+                                      {ld.event_date && <span style={{color:'#94a3b8'}}>· 📅 {ld.event_date}</span>}
+                                      {ld.location && <span style={{color:'#94a3b8'}}>· 📍 {ld.location}</span>}
+                                      {ld.budget && <span style={{color:'#fbbf24'}}>· 💰 {ld.budget}</span>}
+                                      {ld.status && (
+                                        <span style={{
+                                          fontSize:9.5, padding:'1px 5px', borderRadius:3,
+                                          background:'rgba(96,165,250,0.12)', color:'#93c5fd',
+                                        }}>{ld.status}</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         ))}
                         {kind === 'responder_log' && evs.map((e, i) => (
@@ -3461,12 +3517,15 @@ function SessionSection({ session }) {
             {items.map((it, i) => {
               const style = STATUS_STYLE[it.status] || { bg:'rgba(100,116,139,0.12)', fg:'var(--muted)' };
               const uname = it.username || '';
-              const canChat = it.channel === 'TG' && !!uname;
+              const vkId = vkChatId(it);
+              const canChat = (it.channel === 'TG' && !!uname) || !!vkId;
+              const chatChannel = vkId ? 'VK' : 'TG';
+              const chatUser = vkId || uname;
               const displayName = it.client || uname || it.contact || '—';
               const onEnter = canChat ? () => {
                 clearTimeout(hoverTimer.current);
                 hoverTimer.current = setTimeout(() => chatCtx?.openChat({
-                  user_id: null, username: uname, client: it.client,
+                  user_id: null, username: chatUser, client: it.client, channel: chatChannel,
                 }), 200);
               } : undefined;
               const onLeave = canChat ? () => clearTimeout(hoverTimer.current) : undefined;
@@ -3477,7 +3536,7 @@ function SessionSection({ session }) {
                   key={i}
                   onMouseEnter={onEnter}
                   onMouseLeave={onLeave}
-                  onClick={canChat ? () => chatCtx?.openChat({user_id:null, username:uname, client:it.client}) : undefined}
+                  onClick={canChat ? () => chatCtx?.openChat({user_id:null, username:chatUser, client:it.client, channel:chatChannel}) : undefined}
                   style={{
                     cursor: canChat ? 'pointer' : 'default',
                     background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
@@ -3615,7 +3674,10 @@ function AttentionSection({ attention }) {
           const tgUrl = uname
             ? `https://t.me/${uname}`
             : (item.contact?.startsWith('http') ? item.contact : '');
-          const canChat = item.channel === 'TG' && !!item.username;
+          const vkId = vkChatId(item);
+          const canChat = (item.channel === 'TG' && !!item.username) || !!vkId;
+          const chatChannel = vkId ? 'VK' : 'TG';
+          const chatUser = vkId || item.username;
           const clientEl = canChat
             ? <span style={{color:'var(--blue)'}}>{item.client || uname}</span>
             : tgUrl
@@ -3627,7 +3689,7 @@ function AttentionSection({ attention }) {
             : item.overdue ? 'rgba(251,146,60,0.08)'
             : 'transparent';
           const openTarget = () => chatCtx?.openChat({
-            user_id: null, username: item.username, client: item.client
+            user_id: null, username: chatUser, client: item.client, channel: chatChannel,
           });
           const onEnter = canChat ? () => {
             clearTimeout(hoverTimer.current);
@@ -3728,9 +3790,12 @@ function PaidSection({ paid }) {
       </div>
       <div className="orders-list">
         {paid.items.map((item, i) => {
-          const canChat = item.channel === 'TG' && !!item.username;
+          const vkId = vkChatId(item);
+          const canChat = (item.channel === 'TG' && !!item.username) || !!vkId;
+          const chatChannel = vkId ? 'VK' : 'TG';
+          const chatUser = vkId || item.username;
           const openTarget = () => chatCtx?.openChat({
-            user_id: null, username: item.username, client: item.client
+            user_id: null, username: chatUser, client: item.client, channel: chatChannel,
           });
           const onEnter = canChat ? () => {
             clearTimeout(hoverTimer.current);
@@ -4360,6 +4425,10 @@ function ChatPanel({ target, onClose }) {
   const abortRef = React.useRef(null);
 
   const q = target?.username || (target?.user_id ? String(target.user_id) : '');
+  // 🔴 26.04: VK channel uses /api/vk_chat + /api/vk_send (parallel to TG endpoints).
+  const channel = (target?.channel || 'TG').toUpperCase();
+  const chatEp = channel === 'VK' ? 'vk_chat' : 'chat';
+  const sendEp = channel === 'VK' ? 'vk_send' : 'send';
 
   const fetchChat = useCallback(async (sinceId) => {
     if (!q) return;
@@ -4370,8 +4439,8 @@ function ChatPanel({ target, onClose }) {
     abortRef.current = ctrl;
     const activeQ = q;
     const url = sinceId
-      ? `${CHAT_BACKEND}/api/chat?q=${encodeURIComponent(q)}&since_id=${sinceId}`
-      : `${CHAT_BACKEND}/api/chat?q=${encodeURIComponent(q)}&limit=40`;
+      ? `${CHAT_BACKEND}/api/${chatEp}?q=${encodeURIComponent(q)}&since_id=${sinceId}`
+      : `${CHAT_BACKEND}/api/${chatEp}?q=${encodeURIComponent(q)}&limit=40`;
     try {
       const r = await fetch(url, { signal: ctrl.signal });
       const j = await r.json();
@@ -4432,7 +4501,7 @@ function ChatPanel({ target, onClose }) {
     if (!text || sending) return;
     setSending(true); setErr('');
     try {
-      const r = await fetch(`${CHAT_BACKEND}/api/send`, {
+      const r = await fetch(`${CHAT_BACKEND}/api/${sendEp}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ q, text }),
