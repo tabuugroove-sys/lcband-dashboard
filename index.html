@@ -2528,6 +2528,22 @@ function StatusSection({ status, activity24h, onProcessClick }) {
               <span className="status-age" style={bwRunning ? {color:'var(--blue)', fontWeight:700} : undefined}>
                 {bwRunning ? `⟳ running ${a?.progress?.scanned ?? 0}/${a?.progress?.total ?? 17}` : s.val}
               </span>
+              {/* 🔴 24.04: для morning_reconcile — 3 цифры в строчку справа: walk / monitor / posts (24ч) */}
+              {s.key === 'proc_morning_reconcile' && a?.posts_total != null && (
+                <span style={{
+                  marginLeft: 'auto',
+                  fontSize: 11,
+                  color: 'var(--muted)',
+                  fontVariantNumeric: 'tabular-nums',
+                  display: 'flex',
+                  gap: 12,
+                  paddingRight: 8,
+                }}>
+                  <span title="Browser Walk hits"><span style={{color: a.walk_total > 0 ? 'var(--ok)' : '#fb923c'}}>walk:</span> {a.walk_total ?? 0}</span>
+                  <span title="TG Monitor hits"><span style={{color:'var(--blue)'}}>monitor:</span> {a.monitor_total ?? 0}</span>
+                  <span title="Всего постов в окне 24ч (05:00→04:59 MSK)"><span style={{color:'var(--gold)'}}>постов:</span> {a.posts_total}</span>
+                </span>
+              )}
               {hasRules && !is_bw && <span style={{color:'var(--muted)',fontSize:14,marginLeft:2}}>›</span>}
               {is_bw && (
                 <button
