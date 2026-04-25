@@ -1857,8 +1857,9 @@ function FunnelSection({ title, allLeads, archived, branchSpec }) {
                           onClick={async (e) => {
                             e.stopPropagation();
                             if (!confirm(`Отменить лид @${o.username || o.id}?\nПерейдёт в архив.`)) return;
+                            const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
                             try {
-                              const r = await fetch('/api/lead/cancel', {
+                              const r = await fetch(`${bu}/api/lead/cancel`, {
                                 method: 'POST',
                                 headers: {'Content-Type':'application/json'},
                                 body: JSON.stringify({id: o.id, reason: 'manual cancel via dashboard'}),
