@@ -957,17 +957,9 @@ const PROCESS_RULES = {
   // 🔴 25.04: proc_sheets_monitor удалён — agent читал Google Sheet, нарушал
   // feedback_no_sheet_reads.md. Plist убран в /tmp backup, скрипт оставлен на диске
   // на всякий случай, но не запускается. Health VK monitor покрывает proc_vk_monitor.
-  proc_verify_posts: {
-    name: 'Сверка постов',
-    interval: 'Ежедневно (23:55 MSK)',
-    desc: 'Полный подсчёт сообщений за сутки — счётчик объёма чата',
-    rules: [
-      'Запуск раз в сутки в 23:55 MSK',
-      'Подсчёт без лимита 200 (полная сверка)',
-      'Результат в колонку E таблицы «Чаты Отчеты»',
-      'Только счётчик постов, не сверка с monitor/walk — для этого есть отдельный Morning Reconcile (05:00 MSK)',
-    ],
-  },
+  // 🔴 25.04: proc_verify_posts удалён — agent читал И писал Sheet («Чаты Отчеты»),
+  // плюс дублировал posts-counter с Morning Reconcile (262/24ч в его totals).
+  // Скрипт verify_daily_posts.py оставлен на диске как dead code, plist в /tmp backup.
   proc_morning_reconcile: {
     name: 'Morning Reconcile',
     interval: 'Ежедневно (05:00 MSK)',
