@@ -954,16 +954,9 @@ const PROCESS_RULES = {
       'Автопроцессит pending_approvals.json в реальном времени',
     ],
   },
-  proc_sheets_monitor: {
-    name: 'Монитор таблиц',
-    interval: 'Каждые 15 мин (900s)',
-    desc: 'Проверяет свежесть данных в Google Sheet и alertит если stale',
-    rules: [
-      'Проверяет timestamps в строках VK (20-27)',
-      'Если данные старше 25 мин — TG-алерт',
-      'Результат в monitor_sheets_freshness state',
-    ],
-  },
+  // 🔴 25.04: proc_sheets_monitor удалён — agent читал Google Sheet, нарушал
+  // feedback_no_sheet_reads.md. Plist убран в /tmp backup, скрипт оставлен на диске
+  // на всякий случай, но не запускается. Health VK monitor покрывает proc_vk_monitor.
   proc_verify_posts: {
     name: 'Сверка постов',
     interval: 'Ежедневно (23:55 MSK)',
