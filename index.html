@@ -1720,7 +1720,13 @@ function FunnelSection({ title, allLeads, archived, branchSpec }) {
         {main.map((step, i) => {
           const prev = main[i - 1];
           const n = step.leads.length;
-          const pct = prev && prev.leads.length > 0 ? Math.round(n / prev.leads.length * 100) + '%' : null;
+          // 🔴 24.04: НЕ показывать % на стадии «sent» (Новые → Отправили питч) —
+          // эта конверсия ничего не значит, бот пушит pitch независимо от Новых.
+          // Per user request 24.04.
+          const skipPct = step.key === 'sent';
+          const pct = (!skipPct && prev && prev.leads.length > 0)
+            ? Math.round(n / prev.leads.length * 100) + '%'
+            : null;
           const clickable = n > 0;
           const isActive  = expanded === step.key;
           return (
