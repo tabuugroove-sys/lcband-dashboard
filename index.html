@@ -1627,21 +1627,50 @@ function leadChatUrl(o) {
 }
 
 // 🔴 26.04: extract VK screen_name or numeric id ("id12345") from item.
-// Used to enable hover-chat panel for VK leads (parallel to TG username).
-// Returns string or '' if no usable VK identifier found.
+// Used to enable hover-chat panel for VK leads.
+// 🔴 26.04 v2: no longer requires channel='VK' — TG-sourced leads where
+// клиент оставил ТОЛЬКО vk-контакт (post в TG event-чате с vk.com ссылкой)
+// тоже должны работать. Ищем VK-айдишник в username / contact / client.
 function vkChatId(item) {
-  if (!item || (item.channel || '').toUpperCase() !== 'VK') return '';
-  // 1. username field (rare for VK rows but check first)
-  const u = String(item.username || '').trim();
-  if (u && /^[A-Za-z0-9_.]{2,32}$/.test(u)) return u;
-  // 2. contact field — common formats:
-  //    "https://vk.com/screen_name", "vk.com/id12345", "VK: screen_name"
-  const c = String(item.contact || '').trim();
-  if (!c) return '';
-  let s = c.replace(/^https?:\/\//, '').replace(/^vk\.com\//, '');
-  s = s.replace(/^VK:\s*/i, '').replace(/^@/, '').replace(/\/+$/, '').trim();
-  if (/^id\d+$/i.test(s)) return s.toLowerCase();
-  if (/^[A-Za-z0-9_.]{2,32}$/.test(s)) return s;
+  if (!item) return '';
+  // Helper: parse a string and return VK id ('id12345' / 'screen_name') or ''.
+  const parseField = (raw) => {
+    if (!raw) return '';
+    let s = String(raw).trim();
+    // Quick reject: TG-only forms
+    if (s.startsWith('@') && !/vk\.com/i.test(s)) return '';
+    if (/^t\.me\//i.test(s)) return '';
+    s = s.replace(/^https?:\/\//i, '');
+    // Drop vk.ru (alt VK domain) too
+    s = s.replace(/^vk\.(com|ru)\//i, '');
+    s = s.replace(/^VK:\s*/i, '').replace(/^@/, '').replace(/\/+$/, '').trim();
+    if (!s) return '';
+    if (/^id\d+$/i.test(s)) return s.toLowerCase();
+    if (/^[A-Za-z0-9_.]{2,32}$/.test(s)) return s;
+    return '';
+  };
+  // Order of preference:
+  // 1. channel='VK' username (most authoritative)
+  const ch = (item.channel || '').toUpperCase();
+  if (ch === 'VK') {
+    const u = parseField(item.username);
+    if (u) return u;
+  }
+  // 2. contact field — works for any channel (TG-sourced lead with vk-only contact)
+  if (/vk\.(com|ru)|^VK:|^id\d+$/i.test(String(item.contact || ''))) {
+    const c = parseField(item.contact);
+    if (c) return c;
+  }
+  // 3. fallback: client field (some leads have raw "vk.com/idXXXX" stuffed into client)
+  if (/vk\.(com|ru)/i.test(String(item.client || ''))) {
+    const c = parseField(item.client);
+    if (c) return c;
+  }
+  // 4. username may contain VK URL even when channel != 'VK'
+  if (ch !== 'VK' && /vk\.(com|ru)|^id\d+$/i.test(String(item.username || ''))) {
+    const u = parseField(item.username);
+    if (u) return u;
+  }
   return '';
 }
 
