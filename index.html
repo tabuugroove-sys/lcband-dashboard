@@ -1850,20 +1850,53 @@ function FunnelSection({ title, allLeads, archived, branchSpec }) {
                         />
                       )}
                     </div>
-                    {chatUrl ? (
-                      <a
-                        href={chatUrl}
-                        target="_blank"
-                        rel="noopener"
-                        className="funnel-lead-chat"
-                        title={`Открыть TG-чат в новой вкладке: ${chatUrl}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        →
-                      </a>
-                    ) : (
-                      <span className="funnel-lead-chat funnel-lead-chat--disabled" title="Нет контакта">—</span>
-                    )}
+                    <div style={{display:'flex', gap:6, alignItems:'center'}}>
+                      {/* 🔴 25.04: ручная отмена лида (для случаев когда автомат не cancel'ит, но user видит что нерелевантный) */}
+                      {o.id && (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!confirm(`Отменить лид @${o.username || o.id}?\nПерейдёт в архив.`)) return;
+                            try {
+                              const r = await fetch('/api/lead/cancel', {
+                                method: 'POST',
+                                headers: {'Content-Type':'application/json'},
+                                body: JSON.stringify({id: o.id, reason: 'manual cancel via dashboard'}),
+                              });
+                              const j = await r.json();
+                              if (j.ok) {
+                                e.currentTarget.closest('.funnel-lead-card').style.opacity = 0.3;
+                                e.currentTarget.textContent = '✓';
+                              } else {
+                                alert(`Не удалось: ${j.error || '?'}`);
+                              }
+                            } catch (err) { alert(`Error: ${err}`); }
+                          }}
+                          title="Отменить лид (manual archive)"
+                          style={{
+                            background:'rgba(248,113,113,0.10)',
+                            border:'1px solid rgba(248,113,113,0.35)',
+                            color:'#f87171',
+                            borderRadius:5, padding:'3px 8px', fontSize:11,
+                            cursor:'pointer', whiteSpace:'nowrap',
+                          }}
+                        >✕ отмена</button>
+                      )}
+                      {chatUrl ? (
+                        <a
+                          href={chatUrl}
+                          target="_blank"
+                          rel="noopener"
+                          className="funnel-lead-chat"
+                          title={`Открыть TG-чат в новой вкладке: ${chatUrl}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          →
+                        </a>
+                      ) : (
+                        <span className="funnel-lead-chat funnel-lead-chat--disabled" title="Нет контакта">—</span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
