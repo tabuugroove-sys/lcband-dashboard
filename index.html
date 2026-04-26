@@ -1558,6 +1558,15 @@ function KPISection({ kpi, setActiveTab, browserWalk }) {
 
 const FUNNEL_NEGOTIATION_RE = /ц[ее]н[аы]|прайс|прайсик|райдер|бюджет|депозит|аванс|предоплат|рассчит|смет|скидк|договор|контракт/i;
 
+// 🔴 27.04: «Потерянные обещания» — мы что-то обещали отправить (промо, видео,
+// райдер, договор) и не отправили. Признаки:
+//   - наше сообщение содержит «отправлю / пришлю / скину / вышлю / обещаю / подготовлю»
+//   - в последующей переписке нет маркеров доставки (link, файл, .pdf, disk.yandex,
+//     drive.google, обновлённое промо и т.д.)
+//   - клиент молчит ≥ 1 дня (видимо ждёт)
+const PROMISE_RE = /(?:сейчас|сразу|щас|щаз|обязательно|чуть\s*позже)?\s*(?:отправл[юяе]|пришл[юе]|вышл[юе]|скин[уе]м?|обеща[юе]м?|подготовл[юе]|подгон[юе]|поделюсь|расскажу)/i;
+const DELIVERED_RE = /(?:disk\.yandex|drive\.google|youtu(?:be)?|t\.me\/|vk\.com\/|instagram|\.pdf\b|\.mp4\b|\.jpg\b|вот\s+(?:наше|промо|ссылка|видео|материал)|отправил[ао]?|выслал[ао]?|скинул[ао]?|прислал[ао]?)/i;
+
 const FUNNEL_STALE_DAYS = 3;
 function _funnelCalendarDaysSince(s) {
   if (!s) return null;
@@ -1578,6 +1587,30 @@ function _funnelCalendarDaysSince(s) {
 function _funnelIsStaleNegotiation(o) {
   const d = _funnelCalendarDaysSince(o.last_activity);
   return d !== null && d >= FUNNEL_STALE_DAYS;
+}
+
+// «Потерянное обещание»: в нашем сообщении есть promise-маркер, и в последующих
+// строках истории нет маркеров доставки (linkов, .pdf, «вот наше промо», etc).
+// Используем сегментацию по строкам — каждое сообщение в `history` начинается
+// с timestamp [...], так что split по \n даёт грубую но рабочую последовательность.
+function _funnelHasUnfulfilledPromise(o) {
+  const h = (o.history || '');
+  if (!h) return false;
+  if (!PROMISE_RE.test(h)) return false;
+  // Найдём ИНДЕКС последнего обещания и посмотрим что после него
+  let lastPromiseIdx = -1;
+  let m;
+  const reGlobal = new RegExp(PROMISE_RE.source, 'gi');
+  while ((m = reGlobal.exec(h)) !== null) {
+    lastPromiseIdx = m.index;
+  }
+  if (lastPromiseIdx < 0) return false;
+  const tail = h.slice(lastPromiseIdx + 50);  // skip ~50 chars after promise word
+  if (DELIVERED_RE.test(tail)) return false;  // доставлено
+  // Дополнительно — лид молчит ≥1 дня (видимо ждёт)
+  const d = _funnelCalendarDaysSince(o.last_activity);
+  if (d === null || d < 1) return false;
+  return true;
 }
 
 // Drum-show detector: client's own request OR explicit workflow (pitch routed to Noize Drum / brief to Вадим).
@@ -1698,7 +1731,10 @@ function computePipeline(allLeads, archived, branchSpec) {
   // DB-статусы: Оплачен (fully paid), Концерт/Сыграл/Выступил (explicit markers),
   // Отзыв (future status when review collected).
   const stage_review   = active.filter(any(/^(Оплачен|Концерт|Сыграл|Выступил|Отзыв)/i));
-  const stage_followup = [...active.filter(eq('Follow-up')), ...neg_stale];
+  const stage_followup_all = [...active.filter(eq('Follow-up')), ...neg_stale];
+  // 🔴 27.04: разделяем Follow-up на «обычные» и «Потерянные обещания»
+  const stage_promises   = stage_followup_all.filter(_funnelHasUnfulfilledPromise);
+  const stage_followup   = stage_followup_all.filter(o => !_funnelHasUnfulfilledPromise(o));
   const stage_cancel_active = active.filter(any(/^(Не актуал|Отказ|Отмена)/i));
   const stage_cancel_arch   = arch.filter(any(/(Неактуал|Не актуал|Отказ|Отмена)/i));
   const stage_cancel   = [...stage_cancel_active, ...stage_cancel_arch];
@@ -1715,6 +1751,7 @@ function computePipeline(allLeads, archived, branchSpec) {
     { key: 'sent',     label: 'Отправили питч', leads: stage_sent,     kind: 'main' },
     ...branches.filter(b => b.parent === 'sent'),
     { key: 'followup', label: 'Follow-up',      leads: stage_followup, kind: 'main' },
+    { key: 'promises', label: 'Потерянные обещания', leads: stage_promises, kind: 'main' },
     { key: 'interest', label: 'Интерес',        leads: stage_interest, kind: 'main' },
     ...branches.filter(b => b.parent === 'interest'),
     { key: 'negot',    label: 'Переговоры',     leads: stage_negot,    kind: 'main' },
@@ -1729,6 +1766,7 @@ const PIPELINE_HINTS = {
   bot:       'Бот подготовил draft, но не хватило правила для авто-отправки (язык/цирк/public-reply). Ждёт твоего ✅ в @lcband_notify_bot.',
   brief:     'Бриф отправлен @vadimnoize (директор Noize Drum). Ждём его ✅/❌ прежде чем пит­чить клиенту.',
   followup:  'Клиент что-то ответил на питч (показал интерес), но дальше молчит. Автомат делает follow-up пинги через cooldown 3 дня, urgency override через 3 дня тишины.',
+  promises:  'Мы что-то обещали клиенту (промо, видео, райдер) и не отправили. AI-детект: в нашем сообщении есть «отправлю/пришлю/скину», в последующих нет linkов/файлов/«вот наше». Funnel maintenance приоритетно доставит обещанное.',
   interest:  'Активная нейтральная переписка с клиентом без обсуждения цены/райдера. Опережает «Переговоры».',
   cancelled: 'Отказались: «взяли других», «не актуально», бюджет не совпал.',
   negot:     'Активно обсуждают цену, райдер, состав. Hot — нужна личная реакция. TG-папка «Переговоры» 🤝.',
@@ -1774,7 +1812,9 @@ function FunnelSection({ title, allLeads, archived, branchSpec }) {
           // эта конверсия ничего не значит, бот пушит pitch независимо от Новых.
           // 🔴 26.04: убран % и для «followup» — конверсия Sent → Follow-up
           // тоже бессмысленна (followup — это автомат-пинги, не действие клиента).
-          const skipPct = step.key === 'sent' || step.key === 'followup';
+          // 🔴 27.04: + «promises» (Потерянные обещания) — это ответвление, а не
+          // прогрессия по воронке, % тут не несёт смысла.
+          const skipPct = step.key === 'sent' || step.key === 'followup' || step.key === 'promises';
           const pct = (!skipPct && prev && prev.leads.length > 0)
             ? Math.round(n / prev.leads.length * 100) + '%'
             : null;
