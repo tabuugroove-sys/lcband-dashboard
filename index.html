@@ -1772,8 +1772,9 @@ function FunnelSection({ title, allLeads, archived, branchSpec }) {
           const n = step.leads.length;
           // 🔴 24.04: НЕ показывать % на стадии «sent» (Новые → Отправили питч) —
           // эта конверсия ничего не значит, бот пушит pitch независимо от Новых.
-          // Per user request 24.04.
-          const skipPct = step.key === 'sent';
+          // 🔴 26.04: убран % и для «followup» — конверсия Sent → Follow-up
+          // тоже бессмысленна (followup — это автомат-пинги, не действие клиента).
+          const skipPct = step.key === 'sent' || step.key === 'followup';
           const pct = (!skipPct && prev && prev.leads.length > 0)
             ? Math.round(n / prev.leads.length * 100) + '%'
             : null;
