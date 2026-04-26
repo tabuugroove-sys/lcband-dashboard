@@ -1564,8 +1564,10 @@ const FUNNEL_NEGOTIATION_RE = /ц[ее]н[аы]|прайс|прайсик|рай
 //   - в последующей переписке нет маркеров доставки (link, файл, .pdf, disk.yandex,
 //     drive.google, обновлённое промо и т.д.)
 //   - клиент молчит ≥ 1 дня (видимо ждёт)
-const PROMISE_RE = /(?:сейчас|сразу|щас|щаз|обязательно|чуть\s*позже)?\s*(?:отправл[юяе]|пришл[юе]|вышл[юе]|скин[уе]м?|обеща[юе]м?|подготовл[юе]|подгон[юе]|поделюсь|расскажу)/i;
-const DELIVERED_RE = /(?:disk\.yandex|drive\.google|youtu(?:be)?|t\.me\/|vk\.com\/|instagram|\.pdf\b|\.mp4\b|\.jpg\b|вот\s+(?:наше|промо|ссылка|видео|материал)|отправил[ао]?|выслал[ао]?|скинул[ао]?|прислал[ао]?)/i;
+// 🔴 27.04 fix: только 1-е лицо ед. ч. будущее время (НЕ past passive «отправлен»,
+// которое попадало в лог-маркеры [SENT: питч отправлен (auto)] и давало false positives).
+const PROMISE_RE = /\b(?:отправлю|пришлю|вышлю|перешлю|скину|обещаю|подготовлю|подгоню|поделюсь|расскажу|покажу|сейчас\s+(?:скину|пришлю|подгон[юе]))\b/i;
+const DELIVERED_RE = /(?:disk\.yandex|drive\.google|youtu(?:be)?|t\.me\/|vk\.com\/|instagram|\.pdf\b|\.mp4\b|\.jpg\b|вот\s+(?:наше|промо|ссылка|видео|материал)|вот\s+ссылка)/i;
 
 const FUNNEL_STALE_DAYS = 3;
 function _funnelCalendarDaysSince(s) {
@@ -1751,7 +1753,10 @@ function computePipeline(allLeads, archived, branchSpec) {
     { key: 'sent',     label: 'Отправили питч', leads: stage_sent,     kind: 'main' },
     ...branches.filter(b => b.parent === 'sent'),
     { key: 'followup', label: 'Follow-up',      leads: stage_followup, kind: 'main' },
-    { key: 'promises', label: 'Потерянные обещания', leads: stage_promises, kind: 'main' },
+    // 🔴 27.04: «Потерянные обещания» временно скрыто — regex даёт false positives
+    // (например «питч отправлен (auto)» → ложное обещание). Включится после
+    // того как funnel_maintenance начнёт писать AI-флаги в orders.db.flags.
+    // { key: 'promises', label: 'Потерянные обещания', leads: stage_promises, kind: 'main' },
     { key: 'interest', label: 'Интерес',        leads: stage_interest, kind: 'main' },
     ...branches.filter(b => b.parent === 'interest'),
     { key: 'negot',    label: 'Переговоры',     leads: stage_negot,    kind: 'main' },
