@@ -877,6 +877,19 @@ const PROCESS_RULES = {
       'Скрипт: ig_followup.py | log: /tmp/ig_followup.log | sent: ig_followup_sent.jsonl',
     ],
   },
+  proc_ig_conv_cache: {
+    name: 'IG Conv Cache (sync переписок)',
+    interval: 'Каждые 10 мин',
+    desc: 'Incremental sync IG-DM threads в локальный JSONL кэш (append-only, без Sheets)',
+    rules: [
+      'Тянет top 50 threads через instagrapi.direct_threads()',
+      'Per-username JSONL: ~/lcband/ig_conversation_cache/<u>.jsonl',
+      'Append-only — добавляются только сообщения с id > last_msg_id',
+      'meta.json хранит {last_msg_id, last_synced, user_id} per username',
+      'НЕ синхронизируется в Google Sheets — всё локально',
+      'Скрипт: ig_conv_cache.py | log: /tmp/ig_conv_cache_sync.log',
+    ],
+  },
   proc_vk_responder: {
     name: 'VK Ответчик',
     interval: 'Постоянно (KeepAlive daemon)',
