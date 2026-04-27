@@ -2274,7 +2274,99 @@ function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog }) 
           key: 'brief', label: 'Бриф Вадиму', icon: '🥁', parent: 'sent', leads: briefLeads,
         }]}
       />
+      <InboundFunnelCard />
     </>
+  );
+}
+
+// 🔴 27.04: отдельная воронка для repeat / warm-inbound лидов (те кто САМИ написали).
+// НЕ связана с orders.status — separate sqlite таблица inbound_funnel.
+function InboundFunnelCard() {
+  const [data, setData] = React.useState(null);
+  const [err, setErr] = React.useState(null);
+  const [expanded, setExpanded] = React.useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    const fetchData = () => fetch('http://127.0.0.1:8878/api/inbound_funnel')
+      .then(r => r.json())
+      .then(j => { if (alive) { setData(j); setErr(null); } })
+      .catch(e => { if (alive) setErr(String(e)); });
+    fetchData();
+    const t = setInterval(fetchData, 60000);  // refresh every 60s
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  if (err) return <div className="section" style={{ marginTop: 14, color: 'var(--bad)' }}>
+    Inbound funnel: {err}
+  </div>;
+  if (!data) return null;
+
+  const STAGES = ['inquiry_received', 'proposal_sent', 'negotiating', 'confirmed', 'paid', 'event_done', 'lost', 'ghost'];
+  const STAGE_LABELS = {
+    inquiry_received: 'Запрос пришёл', proposal_sent: 'Питч отправлен', negotiating: 'Переговоры',
+    confirmed: 'Подтверждено', paid: 'Оплачено', event_done: 'Концерт прошёл',
+    lost: 'Не актуально', ghost: 'Молчат >7д',
+  };
+  const SOURCE_COLORS = {
+    repeat_customer: '#10b981', new_warm_inbound: '#3b82f6',
+    referral_event_organizer: '#f59e0b', unknown: '#6b7280',
+  };
+
+  return (
+    <div id="inbound-funnel-section" className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">
+        🌿 Inbound (repeat / warm) — отдельная воронка ({data.total})
+      </div>
+      <div className="funnel-wrap">
+        {STAGES.map(stage => {
+          const n = data.by_stage[stage] || 0;
+          return (
+            <div key={stage} className="funnel-step">
+              <div className="funnel-box" style={{ opacity: n === 0 ? 0.4 : 1 }}>
+                <div className="funnel-num">{n}</div>
+                <div className="funnel-name">{STAGE_LABELS[stage]}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ marginTop: 8, display: 'flex', gap: 12, fontSize: 11, color: 'var(--muted)' }}>
+        {Object.entries(data.by_source).map(([src, n]) => (
+          <span key={src}>
+            <span style={{ color: SOURCE_COLORS[src] || 'var(--muted)' }}>●</span> {src}: {n}
+          </span>
+        ))}
+        {data.total > 0 && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--muted)',
+                     color: 'var(--fg)', padding: '2px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}
+          >{expanded ? 'Скрыть' : 'Показать'} лидов</button>
+        )}
+      </div>
+      {expanded && (
+        <div style={{ marginTop: 10, fontSize: 12 }}>
+          {data.leads.map(l => (
+            <div key={l.username} style={{
+              padding: '8px 10px', background: 'var(--bg2)', borderRadius: 6, marginBottom: 6,
+              borderLeft: `3px solid ${SOURCE_COLORS[l.source_type] || 'var(--muted)'}`,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <a href={`https://t.me/${l.username}`} target="_blank" rel="noopener"
+                   style={{ color: 'var(--blue)', fontWeight: 600 }}>@{l.username}</a>
+                <span style={{ color: 'var(--muted)' }}>{l.stage} · {l.source_type} · {l.value_signal}</span>
+              </div>
+              {l.summary && <div style={{ color: 'var(--fg)', marginTop: 4 }}>{l.summary}</div>}
+              {l.notes && <div style={{ color: 'var(--muted)', marginTop: 2, fontSize: 11 }}>{l.notes}</div>}
+              {l.evidence && <div style={{ color: 'var(--muted)', marginTop: 2, fontSize: 10, fontStyle: 'italic' }}>
+                evidence: {l.evidence}
+              </div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
