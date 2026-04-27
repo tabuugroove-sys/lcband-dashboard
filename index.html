@@ -851,14 +851,30 @@ function isOverdue(order) {
 // ── Process rules data ────────────────────────────────────────────────────────
 const PROCESS_RULES = {
   proc_ig_responder: {
-    name: 'IG Ответчик',
+    name: 'IG Story Reply (организаторы)',
     interval: 'Каждые 30 мин',
-    desc: 'Отвечает на сторис целевых профилей в Instagram',
+    desc: 'Отвечает на сторис целевых профилей-организаторов в Instagram (прогрев)',
     rules: [
-      'Сканирует сторис из пула профилей (494 шт)',
-      'Отправляет персонализированный ответ на сторис',
-      'Ведёт историю — не дублирует ответы',
-      'Синхронизирует результаты в Google Sheet',
+      'Сканирует сторис из пула профилей (494 шт wedding/event-organizers)',
+      'Отправляет персонализированный ответ на сторис (без рекламы LCB — прогрев)',
+      'Ведёт историю в ig_story_reply_history.json — не дублирует ответы',
+      'Cooldown 3 дня на профиль, MAX 4 reply'ев → 5-й replac'ом «промо»',
+      'Anti-bot: пауза 2-6 мин между sends, MAX 8/день, окно 08:00-23:30 MSK',
+      'Скрипт: ig_story_responder.py (instagrapi)',
+    ],
+  },
+  proc_ig_followup: {
+    name: 'IG Follow-up (пред­ложение сотрудничества)',
+    interval: 'Раз в день, 14:00 MSK (08:00 local)',
+    desc: 'Reactivation для прогретых IG-leads — DM с оффером cover-band + drum-show',
+    rules: [
+      'Источник: ig_story_reply_history.json (накапливает proc_ig_responder)',
+      'Кандидат: reply_count ≥ 5 (прогретый) И тишина ≥14 дней',
+      'Pitch: LC Band (PROMO_COVER) + Noize Drum (DRUM_PROMO) с нашими ссылками',
+      'Anti-flood: 5 sends/день DAILY_CAP, пауза 60-180с между, окно 10:00-21:00 MSK',
+      'Cooldown навсегда: ig_followup_state.json — не пушим повторно',
+      'Ban-detection: при challenge_required / login_required → STOP + TG-alert',
+      'Скрипт: ig_followup.py | log: /tmp/ig_followup.log | sent: ig_followup_sent.jsonl',
     ],
   },
   proc_vk_responder: {
