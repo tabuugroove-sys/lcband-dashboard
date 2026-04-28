@@ -1783,6 +1783,7 @@ function computePipeline(allLeads, archived, branchSpec) {
   // 🔴 27.04: разделяем Follow-up на «обычные» и «Потерянные обещания»
   const stage_promises   = stage_followup_all.filter(_funnelHasUnfulfilledPromise);
   const stage_followup   = stage_followup_all.filter(o => !_funnelHasUnfulfilledPromise(o));
+  const stage_direct   = active.filter(eq('Прямой лид'));
   const stage_cancel_active = active.filter(any(/^(Не актуал|Отказ|Отмена)/i));
   const stage_cancel_arch   = arch.filter(any(/(Неактуал|Не актуал|Отказ|Отмена)/i));
   const stage_cancel   = [...stage_cancel_active, ...stage_cancel_arch];
@@ -1806,6 +1807,7 @@ function computePipeline(allLeads, archived, branchSpec) {
     { key: 'interest', label: 'Интерес',        leads: stage_interest, kind: 'main' },
     ...branches.filter(b => b.parent === 'interest'),
     { key: 'negot',    label: 'Переговоры',     leads: stage_negot,    kind: 'main' },
+    { key: 'direct',   label: 'Прямые лиды',   leads: stage_direct,   kind: 'main' },
     { key: 'prepaid',  label: 'Предоплата',     leads: stage_prepaid,  kind: 'main' },
     { key: 'review',   label: 'Отзыв/контент',  leads: stage_review,   kind: 'main' },
   ];
@@ -1821,6 +1823,7 @@ const PIPELINE_HINTS = {
   interest:  'Активная нейтральная переписка с клиентом без обсуждения цены/райдера. Опережает «Переговоры».',
   cancelled: 'Отказались: «взяли других», «не актуально», бюджет не совпал.',
   negot:     'Активно обсуждают цену, райдер, состав. Hot — нужна личная реакция. TG-папка «Переговоры» 🤝.',
+  direct:    'Прямые входящие лиды — написали сами в DM без нашего cold outreach. Отдельный трек без конверсии в другие стадии.',
   prepaid:   'Получили предоплату (статус ОПЛАТИЛА, папка 💰).',
   review:    'Концерт отыграли, полный расчёт. Post-event workflow: отзыв, фото/видео, реферралы. TG-папка «Отзыв/фото» ⭐.',
 };
@@ -1865,7 +1868,7 @@ function FunnelSection({ title, allLeads, archived, branchSpec }) {
           // тоже бессмысленна (followup — это автомат-пинги, не действие клиента).
           // 🔴 27.04: + «promises» (Потерянные обещания) — это ответвление, а не
           // прогрессия по воронке, % тут не несёт смысла.
-          const skipPct = step.key === 'sent' || step.key === 'followup' || step.key === 'promises';
+          const skipPct = step.key === 'sent' || step.key === 'followup' || step.key === 'promises' || step.key === 'direct';
           const pct = (!skipPct && prev && prev.leads.length > 0)
             ? Math.round(n / prev.leads.length * 100) + '%'
             : null;
