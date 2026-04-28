@@ -890,19 +890,6 @@ const PROCESS_RULES = {
       'Скрипт: ig_conv_cache.py | log: /tmp/ig_conv_cache_sync.log',
     ],
   },
-  proc_find_inbound_leads: {
-    name: 'Find Inbound Leads (repeat/warm)',
-    interval: 'Еженедельно — Пн 09:00 MSK',
-    desc: 'Сканит TG-кэш, через Opus классифицирует кто САМ написал нам первым (repeat / new warm / referral)',
-    rules: [
-      'Programmatic prefilter (metadata-only, не grep content): первое не-пустое сообщение от CLIENT в окне 30д',
-      'Opus per-thread: kind = repeat_customer | new_warm_inbound | cold_us_first | colleague | referral_event_organizer | spam',
-      'Auto-promote relevant kinds в отдельную таблицу inbound_funnel (НЕ связана с orders.status)',
-      'Output: ~/lcband/inbound_leads_report.json + console summary',
-      'Скрипт: find_inbound_leads.py | результаты на дашборде в InboundFunnelCard',
-      'Запускается через launchd; agent_watchdog следит за uptime',
-    ],
-  },
   proc_vk_responder: {
     name: 'VK Ответчик',
     interval: 'Постоянно (KeepAlive daemon)',
