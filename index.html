@@ -1707,6 +1707,17 @@ function leadChatUrl(o) {
   return '';
 }
 
+// 🔴 28.04: pretty-label for the channel badge.
+// DB codes are short (TG / VK / WA / IG / TG_DIRECT / WA_DIRECT) so dashboard
+// filters can match exact strings, but the badge shows a friendlier form.
+// «str» = «стрит» / direct inbound (клиент написал первым, не из event-чата).
+function displayChannel(ch) {
+  const s = String(ch || '').toUpperCase();
+  if (s === 'TG_DIRECT') return 'TG str';
+  if (s === 'WA_DIRECT') return 'WA str';
+  return s;  // TG / VK / WA / IG / '' → as-is
+}
+
 // 🔴 26.04: extract VK screen_name or numeric id ("id12345") from item.
 // Used to enable hover-chat panel for VK leads.
 // 🔴 26.04 v2: no longer requires channel='VK' — TG-sourced leads where
@@ -3882,7 +3893,7 @@ function AttentionSection({ attention }) {
                   <span>📋 {item.status}</span>
                   {item.event_date && <span style={{marginLeft:8}}>🎉 {item.event_date}</span>}
                   {item.next_action && <span style={{marginLeft:8}}>➡️ {item.next_action}</span>}
-                  {item.channel && <span style={{marginLeft:8,opacity:0.6}}>{item.channel}</span>}
+                  {item.channel && <span style={{marginLeft:8,opacity:0.6}}>{displayChannel(item.channel)}</span>}
                 </div>
               </div>
             </div>
@@ -3947,7 +3958,7 @@ function PaidSection({ paid }) {
                 <div className="order-meta" style={{fontSize:11}}>
                   {item.event_date && <span>🎉 {item.event_date}</span>}
                   {item.city && <span style={{marginLeft:8}}>📍 {item.city}</span>}
-                  {item.channel && <span style={{marginLeft:8,opacity:0.6}}>{item.channel}</span>}
+                  {item.channel && <span style={{marginLeft:8,opacity:0.6}}>{displayChannel(item.channel)}</span>}
                 </div>
                 {item.order && (
                   <div style={{fontSize:11,color:'var(--muted)',marginTop:4,opacity:0.8}}>
