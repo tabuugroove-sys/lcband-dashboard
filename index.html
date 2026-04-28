@@ -890,6 +890,23 @@ const PROCESS_RULES = {
       'Скрипт: ig_conv_cache.py | log: /tmp/ig_conv_cache_sync.log',
     ],
   },
+  proc_funnel_keeper: {
+    name: 'Funnel Keeper (единый smart-процесс воронки)',
+    interval: 'Каждые 5 мин (chain после conv-cache-sync)',
+    desc: 'ОДИН процесс держит воронку в правильном виде: после каждого нового сообщения проверяет смысл переписки и сдвигает orders.status. Заменяет cleanup_orphans + funnel_sync',
+    rules: [
+      'Триггер: chain после conv_cache.sync-all (5-мин launchd, _run_conv_sync_and_funnel_keeper.sh)',
+      'Phase 1 — Cleanup: aggregator-self-posts → archive, musician/competitor → archive, no-contact → archive',
+      'Phase 2 — Reactive AI Reclassify: Opus per-thread ТОЛЬКО на changed диалогах из conv_cache_last_changed.json',
+      'real_stage enumerate: first_pitch_sent / followup_sent / client_engaged / negotiating / moved_to_customer / paid / event_done / refused / musician_skip',
+      'Forward-only по умолчанию: Написал → Переговоры можно, обратно нет',
+      'Refusal exception: явный отказ → Не актуально из любой стадии',
+      'Paid signal exception: явная оплата → ОПЛАТИЛА из любой стадии',
+      'Confidence threshold: 0.7 — иначе оставляет current_status',
+      'Логирует изменения в orders.history с reasoning + evidence-цитатой',
+      'Скрипты: funnel_keeper.py + cleanup_orphans.py + funnel_sync.analyze_one',
+    ],
+  },
   proc_vk_responder: {
     name: 'VK Ответчик',
     interval: 'Постоянно (KeepAlive daemon)',
