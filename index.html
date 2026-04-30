@@ -2071,6 +2071,42 @@ function FunnelSection({ title, allLeads, archived, branchSpec }) {
   );
 }
 
+function FunnelSummarySection({ funnel }) {
+  const steps = (funnel || [])
+    .filter(step => step && step.key && (step.label || step.n !== undefined))
+    .map(step => ({
+      ...step,
+      n: Number(step.n) || 0,
+      label: step.label || step.key,
+    }));
+  if (!steps.length) return null;
+
+  return (
+    <div id="funnel-section" className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">Воронка</div>
+      <div className="funnel-wrap">
+        {steps.map((step, i) => {
+          const prev = steps[i - 1];
+          const skipPct = step.key === 'sent' || step.key === 'followup' || step.key === 'promises' || step.key === 'direct';
+          const pct = (!skipPct && prev && prev.n > 0)
+            ? Math.round(step.n / prev.n * 100) + '%'
+            : null;
+          return (
+            <div key={step.key} className="funnel-step" title={PIPELINE_HINTS[step.key] || ''}>
+              {i > 0 && <span className="funnel-arr">›</span>}
+              <div className="funnel-box">
+                <div className="funnel-num">{step.n}</div>
+                <div className="funnel-name">{step.label}</div>
+                {pct && <div className="funnel-pct">{pct}</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function OrdersSection({ orders }) {
   return (
     <div id="orders-section" className="section" style={{ marginTop: 14 }}>
@@ -2237,7 +2273,7 @@ function ApprovalButtons({ approvalId, draft, username }) {
 }
 
 
-function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog }) {
+function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog, fallbackFunnel }) {
   const { bandLeads, bandArchived, drumLeads, drumArchived } = React.useMemo(() => {
     const bandL = [], drumL = [], bandA = [], drumA = [];
     (allLeads || []).forEach(o => (isDrumLead(o) ? drumL : bandL).push(o));
@@ -2286,6 +2322,18 @@ function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog }) 
       };
     });
   }, [sessionLog, drumLeads]);
+
+  const hasLiveFunnelData =
+    bandLeads.length > 0 ||
+    bandArchived.length > 0 ||
+    drumLeads.length > 0 ||
+    drumArchived.length > 0 ||
+    (pendingDrafts || []).length > 0 ||
+    briefLeads.length > 0;
+
+  if (!hasLiveFunnelData) {
+    return <FunnelSummarySection funnel={fallbackFunnel} />;
+  }
 
   return (
     <>
@@ -4988,6 +5036,7 @@ function App() {
                 archived={data.allArchived || []}
                 pendingDrafts={data.pendingDrafts || []}
                 sessionLog={sessionLog || null}
+                fallbackFunnel={data.funnel || []}
               />
               <OrdersSection orders={data.orders} />
               <ScanStatus scan={data.scan} />
