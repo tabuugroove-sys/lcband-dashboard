@@ -3598,10 +3598,10 @@ function SkeletonCards() {
 }
 
 // ── Tabs ────────────────────────────────────────────────────────
-function TabBar({ activeTab, setActiveTab, attentionCount, refusalCount, paidCount, agentsMissing, aiCalls, sessionCount, todosCount }) {
+function TabBar({ activeTab, setActiveTab, newLeadsCount, attentionCount, refusalCount, paidCount, agentsMissing, aiCalls, todosCount }) {
   const tabs = [
     { id: 'overview',   label: 'Главная',     emoji: '📊' },
-    { id: 'new',        label: 'Новые заказы', emoji: '🆕', badge: sessionCount },
+    { id: 'new',        label: 'Новые заказы', emoji: '🆕', badge: newLeadsCount },
     { id: 'attention',  label: 'Горячие',     emoji: '🔥', badge: attentionCount },
     { id: 'paid',       label: 'Оплатили',    emoji: '💰', badge: paidCount },
     { id: 'refusals',   label: 'Отказы',      emoji: '❌', badge: refusalCount },
@@ -4592,6 +4592,7 @@ let CHAT_BACKEND = (location.port === '8878') ? '' : 'http://127.0.0.1:8878';
 // content — tunnel terminates HTTPS).
 const BACKEND_READY = (async () => {
   if (CHAT_BACKEND === '') return;
+  if (location.protocol === 'file:' || location.hostname === '127.0.0.1' || location.hostname === 'localhost') return;
   try {
     const r = await fetch('./backend_url.json', { cache: 'no-store' });
     if (!r.ok) return;
@@ -4635,10 +4636,11 @@ function UnreadBadge() {
     return () => { alive = false; clearInterval(id); };
   }, []);
   if (!data) return null;
+  if (!data.dm) return null;
   return (
     <div className="header-sub" style={{marginTop:3}}
-      title={`Непрочитанные сообщения в Telegram: ${data.dm} ЛС + ${data.groups} в чатах`}>
-      ✉️ {data.total} непрочитанных <span style={{opacity:0.6}}>({data.dm} DM · {data.groups} чаты)</span>
+      title={`Непрочитанные личные сообщения в Telegram: ${data.dm}. В чатах: ${data.groups || 0} (скрыты из бейджа).`}>
+      ✉️ {data.dm} непрочитанных DM
     </div>
   );
 }
@@ -5065,12 +5067,12 @@ function App() {
           <TabBar
             activeTab={activeTab}
             setActiveTab={setActiveTab}
+            newLeadsCount={data.newLeads?.total || 0}
             attentionCount={data.attention?.total || 0}
             refusalCount={Object.values(data.refusalCategories || {}).reduce((a,b) => a+b, 0)}
             paidCount={data.paid?.total || 0}
             agentsMissing={(data.agents?.missing || 0) + (data.agents?.staleSla || 0)}
             aiCalls={data.aiUsage?.totalCalls || 0}
-            sessionCount={sessionLog?.total || 0}
             todosCount={todos?.total || 0}
           />
 
@@ -5093,7 +5095,10 @@ function App() {
                 sessionLog={sessionLog || null}
                 fallbackFunnel={data.funnel || []}
               />
-              <DMDirectFunnelSection data={dmDirectFunnel} />
+              <div className="section" style={{ marginTop: 20 }}>
+                <div className="section-title">Дополнительные воронки</div>
+                <DMDirectFunnelSection data={dmDirectFunnel} />
+              </div>
               <OrdersSection orders={data.orders} />
               <ScanStatus scan={data.scan} />
               <FollowupsSection followups={data.followups} />
@@ -5101,7 +5106,7 @@ function App() {
           )}
 
           {activeTab === 'new' && (
-            <SessionSection session={sessionLog || {total:0, items:[], counts:{}, sessions:[], session:''}} />
+            <NewLeadsSection newLeads={data.newLeads || {total:0, items:[]}} />
           )}
 
           {activeTab === 'attention' && (
