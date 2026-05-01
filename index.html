@@ -2357,6 +2357,50 @@ function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog, fa
   );
 }
 
+function DMDirectFunnelSection({ data }) {
+  if (!data || !data.total) return null;
+  const specs = [
+    { key: 'active_future', label: 'Активные даты', hint: 'ивент еще не был', color: 'var(--blue)' },
+    { key: 'event_done_success', label: 'Прошло успешно', hint: 'нужен отзыв/контент', color: '#34d399' },
+    { key: 'cancelled', label: 'Отмена', hint: 'отказ / выбрали других', color: '#f87171' },
+    { key: 'needs_review', label: 'Проверить', hint: 'не хватило уверенности', color: '#fbbf24' },
+  ];
+  const leads = data.leads || [];
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">
+        Прямые DM клиенты <span style={{ color:'var(--muted)', fontWeight:600 }}>за полгода</span>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:10 }}>
+        {specs.map(s => {
+          const items = leads.filter(x => x.stage === s.key);
+          return (
+            <div key={s.key} className="card" style={{ borderColor:'rgba(255,255,255,.08)' }}>
+              <div style={{ fontSize:26, fontWeight:800, color:s.color }}>{items.length}</div>
+              <div style={{ fontWeight:700 }}>{s.label}</div>
+              <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>{s.hint}</div>
+              {items.slice(0, 5).map(it => (
+                <div key={it.username} style={{ marginTop:8, paddingTop:8, borderTop:'1px solid rgba(255,255,255,.06)' }}>
+                  <a href={`https://t.me/${it.username}`} target="_blank" rel="noopener"
+                     style={{ color:'var(--blue)', textDecoration:'none', fontWeight:700 }}>
+                    {it.client_name || it.username}
+                  </a>
+                  <span style={{ color:'var(--muted)', fontSize:11, marginLeft:6 }}>
+                    {it.event_date || 'без даты'}
+                  </span>
+                  <div style={{ color:'var(--muted)', fontSize:11, marginTop:2, lineHeight:1.35 }}>
+                    {(it.summary || it.evidence || '').slice(0, 120)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function OrderCard({ order: o }) {
   const [cls, txt] = orderBadge(o.status);
   const overdue = isOverdue(o);
@@ -4546,7 +4590,7 @@ let CHAT_BACKEND = (location.port === '8878') ? '' : 'http://127.0.0.1:8878';
 // Public Cloudflare tunnel URL, published by tunnel_watcher.py. If present,
 // overrides the 127.0.0.1 fallback so the chat works on GitHub Pages (no mixed
 // content — tunnel terminates HTTPS).
-(async () => {
+const BACKEND_READY = (async () => {
   if (CHAT_BACKEND === '') return;
   try {
     const r = await fetch('./backend_url.json', { cache: 'no-store' });
@@ -4765,6 +4809,7 @@ function App() {
   const [dbSnapshot, setDbSnapshot] = useState(null);
   const [sessionLog, setSessionLog] = useState(null);
   const [activity24h, setActivity24h] = useState(null);
+  const [dmDirectFunnel, setDmDirectFunnel] = useState(null);
   const [todos,     setTodos]     = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [refreshing,setRefreshing]= useState(false);
@@ -4800,6 +4845,7 @@ function App() {
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
+    try { await BACKEND_READY; } catch {}
     // 🔴 21.04: primary path — /api/dashboard_data endpoint (live, no 10-min Sheet sync lag).
     // Fallback: Google Sheet gviz (если backend упал).
     try {
@@ -4856,6 +4902,15 @@ function App() {
         setActivity24h(await r.json());
       }
     } catch { /* backend offline → status rows render without 24h counts */ }
+
+    // ── Separate direct-DM client funnel from local AI audit table ──
+    try {
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      const r = await fetch(`${bu}/api/dm_direct_funnel`, { cache: 'no-store' });
+      if (r.ok) {
+        setDmDirectFunnel(await r.json());
+      }
+    } catch { /* optional block; main dashboard should stay usable */ }
 
     // ── TODOs (live read of todo_*.md from auto-memory) ──
     try {
@@ -5038,6 +5093,7 @@ function App() {
                 sessionLog={sessionLog || null}
                 fallbackFunnel={data.funnel || []}
               />
+              <DMDirectFunnelSection data={dmDirectFunnel} />
               <OrdersSection orders={data.orders} />
               <ScanStatus scan={data.scan} />
               <FollowupsSection followups={data.followups} />
