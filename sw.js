@@ -1,4 +1,4 @@
-const CACHE = 'lcb-v26-browser-walk-card';
+const CACHE = 'lcb-v28-interest-stage-fix';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {

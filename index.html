@@ -1591,7 +1591,7 @@ function KPISection({ kpi, setActiveTab, browserWalk }) {
 //   1. Новые          — status "Новый"
 //   2. Отправили питч — status "Написал"
 //     └ 2b. Питч в боте — pending_approvals.json entries with status="pending"
-//   3. Интерес        — status "Переговоры" (responded, no deep negotiation yet)
+//   3. Интерес        — status "Интерес" OR "Переговоры" without commercial/deep negotiation text
 //     ├ 3b. Follow-up — status "Follow-up" (silent, we pinged)
 //     └ 3c. Отмена    — status "Не актуален" (active) + archived "Неактуально"
 //   4. Переговоры     — status "Переговоры" with history hints of price/rider discussion
@@ -1679,11 +1679,55 @@ const DRUM_WORD  = '(?:drum|барабан|перкусс)';
 const DRUM_NEG_BEFORE = new RegExp(NEG_FRAG + '[^.\\n]{0,80}' + DRUM_WORD, 'i');
 const DRUM_NEG_AFTER  = new RegExp(DRUM_WORD + '\\w*\\s*[^.\\n]{0,80}' + NEG_FRAG, 'i');
 
+function leadText(o, { preferRequest = false } = {}) {
+  const desc = o?.desc || '';
+  const fallback = [
+    o?.next_action || '',
+    o?.history || '',
+    o?.client || '',
+    o?.source_chat || '',
+    o?.status || '',
+  ].join(' ');
+  return preferRequest ? (desc || fallback) : [desc, fallback].join(' ');
+}
+
+const SOLO_SHOW_INSTR_RE = /саксофонист(?:к[аи])?|сакс\b|sax(?:ophone)?|пианист(?:к[аи])?|pianist|piano|гитарист(?:-вокалист)?|guitarist/i;
+const SOLO_SHOW_CONTEXT_RE = /solo|соло|welcome|велком|фон(?:овая|овый)?|коктейл|церемон|регистрац|встреч[аи]\s+гостей|банкет|день\s*рожден|др\b|юбилей|на\s+\d+\s*(?:час|ч\b)|\d+\s*(?:час|ч\b)/i;
+const BAND_COMPOSITION_RE = /кавер|групп|бэнд|бенд|жив(?:ая|ую)\s+музык|состав|ансамбль/i;
+const SAX_RE = /саксофонист(?:к[аи])?|саксофон|сакс\b|sax(?:ophone)?/i;
+const BAND_INSTR_RE = /(вокал|солист|гитар|бас\b|барабан|ударн|клавиш|пиан|сакс)/gi;
+
+function hasBandSaxComposition(o) {
+  const t = leadText(o, { preferRequest: true });
+  if (!SAX_RE.test(t)) return false;
+  if (/сакс(?:офон)?\s+в\s+составе|состав[^.\n]{0,80}сакс|сакс[^.\n]{0,80}состав/i.test(t)) return true;
+  if (!BAND_COMPOSITION_RE.test(t)) return false;
+  const instruments = new Set((t.match(BAND_INSTR_RE) || []).map(x => x.toLowerCase().slice(0, 5)));
+  return instruments.size >= 3;
+}
+
+function isSoloShowLead(o) {
+  const t = leadText(o, { preferRequest: true });
+  if (!SOLO_SHOW_INSTR_RE.test(t)) return false;
+  if (hasBandSaxComposition(o)) return false;
+  return SOLO_SHOW_CONTEXT_RE.test(t);
+}
+
+function hasSaxLead(o) {
+  return SAX_RE.test(leadText(o));
+}
+
+const THREE_PLUS_VOCALS_RE = /(?:[3-9]\+?|1[0-9]|три|четыре|пять|шесть|семь|восемь|девять|десять)\s*(?:[-–—]\s*(?:[3-9]|1[0-9]))?(?:\s+[а-яёa-z-]+){0,4}\s+(?:вокалист|вокала|вокал\b|солист|певц)|(?:больше|более)\s+(?:двух|2)\s+(?:вокалист|вокал|солист)/i;
+function hasThreePlusVocalsLead(o) {
+  return THREE_PLUS_VOCALS_RE.test(leadText(o, { preferRequest: true }));
+}
+
 function isDrumLead(o) {
   // Priority #1: AI-classifier result (funnel_brand column written by classify_brand.py).
   // Opus решает с полным контекстом — надёжнее regex. Regex остаётся как fallback если
   // AI ещё не классифицировал (новый лид, cold start).
   const brand = (o.funnel_brand || '').toLowerCase();
+  if (isSoloShowLead(o)) return true;
   if (brand === 'drum') return true;
   if (brand === 'lcb')  return false;
 
@@ -1783,7 +1827,11 @@ function computePipeline(allLeads, archived, branchSpec) {
   const neg_all        = active.filter(eq('Переговоры'));
   const neg_stale      = neg_all.filter(_funnelIsStaleNegotiation);
   const neg_fresh      = neg_all.filter(o => !_funnelIsStaleNegotiation(o));
-  const stage_interest = neg_fresh.filter(o => !hasNegotiationText(o));
+  const stage_interest_status = active.filter(eq('Интерес'));
+  const stage_interest = [
+    ...stage_interest_status,
+    ...neg_fresh.filter(o => !hasNegotiationText(o)),
+  ];
   const stage_negot    = neg_fresh.filter(hasNegotiationText);
   const stage_prepaid  = active.filter(eq('ОПЛАТИЛА'));
   // Stage 6 «Отзыв/контент» — post-event workflow: клиент отыграл, просим отзыв/фото/видео.
@@ -2124,7 +2172,45 @@ function OrdersSection({ orders }) {
   );
 }
 
-// Wrapper: splits leads into LC Band (main) and Drum Show (Noize Drum) pipelines,
+function LeadFilterSection({ title, subtitle, leads }) {
+  const normalized = (leads || [])
+    .slice()
+    .sort((a, b) => {
+      const da = a.event_date || a.date_event || '9999-99-99';
+      const db = b.event_date || b.date_event || '9999-99-99';
+      return da.localeCompare(db);
+    })
+    .map(o => ({
+      ...o,
+      date_event: o.date_event || o.event_date || '',
+      date_posted: o.date_posted || o.posted || '',
+    }));
+
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title" style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap'}}>
+        {title}
+        <span style={{fontSize:12, color:'var(--muted)', fontWeight:500}}>· {normalized.length}</span>
+      </div>
+      {subtitle && (
+        <div style={{fontSize:12, color:'var(--muted)', marginTop:-4, marginBottom:10}}>
+          {subtitle}
+        </div>
+      )}
+      {!normalized.length ? (
+        <div className="empty">Нет активных лидов под этот фильтр.</div>
+      ) : (
+        <div className="orders-list">
+          {normalized.map((o, i) => (
+            <OrderCard key={o.id || `${o.username || o.client || 'lead'}-${i}`} order={o} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Wrapper: splits leads into LC Band (main) and Drum/Solo Show pipelines,
 // passes appropriate branchSpec to each FunnelSection.
 function ApprovalButtons({ approvalId, draft, username }) {
   const [busy, setBusy] = React.useState(false);
@@ -2346,7 +2432,7 @@ function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog, fa
         }]}
       />
       <FunnelSection
-        title="Воронка Drum Show (Noize Drum)"
+        title="Воронка Drum Show / Solo"
         allLeads={drumLeads}
         archived={drumArchived}
         branchSpec={[{
@@ -3598,11 +3684,13 @@ function SkeletonCards() {
 }
 
 // ── Tabs ────────────────────────────────────────────────────────
-function TabBar({ activeTab, setActiveTab, newLeadsCount, attentionCount, refusalCount, paidCount, agentsMissing, aiCalls, todosCount }) {
+function TabBar({ activeTab, setActiveTab, newLeadsCount, attentionCount, refusalCount, paidCount, agentsMissing, aiCalls, todosCount, saxCount, vocal3Count }) {
   const tabs = [
     { id: 'overview',   label: 'Главная',     emoji: '📊' },
     { id: 'new',        label: 'Новые заказы', emoji: '🆕', badge: newLeadsCount },
     { id: 'attention',  label: 'Горячие',     emoji: '🔥', badge: attentionCount },
+    { id: 'sax',        label: 'Сакс',        emoji: '🎷', badge: saxCount },
+    { id: 'vocal3',     label: '3+ вокала',   emoji: '🎤', badge: vocal3Count },
     { id: 'paid',       label: 'Оплатили',    emoji: '💰', badge: paidCount },
     { id: 'refusals',   label: 'Отказы',      emoji: '❌', badge: refusalCount },
     { id: 'broadcasts', label: 'Рассылки',    emoji: '📤' },
@@ -5014,6 +5102,15 @@ function App() {
     return () => clearInterval(fast);
   }, [activity24h?.proc_browser_walk?.status, load]);
 
+  const saxFilterLeads = useMemo(
+    () => (data?.allLeads || []).filter(hasSaxLead),
+    [data?.allLeads]
+  );
+  const vocal3FilterLeads = useMemo(
+    () => (data?.allLeads || []).filter(hasThreePlusVocalsLead),
+    [data?.allLeads]
+  );
+
   const timeStr = updatedAt
     ? updatedAt.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' })
     : null;
@@ -5074,6 +5171,8 @@ function App() {
             agentsMissing={(data.agents?.missing || 0) + (data.agents?.staleSla || 0)}
             aiCalls={data.aiUsage?.totalCalls || 0}
             todosCount={todos?.total || 0}
+            saxCount={saxFilterLeads.length}
+            vocal3Count={vocal3FilterLeads.length}
           />
 
           {activeTab === 'overview' && (
@@ -5111,6 +5210,22 @@ function App() {
 
           {activeTab === 'attention' && (
             <AttentionSection attention={data.attention || {total:0, items:[]}} />
+          )}
+
+          {activeTab === 'sax' && (
+            <LeadFilterSection
+              title="🎷 Лиды с саксом"
+              subtitle="Все активные заявки, где в запросе или истории есть сакс: solo welcome и сакс в составе группы."
+              leads={saxFilterLeads}
+            />
+          )}
+
+          {activeTab === 'vocal3' && (
+            <LeadFilterSection
+              title="🎤 3+ вокала"
+              subtitle="Активные заявки, где явно просят больше двух вокалистов/солистов."
+              leads={vocal3FilterLeads}
+            />
           )}
 
           {activeTab === 'paid' && (
