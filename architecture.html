@@ -359,6 +359,58 @@ flowchart LR
   PAGES --> PAGE3["dm-direct-funnel.html"]:::chan
     </div>
   </section>
+
+  <section class="mindmap-card">
+    <h2>6. Lifecycle одного лида — пост → пит­ч → переговоры → платёж</h2>
+    <p class="diagram-note">Sequence-diagram «как лид путешествует» от появления в чате до успеха или отказа. По вертикали — таймлайн.</p>
+    <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant Chat as Чат
+  participant Mon as tg-monitor
+  participant AI as classify_batch
+  participant DB as orders.db
+  participant Resp as tg-responder
+  participant Cli as Клиент
+  participant Heal as funnel_autoheal
+  participant Rep as daily-report
+
+  Chat->>Mon: новый пост
+  Mon->>Mon: pre-filter no AI
+  Mon->>AI: candidates list
+  AI-->>Mon: verdicts JSON
+  Mon->>DB: record_tg_order status=Новый
+  Mon->>Resp: send_proposal
+  Resp->>AI: ai_review_before_send
+  AI-->>Resp: skip / adapt / ok
+  Resp->>Cli: пит­ч с ai_review
+  DB->>DB: status=Написал
+
+  Cli->>Resp: ответ
+  Resp->>AI: convo_analysis_tg
+  AI-->>Resp: intent + draft
+  Resp->>Cli: ответ
+  DB->>DB: status=Переговоры
+
+  alt Клиент платит
+    Cli->>Resp: подтверждение оплаты
+    DB->>DB: status=Оплачен
+    Note over DB,Heal: после event
+    Heal->>DB: status=Концерт
+  else Клиент молчит 3+ дня
+    Heal->>DB: status=Follow-up
+    Resp->>Cli: follow-up через 3 дня
+  else Клиент отказывает
+    Cli->>Resp: не актуально
+    Resp->>AI: refusal_classify
+    DB->>DB: status=Отказ
+  end
+
+  Note over Rep: 23:00 SP = 05:00 MSK
+  Rep->>Rep: business summary
+  Rep-->>Mon: TG bot отчёт
+    </div>
+  </section>
   </div>
 
   <aside class="side-panel">
@@ -504,6 +556,92 @@ flowchart LR
       </div>`;
     });
     document.getElementById('heatmap').innerHTML = hm.join('');
+
+    // Heat-color AI purpose nodes in diagram 3 + wire clicks → highlight side-panel row.
+    // Mermaid generates `<g class="node" id="flowchart-NODE-N">` for our P1..P10 IDs.
+    // We map P-codes to purpose names (must match what /api/ai_usage_breakdown returns)
+    // and tint the node background based on calls intensity.
+    applyHeatAndClicks(byPurpose);
+  }
+
+  // Maps the P-codes used in diagram 3 (AI calls map) to purpose strings logged
+  // by claude_cli._log_usage. Keep in sync with the mermaid source above.
+  const PURPOSE_MAP = {
+    P1:  'classify_batch',
+    P2:  'classify',
+    P3:  'convo_analysis_tg',
+    P4:  'tg_responder_cli',           // generate_response is logged as tg_responder_cli
+    P5:  'presend_review',
+    P6:  'inbound_lead_classify',
+    P7:  'funnel_sync',
+    P8:  'refusal_classify',
+    P9:  'senior_strategist_audit',
+    P10: 'senior_strategist_rewrite',
+  };
+
+  function heatColor(intensity) {
+    // green = hot, orange = warm, blue = cool, transparent = cold/zero
+    if (intensity > 0.66) return 'rgba(63, 185, 80, 0.55)';
+    if (intensity > 0.33) return 'rgba(240, 136, 62, 0.45)';
+    if (intensity > 0)    return 'rgba(88, 166, 255, 0.30)';
+    return null;
+  }
+
+  function applyHeatAndClicks(byPurpose) {
+    const purposeCalls = name => (byPurpose[name]?.calls || 0);
+    const allCalls = Object.values(PURPOSE_MAP).map(purposeCalls);
+    const maxCalls = Math.max(...allCalls, 1);
+
+    // Iterate every Mermaid node whose id starts with `flowchart-P` (covers P1..P10).
+    document.querySelectorAll('.mermaid svg g.node').forEach(node => {
+      const m = node.id.match(/flowchart-(P\d+)-/);
+      if (!m) return;
+      const purposeName = PURPOSE_MAP[m[1]];
+      if (!purposeName) return;
+      const calls = purposeCalls(purposeName);
+      const intensity = calls / maxCalls;
+      const fill = heatColor(intensity);
+
+      // Apply fill to the rect/polygon shape inside the node group.
+      const shape = node.querySelector('rect, polygon, path');
+      if (shape && fill) shape.setAttribute('fill', fill);
+
+      // Tooltip + cursor + click handler.
+      node.style.cursor = 'pointer';
+      const existingTitle = node.querySelector('title');
+      const tooltipText = `${purposeName}: ${calls} calls / 7д · клик → таблица`;
+      if (existingTitle) existingTitle.textContent = tooltipText;
+      else {
+        const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        titleEl.textContent = tooltipText;
+        node.appendChild(titleEl);
+      }
+
+      // Avoid attaching duplicate click handlers on subsequent loadUsage() refreshes.
+      if (!node.dataset.clickWired) {
+        node.dataset.clickWired = '1';
+        node.addEventListener('click', () => highlightPurposeRow(purposeName));
+      }
+    });
+  }
+
+  function highlightPurposeRow(purposeName) {
+    const table = document.querySelector('#purpose-table table');
+    if (!table) return;
+    let target = null;
+    table.querySelectorAll('tbody tr').forEach(tr => {
+      const firstCell = tr.querySelector('td');
+      if (!firstCell) return;
+      const label = firstCell.textContent.trim();
+      // First cell may include "<name><bar>" — match by prefix.
+      tr.style.background = '';
+      tr.style.transition = 'background 0.4s';
+      if (label.startsWith(purposeName)) target = tr;
+    });
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.style.background = 'rgba(188, 140, 255, 0.25)';
+    setTimeout(() => { target.style.background = ''; }, 2500);
   }
 
   loadUsage();
