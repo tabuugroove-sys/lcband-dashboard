@@ -71,10 +71,13 @@
     border-radius: 8px;
     padding: 24px;
     overflow: auto;
-    min-height: 600px;
+    margin-bottom: 16px;
   }
-  .mindmap-card h2 { margin: 0 0 16px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .mindmap-card h2 { margin: 0 0 8px; font-size: 14px; color: var(--text); font-weight: 600; }
+  .mindmap-card .diagram-note { color: var(--muted); font-size: 12px; margin: 0 0 16px; max-width: 800px; }
+  .mindmap-card .mermaid { display: flex; justify-content: center; }
   .mindmap-card .mermaid svg { background: transparent; max-width: 100%; height: auto; }
+  .diagrams-col { display: flex; flex-direction: column; min-width: 0; }
 
   .side-panel { display: flex; flex-direction: column; gap: 16px; }
   .panel-card {
@@ -156,50 +159,207 @@
 </div>
 
 <main>
+  <div class="diagrams-col">
   <section class="mindmap-card">
-    <h2>Карта проекта — каналы → AI → хранилище</h2>
-    <div class="mermaid" id="mindmap-container">
-mindmap
-  root((LC Band))
-    Каналы
-      Telegram
-        tg-monitor 10min
-        tg-responder 2min
-        tg-followup daemon
-        browser-walk hourly
-        bot-commander long-poll
-      VK
-        vk-monitor 10min
-        vk-responder 30min
-      IG paused 27.04
-      WhatsApp manual
-    AI Calls
-      classify_batch
-      classify
-      presend_review
-      convo_analysis_tg
-      funnel_sync
-      refusal_classify
-      senior_strategist
-      compose_proposal
-      tg_responder_cli
-    Хранилище
-      orders.db SSoT
-      sent_proposals.json
-      session_actions.jsonl
-      ai_usage.json
-      conv_cache_tg
-    Дашборд
-      Flask 8878
-      Cloudflare tunnel
-      gh-pages public
-    </div>
-    <div class="legend" style="margin-top: 12px;">
-      <div class="legend-item"><span class="legend-dot" style="background: var(--green);"></span> Часто используется</div>
-      <div class="legend-item"><span class="legend-dot" style="background: var(--orange);"></span> Средне</div>
-      <div class="legend-item"><span class="legend-dot" style="background: var(--muted);"></span> Редко / 0</div>
+    <h2>1. Inbound classification — пост из чата → лид в DB</h2>
+    <p class="diagram-note">Главный поток: monitor / walk читают event-чаты → pre-filter → batch AI → orders.db → пит­ч.</p>
+    <div class="mermaid">
+flowchart TD
+  classDef chan fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
+  classDef agent fill:#2d2a4a,stroke:#bc8cff,color:#e6edf3
+  classDef pre fill:#2a3a2a,stroke:#3fb950,color:#e6edf3
+  classDef ai fill:#3d2f1a,stroke:#f0883e,color:#e6edf3
+  classDef store fill:#2a2a2a,stroke:#8b949e,color:#e6edf3
+  classDef out fill:#3a1f3a,stroke:#bc8cff,color:#e6edf3
+
+  TGCHATS["📨 17 TG event-chats"]:::chan
+  VKGROUPS["📨 VK groups"]:::chan
+
+  TGCHATS --> MON["tg-monitor — every 10min<br/>Telethon API"]:::agent
+  TGCHATS --> WALK["browser-walk — hourly<br/>Telethon, separate session"]:::agent
+  VKGROUPS --> VKMON["vk-monitor — every 10min"]:::agent
+
+  MON --> PRE["Pre-filter — NO AI<br/>• is_skip_author musicians folder<br/>• dup-check msg_id seen<br/>• refusal hard-regex safety<br/>• length less than 20 chars"]:::pre
+  WALK --> PRE
+  VKMON --> PRE
+
+  PRE -->|"candidates: list[post]"| BATCH["classify_posts_batch — 1 CLI call per chat<br/>system_prompt + N posts → JSON array verdicts<br/>verdicts ∈ music_band / drum_show / solo_musician / abstract / skip"]:::ai
+
+  BATCH -.->|"CLI / JSON failed"| FALLBACK["per-post hybrid_classify<br/>(safety net)"]:::ai
+
+  BATCH -->|"verdicts"| PROCESS{"verdict ≠ skip ?"}
+  FALLBACK --> PROCESS
+
+  PROCESS -->|"yes"| BUILD["build order dict<br/>extract date / city / budget"]:::out
+  PROCESS -->|"skip"| DROP[("noise / drop")]:::store
+
+  BUILD --> RECORD["orders_db_bridge.record_tg_order"]:::out
+  RECORD --> ORDERS[("orders.db SSoT")]:::store
+  RECORD --> SEND["send_proposal — with ai_review_before_send"]:::ai
+  SEND --> SENT[("sent_proposals.json dedupe")]:::store
+  SEND --> ACT[("session_actions.jsonl audit")]:::store
     </div>
   </section>
+
+  <section class="mindmap-card">
+    <h2>2. Outbound DM responder — клиент пишет в ЛС → ответ</h2>
+    <p class="diagram-note">tg-responder каждые 2 мин читает inbound DM, через Opus генерит ответ, ai_review гейтит, send_proposal отправляет или ставит в approval-bot.</p>
+    <div class="mermaid">
+flowchart TD
+  classDef chan fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
+  classDef agent fill:#2d2a4a,stroke:#bc8cff,color:#e6edf3
+  classDef ai fill:#3d2f1a,stroke:#f0883e,color:#e6edf3
+  classDef store fill:#2a2a2a,stroke:#8b949e,color:#e6edf3
+  classDef out fill:#3a1f3a,stroke:#bc8cff,color:#e6edf3
+
+  DM["💬 Inbound TG DM"]:::chan
+  VKDM["💬 Inbound VK DM"]:::chan
+
+  DM --> TGRESP["tg-responder — every 2min<br/>jitter 15-35s, 8/run, 40/day"]:::agent
+  VKDM --> VKRESP["vk-responder — every 30min"]:::agent
+
+  TGRESP --> CTX["Load context: orders_db.find_by_username<br/>+ last 15 msgs Telethon"]:::store
+  VKRESP --> CTX
+
+  CTX --> CONV["convo_analysis_tg — Opus<br/>(category hints, intent, refusal probe)"]:::ai
+  CONV --> GEN["generate_contextual_response — Opus<br/>(personalised reply, no hardcoded templates)"]:::ai
+  GEN --> REVIEW{"ai_review_before_send<br/>skip / adapt / ok ?"}:::ai
+
+  REVIEW -->|"skip"| DROP[("отказ / музыкант / не наш<br/>→ refusal_classify, archived")]:::store
+  REVIEW -->|"adapt"| GEN2["use adapted_text"]:::ai
+  REVIEW -->|"ok"| SEND
+  GEN2 --> SEND
+  SEND["send_message Telethon<br/>+ mark_outbound, log_history"]:::out
+
+  SEND --> ORDERS[("orders.db<br/>status update")]:::store
+  SEND --> ACT[("session_actions.jsonl")]:::store
+  SEND --> SENT[("sent_proposals.json")]:::store
+
+  REVIEW -.->|"low confidence"| BOT["bot-commander<br/>approval buttons in TG"]:::agent
+  BOT -->|"user clicks send"| SEND
+  BOT -->|"user rejects"| DROP
+    </div>
+  </section>
+
+  <section class="mindmap-card">
+    <h2>3. AI calls map — кто какой purpose дёргает</h2>
+    <p class="diagram-note">Все AI-вызовы → claude_cli.call_opus* (CLI первый слой). API fallback только при CLI failure (per memory feedback_cli_first_api_fallback).</p>
+    <div class="mermaid">
+flowchart LR
+  classDef agent fill:#2d2a4a,stroke:#bc8cff,color:#e6edf3
+  classDef ai fill:#3d2f1a,stroke:#f0883e,color:#e6edf3
+  classDef cli fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
+
+  CLI["claude_cli.call_opus*<br/>CLI first → API fallback"]:::cli
+
+  MON["tg-monitor"]:::agent --> P1["classify_batch"]:::ai
+  WALK["browser-walk"]:::agent --> P1
+  VKMON["vk-monitor"]:::agent --> P1
+  P1 -.fallback.-> P2["classify per-post"]:::ai
+
+  TGRESP["tg-responder"]:::agent --> P3["convo_analysis_tg"]:::ai
+  TGRESP --> P4["generate_response"]:::ai
+  TGRESP --> P5["presend_review"]:::ai
+  VKRESP["vk-responder"]:::agent --> P3
+  VKRESP --> P4
+  VKRESP --> P5
+
+  AAA["attention_auto_action"]:::agent --> P5
+  AAA --> P6["inbound_lead_classify"]:::ai
+
+  FAH["funnel_autoheal"]:::agent --> P7["funnel_sync"]:::ai
+  FAH --> P8["refusal_classify"]:::ai
+
+  STRAT["senior_strategist"]:::agent --> P9["senior_strategist_audit"]:::ai
+  STRAT --> P10["senior_strategist_rewrite"]:::ai
+
+  P1 --> CLI
+  P2 --> CLI
+  P3 --> CLI
+  P4 --> CLI
+  P5 --> CLI
+  P6 --> CLI
+  P7 --> CLI
+  P8 --> CLI
+  P9 --> CLI
+  P10 --> CLI
+    </div>
+  </section>
+
+  <section class="mindmap-card">
+    <h2>4. Reconciliation & watchdog — что проверяет систему</h2>
+    <p class="diagram-note">Каждые сутки система сама себя аудит: monitor vs walk vs orders.db, статусы по deadlines, упавшие агенты.</p>
+    <div class="mermaid">
+flowchart TD
+  classDef agent fill:#2d2a4a,stroke:#bc8cff,color:#e6edf3
+  classDef store fill:#2a2a2a,stroke:#8b949e,color:#e6edf3
+  classDef alert fill:#3a1f1f,stroke:#f85149,color:#e6edf3
+
+  ORDERS[("orders.db SSoT")]:::store
+  ACT[("session_actions.jsonl")]:::store
+  WALK_R[("browser_walk_result.json")]:::store
+  PLISTS[("launchd plists")]:::store
+
+  MORNING["morning-reconciliation<br/>02:03 local = 05:03 MSK<br/>diff monitor vs walk for 24h"]:::agent
+  WALK_REC["monitor-walk-reconcile<br/>hourly<br/>DB vs walk output"]:::agent
+  AUTOHEAL["funnel_autoheal<br/>02:15 = 05:15 MSK<br/>stale Написал/Переговоры → Follow-up<br/>refusal → archived<br/>paid+event passed → Концерт"]:::agent
+  REPORT["daily-report<br/>23:00 local = 05:00 MSK<br/>business summary to TG bot"]:::agent
+  WATCHDOG["agent-watchdog<br/>every 30min<br/>restart fallen agents"]:::agent
+  SPAMBOT["tg-spambot-check<br/>every 3h<br/>@SpamBot health"]:::agent
+
+  ORDERS --> MORNING
+  WALK_R --> MORNING
+  ORDERS --> WALK_REC
+  WALK_R --> WALK_REC
+  ORDERS --> AUTOHEAL
+  ORDERS --> REPORT
+  ACT --> REPORT
+  PLISTS --> WATCHDOG
+
+  MORNING -->|"missed ≥ 1"| ALERT["TG alert to operator"]:::alert
+  WATCHDOG -->|"agent down"| ALERT
+  SPAMBOT -->|"banned"| ALERT
+  AUTOHEAL --> ORDERS
+    </div>
+  </section>
+
+  <section class="mindmap-card">
+    <h2>5. Дашборд — backend → public page</h2>
+    <p class="diagram-note">Flask на 127.0.0.1:8878 экспонится через Cloudflare tunnel, статичный HTML на gh-pages читает через cached fetch.</p>
+    <div class="mermaid">
+flowchart LR
+  classDef store fill:#2a2a2a,stroke:#8b949e,color:#e6edf3
+  classDef agent fill:#2d2a4a,stroke:#bc8cff,color:#e6edf3
+  classDef chan fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
+
+  ORDERS[("orders.db")]:::store
+  ACT[("session_actions.jsonl")]:::store
+  USAGE[("ai_usage.json")]:::store
+  WALK_R[("browser_walk_result.json")]:::store
+
+  ORDERS --> BACKEND["dashboard_backend.py<br/>Flask :8878<br/>30s cache"]:::agent
+  ACT --> BACKEND
+  USAGE --> BACKEND
+  WALK_R --> BACKEND
+
+  BACKEND --> EP1["/api/dashboard_data"]:::agent
+  BACKEND --> EP2["/api/db/snapshot"]:::agent
+  BACKEND --> EP3["/api/ai_usage_breakdown"]:::agent
+  BACKEND --> EP4["/api/dm_direct_funnel"]:::agent
+
+  TUNNEL["Cloudflare tunnel<br/>tagged-shadow-permission-agents"]:::chan
+  EP1 --> TUNNEL
+  EP2 --> TUNNEL
+  EP3 --> TUNNEL
+  EP4 --> TUNNEL
+
+  TUNNEL --> PAGES["GitHub Pages<br/>tabuugroove-sys.github.io/lcband-dashboard"]:::chan
+  PAGES --> PAGE1["index.html — operator dashboard"]:::chan
+  PAGES --> PAGE2["architecture.html — этa страница"]:::chan
+  PAGES --> PAGE3["dm-direct-funnel.html"]:::chan
+    </div>
+  </section>
+  </div>
 
   <aside class="side-panel">
     <div class="panel-card">
