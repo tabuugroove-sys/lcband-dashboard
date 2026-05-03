@@ -2776,6 +2776,88 @@ function ScanStatus({ scan }) {
   );
 }
 
+function RestartAllButton() {
+  const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+  const [busy, setBusy] = React.useState(false);
+  const [result, setResult] = React.useState(null);  // {ok, failed, total} | null
+
+  async function getOrPromptToken() {
+    let t = localStorage.getItem('lcband_admin_token') || '';
+    if (!t) {
+      t = (window.prompt('Admin token (из ~/lcband/.env DASHBOARD_ADMIN_TOKEN):') || '').trim();
+      if (!t) return null;
+      localStorage.setItem('lcband_admin_token', t);
+    }
+    return t;
+  }
+
+  async function onClick() {
+    if (busy) return;
+    if (!window.confirm('Перезапустить все launchd-агенты? (kickstart -k для каждого)\n\nDashboard-backend исключён из списка.')) return;
+    const token = await getOrPromptToken();
+    if (!token) return;
+    setBusy(true);
+    setResult(null);
+    try {
+      const r = await fetch(`${backendUrl}/api/restart_agents`, {
+        method:  'POST',
+        headers: {'Content-Type':'application/json', 'X-Admin-Token': token},
+        body:    JSON.stringify({}),
+      });
+      const j = await r.json();
+      if (r.status === 403) {
+        localStorage.removeItem('lcband_admin_token');
+        alert('Неверный токен — удалён из localStorage. Попробуй ещё раз.');
+        setResult(null);
+      } else if (r.status === 503) {
+        alert(`Endpoint disabled: ${j.error}`);
+        setResult(null);
+      } else if (!r.ok) {
+        alert(`Ошибка: ${j.error || r.status}`);
+        setResult(null);
+      } else {
+        setResult({ok: j.ok, failed: j.failed, total: j.total, results: j.results});
+        // Auto-clear result после 15s
+        setTimeout(() => setResult(null), 15000);
+      }
+    } catch (e) {
+      alert('Network error: ' + String(e).slice(0, 200));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span style={{display:'inline-flex', alignItems:'center', gap:6}}>
+      <button
+        onClick={onClick}
+        disabled={busy}
+        title="Перезапустить все launchd-агенты"
+        style={{
+          fontSize:11, padding:'3px 8px', borderRadius:4,
+          border:'1px solid #555', background: busy ? '#2a2a2a' : '#3b2a3a',
+          color: busy ? '#888' : '#fbb', cursor: busy ? 'wait' : 'pointer',
+          fontWeight:500,
+        }}
+      >{busy ? '⏳ перезапуск…' : '🔄 рестарт всех'}</button>
+      {result && (
+        <span
+          title={result.results?.filter(x => !x.ok).map(x => `${x.label}: ${x.msg}`).join('\n') || 'все ok'}
+          style={{
+            fontSize:11, padding:'3px 8px', borderRadius:4, fontWeight:500,
+            background: result.failed ? 'rgba(251,146,60,0.15)' : 'rgba(52,211,153,0.15)',
+            color:    result.failed ? '#fb923c' : '#34d399',
+            border: `1px solid ${result.failed ? '#fb923c44' : '#34d39944'}`,
+            cursor: result.failed ? 'help' : 'default',
+          }}
+        >
+          {result.failed ? `⚠ ${result.ok}/${result.total} ok, ${result.failed} fail` : `✓ ${result.ok}/${result.total} ok`}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function StatusSection({ status, activity24h, onProcessClick }) {
   const [bwExpanded, setBwExpanded] = React.useState(false);
   const [bwFeed, setBwFeed] = React.useState(null);
@@ -2875,6 +2957,7 @@ function StatusSection({ status, activity24h, onProcessClick }) {
     <div className="section" style={{ marginTop: 14 }}>
       <div className="section-title" style={{display:'flex', alignItems:'center', gap:10}}>
         Статус процессов
+        <RestartAllButton />
         {act._ai_calls_24h?.count > 0 && (
           <span style={{
             marginLeft:'auto', fontSize:11, color:'var(--muted)', fontWeight:500,
