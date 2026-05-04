@@ -781,6 +781,28 @@ sequenceDiagram
     Object.entries(PURPOSE_MAP).map(([k, v]) => [v, k])
   );
 
+  // Какая цепочка fallback'ов используется для каждого purpose.
+  // tier — порядок попытки, label — человекочитаемое имя, services — какие
+  // сервисы из ai_usage.json в эту ступень попадают (для подсчёта calls),
+  // free — бесплатно ли (через подписку) или платно (через API).
+  const DEFAULT_CHAIN = [
+    { tier: 1, label: 'Claude CLI', detail: 'через Max-подписку, $0 за токен',
+      services: ['cli_opus', 'cli_sonnet', 'cli_haiku', 'cli_claude'], free: true },
+    { tier: 2, label: 'API fallback', detail: 'если CLI упал (auth/timeout/JSON err) — переключаемся на API. Платно.',
+      services: ['api_opus', 'api_sonnet', 'api_haiku'], free: false },
+  ];
+  const FALLBACK_CHAINS = {
+    // 3-tier — уникальный для DM-direct funnel (per CLAUDE.md GEMINI_CLI_MODEL)
+    tg_direct_inbound_classify: [
+      { tier: 1, label: 'Gemini CLI', detail: 'Google Code Assist OAuth, $0. Лёгкая модель gemini-2.5-flash-lite, быстро. Если упал → ↓',
+        services: ['cli_gemini'], free: true },
+      { tier: 2, label: 'Claude CLI Sonnet', detail: 'Узкая обёртка _call_claude_cli_only, $0 (Max). БЕЗ внутреннего API fallback. Если упал → ↓',
+        services: ['cli_claude'], free: true },
+      { tier: 3, label: 'API Haiku', detail: 'Только если Layer 1+2 упали И есть бюджет (API_FALLBACK_BUDGET_USD) И ALLOW_API_FALLBACK=1. Платно.',
+        services: ['api_haiku', 'api_sonnet', 'api_opus', 'cli_opus', 'cli_sonnet'], free: false },
+    ],
+  };
+
   // Human description of each AI purpose: role in the pipeline, what it does,
   // and why it matters. Used by both directions of the click flow (node→panel
   // and table→panel).
@@ -1020,36 +1042,64 @@ sequenceDiagram
     const layers = (window.__purposeLayers || {})[name] || {};
     const breakdown = (window.__purposeBreakdown || {})[name] || {};
 
-    // Build CLI-vs-API summary (sorted by calls desc)
-    const total = (layers.cliCalls || 0) + (layers.apiCalls || 0);
-    const pct = n => total > 0 ? Math.round(n / total * 100) : 0;
-    let layerHtml = '';
-    if (total > 0) {
-      const rows = [];
-      if (layers.cliCalls > 0) {
-        rows.push(`<tr><td><span style="color:var(--green)">●</span> CLI · ${layers.cliModel}</td><td style="text-align:right">${fmtN(layers.cliCalls)}</td><td style="text-align:right;color:var(--muted)">${pct(layers.cliCalls)}%</td></tr>`);
+    // Render fallback-chain — для каждого tier'а сколько calls туда попало.
+    // Если в data есть служба которая не вписана в chain — добавляем её
+    // отдельной "прочей" строкой, чтобы не потерять.
+    const chain = FALLBACK_CHAINS[name] || DEFAULT_CHAIN;
+    const used = new Set();
+    const tierRows = chain.map(layer => {
+      let tierCalls = 0;
+      const services = [];
+      for (const svc of layer.services) {
+        const c = breakdown[svc] || 0;
+        if (c > 0) {
+          tierCalls += c;
+          services.push(`${svc}: ${fmtN(c)}`);
+          used.add(svc);
+        }
       }
-      if (layers.apiCalls > 0) {
-        rows.push(`<tr><td><span style="color:var(--orange)">●</span> API fallback · ${layers.apiModel}</td><td style="text-align:right">${fmtN(layers.apiCalls)}</td><td style="text-align:right;color:var(--muted)">${pct(layers.apiCalls)}%</td></tr>`);
-      }
-      const warn = layers.apiCalls > 0
-        ? `<div style="margin-top:6px;padding:6px;background:rgba(240,136,62,0.1);border-left:2px solid var(--orange);border-radius:4px;font-size:11px"><b>⚠ ${fmtN(layers.apiCalls)} fallback на API.</b> CLI упал на этих вызовах (auth/timeout/JSON err) → ушли через платный API. Чинить root cause: смотри claude_cli.py logs.</div>`
+      const fired = tierCalls > 0;
+      const dotColor = fired ? (layer.free ? 'var(--green)' : 'var(--orange)') : 'var(--muted)';
+      const numColor = fired ? (layer.free ? 'var(--green)' : 'var(--orange)') : 'var(--muted)';
+      const tierName = fired ? '' : ' <span style="color:var(--muted);font-size:10px">не использовался</span>';
+      const subline = services.length
+        ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:monospace">${services.join(' · ')}</div>`
         : '';
-      layerHtml = `
-        <div style="margin:10px 0 6px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">CLI vs API (7д)</div>
-        <table style="width:100%;font-size:12px;border-collapse:collapse">${rows.join('')}</table>
-        ${warn}
+      return `
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:18px;line-height:1;color:${dotColor};flex-shrink:0">${layer.tier}.</div>
+          <div style="flex:1">
+            <div><b>${layer.label}</b>${tierName}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${layer.detail}</div>
+            ${subline}
+          </div>
+          <div style="font-size:14px;font-weight:700;color:${numColor};flex-shrink:0">${fmtN(tierCalls)}</div>
+        </div>
       `;
-    }
+    }).join('');
 
-    // Detailed per-service breakdown (all services that fired this purpose)
-    const svcRows = Object.entries(breakdown)
-      .sort(([, a], [, b]) => b - a)
-      .map(([svc, c]) => `<tr><td style="padding:2px 0;color:var(--muted);font-family:monospace;font-size:11px">${svc}</td><td style="text-align:right;font-size:11px">${fmtN(c)}</td></tr>`)
-      .join('');
-    const svcHtml = svcRows
-      ? `<div style="margin-top:10px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">By service (raw)</div><table style="width:100%;border-collapse:collapse">${svcRows}</table>`
+    // Сервисы которые есть в данных, но не вписаны ни в один tier — показать
+    // отдельной строкой («прочее»), чтобы не врать про total.
+    const otherServices = Object.entries(breakdown).filter(([svc]) => !used.has(svc));
+    const otherHtml = otherServices.length
+      ? `<div style="padding:8px 0;color:var(--muted);font-size:11px"><b>Прочее (не описано в цепочке):</b> ${
+          otherServices.map(([s, c]) => `${s} ${fmtN(c)}`).join(', ')
+        }</div>`
       : '';
+
+    const apiCallsTotal = Object.entries(breakdown)
+      .filter(([s]) => s.startsWith('api_'))
+      .reduce((sum, [, c]) => sum + c, 0);
+    const warn = apiCallsTotal > 0
+      ? `<div style="margin-top:8px;padding:8px;background:rgba(240,136,62,0.1);border-left:2px solid var(--orange);border-radius:4px;font-size:11px"><b>⚠ ${fmtN(apiCallsTotal)} вызовов протекли до платного API.</b> Это значит верхние слои (CLI) упали — auth, timeout или невалидный JSON. Чинить корень: <code>tail /tmp/*.log</code> + смотри memory <code>feedback_claude_cli_oauth_fix</code>.</div>`
+      : '';
+
+    const chainHtml = `
+      <div style="margin:14px 0 4px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Цепочка вызовов (7д) — что пробуется по порядку</div>
+      <div style="border:1px solid var(--border);border-radius:6px;padding:0 10px">${tierRows}</div>
+      ${otherHtml}
+      ${warn}
+    `;
 
     document.getElementById('purpose-info').innerHTML = `
       <h3 style="margin:0 0 8px;color:var(--purple)">${name}</h3>
@@ -1058,8 +1108,7 @@ sequenceDiagram
       <div style="margin-bottom:8px"><b>Что делает:</b> ${info.what}</div>
       <div style="margin-bottom:8px"><b>Зачем:</b> ${info.why}</div>
       <div style="color:var(--muted);font-size:11px"><b>Где:</b> ${info.where}</div>
-      ${layerHtml}
-      ${svcHtml}
+      ${chainHtml}
     `;
     openPopoverNear(anchorEl);
   }
