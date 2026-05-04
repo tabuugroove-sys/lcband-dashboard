@@ -100,7 +100,10 @@
   .mindmap-card h2 { margin: 0 0 8px; font-size: 14px; color: var(--text); font-weight: 600; }
   .mindmap-card .diagram-note { color: var(--muted); font-size: 12px; margin: 0 0 16px; max-width: 800px; }
   .mindmap-card .mermaid { display: flex; justify-content: center; }
-  .mindmap-card .mermaid svg { background: transparent; max-width: 100%; height: auto; }
+  .mindmap-card .mermaid svg { background: transparent; max-width: 100%; height: auto; overflow: visible; }
+  /* Usage badge — Binance-style notification pill on AI nodes */
+  .usage-label rect { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4)); }
+  .usage-label text { font-family: -apple-system, system-ui, sans-serif; }
   .diagrams-col { display: flex; flex-direction: column; min-width: 0; }
 
   .side-panel { display: flex; flex-direction: column; gap: 16px; }
@@ -707,6 +710,27 @@ sequenceDiagram
     window.__purposeTodayCalls = purposeTodayCalls;
     window.__purposeYestCalls  = purposeYestCalls;
 
+    // Pick dominant model per purpose over the 7-day window (most-used service).
+    const purposeServiceCalls = {};  // p → {svc → calls}
+    for (const day of dayList) {
+      for (const [svc, svcData] of Object.entries(day.services || {})) {
+        for (const [p, c] of Object.entries(svcData.by_purpose || {})) {
+          if (!purposeServiceCalls[p]) purposeServiceCalls[p] = {};
+          purposeServiceCalls[p][svc] = (purposeServiceCalls[p][svc] || 0) + (c || 0);
+        }
+      }
+    }
+    const purposeModel = {};
+    for (const [p, svcs] of Object.entries(purposeServiceCalls)) {
+      let bestSvc = '', bestCalls = -1;
+      for (const [s, c] of Object.entries(svcs)) {
+        if (c > bestCalls) { bestSvc = s; bestCalls = c; }
+      }
+      // Strip cli_ / api_ prefix: cli_opus → opus, api_haiku → haiku
+      purposeModel[p] = bestSvc.replace(/^(cli|api)_/, '');
+    }
+    window.__purposeModel = purposeModel;
+
     applyHeatAndClicks(byPurpose);
   }
 
@@ -1091,29 +1115,69 @@ sequenceDiagram
           node.appendChild(titleEl);
         }
 
-        // Usage badge: floating SVG text right of the node, colored by today
-        // vs yesterday delta. Only shown when calls/7d ≥ threshold so the
-        // diagram stays readable (don't tag every tiny purpose).
+        // Usage badge — Binance-style pill in top-right corner of the node.
+        // Rounded background + colored stroke + bold text. Half overlaps the
+        // node edge like a notification badge so it never collides with the
+        // node label inside.
         if (calls >= USAGE_LABEL_THRESHOLD) {
           const todayC = purposeTodayCalls[purposeName] || 0;
           const yestC  = purposeYestCalls[purposeName]  || 0;
           const delta  = todayC - yestC;
-          let arrow = '·', color = '#8b949e';
-          if (delta > 0) { arrow = '▲'; color = '#3fb950'; }
-          else if (delta < 0) { arrow = '▼'; color = '#f85149'; }
+          let arrow = '·';
+          let bg = 'rgba(139,148,158,0.20)', stroke = 'rgba(139,148,158,0.55)', color = '#c9d1d9';
+          if (delta > 0) {
+            arrow = '▲';
+            bg = 'rgba(63,185,80,0.20)'; stroke = 'rgba(63,185,80,0.65)'; color = '#3fb950';
+          } else if (delta < 0) {
+            arrow = '▼';
+            bg = 'rgba(248,81,73,0.18)'; stroke = 'rgba(248,81,73,0.65)'; color = '#f85149';
+          }
           try {
             const bb = node.getBBox();
             const ns = 'http://www.w3.org/2000/svg';
+            const model = (window.__purposeModel || {})[purposeName] || '';
+            const labelText = model
+              ? `${model} · ${fmtN(calls)} ${arrow}`
+              : `${fmtN(calls)} ${arrow}`;
+            const fontSize = 10;
+            const padX = 8, padY = 3;
+            const textApproxW = labelText.length * 5.6;
+            const badgeW = Math.max(36, textApproxW + padX * 2);
+            const badgeH = fontSize + padY * 2;
+
+            // Top-right corner — pill half-outside the node so it doesn't
+            // overlap the label inside the rect.
+            const bx = bb.x + bb.width - badgeW * 0.55;
+            const by = bb.y - badgeH * 0.55;
+
+            const g = document.createElementNS(ns, 'g');
+            g.setAttribute('class', 'usage-label');
+            g.setAttribute('pointer-events', 'none');
+
+            const rect = document.createElementNS(ns, 'rect');
+            rect.setAttribute('x', bx);
+            rect.setAttribute('y', by);
+            rect.setAttribute('width', badgeW);
+            rect.setAttribute('height', badgeH);
+            rect.setAttribute('rx', badgeH / 2);
+            rect.setAttribute('ry', badgeH / 2);
+            rect.setAttribute('fill', bg);
+            rect.setAttribute('stroke', stroke);
+            rect.setAttribute('stroke-width', '1');
+
             const txt = document.createElementNS(ns, 'text');
-            txt.setAttribute('x', bb.x + bb.width + 6);
-            txt.setAttribute('y', bb.y + bb.height / 2 + 4);
+            txt.setAttribute('x', bx + badgeW / 2);
+            txt.setAttribute('y', by + badgeH / 2);
             txt.setAttribute('fill', color);
-            txt.setAttribute('font-size', '11');
+            txt.setAttribute('font-size', fontSize);
             txt.setAttribute('font-weight', '700');
-            txt.setAttribute('class', 'usage-label');
-            txt.setAttribute('pointer-events', 'none');
-            txt.textContent = `${fmtN(calls)} ${arrow}`;
-            node.appendChild(txt);
+            txt.setAttribute('text-anchor', 'middle');
+            txt.setAttribute('dominant-baseline', 'central');
+            txt.textContent = labelText;
+
+            g.appendChild(rect);
+            g.appendChild(txt);
+            node.appendChild(g);
           } catch (_) { /* getBBox can throw on detached nodes */ }
         }
       }
