@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LCB — Pricing Matrix</title>
+  <style>
+    :root {
+      --bg:       #0a0a12;
+      --card:     #13131f;
+      --border:   #23233a;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --gold:     #f5c518;
+      --green:    #3fb950;
+      --red:      #f87171;
+      --blue:     #58a6ff;
+      --purple:   #bc8cff;
+      --orange:   #f0883e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text);
+      font: 14px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 24px;
+    }
+    .app { max-width: 1200px; margin: 0 auto; }
+    nav.topnav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+    nav.topnav a {
+      padding: 7px 11px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      text-decoration: none; border: 1px solid; white-space: nowrap;
+    }
+    nav.topnav .home   { background: rgba(245,197,24,0.12); color: var(--gold);   border-color: rgba(245,197,24,0.35); }
+    nav.topnav .events { background: rgba(63,185,80,0.12);  color: var(--green);  border-color: rgba(63,185,80,0.35); }
+    nav.topnav .arch   { background: rgba(188,140,255,0.12); color: var(--purple); border-color: rgba(188,140,255,0.35); }
+    nav.topnav .funnel { background: rgba(245,197,24,0.12); color: var(--gold);   border-color: rgba(245,197,24,0.35); }
+
+    h1 { font-size: 28px; color: var(--gold); margin-bottom: 4px; }
+    .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+    h2 { font-size: 19px; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+    h2.up    { color: var(--green); }
+    h2.down  { color: var(--orange); }
+    h2.skip  { color: var(--red); }
+    h2.bl    { color: var(--blue); }
+    h2.misc  { color: var(--purple); }
+
+    table {
+      width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden;
+      margin-bottom: 6px;
+    }
+    th, td {
+      padding: 10px 12px; text-align: left; vertical-align: top;
+      border-bottom: 1px solid var(--border); font-size: 13px;
+    }
+    th { background: rgba(255,255,255,0.04); font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    tr:last-child td { border-bottom: 0; }
+    td.signal { font-weight: 600; }
+    td.action { color: var(--green); }
+    td.example { color: var(--muted); font-size: 12px; }
+    .price { font-weight: 700; color: var(--gold); }
+    .badge {
+      display: inline-block; padding: 2px 7px; border-radius: 10px;
+      font-size: 11px; font-weight: 700; margin-right: 4px;
+    }
+    .badge.up   { background: rgba(63,185,80,0.18);  color: var(--green); }
+    .badge.down { background: rgba(240,136,62,0.18); color: var(--orange); }
+    .badge.skip { background: rgba(248,113,113,0.2); color: var(--red); }
+    .badge.bl   { background: rgba(88,166,255,0.18); color: var(--blue); }
+
+    .base-card {
+      background: linear-gradient(135deg, rgba(245,197,24,0.08), rgba(245,197,24,0.02));
+      border: 1px solid rgba(245,197,24,0.3); border-radius: 10px; padding: 16px 20px; margin-bottom: 18px;
+    }
+    .base-card h3 { color: var(--gold); margin-bottom: 10px; font-size: 16px; }
+    .base-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+    .base-cell { padding: 10px; background: rgba(0,0,0,0.25); border-radius: 6px; }
+    .base-cell .roles { font-size: 12px; color: var(--muted); }
+    .base-cell .nal { font-size: 18px; font-weight: 700; color: var(--gold); margin: 4px 0; }
+    .base-cell .bn  { font-size: 12px; color: var(--blue); }
+
+    .note {
+      background: rgba(188,140,255,0.08); border-left: 3px solid var(--purple);
+      padding: 12px 14px; border-radius: 6px; margin: 16px 0; font-size: 13px;
+    }
+    .note b { color: var(--purple); }
+    code { background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 3px; font-size: 12px; }
+    a.memref { color: var(--blue); text-decoration: none; font-size: 12px; }
+    a.memref:hover { text-decoration: underline; }
+    .anchor { padding-top: 12px; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <nav class="topnav">
+    <a class="home"   href="./index.html">← Дашборд</a>
+    <a class="events" href="./events.html">📋 Events</a>
+    <a class="arch"   href="./architecture.html">🧠 Архитектура</a>
+    <a class="funnel" href="./dm-direct-funnel.html">📨 DM funnel</a>
+  </nav>
+
+  <h1>💰 LCB Pricing Matrix</h1>
+  <div class="subtitle">Чек-лист корректировки цены под сигналы клиента · embed в <code>_PRESEND_SYSTEM</code> · memory <a class="memref" href="https://github.com/tabuugroove-sys/lcband-dashboard">feedback_pricing_signals</a></div>
+
+  <div class="base-card">
+    <h3>База: Москва, корпоратив 100-200 гостей, 2 × 45 мин</h3>
+    <div class="base-grid">
+      <div class="base-cell">
+        <div class="roles">4 чел</div>
+        <div class="nal">130 000 ₽</div>
+        <div class="bn">БН 150к</div>
+      </div>
+      <div class="base-cell">
+        <div class="roles">5 чел</div>
+        <div class="nal">160 000 ₽</div>
+        <div class="bn">БН 190к</div>
+      </div>
+      <div class="base-cell">
+        <div class="roles">6 чел</div>
+        <div class="nal">190-240 000 ₽</div>
+        <div class="bn">БН 220-280к</div>
+      </div>
+      <div class="base-cell">
+        <div class="roles">7 чел</div>
+        <div class="nal">270 000 ₽</div>
+        <div class="bn">БН 320к</div>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="up">🟢 Корректировки UP (выше base)</h2>
+  <table>
+    <thead><tr><th>Сигнал в запросе</th><th>Корректировка</th><th>Пример (4 чел)</th></tr></thead>
+    <tbody>
+      <tr><td class="signal">Премиум-бренд (банк / нефть / госкорп / IT-гигант / pharma топ-10)</td><td class="action">+30-50%</td><td class="example"><span class="price">170-200к</span> нал</td></tr>
+      <tr><td class="signal">Крупное VIP (300-500+ гостей, закрытое корпоратив)</td><td class="action">+20-30%</td><td class="example"><span class="price">160-180к</span></td></tr>
+      <tr><td class="signal">Закрытое частное (gala директоров, бутик-свадьба)</td><td class="action">+20-30%</td><td class="example">как премиум</td></tr>
+      <tr><td class="signal">Темнокожий вокал на сцене (LAZ / Teddy)</td><td class="action">+20-40к</td><td class="example"><span class="price">150-170к</span> нал</td></tr>
+      <tr><td class="signal">Кубинский состав (Teddy + 8+ латино)</td><td class="action">+50к за секцию</td><td class="example">от <span class="price">200к</span></td></tr>
+      <tr><td class="signal">Агент-посредник / event-агентство</td><td class="action">+10-15%</td><td class="example"><span class="price">150-170к</span> (его маржа внутри)</td></tr>
+      <tr><td class="signal">Bond / тематические костюмы кастом</td><td class="action">+10-20к за кастом</td><td class="example">base + кастом</td></tr>
+      <tr><td class="signal">Выезд за МКАД (1 день)</td><td class="action">× 1.3</td><td class="example"><span class="price">170к</span></td></tr>
+      <tr><td class="signal">БН вместо нала</td><td class="action">÷ 0.85</td><td class="example">130к нал → <span class="price">150к БН</span></td></tr>
+      <tr><td class="signal">Постоплата 50%+ (без 100% предоплаты)</td><td class="action">+5-10% (страховой)</td><td class="example">130к → 140к</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><b>Сумма UP-сигналов</b> не должна превышать +50% к base. Несколько сигналов → берём самый сильный, остальные modifiers ±5%.</div>
+
+  <h2 class="down">🟠 Корректировки DOWN (ниже base или alt-формат)</h2>
+  <table>
+    <thead><tr><th>Сигнал</th><th>Корректировка</th><th>Альтернатива</th></tr></thead>
+    <tbody>
+      <tr><td class="signal">Welcome 30-45 мин (1 сет)</td><td class="action">НОВАЯ шкала (НЕ base)</td><td class="example">сакс-соло <span class="price">30-40к/час</span>, пианист-соло <span class="price">30-40к</span>, дуэт <span class="price">60-90к</span></td></tr>
+      <tr><td class="signal">Малое событие 50-100 гостей city</td><td class="action">base или −10%</td><td class="example">от <span class="price">120к</span></td></tr>
+      <tr><td class="signal">Городской фестиваль / open / реклама</td><td class="action">base или промо-цена</td><td class="example"><span class="price">100-120к</span> (PR-ценность)</td></tr>
+      <tr><td class="signal">Бюджет 80-120к full-band 2 часа</td><td class="action">adapt: квартет без премиум-вокалиста</td><td class="example">себестоимость ~50к, маржа норм</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="skip">🔴 DECLINE — skip без торга</h2>
+  <table>
+    <thead><tr><th>Сигнал</th><th>Reason</th></tr></thead>
+    <tbody>
+      <tr><td class="signal">ТРК / арендатор / резидент (1-2 сета по 20 мин периодически)</td><td class="example">формат не наш, копейки</td></tr>
+      <tr><td class="signal">Бюджет ≤50-70к full-band 2-3 часа</td><td class="example">себестоимость не покрывается</td></tr>
+      <tr><td class="signal">Кастинг в чужой состав / поиск конкретного артиста</td><td class="example">мы не сорсинг</td></tr>
+      <tr><td class="signal">SOLO кроме сакса / пиано / гитары</td><td class="example">скрипка / арфа / флейта / баян / виолончель — decline</td></tr>
+      <tr><td class="signal">Ведущий-пакет без отдельной музыки</td><td class="example">мы не ВДА-сборка</td></tr>
+      <tr><td class="signal">Зарубеж &lt; $3000/чел/мес</td><td class="example">не наш чек</td></tr>
+      <tr><td class="signal">Анимация / фото / видео</td><td class="example">не наш профиль</td></tr>
+      <tr><td class="signal">Конкурент / самопромо музыканта</td><td class="example">не пишем артистам</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="bl">🔌 Бэклайн / звук / звукорежиссёр — отдельный slot</h2>
+  <div class="note">
+    🚨 Бэклайн = <b>отдельная статья</b> от гонорара группы. Перед тем как называть цену клиенту — <b>распознай кто везёт аппарат</b>. Если непонятно — спроси:
+    <code>«Уточню: бэклайн ваш на площадке или нужен наш под ключ?»</code>
+  </div>
+  <table>
+    <thead><tr><th>Сигнал</th><th>Кто везёт</th><th>Наш чек</th></tr></thead>
+    <tbody>
+      <tr><td class="signal">«площадка на эксклюзиве», «свой нельзя», «их бэклайн», «техрайдер от площадки»</td><td class="action">Площадка</td><td class="example"><span class="price">0 ₽</span> (только гонорар, бэклайн вне нашего чека)</td></tr>
+      <tr><td class="signal">«голое помещение», «лофт без аппарата», «нужен ваш звук», «outdoor», «open-air», «парк / эстрада»</td><td class="action">Мы</td><td class="example"><span class="price">+50-80к</span> нал (бэклайн под ключ + звукорежиссёр)</td></tr>
+      <tr><td class="signal">«у нас есть аппарат, нужен только ваш звукорежиссёр»</td><td class="action">Площадка PA, мы — звукорежиссёр</td><td class="example"><span class="price">+15-20к</span> нал</td></tr>
+      <tr><td class="signal">Регион / выезд &gt; 100 км</td><td class="action">мы (стандарт)</td><td class="example"><span class="price">+50-100к</span> + транспорт</td></tr>
+    </tbody>
+  </table>
+  <div class="note">
+    <b>Кейс-эталон: Лофт Холл #2 (Катя 28.04)</b> — «они на эксклюзиве, ваш не пускают» → играем на их аппарате, бэклайн = 0 в нашем чеке, гонорар 200к БН чистый.
+    <br><br>
+    <b>Без распознавания этого сигнала — двойная ошибка:</b>
+    <br>• Сказали 200к + 50к бэклайн на эксклюзивную площадку → клиент платит за то что не нужно, мы дорогие.
+    <br>• Сказали 200к без бэклайна на outdoor → 50к недополучили.
+  </div>
+
+  <h2 class="misc">🧾 Прочие расходы (НЕ путать с гонораром)</h2>
+  <table>
+    <thead><tr><th>Статья</th><th>Кто платит</th><th>Сумма</th></tr></thead>
+    <tbody>
+      <tr><td class="signal">Такси команды (позднее окончание / МО / тяжёлый кейс)</td><td class="action">Михаил из своей маржи</td><td class="example">~5-15к нал</td></tr>
+      <tr><td class="signal">Такси при выезде &gt; МКАД (1 день)</td><td class="action">Клиент по техрайдеру</td><td class="example">~10-20к / транспорт от клиента</td></tr>
+      <tr><td class="signal">Питание команды</td><td class="action">Клиент по техрайдеру (стандарт)</td><td class="example">договорное</td></tr>
+      <tr><td class="signal">Костюмы стандарт</td><td class="action">Михаил</td><td class="example">0 (есть в гардеробе)</td></tr>
+      <tr><td class="signal">Костюмы кастом (Bond / ретро 80е / корпоративные цвета)</td><td class="action">Клиент</td><td class="example"><span class="price">+10-20к</span> в гонорар</td></tr>
+      <tr><td class="signal">Минуса / iPad подложка</td><td class="action">Михаил/Ирина</td><td class="example">0 (стандартный сервис)</td></tr>
+      <tr><td class="signal">Гонорар Ирины за подбор минусов</td><td class="action">Михаил, отдельной строкой</td><td class="example">договорное</td></tr>
+      <tr><td class="signal">Реквизит / атрибуты / гримёр</td><td class="action">Клиент или event-агентство</td><td class="example">не наш chain</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="bl">📐 Логика применения (порядок проверок)</h2>
+  <div class="note">
+    <b>1.</b> DECLINE-сигнал есть? → <span class="badge skip">skip</span><br>
+    <b>2.</b> Welcome / solo / duet формат? → новая шкала (НЕ base ×N)<br>
+    <b>3.</b> Зарубеж? → $3000/чел/мес матрица отдельно<br>
+    <b>4.</b> UP-сигнал? → base × multiplier (макс. суммарный +50%)<br>
+    <b>5.</b> DOWN-сигнал? → base или −10%<br>
+    <b>6.</b> Бэклайн — отдельный slot, спросить если неясно<br>
+    <b>7.</b> По умолчанию → base из шкалы 4-7 чел
+  </div>
+
+  <h2 class="bl">📌 Эталонные кейсы</h2>
+  <table>
+    <thead><tr><th>Лид</th><th>Сигналы</th><th>Цена</th></tr></thead>
+    <tbody>
+      <tr><td class="signal">Лофт Холл #2 / ООО УАН ОНЛИ / 500 гостей риелторы 14.05</td><td class="example">бренд/корп +30%, 500 гостей +20%, агент +10%, бэклайн их</td><td><span class="price">200к БН гонорар + 0 бэклайн</span> ✅</td></tr>
+      <tr><td class="signal">Свадьба 70 чел Москва коттедж</td><td class="example">base</td><td><span class="price">130-150к нал</span></td></tr>
+      <tr><td class="signal">Сбер 300 гостей Q&A + welcome 30 мин</td><td class="example">банк +50%, welcome — отдельно</td><td><span class="price">180-200к</span> или сакс-соло 30-40к</td></tr>
+      <tr><td class="signal">Тимбилдинг IT 200 чел летний кэмп outdoor</td><td class="example">премиум-бренд +30%, outdoor бэклайн наш</td><td><span class="price">170-180к + 50к бэклайн</span></td></tr>
+      <tr><td class="signal">TRK Москва резидентура 4×месяц по 1 сет 30 мин</td><td class="example">TRK = decline</td><td><span class="badge skip">skip</span></td></tr>
+      <tr><td class="signal">Корпоратив 80 чел частная компания закрытый офис</td><td class="example">base</td><td><span class="price">130-150к</span></td></tr>
+      <tr><td class="signal">Латино-вечеринка 200 чел кубинская тема</td><td class="example">кубинская секция +50к</td><td><span class="price">180-200к</span> для 4 чел Teddy</td></tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top: 32px; padding: 14px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 12px; color: var(--muted);">
+    <b style="color: var(--text);">Источники</b> · правила применяются в <code>_PRESEND_SYSTEM</code> промпте AI pre-send review (telegram_monitor.py).<br>
+    Memory: <code>feedback_pricing_signals</code> · <code>feedback_outreach_templates</code> · <code>feedback_outreach_tour_pricing</code> · <code>feedback_budget_reasoning</code> · <code>feedback_solo_only_3_instruments</code> · <code>feedback_no_price_hedge</code><br>
+    Skill: <code>lcb-client-correspondence</code> · <code>lcb-band-roster</code>
+  </div>
+</div>
+</body>
+</html>
