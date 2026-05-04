@@ -452,6 +452,69 @@
     }
   }
 
+  async function autoEnrich() {
+    if (!CURRENT_EVENT) return;
+    setSaveState('enriching… (AI читает переписку)', 'var(--orange)');
+    try {
+      const r = await api(`/events/${CURRENT_EVENT.id}/auto_enrich`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({}),
+      });
+      if (r.event) { CURRENT_EVENT = r.event; renderDetail(); loadEventList(); }
+      const w = window.open('', '_blank');
+      const filledHtml = (r.filled || []).map(f => `<li>${escapeHtml(f)}</li>`).join('');
+      const missingHtml = (r.still_missing || []).map(m => `<li>${escapeHtml(m)}</li>`).join('');
+      const sourcesHtml = (r.sources_used || []).map(s => `<li>${escapeHtml(s)}</li>`).join('');
+      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Auto-enrich</title>
+        <style>body{font:14px/1.5 system-ui;background:#0d1117;color:#e6edf3;padding:24px;max-width:760px;margin:0 auto}
+        h2{color:#bc8cff} h3{color:#58a6ff;margin-top:20px}
+        .ok h3{color:#3fb950} .miss h3{color:#f0883e}
+        ul{padding-left:20px;line-height:1.7}
+        .miss li{color:#f0883e}
+        .ok li{color:#3fb950}
+        </style></head><body>
+        <h2>🪄 Auto-enrich для ${escapeHtml(CURRENT_EVENT.title)}</h2>
+        <h3>Источники</h3><ul>${sourcesHtml || '<li style="color:#8b949e">— ни одного — попробуй сначала «Импорт лида»</li>'}</ul>
+        <div class="ok"><h3>✅ Заполнено (${r.filled?.length || 0})</h3><ul>${filledHtml || '<li style="color:#8b949e">ничего нового</li>'}</ul></div>
+        <div class="miss"><h3>⚠️ Осталось спросить у клиента (${r.still_missing?.length || 0})</h3><ul>${missingHtml || '<li style="color:#8b949e">всё заполнено!</li>'}</ul></div>
+        </body></html>`);
+      setSaveState('enrich done', 'var(--green)');
+      toast(`Заполнено ${r.filled?.length || 0}, осталось спросить ${r.still_missing?.length || 0}`);
+    } catch (e) {
+      toast('Ошибка: ' + e.message, 'error');
+      setSaveState('enrich err: ' + e.message, 'var(--red)');
+    }
+  }
+
+  async function postToBandChat() {
+    if (!CURRENT_EVENT) return;
+    if (!CURRENT_EVENT.tg_chat_id) {
+      const cid = prompt('TG chat_id band-чата (отрицательное число для группы, например -123456789):');
+      if (!cid) return;
+      CURRENT_EVENT.tg_chat_id = parseInt(cid);
+      scheduleSave();
+      // Wait for save to flush, then continue
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    const text = prompt('Текст для отправки в band-чат (пройдёт через approval bot):');
+    if (!text || !text.trim()) return;
+    try {
+      const r = await api(`/events/${CURRENT_EVENT.id}/post_to_band_chat`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: text.trim(), source: 'manual'}),
+      });
+      if (r.ok) {
+        toast(r.duplicate ? 'Уже в очереди' : `Draft в боте · ${r.approval_id}`);
+      } else {
+        toast(r.error || 'fail', 'error');
+      }
+    } catch (e) {
+      toast('Ошибка: ' + e.message, 'error');
+    }
+  }
+
   async function createTgGroup() {
     if (!CURRENT_EVENT) return;
     try {
@@ -542,9 +605,11 @@
                  oninput="CURRENT_EVENT.date = this.value; scheduleSave()">
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="action-btn" onclick="autoEnrich()" title="Pre-flight: подтянуть из conv_cache (AI), past events с той же площадкой, geocoder. Только что не нашлось — спрашиваем у клиента.">🪄 Auto-enrich</button>
           <button class="action-btn" onclick="importLead()" title="Импорт Заказчик / TG / Phone / Площадка из orders.db">📥 Импорт лида</button>
           <button class="action-btn" onclick="resolveVenue()" title="Geocode площадку → адрес (Yandex для RU, Google для зарубежа, Nominatim fallback)">🔍 Найти адрес</button>
           <button class="action-btn" onclick="createTgGroup()" title="Draft TG-группы — approval only, не отправит ничего автоматически">💬 TG-чат draft</button>
+          <button class="action-btn" onclick="postToBandChat()" title="Draft в band-chat → approval bot. Per memory feedback_band_chat_approval.">🎸 В band-чат</button>
           <button class="delete-btn" onclick="deleteEvent()">Удалить</button>
         </div>
       </div>
