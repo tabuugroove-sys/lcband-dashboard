@@ -710,7 +710,8 @@ sequenceDiagram
     window.__purposeTodayCalls = purposeTodayCalls;
     window.__purposeYestCalls  = purposeYestCalls;
 
-    // Pick dominant model per purpose over the 7-day window (most-used service).
+    // Per-purpose service breakdown over 7-day window — used to show CLI/API
+    // split (Layer 1 = CLI, Layer 2 = API fallback per memory feedback_cli_first_api_fallback).
     const purposeServiceCalls = {};  // p → {svc → calls}
     for (const day of dayList) {
       for (const [svc, svcData] of Object.entries(day.services || {})) {
@@ -720,14 +721,32 @@ sequenceDiagram
         }
       }
     }
-    const purposeModel = {};
+    window.__purposeBreakdown = purposeServiceCalls;
+
+    // Split into CLI (cli_*) vs API fallback (api_*) layers per purpose.
+    const purposeLayers = {};
     for (const [p, svcs] of Object.entries(purposeServiceCalls)) {
-      let bestSvc = '', bestCalls = -1;
-      for (const [s, c] of Object.entries(svcs)) {
-        if (c > bestCalls) { bestSvc = s; bestCalls = c; }
+      let cliCalls = 0, apiCalls = 0;
+      let cliModel = '', cliBest = -1;
+      let apiModel = '', apiBest = -1;
+      for (const [svc, c] of Object.entries(svcs)) {
+        const model = svc.replace(/^(cli|api)_/, '');
+        if (svc.startsWith('api_')) {
+          apiCalls += c;
+          if (c > apiBest) { apiBest = c; apiModel = model; }
+        } else {
+          // cli_* or unprefixed
+          cliCalls += c;
+          if (c > cliBest) { cliBest = c; cliModel = model; }
+        }
       }
-      // Strip cli_ / api_ prefix: cli_opus → opus, api_haiku → haiku
-      purposeModel[p] = bestSvc.replace(/^(cli|api)_/, '');
+      purposeLayers[p] = { cliCalls, apiCalls, cliModel, apiModel };
+    }
+    window.__purposeLayers = purposeLayers;
+    // Legacy field — dominant model overall, kept for places not yet migrated.
+    const purposeModel = {};
+    for (const [p, l] of Object.entries(purposeLayers)) {
+      purposeModel[p] = (l.cliCalls >= l.apiCalls) ? l.cliModel : l.apiModel;
     }
     window.__purposeModel = purposeModel;
 
@@ -998,6 +1017,40 @@ sequenceDiagram
     const info = PURPOSE_INFO[name];
     if (!info) return showNodeInfo(null, name, anchorEl);
     const calls = (window.__lastByPurpose?.[name]?.calls) || 0;
+    const layers = (window.__purposeLayers || {})[name] || {};
+    const breakdown = (window.__purposeBreakdown || {})[name] || {};
+
+    // Build CLI-vs-API summary (sorted by calls desc)
+    const total = (layers.cliCalls || 0) + (layers.apiCalls || 0);
+    const pct = n => total > 0 ? Math.round(n / total * 100) : 0;
+    let layerHtml = '';
+    if (total > 0) {
+      const rows = [];
+      if (layers.cliCalls > 0) {
+        rows.push(`<tr><td><span style="color:var(--green)">●</span> CLI · ${layers.cliModel}</td><td style="text-align:right">${fmtN(layers.cliCalls)}</td><td style="text-align:right;color:var(--muted)">${pct(layers.cliCalls)}%</td></tr>`);
+      }
+      if (layers.apiCalls > 0) {
+        rows.push(`<tr><td><span style="color:var(--orange)">●</span> API fallback · ${layers.apiModel}</td><td style="text-align:right">${fmtN(layers.apiCalls)}</td><td style="text-align:right;color:var(--muted)">${pct(layers.apiCalls)}%</td></tr>`);
+      }
+      const warn = layers.apiCalls > 0
+        ? `<div style="margin-top:6px;padding:6px;background:rgba(240,136,62,0.1);border-left:2px solid var(--orange);border-radius:4px;font-size:11px"><b>⚠ ${fmtN(layers.apiCalls)} fallback на API.</b> CLI упал на этих вызовах (auth/timeout/JSON err) → ушли через платный API. Чинить root cause: смотри claude_cli.py logs.</div>`
+        : '';
+      layerHtml = `
+        <div style="margin:10px 0 6px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">CLI vs API (7д)</div>
+        <table style="width:100%;font-size:12px;border-collapse:collapse">${rows.join('')}</table>
+        ${warn}
+      `;
+    }
+
+    // Detailed per-service breakdown (all services that fired this purpose)
+    const svcRows = Object.entries(breakdown)
+      .sort(([, a], [, b]) => b - a)
+      .map(([svc, c]) => `<tr><td style="padding:2px 0;color:var(--muted);font-family:monospace;font-size:11px">${svc}</td><td style="text-align:right;font-size:11px">${fmtN(c)}</td></tr>`)
+      .join('');
+    const svcHtml = svcRows
+      ? `<div style="margin-top:10px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">By service (raw)</div><table style="width:100%;border-collapse:collapse">${svcRows}</table>`
+      : '';
+
     document.getElementById('purpose-info').innerHTML = `
       <h3 style="margin:0 0 8px;color:var(--purple)">${name}</h3>
       <div style="color:var(--muted);font-size:11px;margin-bottom:10px">${calls} calls / 7д · purpose</div>
@@ -1005,6 +1058,8 @@ sequenceDiagram
       <div style="margin-bottom:8px"><b>Что делает:</b> ${info.what}</div>
       <div style="margin-bottom:8px"><b>Зачем:</b> ${info.why}</div>
       <div style="color:var(--muted);font-size:11px"><b>Где:</b> ${info.where}</div>
+      ${layerHtml}
+      ${svcHtml}
     `;
     openPopoverNear(anchorEl);
   }
@@ -1135,10 +1190,26 @@ sequenceDiagram
           try {
             const bb = node.getBBox();
             const ns = 'http://www.w3.org/2000/svg';
-            const model = (window.__purposeModel || {})[purposeName] || '';
-            const labelText = model
-              ? `${model} · ${fmtN(calls)} ${arrow}`
-              : `${fmtN(calls)} ${arrow}`;
+            const layers = (window.__purposeLayers || {})[purposeName] || {};
+            // Build label by layer composition:
+            //   pure CLI:    "sonnet · 596 ▲"
+            //   pure API:    "⚠ api:haiku · 596 ▲"   (CLI broken — all fell to fallback)
+            //   mix:         "sonnet 540 +api:haiku 56 ▲"
+            let labelText;
+            if (layers.cliCalls > 0 && layers.apiCalls > 0) {
+              labelText = `${layers.cliModel} ${fmtN(layers.cliCalls)} +api:${layers.apiModel} ${fmtN(layers.apiCalls)} ${arrow}`;
+            } else if (layers.apiCalls > 0) {
+              labelText = `⚠ api:${layers.apiModel} · ${fmtN(layers.apiCalls)} ${arrow}`;
+            } else {
+              labelText = `${layers.cliModel || ''} · ${fmtN(layers.cliCalls || calls)} ${arrow}`;
+            }
+            // If there's any API fallback, override delta colors with orange
+            // warning palette to flag the CLI miss.
+            if (layers.apiCalls > 0) {
+              bg = 'rgba(240,136,62,0.20)';
+              stroke = 'rgba(240,136,62,0.65)';
+              color = '#f0883e';
+            }
             const fontSize = 10;
             const padX = 8, padY = 3;
             const textApproxW = labelText.length * 5.6;
