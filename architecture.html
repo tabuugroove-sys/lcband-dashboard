@@ -411,8 +411,14 @@ flowchart LR
     </div>
   </section>
 
+  <section class="mindmap-card" id="skills-memory-storage">
+    <h2>6. Skills · Memory · Storage — где живёт логика и данные</h2>
+    <p class="diagram-note">Skills — операционные шаблоны, инжектятся в AI-промпты через <code>lcb_runtime_rules.py</code>. Memory — long-term feedback от тебя, Claude CLI читает автоматически. Storage — все локальные DB/JSON/JSONL файлы.</p>
+    <div id="sms-content" class="loading">загрузка…</div>
+  </section>
+
   <section class="mindmap-card">
-    <h2>6. Lifecycle одного лида — пост → пит­ч → переговоры → платёж</h2>
+    <h2>7. Lifecycle одного лида — пост → пит­ч → переговоры → платёж</h2>
     <p class="diagram-note">Sequence-diagram «как лид путешествует» от появления в чате до успеха или отказа. По вертикали — таймлайн.</p>
     <div class="mermaid">
 sequenceDiagram
@@ -1325,8 +1331,129 @@ sequenceDiagram
     });
   }
 
+  async function loadInventory() {
+    const base = await getBackendUrl();
+    let d;
+    try {
+      const r = await fetch(`${base}/api/system_inventory`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      d = await r.json();
+    } catch (e) {
+      document.getElementById('sms-content').innerHTML =
+        '<div class="error">Backend offline или endpoint /api/system_inventory не отвечает</div>';
+      return;
+    }
+
+    // ── Skills cards ─────────────────────────────────────────────────
+    const skillsHtml = (d.skills || []).map(s => `
+      <div style="background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-weight:600;color:var(--purple);font-family:monospace;font-size:13px">${s.name}</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.45">${s.description || '<i style="color:var(--muted)">нет description</i>'}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:auto;font-family:monospace">${s.path} · ${s.size_kb} KB</div>
+      </div>
+    `).join('');
+
+    // ── Memory category bars ─────────────────────────────────────────
+    const categories = d.memory?.by_category || {};
+    const totalMem = d.memory?.total || 1;
+    const catRows = Object.entries(categories).sort((a,b) => b[1]-a[1]).map(([cat, n]) => {
+      const pct = (n / totalMem) * 100;
+      const colors = { feedback: 'var(--orange)', project: 'var(--blue)', reference: 'var(--green)', state: 'var(--purple)', todo: 'var(--red)', user: 'var(--muted)', test: 'var(--muted)' };
+      const c = colors[cat] || 'var(--muted)';
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 0">
+          <div style="width:90px;font-size:12px;font-family:monospace;color:${c}">${cat}</div>
+          <div style="flex:1;background:var(--panel-2);border-radius:4px;height:14px;position:relative">
+            <div style="background:${c};opacity:0.7;height:100%;width:${pct}%;border-radius:4px"></div>
+          </div>
+          <div style="width:40px;text-align:right;font-size:12px;font-weight:600">${n}</div>
+        </div>
+      `;
+    }).join('');
+
+    const criticalHtml = (d.memory?.critical || []).slice(0, 8).map(m => `
+      <div style="padding:6px 8px;border-left:2px solid var(--red);background:rgba(248,81,73,0.06);margin-bottom:4px;border-radius:0 4px 4px 0">
+        <div style="font-size:11px;font-family:monospace;color:var(--red)">${m.name}</div>
+        <div style="font-size:11px;color:var(--text);margin-top:2px;line-height:1.4">${m.description}</div>
+      </div>
+    `).join('');
+
+    const recentHtml = (d.memory?.recent || []).slice(0, 6).map(m => `
+      <div style="padding:4px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:11px;font-family:monospace;color:${m.is_critical ? 'var(--red)' : 'var(--blue)'}">${m.name}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:1px">${m.modified.replace('T',' ').slice(0,16)}</div>
+      </div>
+    `).join('');
+
+    // ── Storage tables ───────────────────────────────────────────────
+    const storageRow = (s) => {
+      const extras = [];
+      if (s.active_rows !== undefined) extras.push(`${s.active_rows} active rows`);
+      if (s.tables) extras.push(`tables: ${s.tables.join(', ')}`);
+      if (s.files_count !== undefined) extras.push(`${s.files_count} files`);
+      const extraStr = extras.length ? ` · ${extras.join(' · ')}` : '';
+      return `
+        <tr>
+          <td style="padding:5px 8px;font-family:monospace;font-size:12px;color:var(--text)">${s.path}</td>
+          <td style="padding:5px 8px;text-align:right;font-size:11px;color:var(--muted)">${fmtN(s.size_kb)} KB</td>
+          <td style="padding:5px 8px;font-size:10px;color:var(--muted)">${extraStr}</td>
+        </tr>
+      `;
+    };
+    const storageSection = (title, items, hint) => {
+      if (!items?.length) return '';
+      return `
+        <div style="margin-top:12px">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">${title}</div>
+          ${hint ? `<div style="font-size:11px;color:var(--muted);margin-bottom:6px">${hint}</div>` : ''}
+          <table style="width:100%;border-collapse:collapse;font-size:12px">${items.map(storageRow).join('')}</table>
+        </div>
+      `;
+    };
+
+    document.getElementById('sms-content').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px">
+
+        <div>
+          <h3 style="margin:0 0 10px;font-size:13px">📜 Skills (${d.skills?.length || 0})</h3>
+          <p style="font-size:11px;color:var(--muted);margin:0 0 10px">
+            Шаблоны переписки и операций. <code>lcb_runtime_rules.py</code> инжектит секции из <code>lcb-client-correspondence</code> и <code>lcb-drum-show-pitch</code> прямо в system prompt — чтобы API fallback тоже знал правила (CLI сам видит).
+          </p>
+          <div style="display:grid;grid-template-columns:1fr;gap:8px">${skillsHtml}</div>
+        </div>
+
+        <div>
+          <h3 style="margin:0 0 10px;font-size:13px">🧠 Memory (${d.memory?.total || 0} файлов)</h3>
+          <p style="font-size:11px;color:var(--muted);margin:0 0 10px">
+            Long-term feedback от тебя. Claude CLI читает <code>~/.claude/projects/.../memory/MEMORY.md</code> автоматически и подгружает релевантные файлы по теме разговора.
+          </p>
+          ${catRows}
+          <h4 style="margin:14px 0 6px;font-size:12px;color:var(--red)">🚨 Критичные правила</h4>
+          ${criticalHtml || '<div style="color:var(--muted);font-size:11px">нет</div>'}
+          <h4 style="margin:14px 0 6px;font-size:12px">📅 Recently changed</h4>
+          ${recentHtml || '<div style="color:var(--muted);font-size:11px">нет</div>'}
+        </div>
+
+      </div>
+
+      <div style="margin-top:24px">
+        <h3 style="margin:0 0 8px;font-size:13px">💾 Storage — где живут данные</h3>
+        ${storageSection('Primary databases',
+          d.storage?.primary,
+          'orders.db — единственный источник правды о лидах (memory project_db_architecture). conversation_cache/ — локальный кэш переписок per-username.')}
+        ${storageSection('Audit logs (append-only JSONL)',
+          d.storage?.audit,
+          'Каждая строка — запись о AI-вызове / handle_lead / monitor cycle. Дашборд читает их для таймлайна и метрик.')}
+        ${storageSection('Live state (mutable JSON)',
+          d.storage?.state,
+          'Курсоры, dedupe-карты, очереди, AI-usage. Мутируются процессами — каждое поле = состояние какого-то агента.')}
+      </div>
+    `;
+  }
+
   loadUsage();
-  setInterval(loadUsage, 60000);  // refresh every minute
+  loadInventory();
+  setInterval(() => { loadUsage(); loadInventory(); }, 60000);
 </script>
 
 </body>
