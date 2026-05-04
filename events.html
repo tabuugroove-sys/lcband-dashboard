@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LC Band — Согласование events</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1f262e;
+    --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+    --blue: #58a6ff; --green: #3fb950; --orange: #f0883e;
+    --red: #f85149; --purple: #bc8cff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  header {
+    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    background: var(--panel); display: flex; align-items: center; gap: 16px;
+  }
+  header h1 { margin: 0; font-size: 17px; font-weight: 600; }
+  header .nav-links { margin-left: auto; display: flex; gap: 14px; }
+  header .nav-links a {
+    color: var(--muted); text-decoration: none; font-size: 13px;
+  }
+  header .nav-links a:hover { color: var(--blue); }
+  header .save-state { font-size: 12px; color: var(--muted); }
+
+  main {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 14px; padding: 14px 20px;
+    min-height: calc(100vh - 60px);
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  /* Sidebar — list of events */
+  .events-sidebar {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px; height: fit-content;
+    position: sticky; top: 14px;
+  }
+  .events-sidebar h2 {
+    margin: 0 0 10px; font-size: 12px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .event-card {
+    padding: 10px; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 6px;
+    margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s;
+  }
+  .event-card:hover { border-color: var(--blue); }
+  .event-card.active { border-color: var(--purple); background: rgba(188,140,255,0.1); }
+  .event-card .title { font-weight: 600; font-size: 13px; }
+  .event-card .date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .event-card .stats { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .new-event-btn {
+    width: 100%; padding: 10px;
+    background: rgba(63,185,80,0.15); color: var(--green);
+    border: 1px dashed var(--green); border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    margin-top: 6px;
+  }
+  .new-event-btn:hover { background: rgba(63,185,80,0.25); }
+
+  /* Main panel — event detail */
+  .event-detail {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 18px;
+  }
+  .event-header {
+    display: flex; gap: 12px; align-items: flex-start;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px; margin-bottom: 16px;
+  }
+  .event-header input[type="text"], .event-header input[type="date"] {
+    background: transparent; border: 1px solid transparent;
+    color: var(--text); font-size: 18px; font-weight: 600;
+    padding: 4px 8px; border-radius: 4px; outline: none;
+    transition: border-color 0.15s;
+  }
+  .event-header input[type="text"]:hover, .event-header input[type="date"]:hover {
+    border-color: var(--border);
+  }
+  .event-header input[type="text"]:focus, .event-header input[type="date"]:focus {
+    border-color: var(--blue); background: var(--panel-2);
+  }
+  .event-header .title-input { flex: 1; }
+  .event-header .delete-btn {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 12px;
+  }
+  .event-header .delete-btn:hover { color: var(--red); border-color: var(--red); }
+
+  .section {
+    margin-bottom: 22px; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 6px; padding: 12px;
+  }
+  .section-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px;
+  }
+  .section-header input {
+    background: transparent; border: 1px solid transparent;
+    color: var(--text); font-size: 14px; font-weight: 600;
+    padding: 3px 6px; border-radius: 4px; outline: none; flex: 1;
+  }
+  .section-header input:hover { border-color: var(--border); }
+  .section-header input:focus { border-color: var(--blue); background: var(--panel); }
+  .section-header .icon-btn {
+    background: transparent; border: none; color: var(--muted);
+    cursor: pointer; padding: 4px 6px; font-size: 13px;
+  }
+  .section-header .icon-btn:hover { color: var(--red); }
+
+  table.section-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.section-table th {
+    text-align: left; padding: 6px 8px; font-weight: 500;
+    color: var(--muted); border-bottom: 1px solid var(--border);
+    white-space: nowrap; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  table.section-table td {
+    padding: 0; border-bottom: 1px solid var(--border);
+  }
+  table.section-table td input {
+    width: 100%; background: transparent; border: 1px solid transparent;
+    color: var(--text); padding: 6px 8px; outline: none; font-size: 13px;
+    border-radius: 3px;
+  }
+  table.section-table td input:hover { border-color: var(--border); }
+  table.section-table td input:focus { border-color: var(--blue); background: var(--panel); }
+  table.section-table .num-cell input { text-align: right; font-variant-numeric: tabular-nums; }
+  table.section-table tr:last-child td { border-bottom: 0; }
+  table.section-table .row-actions { text-align: right; padding: 0 6px; }
+  table.section-table .row-actions button {
+    background: transparent; border: none; color: var(--muted);
+    cursor: pointer; padding: 4px; font-size: 12px;
+  }
+  table.section-table .row-actions button:hover { color: var(--red); }
+
+  .add-row-btn, .add-section-btn, .add-field-btn {
+    margin-top: 8px; padding: 6px 10px;
+    background: var(--panel); border: 1px dashed var(--border);
+    color: var(--muted); border-radius: 4px; cursor: pointer; font-size: 12px;
+  }
+  .add-row-btn:hover, .add-section-btn:hover, .add-field-btn:hover {
+    border-color: var(--blue); color: var(--blue);
+  }
+  .add-section-btn { margin-top: 14px; padding: 10px; width: 100%; font-size: 13px; }
+
+  .summary-line {
+    margin-top: 8px; padding: 6px 8px; font-size: 12px;
+    color: var(--muted); display: flex; justify-content: space-between;
+  }
+  .summary-line strong { color: var(--text); font-variant-numeric: tabular-nums; }
+
+  .notes-area {
+    margin-top: 18px; padding: 12px;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+  }
+  .notes-area label {
+    display: block; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+  }
+  .notes-area textarea {
+    width: 100%; min-height: 80px;
+    background: var(--panel); border: 1px solid var(--border);
+    color: var(--text); padding: 8px; border-radius: 4px;
+    font-family: inherit; font-size: 13px; outline: none; resize: vertical;
+  }
+  .notes-area textarea:focus { border-color: var(--blue); }
+
+  .empty-state {
+    text-align: center; color: var(--muted); padding: 60px 20px;
+  }
+  .toast {
+    position: fixed; bottom: 20px; right: 20px;
+    padding: 10px 16px; border-radius: 6px; font-size: 13px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transition: opacity 0.3s;
+  }
+  .toast.success { background: rgba(63,185,80,0.2); border: 1px solid var(--green); color: var(--green); }
+  .toast.error { background: rgba(248,81,73,0.2); border: 1px solid var(--red); color: var(--red); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📋 Согласование events</h1>
+  <div class="save-state" id="save-state">черновик · auto-save при blur</div>
+  <div class="nav-links">
+    <a href="./index.html">← Дашборд</a>
+    <a href="./architecture.html">🧠 Архитектура</a>
+  </div>
+</header>
+
+<main>
+  <aside class="events-sidebar">
+    <h2>Events</h2>
+    <div id="events-list"></div>
+    <button class="new-event-btn" onclick="createEvent()">+ Новый event</button>
+  </aside>
+
+  <section class="event-detail" id="event-detail">
+    <div class="empty-state">Выбери event слева или создай новый</div>
+  </section>
+</main>
+
+<div id="toast-container"></div>
+
+<script>
+  let CURRENT_EVENT = null;  // full event object loaded for edit
+  let SAVE_TIMEOUT = null;
+
+  async function getBackendUrl() {
+    try {
+      const r = await fetch('./backend_url.json?_=' + Date.now());
+      if (r.ok) {
+        const j = await r.json();
+        if (j && j.url) return j.url.replace(/\/$/, '');
+      }
+    } catch (_) {}
+    return 'http://127.0.0.1:8878';
+  }
+
+  async function api(path, opts = {}) {
+    const base = await getBackendUrl();
+    const r = await fetch(`${base}/api${path}`, opts);
+    if (!r.ok) {
+      const txt = await r.text();
+      throw new Error(`${r.status}: ${txt.slice(0, 200)}`);
+    }
+    return await r.json();
+  }
+
+  function toast(msg, kind = 'success') {
+    const c = document.getElementById('toast-container');
+    const t = document.createElement('div');
+    t.className = 'toast ' + kind;
+    t.textContent = msg;
+    c.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2000);
+  }
+
+  function setSaveState(text, color = 'var(--muted)') {
+    const el = document.getElementById('save-state');
+    el.textContent = text;
+    el.style.color = color;
+  }
+
+  async function loadEventList() {
+    try {
+      const d = await api('/events');
+      const list = document.getElementById('events-list');
+      if (!d.events || d.events.length === 0) {
+        list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">Нет events</div>';
+        return;
+      }
+      const activeId = CURRENT_EVENT?.id;
+      list.innerHTML = d.events.map(ev => `
+        <div class="event-card ${ev.id === activeId ? 'active' : ''}" onclick="loadEvent('${ev.id}')">
+          <div class="title">${escapeHtml(ev.title || '(без названия)')}</div>
+          <div class="date">${ev.date || '—'}</div>
+          <div class="stats">${ev.members_count || 0} участников · ${fmtRu(ev.members_total_fee || 0)} ₽</div>
+        </div>
+      `).join('');
+    } catch (e) {
+      document.getElementById('events-list').innerHTML =
+        '<div style="color:var(--red);font-size:12px">err: ' + e.message + '</div>';
+    }
+  }
+
+  async function loadEvent(id) {
+    try {
+      CURRENT_EVENT = await api(`/events/${id}`);
+      renderDetail();
+      loadEventList();  // re-highlight active
+    } catch (e) {
+      toast('Ошибка загрузки: ' + e.message, 'error');
+    }
+  }
+
+  async function createEvent() {
+    const title = prompt('Название event:');
+    if (!title) return;
+    const date = prompt('Дата (YYYY-MM-DD):', new Date().toISOString().slice(0, 10));
+    try {
+      const ev = await api('/events', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title, date}),
+      });
+      CURRENT_EVENT = ev;
+      renderDetail();
+      loadEventList();
+      toast('Event создан');
+    } catch (e) {
+      toast('Ошибка создания: ' + e.message, 'error');
+    }
+  }
+
+  async function deleteEvent() {
+    if (!CURRENT_EVENT) return;
+    if (!confirm(`Удалить event "${CURRENT_EVENT.title}"?`)) return;
+    try {
+      await api(`/events/${CURRENT_EVENT.id}`, {method: 'DELETE'});
+      CURRENT_EVENT = null;
+      document.getElementById('event-detail').innerHTML =
+        '<div class="empty-state">Event удалён. Выбери другой или создай новый.</div>';
+      loadEventList();
+      toast('Удалён');
+    } catch (e) {
+      toast('Ошибка удаления: ' + e.message, 'error');
+    }
+  }
+
+  function scheduleSave() {
+    if (SAVE_TIMEOUT) clearTimeout(SAVE_TIMEOUT);
+    setSaveState('изменения…', 'var(--orange)');
+    SAVE_TIMEOUT = setTimeout(saveCurrentEvent, 800);
+  }
+
+  async function saveCurrentEvent() {
+    if (!CURRENT_EVENT) return;
+    setSaveState('сохраняю…', 'var(--orange)');
+    try {
+      const updated = await api(`/events/${CURRENT_EVENT.id}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(CURRENT_EVENT),
+      });
+      CURRENT_EVENT = updated;
+      setSaveState('сохранено · ' + new Date().toLocaleTimeString('ru-RU').slice(0, 5), 'var(--green)');
+      loadEventList();
+    } catch (e) {
+      setSaveState('ошибка: ' + e.message, 'var(--red)');
+    }
+  }
+
+  // ─── Renderers ─────────────────────────────────────────────────
+  function renderDetail() {
+    if (!CURRENT_EVENT) return;
+    const det = document.getElementById('event-detail');
+    det.innerHTML = `
+      <div class="event-header">
+        <div class="title-input">
+          <input type="text" value="${escapeAttr(CURRENT_EVENT.title || '')}"
+                 placeholder="Название event"
+                 oninput="CURRENT_EVENT.title = this.value; scheduleSave()">
+          <input type="date" value="${escapeAttr(CURRENT_EVENT.date || '')}"
+                 style="margin-left:8px;font-size:13px;font-weight:400"
+                 oninput="CURRENT_EVENT.date = this.value; scheduleSave()">
+        </div>
+        <button class="delete-btn" onclick="deleteEvent()">Удалить</button>
+      </div>
+      <div id="sections-container"></div>
+      <button class="add-section-btn" onclick="addSection()">+ Добавить секцию</button>
+      <div class="notes-area">
+        <label>Notes (свободный текст)</label>
+        <textarea oninput="CURRENT_EVENT.notes = this.value; scheduleSave()">${escapeHtml(CURRENT_EVENT.notes || '')}</textarea>
+      </div>
+    `;
+    renderSections();
+  }
+
+  function renderSections() {
+    const container = document.getElementById('sections-container');
+    container.innerHTML = (CURRENT_EVENT.sections || []).map((s, idx) => renderSection(s, idx)).join('');
+  }
+
+  function renderSection(section, idx) {
+    const rows = section.rows || [];
+    // Collect all unique columns from all rows
+    const allKeys = [...new Set(rows.flatMap(r => Object.keys(r)))];
+    const cols = allKeys.length ? allKeys : ['item', 'value'];
+
+    const headerRow = cols.map(c =>
+      `<th>${escapeHtml(c)} <button class="icon-btn" title="Удалить колонку" onclick="deleteColumn(${idx}, '${escapeAttr(c)}')">×</button></th>`
+    ).join('') + '<th></th>';
+
+    const bodyRows = rows.map((row, ri) => `
+      <tr>
+        ${cols.map(c => {
+          const v = row[c] === undefined ? '' : row[c];
+          const isNum = typeof v === 'number' || (typeof v === 'string' && /^\d+(\.\d+)?$/.test(v));
+          return `<td class="${isNum ? 'num-cell' : ''}">
+            <input type="text" value="${escapeAttr(String(v))}"
+                   oninput="updateCell(${idx}, ${ri}, '${escapeAttr(c)}', this.value)">
+          </td>`;
+        }).join('')}
+        <td class="row-actions">
+          <button title="Удалить строку" onclick="deleteRow(${idx}, ${ri})">×</button>
+        </td>
+      </tr>
+    `).join('');
+
+    // Section summary — sum of numeric columns (e.g. Гонорар, БН, Нал)
+    const numericCols = cols.filter(c => rows.some(r => typeof r[c] === 'number' || /^\d+(\.\d+)?$/.test(String(r[c] || ''))));
+    const sumLine = numericCols.length ? numericCols.map(c => {
+      const sum = rows.reduce((s, r) => s + (parseFloat(r[c]) || 0), 0);
+      return sum > 0 ? `<span>${escapeHtml(c)}: <strong>${fmtRu(sum)}</strong></span>` : '';
+    }).filter(Boolean).join(' · ') : '';
+
+    return `
+      <div class="section">
+        <div class="section-header">
+          <input type="text" value="${escapeAttr(section.name || '')}"
+                 oninput="renameSection(${idx}, this.value)">
+          <button class="icon-btn" title="Удалить секцию" onclick="deleteSection(${idx})">🗑</button>
+        </div>
+        <table class="section-table">
+          <thead><tr>${headerRow}</tr></thead>
+          <tbody>${bodyRows || ''}</tbody>
+        </table>
+        <button class="add-row-btn" onclick="addRow(${idx})">+ Строка</button>
+        <button class="add-field-btn" onclick="addField(${idx})">+ Поле</button>
+        ${sumLine ? `<div class="summary-line">${sumLine}</div>` : ''}
+      </div>
+    `;
+  }
+
+  // ─── Mutations ─────────────────────────────────────────────────
+  function updateCell(sIdx, rIdx, key, val) {
+    if (!CURRENT_EVENT.sections[sIdx]) return;
+    const row = CURRENT_EVENT.sections[sIdx].rows[rIdx];
+    // Auto-cast to number if it looks numeric
+    if (val !== '' && !isNaN(Number(val)) && /^-?\d+(\.\d+)?$/.test(val.trim())) {
+      row[key] = parseFloat(val);
+    } else {
+      row[key] = val;
+    }
+    scheduleSave();
+  }
+
+  function addRow(sIdx) {
+    const section = CURRENT_EVENT.sections[sIdx];
+    const allKeys = [...new Set((section.rows || []).flatMap(r => Object.keys(r)))];
+    const newRow = {};
+    (allKeys.length ? allKeys : ['item', 'value']).forEach(k => newRow[k] = '');
+    section.rows = section.rows || [];
+    section.rows.push(newRow);
+    renderSections();
+    scheduleSave();
+  }
+
+  function deleteRow(sIdx, rIdx) {
+    CURRENT_EVENT.sections[sIdx].rows.splice(rIdx, 1);
+    renderSections();
+    scheduleSave();
+  }
+
+  function addField(sIdx) {
+    const fname = prompt('Имя нового поля:');
+    if (!fname) return;
+    const section = CURRENT_EVENT.sections[sIdx];
+    section.rows = section.rows || [];
+    section.rows.forEach(r => { if (!(fname in r)) r[fname] = ''; });
+    if (section.rows.length === 0) {
+      const stub = {};
+      stub[fname] = '';
+      section.rows.push(stub);
+    }
+    renderSections();
+    scheduleSave();
+  }
+
+  function deleteColumn(sIdx, key) {
+    if (!confirm(`Удалить колонку "${key}" из всех строк?`)) return;
+    const section = CURRENT_EVENT.sections[sIdx];
+    (section.rows || []).forEach(r => delete r[key]);
+    renderSections();
+    scheduleSave();
+  }
+
+  function renameSection(sIdx, name) {
+    CURRENT_EVENT.sections[sIdx].name = name;
+    scheduleSave();
+  }
+
+  function deleteSection(sIdx) {
+    if (!confirm(`Удалить секцию "${CURRENT_EVENT.sections[sIdx].name}"?`)) return;
+    CURRENT_EVENT.sections.splice(sIdx, 1);
+    renderSections();
+    scheduleSave();
+  }
+
+  function addSection() {
+    const name = prompt('Имя секции:');
+    if (!name) return;
+    CURRENT_EVENT.sections = CURRENT_EVENT.sections || [];
+    CURRENT_EVENT.sections.push({name, rows: []});
+    renderSections();
+    scheduleSave();
+  }
+
+  // ─── Helpers ────────────────────────────────────────────────────
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function escapeAttr(s) {
+    return escapeHtml(s).replace(/"/g, '&quot;');
+  }
+  function fmtRu(n) {
+    if (typeof n !== 'number') n = parseFloat(n) || 0;
+    return n.toLocaleString('ru-RU', {maximumFractionDigits: 2});
+  }
+
+  // Init
+  loadEventList();
+</script>
+
+</body>
+</html>
