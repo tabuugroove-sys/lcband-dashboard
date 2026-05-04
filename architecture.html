@@ -690,10 +690,23 @@ sequenceDiagram
     });
     document.getElementById('heatmap').innerHTML = hm.join('');
 
-    // Heat-color AI purpose nodes in diagram 3 + wire clicks → highlight side-panel row.
-    // Mermaid generates `<g class="node" id="flowchart-NODE-N">` for our P1..P10 IDs.
-    // We map P-codes to purpose names (must match what /api/ai_usage_breakdown returns)
-    // and tint the node background based on calls intensity.
+    // Compute per-purpose today vs yesterday delta (purpose calls are stored
+    // per-service in by_purpose maps; sum across services).
+    const purposeTodayCalls = {};
+    const purposeYestCalls = {};
+    for (const svc of Object.values(todaySvc)) {
+      for (const [p, c] of Object.entries(svc.by_purpose || {})) {
+        purposeTodayCalls[p] = (purposeTodayCalls[p] || 0) + (c || 0);
+      }
+    }
+    for (const svc of Object.values(yestSvc)) {
+      for (const [p, c] of Object.entries(svc.by_purpose || {})) {
+        purposeYestCalls[p] = (purposeYestCalls[p] || 0) + (c || 0);
+      }
+    }
+    window.__purposeTodayCalls = purposeTodayCalls;
+    window.__purposeYestCalls  = purposeYestCalls;
+
     applyHeatAndClicks(byPurpose);
   }
 
@@ -1049,12 +1062,19 @@ sequenceDiagram
     const allCalls = Object.values(PURPOSE_MAP).map(purposeCalls);
     const maxCalls = Math.max(...allCalls, 1);
 
+    // Wipe previous-render usage labels so refresh doesn't stack duplicates.
+    document.querySelectorAll('.usage-label').forEach(el => el.remove());
+
+    const purposeTodayCalls = window.__purposeTodayCalls || {};
+    const purposeYestCalls  = window.__purposeYestCalls  || {};
+    const USAGE_LABEL_THRESHOLD = 100; // show only purposes with ≥100 calls/7d
+
     document.querySelectorAll('.mermaid svg g.node').forEach(node => {
       const m = node.id.match(/flowchart-([A-Z0-9_]+)-/);
       if (!m) return;
       const shortId = m[1];
 
-      // Heat-color AI purposes (P1..P19).
+      // Heat-color AI purposes (P1..P19) + ≥100 calls/7d badge with Δ-arrow.
       if (PURPOSE_MAP[shortId]) {
         const purposeName = PURPOSE_MAP[shortId];
         const calls = purposeCalls(purposeName);
@@ -1069,6 +1089,32 @@ sequenceDiagram
           const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
           titleEl.textContent = tooltip;
           node.appendChild(titleEl);
+        }
+
+        // Usage badge: floating SVG text right of the node, colored by today
+        // vs yesterday delta. Only shown when calls/7d ≥ threshold so the
+        // diagram stays readable (don't tag every tiny purpose).
+        if (calls >= USAGE_LABEL_THRESHOLD) {
+          const todayC = purposeTodayCalls[purposeName] || 0;
+          const yestC  = purposeYestCalls[purposeName]  || 0;
+          const delta  = todayC - yestC;
+          let arrow = '·', color = '#8b949e';
+          if (delta > 0) { arrow = '▲'; color = '#3fb950'; }
+          else if (delta < 0) { arrow = '▼'; color = '#f85149'; }
+          try {
+            const bb = node.getBBox();
+            const ns = 'http://www.w3.org/2000/svg';
+            const txt = document.createElementNS(ns, 'text');
+            txt.setAttribute('x', bb.x + bb.width + 6);
+            txt.setAttribute('y', bb.y + bb.height / 2 + 4);
+            txt.setAttribute('fill', color);
+            txt.setAttribute('font-size', '11');
+            txt.setAttribute('font-weight', '700');
+            txt.setAttribute('class', 'usage-label');
+            txt.setAttribute('pointer-events', 'none');
+            txt.textContent = `${fmtN(calls)} ${arrow}`;
+            node.appendChild(txt);
+          } catch (_) { /* getBBox can throw on detached nodes */ }
         }
       }
 
