@@ -183,7 +183,7 @@ flowchart TD
   WALK --> PRE
   VKMON --> PRE
 
-  PRE -->|"candidates: list[post]"| BATCH["classify_posts_batch — 1 CLI call per chat<br/>system_prompt + N posts → JSON array verdicts<br/>verdicts ∈ music_band / drum_show / solo_musician / abstract / skip"]:::ai
+  PRE -->|"candidates: list[post]<br/>(объединяются со всех чатов)"| BATCH["classify_posts_batch — 1 CLI call для ВСЕХ чатов<br/>system_prompt + ALL posts (все 17 чатов сразу) → JSON array verdicts<br/>verdicts ∈ music_band / drum_show / solo_musician / abstract / skip"]:::ai
 
   BATCH -.->|"CLI / JSON failed"| FALLBACK["per-post hybrid_classify<br/>(safety net)"]:::ai
 
@@ -255,23 +255,37 @@ flowchart LR
   MON["tg-monitor"]:::agent --> P1["classify_batch"]:::ai
   WALK["browser-walk"]:::agent --> P1
   VKMON["vk-monitor"]:::agent --> P1
-  P1 -.fallback.-> P2["classify per-post"]:::ai
+  P1 -.fallback.-> P2["classify"]:::ai
 
   TGRESP["tg-responder"]:::agent --> P3["convo_analysis_tg"]:::ai
-  TGRESP --> P4["generate_response"]:::ai
+  TGRESP --> P4["tg_responder_cli"]:::ai
   TGRESP --> P5["presend_review"]:::ai
+  TGRESP --> P11["tg_direct_inbound_classify"]:::ai
+
+  IGRESP["ig-responder paused"]:::agent --> P15["convo_analysis_ig"]:::ai
+
   VKRESP["vk-responder"]:::agent --> P3
   VKRESP --> P4
   VKRESP --> P5
+  VKRESP --> P12["vk_followup_classify"]:::ai
 
   AAA["attention_auto_action"]:::agent --> P5
   AAA --> P6["inbound_lead_classify"]:::ai
+  AAA --> P16["musician_presend_review_sax"]:::ai
 
   FAH["funnel_autoheal"]:::agent --> P7["funnel_sync"]:::ai
   FAH --> P8["refusal_classify"]:::ai
 
+  FOLLOWUP["followup-all"]:::agent --> P13["followup_classify"]:::ai
+  FOLLOWUP --> P14["followup_generate"]:::ai
+
   STRAT["senior_strategist"]:::agent --> P9["senior_strategist_audit"]:::ai
   STRAT --> P10["senior_strategist_rewrite"]:::ai
+
+  HOTBOT["hot-leads bot"]:::agent --> P17["hot_drafts"]:::ai
+  HOTBOT --> P18["drum_draft_fix"]:::ai
+
+  GENERIC["generic JSON wrapper"]:::agent --> P19["cli_json"]:::ai
 
   P1 --> CLI
   P2 --> CLI
@@ -283,6 +297,15 @@ flowchart LR
   P8 --> CLI
   P9 --> CLI
   P10 --> CLI
+  P11 --> CLI
+  P12 --> CLI
+  P13 --> CLI
+  P14 --> CLI
+  P15 --> CLI
+  P16 --> CLI
+  P17 --> CLI
+  P18 --> CLI
+  P19 --> CLI
     </div>
   </section>
 
@@ -426,6 +449,10 @@ sequenceDiagram
       <h2>Calls / day</h2>
       <div id="heatmap" class="heatmap"></div>
     </div>
+    <div class="panel-card" id="purpose-info-card">
+      <h2>Описание AI-purpose</h2>
+      <div id="purpose-info" class="loading">кликни на AI-узел в диаграмме 3 или на строку в таблице By purpose, чтобы увидеть роль и пользу процесса</div>
+    </div>
   </aside>
 </main>
 
@@ -510,15 +537,22 @@ sequenceDiagram
         `${fmtN(topCalls)} calls (${((topCalls / totalCalls) * 100).toFixed(0)}%)`;
     }
 
-    // By purpose table
+    // By purpose table — clickable rows: click → highlight node in diagram 3 + show description
     const ptBody = ['<table class="purpose-table"><thead><tr><th>Purpose</th><th class="num">Calls</th></tr></thead><tbody>'];
     const maxCalls = purposeList[0]?.[1] || 1;
     for (const [name, calls] of purposeList) {
       const pct = (calls / maxCalls) * 100;
-      ptBody.push(`<tr><td>${name}<div class="bar" style="width: ${pct}%;"></div></td><td class="num">${fmtN(calls)}</td></tr>`);
+      ptBody.push(`<tr data-purpose="${name}" style="cursor:pointer"><td>${name}<div class="bar" style="width: ${pct}%;"></div></td><td class="num">${fmtN(calls)}</td></tr>`);
     }
     ptBody.push('</tbody></table>');
     document.getElementById('purpose-table').innerHTML = ptBody.join('');
+    document.querySelectorAll('#purpose-table tr[data-purpose]').forEach(tr => {
+      tr.addEventListener('click', () => {
+        const p = tr.dataset.purpose;
+        showPurposeInfo(p);
+        scrollToPurposeNode(p);
+      });
+    });
 
     // By service
     const byService = win.by_service || {};
@@ -570,13 +604,146 @@ sequenceDiagram
     P1:  'classify_batch',
     P2:  'classify',
     P3:  'convo_analysis_tg',
-    P4:  'tg_responder_cli',           // generate_response is logged as tg_responder_cli
+    P4:  'tg_responder_cli',
     P5:  'presend_review',
     P6:  'inbound_lead_classify',
     P7:  'funnel_sync',
     P8:  'refusal_classify',
     P9:  'senior_strategist_audit',
     P10: 'senior_strategist_rewrite',
+    P11: 'tg_direct_inbound_classify',
+    P12: 'vk_followup_classify',
+    P13: 'followup_classify',
+    P14: 'followup_generate',
+    P15: 'convo_analysis_ig',
+    P16: 'musician_presend_review_sax',
+    P17: 'hot_drafts',
+    P18: 'drum_draft_fix',
+    P19: 'cli_json',
+  };
+  // Reverse map purpose → P-code for click-from-table flow.
+  const PURPOSE_TO_PCODE = Object.fromEntries(
+    Object.entries(PURPOSE_MAP).map(([k, v]) => [v, k])
+  );
+
+  // Human description of each AI purpose: role in the pipeline, what it does,
+  // and why it matters. Used by both directions of the click flow (node→panel
+  // and table→panel).
+  const PURPOSE_INFO = {
+    classify_batch: {
+      role: 'Inbound classification — глобальный батч',
+      what: '<b>ОДИН</b> CLI call со всеми кандидатами со ВСЕХ чатов сразу (не per-chat) → JSON array verdicts. Verdict ∈ music_band / drum_show / solo_musician / abstract / skip.',
+      why: 'До 03.05 monitor использовал regex-gate, отсевал «нестандартные» формулировки. До 04.05 batch вызывался 17 раз (per-chat). Сейчас 1 CLI call на cycle для всех ~50-150 candidates сразу. ×17 экономия subprocess overhead vs per-chat batch, +cache hit на shared system prompt.',
+      where: 'telegram_monitor.scan_cycle (Pass 1 prefilter → global batch → Pass 2 process) + browser_walk_telethon (та же 2-pass схема) + lcb_classifier.classify_posts_batch с chunks по 40',
+    },
+    classify: {
+      role: 'Per-post fallback классификации',
+      what: 'Один CLI call на один пост, тот же набор verdicts. Используется когда classify_batch упал (CLI/JSON failed / length mismatch).',
+      why: 'Safety net — гарантирует что каждый пост получит AI-вердикт даже если batch flaky. Дороже batch, но точнее на edge cases.',
+      where: 'telegram_monitor.cli_classify_order + hybrid_classify',
+    },
+    presend_review: {
+      role: 'AI-гейт перед отправкой пит­ча',
+      what: 'Принимает order + draft_text → решает skip / adapt / ok. На adapt возвращает adapted_text для отправки.',
+      why: 'Ловит несовместимости которые regex/шаблоны не видят: слишком низкий бюджет, формат не наш, native-speaker запросы, drum vs LCB бренд. Per memory feedback_pre_send_ai_check — обязателен перед auto-send.',
+      where: 'telegram_monitor.ai_review_before_send (вызывается в send_proposal/send_drum_proposal)',
+    },
+    convo_analysis_tg: {
+      role: 'Анализ всей переписки клиента в TG',
+      what: 'Берёт всю историю DM с клиентом → возвращает intent / category / draft_response / next_action.',
+      why: 'tg-responder не пишет шаблоном — каждый ответ строится из контекста (что клиент уже сказал, на каком этапе воронки). Per memory feedback_opus_answers — никаких hardcoded ответов.',
+      where: 'tg_responder.py через convo_analysis модуль',
+    },
+    convo_analysis_ig: {
+      role: 'Тот же анализ но для Instagram DM',
+      what: 'Аналогично TG версии, но для IG conv-cache.',
+      why: 'IG agents на паузе с 27.04, но cache + analysis продолжают работать чтобы не потерять контекст когда возобновим.',
+      where: 'ig_conv_cache + ig_responder (paused)',
+    },
+    funnel_sync: {
+      role: 'Автомиграция статусов в воронке',
+      what: 'Принимает текущий CRM status + переписку → решает нужен ли переход (Написал → Переговоры → Оплачен → Концерт) и пишет в orders.db.',
+      why: 'Без этого статусы зависают и ручной ops-overhead растёт. funnel_autoheal каждую ночь догоняет drift автоматически. Haiku — дешёвый, можно гонять часто.',
+      where: 'funnel_autoheal.py (02:15 MSK launchd)',
+    },
+    refusal_classify: {
+      role: 'Категоризация отказа клиента',
+      what: 'Текст отказа → категория: format_mismatch / not_our_service / already_found / low_budget / postponed / thanks_close / other.',
+      why: 'Точная статистика отказов вместо одного бакета «Отказ». Помогает увидеть почему мы теряем — формат, цена, или просто конкуренты быстрее. Per memory feedback_refusal_handling.',
+      where: 'refusal_guard.is_refusal с use_ai=True',
+    },
+    senior_strategist_audit: {
+      role: 'Opus-аудит длинных переговоров',
+      what: 'Анализирует diff клиент vs наш voice — находит проблемы (мы что-то не так делаем, клиент готов уйти, нужен push, цена не оправдана).',
+      why: 'Ловит застрявшие сделки в Переговорах >7 дней. Дорого (Opus) — поэтому только для качественных лидов с большим LTV.',
+      where: 'senior_strategist agent',
+    },
+    senior_strategist_rewrite: {
+      role: 'Opus-переписывание ответа на основе аудита',
+      what: 'Берёт исходный draft + audit findings → переписывает ответ с правильным tone и углом.',
+      why: 'Hot leads не должны получать generic ответ. Часто отвечает не «нам подходит» а «вот почему именно мы».',
+      where: 'senior_strategist agent',
+    },
+    followup_classify: {
+      role: 'Решение нужен ли follow-up',
+      what: 'Текущий статус + время последнего contacta → нужен ли follow-up, какого типа: cold (питч был) / warm (переговоры зависли) / refusal_probe (узнать кого взяли).',
+      why: 'Per memory feedback_outreach_pacing — не более 3 холодных подряд, минимум 3 дня между. AI принимает пacing-решение, не cron.',
+      where: 'followup-all skill + followup agent',
+    },
+    followup_generate: {
+      role: 'Генерация самого follow-up message',
+      what: 'Берёт контекст лида и тип follow-up → пишет текст ответа.',
+      why: 'Каждый follow-up должен показывать что мы помним кто клиент (event, дата, бюджет). Per memory feedback_ai_review_adaptation.',
+      where: 'followup-all',
+    },
+    vk_followup_classify: {
+      role: 'VK-specific follow-up classifier',
+      what: 'То же что followup_classify, но для VK с учётом VK-специфики (peer_id вместо username, screen_name lookup).',
+      why: 'VK имеет другие лимиты на ответы и pacing — отдельный classifier помнит про эти ограничения.',
+      where: 'vk_responder + vk_followup',
+    },
+    inbound_lead_classify: {
+      role: 'Классификация input в bot_commander',
+      what: 'Когда оператор отправил forward в @lcband_notify_bot → AI решает что это: лид / refusal / спам / unrelated.',
+      why: 'Bot не пишет лиду напрямую — сначала AI разбирает что попало в queue. Без этого оператор бы получал false-positive алерты.',
+      where: 'bot_commander.py',
+    },
+    tg_direct_inbound_classify: {
+      role: 'Direct inbound DM классификация',
+      what: 'Когда клиент пишет в TG напрямую (минуя event-чат), классификатор сразу решает что это и в какую воронку положить.',
+      why: 'Пропускает direct-leads через те же гейты что и event-chat посты, единая воронка для всех источников.',
+      where: 'tg_responder.py (direct flow)',
+    },
+    tg_responder_cli: {
+      role: 'Generate ответа на DM клиента',
+      what: 'Принимает контекст переписки + категорию → пишет полный ответ для send.',
+      why: 'Замена hardcoded-шаблонов которые мы удалили 22.04 (memory feedback_opus_answers). Каждый ответ персонализирован.',
+      where: 'tg_responder.generate_contextual_response',
+    },
+    musician_presend_review_sax: {
+      role: 'Special-case review для саксофонистов',
+      what: 'Узкий guard — проверяет что мы шлём пит­ч на solo-сакс именно (не band, не drum), и что бюджет ≥ 7к/час.',
+      why: 'Per memory feedback_solo_only_3_instruments — solo берём только сакс/пиано/гитару. Этот review гарантирует что не отправим band-pitch на solo-запрос.',
+      where: 'attention_auto_action + tg-responder',
+    },
+    hot_drafts: {
+      role: 'Генерация для горячих лидов',
+      what: 'Опус пишет draft для лидов в hot-tier (большой event, известный клиент, высокий бюджет).',
+      why: 'Hot leads дороже потерять — для них Opus, для всех — Sonnet/Haiku.',
+      where: 'hot_drafts agent',
+    },
+    drum_draft_fix: {
+      role: 'Корректировка drum-show drafts',
+      what: 'Пост-обработка drum-питчей: проверяет что не упомянуто несуществующее (тех райдер PDF), что регион правильный (Москва/Челябинск/Дубай), что цена из drum-шкалы а не LCB.',
+      why: 'Per memory feedback_drum_no_rider_pdf и feedback_drum_regional — частые ошибки в drum-питчах.',
+      where: 'drum-show pipeline',
+    },
+    cli_json: {
+      role: 'Generic JSON wrapper',
+      what: 'Когда вызов call_opus_json не привязан к специфическому purpose — попадает сюда.',
+      why: 'Catch-all bucket, чтобы все JSON-режим вызовы были учтены в ai_usage.json. Часто это новые/экспериментальные purposes которые ещё не получили свой код.',
+      where: 'claude_cli.call_opus_json default purpose',
+    },
   };
 
   function heatColor(intensity) {
@@ -587,61 +754,192 @@ sequenceDiagram
     return null;
   }
 
+  // Generic node descriptions — for clickable elements that aren't AI purposes
+  // (channels, agents, pre-filter, storage, dashboard, etc.). Especially detailed
+  // for PRE because it's the no-AI gate user wants to verify isn't dropping leads.
+  const NODE_INFO = {
+    PRE: {
+      role: 'Pre-filter — NO AI gate перед классификацией',
+      what: '4 проверки до того как пост попадёт в classify_batch:<br>'
+        + '1. <b>is_skip_author</b> — substring `lowcost`/`лоукост` в <i>имени отправителя</i> (не в тексте). Безопасно — отсекает только известные low-cost каналы по nickname.<br>'
+        + '2. <b>dup-check</b> — msg_id уже в session_actions.jsonl. Безопасно — мы уже видели этот пост в прошлом цикле.<br>'
+        + '3. <b>refusal hard-regex</b> — ищет «не актуально», «уже выбрали», «отбой», «отмен», «не нужн», «отказ», «нет спасибо», «не интересно», «cancel», «already found/chose/hired». ⚠️ <b>Может ложно сработать</b> на «у нас на ПРОШЛОМ event живая музыка <i>не актуальна</i> была, сейчас ищем группу» → пост пропустится как refusal, лид потеряется.<br>'
+        + '4. <b>length < 20 chars</b> — отсевает «привет» / «хи». Риск: «нужна группа?» = 14 chars → отсеется. Но реальные запросы обычно ≥40 chars.',
+      why: 'Дёшево — 4 операции на пост вместо CLI call. Но AI-вариативность формулировок regex не покрывает (потому мы и убрали regex-classify 03.05).',
+      risk: '⚠️ <b>refusal hard-regex и length<20 могут ложно отсеять реальные лиды.</b> Если хочешь надёжнее — заменить на AI-check (per memory feedback_no_regex_classification). Стоимость: ×2 CLI calls на batch, но 0 false-skip.',
+      where: 'browser_walk_telethon.py:163-211 + telegram_monitor.py:2713-2721',
+    },
+    BATCH: {
+      role: 'Batch AI-классификация всего чата',
+      what: 'Один CLI call с N кандидатами → JSON массив verdicts. См. classify_batch в By purpose.',
+      why: 'Заменил per-post regex-gate 03.05. ×6 экономия токенов vs per-post.',
+      where: 'lcb_classifier.classify_posts_batch',
+    },
+    FALLBACK: {
+      role: 'Per-post safety net',
+      what: 'Если batch failed (CLI exit error / JSON parse / length mismatch) — делаем по одному CLI на пост.',
+      why: 'Гарантирует что AI увидит каждый пост, даже если batch flaky.',
+      where: 'telegram_monitor.hybrid_classify',
+    },
+    PROCESS: {
+      role: 'Routing после классификации',
+      what: 'verdict ≠ skip → строится order, попадает в orders.db и шлётся пит­ч.',
+      why: '—',
+      where: 'telegram_monitor + browser_walk_telethon analyze loops',
+    },
+    BUILD: {
+      role: 'Сборка order dict',
+      what: 'Извлечение даты/города/бюджета через regex (это OK — extract структурных полей, не классификация).',
+      why: 'Эти поля идут в orders.db и в пит­ч-шаблон. Regex здесь безопасен — если не нашёл, поля пустые, AI потом дозаполнит на presend_review.',
+      where: '_DATE_RE / _CITY_RE / _BUDGET_RE из telegram_monitor',
+    },
+    RECORD: { role: 'orders_db_bridge.record_tg_order', what: 'Insert в orders.db через единый bridge с dedupe по username.', why: 'Никаких raw SQL из ботов — всё через bridge (memory project_db_architecture).', where: 'orders_db_bridge.py' },
+    SEND: { role: 'Отправка пит­ча клиенту', what: 'send_proposal с pre-send AI review. На skip — пит­ч не уходит, на adapt — отправляется adapted_text.', why: 'Memory feedback_pre_send_ai_check — обязательный гейт перед auto-send.', where: 'telegram_monitor.send_proposal' },
+    CTX: { role: 'Загрузка контекста переписки', what: 'find_by_username в orders.db + последние 15 msg через Telethon. Без AI.', why: 'Перед AI generate нужен полный контекст — кто это, что за event, что мы уже писали.', where: 'tg_responder.py' },
+    REVIEW: { role: 'AI-гейт перед send (decision skip/adapt/ok)', what: 'См. presend_review в By purpose.', why: '—', where: '—' },
+    BOT: { role: 'bot-commander approval flow', what: 'Если ai_review низкая уверенность → draft уходит в @lcband_notify_bot для оператора. Кнопки Send / Reject.', why: 'Edge cases (большой бюджет / нестандартный запрос / drum unsure) идут через человека.', where: 'bot_commander.py' },
+    DROP: { role: 'Сброс — лид/ответ не нужен', what: 'Refusal / музыкант / не наш профиль / spam — уходит в archived ветку, в воронку не попадает.', why: '—', where: '—' },
+
+    TGCHATS: { role: '17 TG event-чатов', what: 'Источник лидов из event-индустрии. Список см. telegram_monitor.CHATS.', why: '~80% лидов LCB приходят отсюда.', where: 'telegram_monitor.CHATS' },
+    VKGROUPS: { role: '8 VK групп', what: 'Источник лидов VK. Список см. vk_monitor.VK_GROUPS.', why: '~15% лидов LCB.', where: 'vk_monitor.VK_GROUPS' },
+    DM: { role: 'Inbound TG DM', what: 'Прямые сообщения клиентов в @Luxurycover_ru.', why: 'Hottest lead source — прямой контакт.', where: 'tg_responder.py читает inbox' },
+    VKDM: { role: 'Inbound VK DM', what: 'Прямые сообщения в группу LCB.', why: '—', where: 'vk_responder.py' },
+
+    MON: { role: 'tg-monitor — every 10min', what: 'Сканит 17 чатов через Telethon API, складирует кандидатов, отдаёт в classify_batch.', why: 'Primary lead source. PeerFlood-safe pacing.', where: 'telegram_monitor.py + launchd com.lcband.tg-monitor' },
+    WALK: { role: 'browser-walk — hourly', what: 'То же что monitor, но через отдельную копию TG session, для morning_reconciliation diff.', why: 'Independent failure mode — если monitor пропустил, walk поймает за час.', where: 'browser_walk_telethon.py' },
+    VKMON: { role: 'vk-monitor — every 10min', what: 'VK API + classify_batch flow.', why: '—', where: 'vk_monitor.py' },
+    TGRESP: { role: 'tg-responder — every 2min', what: 'Читает inbound DM, генерит ответ через Opus, шлёт через ai_review гейт. Anti-ban: 8/run, 40/day, jitter 15-35s.', why: 'Memory feedback_tg_anti_ban — main account защита от PeerFlood.', where: 'tg_responder.py' },
+    VKRESP: { role: 'vk-responder — every 30min', what: 'То же для VK DM.', why: '—', where: 'vk_responder.py' },
+
+    CLI: { role: 'claude_cli.call_opus* — единая точка AI', what: 'Все AI-вызовы LCB идут через эту функцию: subprocess claude CLI первым слоем, API fallback вторым (memory feedback_cli_first_api_fallback).', why: 'Max plan = $0 за токен. CLI должен покрывать 99% вызовов.', where: 'claude_cli.py' },
+
+    ORDERS: { role: 'orders.db — Single Source of Truth', what: 'SQLite файл, единственный авторитетный источник лидов. Все боты пишут через orders_db_bridge.', why: 'Memory project_db_architecture — Sheets backup только, читать нельзя.', where: 'orders.db' },
+    SENT: { role: 'sent_proposals.json — dedupe', what: 'Чтобы не отправить 2 раза одному username. В adhoc-скриптах нельзя писать клиенту мимо send_proposal (memory feedback_adhoc_must_use_send_proposal).', why: '—', where: '—' },
+    ACT: { role: 'session_actions.jsonl — audit log', what: 'Каждый action бота: handle_lead, sent_pitch, follow_up. Виден на дашборде вкладка Таймлайн.', why: 'Memory feedback_session_actions_log — обязательный лог.', where: '—' },
+
+    MORNING: { role: 'morning-reconciliation — 02:03 SP / 05:03 MSK', what: 'Diff monitor (orders.db) vs walk (browser_walk_result.json) за 24ч. Если walk нашёл лид которого нет в DB → alert.', why: 'Catch-up safety net.', where: 'morning_reconciliation.py' },
+    WALK_REC: { role: 'monitor-walk-reconcile — hourly', what: 'То же но каждый час, без alert.', why: '—', where: '—' },
+    AUTOHEAL: { role: 'funnel_autoheal — 02:15 SP / 05:15 MSK', what: '4 правила: stale Написал/Переговоры >3д → Follow-up; refusal → archived; paid+event прошёл → Концерт.', why: 'Без этого статусы зависают. Идемпотентно — можно гонять часто.', where: 'funnel_autoheal.py' },
+    REPORT: { role: 'daily-report — 23:00 SP / 05:00 MSK', what: 'Бизнес-сводка в TG бот: новые валидные лиды, кому написали, follow-up due, в переговорах, DM funnel.', why: 'Утренний обзор за чашкой кофе.', where: 'daily_report.py' },
+    WATCHDOG: { role: 'agent-watchdog — every 30min', what: 'Проверяет что все launchd-агенты живы. Если упали — restart + TG alert.', why: 'Самовосстановление без human ops.', where: 'agent_watchdog.py' },
+
+    BACKEND: { role: 'Flask backend на 127.0.0.1:8878', what: '15+ endpoints для дашборда: /api/dashboard_data, /api/db/snapshot, /api/ai_usage_breakdown, etc.', why: '—', where: 'dashboard_backend.py' },
+    TUNNEL: { role: 'Cloudflare quick tunnel', what: 'tunnel_watcher.py spawn cloudflared → URL → push в backend_url.json → gh-pages подхватит.', why: 'Бесплатно, но URL меняется при рестарте. Долгосрочно — named tunnel со своим доменом.', where: 'tunnel_watcher.py' },
+    PAGES: { role: 'GitHub Pages — публичный фронт', what: 'Статичные HTML файлы на tabuugroove-sys.github.io/lcband-dashboard.', why: '—', where: 'dashboard/ git repo' },
+  };
+
+  function showPurposeInfo(name) {
+    const info = PURPOSE_INFO[name];
+    if (!info) return showNodeInfo(null, name);
+    const calls = (window.__lastByPurpose?.[name]?.calls) || 0;
+    document.getElementById('purpose-info').innerHTML = `
+      <h3 style="margin:0 0 8px;color:var(--purple)">${name}</h3>
+      <div style="color:var(--muted);font-size:11px;margin-bottom:10px">${calls} calls / 7д · purpose</div>
+      <div style="margin-bottom:8px"><b>Роль:</b> ${info.role}</div>
+      <div style="margin-bottom:8px"><b>Что делает:</b> ${info.what}</div>
+      <div style="margin-bottom:8px"><b>Зачем:</b> ${info.why}</div>
+      <div style="color:var(--muted);font-size:11px"><b>Где:</b> ${info.where}</div>
+    `;
+  }
+
+  function showNodeInfo(nodeId, fallbackName) {
+    const info = NODE_INFO[nodeId];
+    const title = nodeId || fallbackName || '';
+    if (!info) {
+      document.getElementById('purpose-info').innerHTML = `
+        <h3 style="margin:0 0 8px;color:var(--blue)">${title}</h3>
+        <div style="color:var(--muted)">Описание ещё не добавлено. Скажи мне расширить NODE_INFO.</div>
+      `;
+      return;
+    }
+    const riskBlock = info.risk ? `<div style="margin-top:10px;padding:8px;background:rgba(248,81,73,0.1);border-left:2px solid var(--red);border-radius:4px"><b>Риск:</b> ${info.risk}</div>` : '';
+    document.getElementById('purpose-info').innerHTML = `
+      <h3 style="margin:0 0 8px;color:var(--blue)">${title}</h3>
+      <div style="margin-bottom:8px"><b>Роль:</b> ${info.role}</div>
+      <div style="margin-bottom:8px"><b>Что делает:</b> ${info.what}</div>
+      <div style="margin-bottom:8px"><b>Зачем:</b> ${info.why}</div>
+      ${riskBlock}
+      <div style="color:var(--muted);font-size:11px;margin-top:8px"><b>Где:</b> ${info.where}</div>
+    `;
+  }
+
+  function highlightSvgNode(svgNodeEl) {
+    if (!svgNodeEl) return;
+    svgNodeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const shape = svgNodeEl.querySelector('rect, polygon, path');
+    if (!shape) return;
+    const origStroke = shape.getAttribute('stroke');
+    const origStrokeW = shape.getAttribute('stroke-width');
+    shape.setAttribute('stroke', '#bc8cff');
+    shape.setAttribute('stroke-width', '4');
+    shape.style.filter = 'drop-shadow(0 0 8px rgba(188,140,255,0.8))';
+    setTimeout(() => {
+      shape.setAttribute('stroke', origStroke || '#30363d');
+      shape.setAttribute('stroke-width', origStrokeW || '1');
+      shape.style.filter = '';
+    }, 3000);
+  }
+
+  function findNodeByMermaidId(shortId) {
+    // Mermaid renders <g class="node" id="flowchart-NODEID-N"> — search across all SVGs.
+    const candidates = document.querySelectorAll('.mermaid svg g.node');
+    for (const n of candidates) {
+      const m = n.id.match(/flowchart-([A-Z0-9_]+)-/);
+      if (m && m[1] === shortId) return n;
+    }
+    return null;
+  }
+
+  function scrollToPurposeNode(purposeName) {
+    const pCode = PURPOSE_TO_PCODE[purposeName];
+    if (!pCode) return;
+    const node = findNodeByMermaidId(pCode);
+    highlightSvgNode(node);
+  }
+
   function applyHeatAndClicks(byPurpose) {
+    window.__lastByPurpose = byPurpose;
     const purposeCalls = name => (byPurpose[name]?.calls || 0);
     const allCalls = Object.values(PURPOSE_MAP).map(purposeCalls);
     const maxCalls = Math.max(...allCalls, 1);
 
-    // Iterate every Mermaid node whose id starts with `flowchart-P` (covers P1..P10).
     document.querySelectorAll('.mermaid svg g.node').forEach(node => {
-      const m = node.id.match(/flowchart-(P\d+)-/);
+      const m = node.id.match(/flowchart-([A-Z0-9_]+)-/);
       if (!m) return;
-      const purposeName = PURPOSE_MAP[m[1]];
-      if (!purposeName) return;
-      const calls = purposeCalls(purposeName);
-      const intensity = calls / maxCalls;
-      const fill = heatColor(intensity);
+      const shortId = m[1];
 
-      // Apply fill to the rect/polygon shape inside the node group.
-      const shape = node.querySelector('rect, polygon, path');
-      if (shape && fill) shape.setAttribute('fill', fill);
-
-      // Tooltip + cursor + click handler.
-      node.style.cursor = 'pointer';
-      const existingTitle = node.querySelector('title');
-      const tooltipText = `${purposeName}: ${calls} calls / 7д · клик → таблица`;
-      if (existingTitle) existingTitle.textContent = tooltipText;
-      else {
-        const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-        titleEl.textContent = tooltipText;
-        node.appendChild(titleEl);
+      // Heat-color AI purposes (P1..P19).
+      if (PURPOSE_MAP[shortId]) {
+        const purposeName = PURPOSE_MAP[shortId];
+        const calls = purposeCalls(purposeName);
+        const intensity = calls / maxCalls;
+        const fill = heatColor(intensity);
+        const shape = node.querySelector('rect, polygon, path');
+        if (shape && fill) shape.setAttribute('fill', fill);
+        const tooltip = `${purposeName}: ${calls} calls / 7д · клик → описание`;
+        const t = node.querySelector('title');
+        if (t) t.textContent = tooltip;
+        else {
+          const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+          titleEl.textContent = tooltip;
+          node.appendChild(titleEl);
+        }
       }
 
-      // Avoid attaching duplicate click handlers on subsequent loadUsage() refreshes.
+      // Universal click handler — opens info panel for ANY node (AI or not).
+      node.style.cursor = 'pointer';
       if (!node.dataset.clickWired) {
         node.dataset.clickWired = '1';
-        node.addEventListener('click', () => highlightPurposeRow(purposeName));
+        node.addEventListener('click', () => {
+          if (PURPOSE_MAP[shortId]) {
+            showPurposeInfo(PURPOSE_MAP[shortId]);
+          } else {
+            showNodeInfo(shortId, node.textContent.trim().slice(0, 60));
+          }
+          highlightSvgNode(node);
+        });
       }
     });
-  }
-
-  function highlightPurposeRow(purposeName) {
-    const table = document.querySelector('#purpose-table table');
-    if (!table) return;
-    let target = null;
-    table.querySelectorAll('tbody tr').forEach(tr => {
-      const firstCell = tr.querySelector('td');
-      if (!firstCell) return;
-      const label = firstCell.textContent.trim();
-      // First cell may include "<name><bar>" — match by prefix.
-      tr.style.background = '';
-      tr.style.transition = 'background 0.4s';
-      if (label.startsWith(purposeName)) target = tr;
-    });
-    if (!target) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    target.style.background = 'rgba(188, 140, 255, 0.25)';
-    setTimeout(() => { target.style.background = ''; }, 2500);
   }
 
   loadUsage();
