@@ -18,6 +18,30 @@
     --red: #f85149;
     --purple: #bc8cff;
   }
+  :root[data-theme="light"] {
+    --bg: #ffffff;
+    --panel: #f6f8fa;
+    --panel-2: #eef1f5;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --muted: #59636e;
+    --blue: #0969da;
+    --green: #1a7f37;
+    --orange: #bc4c00;
+    --red: #cf222e;
+    --purple: #8250df;
+  }
+  .theme-toggle {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-right: 12px;
+  }
+  .theme-toggle:hover { background: var(--border); }
   * { box-sizing: border-box; }
   body {
     margin: 0;
@@ -130,6 +154,7 @@
   <h1>🧠 LC Band — Architecture & AI Usage</h1>
   <div class="updated" id="updated">загрузка…</div>
   <div class="nav-links">
+    <button class="theme-toggle" id="theme-toggle" title="Переключить тему">🌙 Тёмная</button>
     <a href="./index.html">← Дашборд</a>
     <a href="./dm-direct-funnel.html">DM Direct Funnel</a>
   </div>
@@ -468,18 +493,59 @@ sequenceDiagram
 </footer>
 
 <script>
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: 'dark',
-    themeVariables: {
+  // Theme — persist choice; apply on load before Mermaid initialises so
+  // diagrams render with matching colors from the start.
+  const SAVED_THEME = (() => {
+    try { return localStorage.getItem('lcb_arch_theme') || 'dark'; } catch { return 'dark'; }
+  })();
+  document.documentElement.setAttribute('data-theme', SAVED_THEME);
+
+  function mermaidThemeVars(theme) {
+    if (theme === 'light') return {
+      background: 'transparent',
+      primaryColor: '#eef1f5',
+      primaryBorderColor: '#d0d7de',
+      primaryTextColor: '#1f2328',
+      lineColor: '#0969da',
+      mainBkg: '#eef1f5',
+      secondaryColor: '#f6f8fa',
+      tertiaryColor: '#ffffff',
+    };
+    return {
       background: 'transparent',
       primaryColor: '#1f262e',
       primaryBorderColor: '#30363d',
       primaryTextColor: '#e6edf3',
       lineColor: '#58a6ff',
       mainBkg: '#1f262e',
-    },
+    };
+  }
+
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: SAVED_THEME === 'light' ? 'default' : 'dark',
+    themeVariables: mermaidThemeVars(SAVED_THEME),
     mindmap: { padding: 10 },
+    securityLevel: 'loose',
+  });
+
+  function updateThemeToggleLabel() {
+    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+    document.getElementById('theme-toggle').textContent =
+      cur === 'light' ? '☀️ Светлая' : '🌙 Тёмная';
+  }
+  updateThemeToggleLabel();
+
+  document.getElementById('theme-toggle').addEventListener('click', async () => {
+    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+    const next = cur === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('lcb_arch_theme', next); } catch {}
+    updateThemeToggleLabel();
+    // Re-render Mermaid diagrams with new theme by reloading. Easiest reliable
+    // way — partial re-render of mermaid.run() needs raw source preserved which
+    // we don't keep after initial render. F5 is fast (CDN-cached).
+    location.reload();
   });
 
   const fmtN = n => {
