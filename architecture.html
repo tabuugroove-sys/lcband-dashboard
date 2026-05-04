@@ -785,20 +785,26 @@ sequenceDiagram
   // tier — порядок попытки, label — человекочитаемое имя, services — какие
   // сервисы из ai_usage.json в эту ступень попадают (для подсчёта calls),
   // free — бесплатно ли (через подписку) или платно (через API).
+  // Архитектура 04.05: 3-tier для всех — Claude CLI → Gemini CLI → API
+  // (см. claude_cli._gemini_layer2 / _gemini_layer2_json).
   const DEFAULT_CHAIN = [
-    { tier: 1, label: 'Claude CLI', detail: 'через Max-подписку, $0 за токен',
+    { tier: 1, label: 'Claude CLI', detail: 'Max-подписка, $0 за токен. Sonnet/Opus/Haiku по purpose.',
       services: ['cli_opus', 'cli_sonnet', 'cli_haiku', 'cli_claude'], free: true },
-    { tier: 2, label: 'API fallback', detail: 'если CLI упал (auth/timeout/JSON err) — переключаемся на API. Платно.',
+    { tier: 2, label: 'Gemini CLI', detail: 'Google Code Assist OAuth, $0. Auto-fallback по моделям: 3-flash-preview → 3.1-flash-lite-preview → 2.5-flash → 2.5-flash-lite. Срабатывает только если Claude CLI упал.',
+      services: ['cli_gemini'], free: true },
+    { tier: 3, label: 'API Haiku', detail: 'Если оба CLI упали — переключаемся на платный Anthropic API. Это последний resort. Memory feedback_cli_first_api_fallback.',
       services: ['api_opus', 'api_sonnet', 'api_haiku'], free: false },
   ];
   const FALLBACK_CHAINS = {
-    // 3-tier — уникальный для DM-direct funnel (per CLAUDE.md GEMINI_CLI_MODEL)
+    // tg_direct_inbound_classify — уникален: Gemini ПЕРВЫМ слоем (preferred
+    // local second brain per CLAUDE.md), Claude вторым, API третьим.
+    // См. tg_direct_inbound_sync.py:598-648 для точной реализации.
     tg_direct_inbound_classify: [
-      { tier: 1, label: 'Gemini CLI', detail: 'Google Code Assist OAuth, $0. Лёгкая модель gemini-2.5-flash-lite, быстро. Если упал → ↓',
+      { tier: 1, label: 'Gemini CLI', detail: 'Layer 1 — preferred. Code Assist OAuth, $0. Auto model chain.',
         services: ['cli_gemini'], free: true },
-      { tier: 2, label: 'Claude CLI Sonnet', detail: 'Узкая обёртка _call_claude_cli_only, $0 (Max). БЕЗ внутреннего API fallback. Если упал → ↓',
+      { tier: 2, label: 'Claude CLI Sonnet', detail: 'Layer 2 — обёртка _call_claude_cli_only БЕЗ внутреннего API fallback. $0 (Max).',
         services: ['cli_claude'], free: true },
-      { tier: 3, label: 'API Haiku', detail: 'Только если Layer 1+2 упали И есть бюджет (API_FALLBACK_BUDGET_USD) И ALLOW_API_FALLBACK=1. Платно.',
+      { tier: 3, label: 'API Haiku', detail: 'Layer 3 — только если оба CLI упали И есть бюджет API_FALLBACK_BUDGET_USD. Платно.',
         services: ['api_haiku', 'api_sonnet', 'api_opus', 'cli_opus', 'cli_sonnet'], free: false },
     ],
   };
