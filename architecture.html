@@ -449,11 +449,17 @@ sequenceDiagram
       <h2>Calls / day</h2>
       <div id="heatmap" class="heatmap"></div>
     </div>
-    <div class="panel-card" id="purpose-info-card">
-      <h2>Описание AI-purpose</h2>
-      <div id="purpose-info" class="loading">кликни на AI-узел в диаграмме 3 или на строку в таблице By purpose, чтобы увидеть роль и пользу процесса</div>
-    </div>
   </aside>
+
+<!-- Floating popover — appears on node click, sticks to viewport so user
+     doesn't need to scroll to find the description. Hidden by default. -->
+<div id="purpose-popover" style="display:none;position:fixed;top:90px;left:16px;width:380px;max-height:calc(100vh - 110px);overflow-y:auto;background:var(--panel);border:1px solid var(--purple);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.6);padding:16px;z-index:1000;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:8px;">
+    <span style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Описание узла</span>
+    <button id="popover-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+  </div>
+  <div id="purpose-info"></div>
+</div>
 </main>
 
 <footer>
@@ -549,8 +555,13 @@ sequenceDiagram
     document.querySelectorAll('#purpose-table tr[data-purpose]').forEach(tr => {
       tr.addEventListener('click', () => {
         const p = tr.dataset.purpose;
-        showPurposeInfo(p);
-        scrollToPurposeNode(p);
+        const pCode = PURPOSE_TO_PCODE[p];
+        const node  = pCode ? findNodeByMermaidId(pCode) : null;
+        if (node) {
+          node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          highlightSvgNode(node);
+        }
+        showPurposeInfo(p, node);
       });
     });
 
@@ -782,13 +793,12 @@ sequenceDiagram
   const NODE_INFO = {
     PRE: {
       role: 'Pre-filter — NO AI gate перед классификацией',
-      what: '4 проверки до того как пост попадёт в classify_batch:<br>'
+      what: '3 проверки до того как пост попадёт в classify_batch:<br>'
         + '1. <b>is_skip_author</b> — substring `lowcost`/`лоукост` в <i>имени отправителя</i> (не в тексте). Безопасно — отсекает только известные low-cost каналы по nickname.<br>'
         + '2. <b>dup-check</b> — msg_id уже в session_actions.jsonl. Безопасно — мы уже видели этот пост в прошлом цикле.<br>'
-        + '3. <b>refusal hard-regex</b> — ищет «не актуально», «уже выбрали», «отбой», «отмен», «не нужн», «отказ», «нет спасибо», «не интересно», «cancel», «already found/chose/hired». ⚠️ <b>Может ложно сработать</b> на «у нас на ПРОШЛОМ event живая музыка <i>не актуальна</i> была, сейчас ищем группу» → пост пропустится как refusal, лид потеряется.<br>'
-        + '4. <b>length < 20 chars</b> — отсевает «привет» / «хи». Риск: «нужна группа?» = 14 chars → отсеется. Но реальные запросы обычно ≥40 chars.',
-      why: 'Дёшево — 4 операции на пост вместо CLI call. Но AI-вариативность формулировок regex не покрывает (потому мы и убрали regex-classify 03.05).',
-      risk: '⚠️ <b>refusal hard-regex и length<20 могут ложно отсеять реальные лиды.</b> Если хочешь надёжнее — заменить на AI-check (per memory feedback_no_regex_classification). Стоимость: ×2 CLI calls на batch, но 0 false-skip.',
+        + '3. <b>length < 20 chars</b> — отсевает «привет» / «хи». Риск: «нужна группа?» = 14 chars → отсеется. Но реальные запросы обычно ≥40 chars.<br>'
+        + '<br>🟢 04.05: <b>refusal hard-regex УБРАН</b> — теперь все посты идут в classify_batch, AI добавлен verdict=refusal который различает «не актуально + новый запрос» (music_band) vs «уже выбрали другую группу» (refusal).',
+      why: 'Дёшево — 3 операции на пост вместо CLI call. AI-вариативность формулировок regex не покрывает (потому мы и убрали regex-classify 03.05 + refusal-regex 04.05).',
       where: 'browser_walk_telethon.py:163-211 + telegram_monitor.py:2713-2721',
     },
     BATCH: {
@@ -850,9 +860,40 @@ sequenceDiagram
     PAGES: { role: 'GitHub Pages — публичный фронт', what: 'Статичные HTML файлы на tabuugroove-sys.github.io/lcband-dashboard.', why: '—', where: 'dashboard/ git repo' },
   };
 
-  function showPurposeInfo(name) {
+  function openPopoverNear(svgNodeEl) {
+    const popover = document.getElementById('purpose-popover');
+    popover.style.display = 'block';
+    if (!svgNodeEl) {
+      popover.style.left = '16px';
+      popover.style.right = '';
+      popover.style.top = '90px';
+      return;
+    }
+    const rect = svgNodeEl.getBoundingClientRect();
+    const popW = popover.offsetWidth || 380;
+    const margin = 16;
+    // Prefer left side of the node; if not enough room, switch to right.
+    let left;
+    if (rect.left - popW - margin > 8) {
+      left = rect.left - popW - margin;
+    } else if (rect.right + popW + margin < window.innerWidth - 8) {
+      left = rect.right + margin;
+    } else {
+      left = Math.max(8, (window.innerWidth - popW) / 2);
+    }
+    let top = Math.max(80, rect.top - 20);
+    const popH = popover.offsetHeight || 300;
+    if (top + popH > window.innerHeight - 8) {
+      top = Math.max(80, window.innerHeight - popH - 8);
+    }
+    popover.style.left = left + 'px';
+    popover.style.top = top + 'px';
+    popover.style.right = '';
+  }
+
+  function showPurposeInfo(name, anchorEl) {
     const info = PURPOSE_INFO[name];
-    if (!info) return showNodeInfo(null, name);
+    if (!info) return showNodeInfo(null, name, anchorEl);
     const calls = (window.__lastByPurpose?.[name]?.calls) || 0;
     document.getElementById('purpose-info').innerHTML = `
       <h3 style="margin:0 0 8px;color:var(--purple)">${name}</h3>
@@ -862,16 +903,18 @@ sequenceDiagram
       <div style="margin-bottom:8px"><b>Зачем:</b> ${info.why}</div>
       <div style="color:var(--muted);font-size:11px"><b>Где:</b> ${info.where}</div>
     `;
+    openPopoverNear(anchorEl);
   }
 
-  function showNodeInfo(nodeId, fallbackName) {
+  function showNodeInfo(nodeId, fallbackName, anchorEl) {
     const info = NODE_INFO[nodeId];
     const title = nodeId || fallbackName || '';
     if (!info) {
       document.getElementById('purpose-info').innerHTML = `
         <h3 style="margin:0 0 8px;color:var(--blue)">${title}</h3>
-        <div style="color:var(--muted)">Описание ещё не добавлено. Скажи мне расширить NODE_INFO.</div>
+        <div style="color:var(--muted)">Описание ещё не добавлено.</div>
       `;
+      openPopoverNear(anchorEl);
       return;
     }
     const riskBlock = info.risk ? `<div style="margin-top:10px;padding:8px;background:rgba(248,81,73,0.1);border-left:2px solid var(--red);border-radius:4px"><b>Риск:</b> ${info.risk}</div>` : '';
@@ -883,7 +926,22 @@ sequenceDiagram
       ${riskBlock}
       <div style="color:var(--muted);font-size:11px;margin-top:8px"><b>Где:</b> ${info.where}</div>
     `;
+    openPopoverNear(anchorEl);
   }
+
+  function closePopover() {
+    document.getElementById('purpose-popover').style.display = 'none';
+  }
+  document.getElementById('popover-close').addEventListener('click', closePopover);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopover(); });
+  document.addEventListener('click', (e) => {
+    const pop = document.getElementById('purpose-popover');
+    if (pop.style.display === 'none') return;
+    const insidePopover = pop.contains(e.target);
+    const isNode = e.target.closest('.mermaid svg g.node');
+    const isRow  = e.target.closest('#purpose-table tr[data-purpose]');
+    if (!insidePopover && !isNode && !isRow) closePopover();
+  });
 
   function highlightSvgNode(svgNodeEl) {
     if (!svgNodeEl) return;
@@ -948,15 +1006,16 @@ sequenceDiagram
         }
       }
 
-      // Universal click handler — opens info panel for ANY node (AI or not).
+      // Universal click handler — opens info popover anchored to the clicked node.
       node.style.cursor = 'pointer';
       if (!node.dataset.clickWired) {
         node.dataset.clickWired = '1';
-        node.addEventListener('click', () => {
+        node.addEventListener('click', (e) => {
+          e.stopPropagation();
           if (PURPOSE_MAP[shortId]) {
-            showPurposeInfo(PURPOSE_MAP[shortId]);
+            showPurposeInfo(PURPOSE_MAP[shortId], node);
           } else {
-            showNodeInfo(shortId, node.textContent.trim().slice(0, 60));
+            showNodeInfo(shortId, node.textContent.trim().slice(0, 60), node);
           }
           highlightSvgNode(node);
         });
