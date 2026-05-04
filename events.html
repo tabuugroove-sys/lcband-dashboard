@@ -93,6 +93,44 @@
     border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 12px;
   }
   .event-header .delete-btn:hover { color: var(--red); border-color: var(--red); }
+  .event-header .action-btn {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 12px;
+  }
+  .event-header .action-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* Modal — new event */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 24px; width: 460px; max-width: 92vw;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+  .modal-card h3 { margin: 0 0 14px; font-size: 16px; }
+  .modal-card label { display: block; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.4px; margin: 10px 0 4px; }
+  .modal-card input[type="text"], .modal-card input[type="date"], .modal-card select {
+    width: 100%; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 7px 10px; font-size: 13px; outline: none;
+  }
+  .modal-card input:focus, .modal-card select:focus { border-color: var(--blue); }
+  .modal-card .row { display: flex; gap: 10px; }
+  .modal-card .row > * { flex: 1; }
+  .modal-card .check { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-top: 12px; }
+  .modal-card .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+  .modal-card .actions button {
+    padding: 8px 14px; border-radius: 4px; border: 1px solid var(--border);
+    background: var(--panel-2); color: var(--text); cursor: pointer; font-size: 13px;
+  }
+  .modal-card .actions button.primary {
+    background: rgba(63,185,80,0.2); border-color: var(--green); color: var(--green);
+    font-weight: 600;
+  }
 
   .section {
     margin-bottom: 22px; background: var(--panel-2);
@@ -210,6 +248,58 @@
 
 <div id="toast-container"></div>
 
+<!-- New event modal -->
+<div class="modal-overlay" id="create-modal" onclick="if(event.target.id==='create-modal')hideCreateModal()">
+  <div class="modal-card">
+    <h3>📋 Новый event</h3>
+
+    <div class="row">
+      <div style="flex:2">
+        <label>Название</label>
+        <input id="cm-title" type="text" placeholder="ООО УАН ОНЛИ — корп / Лофт Холл #2">
+      </div>
+      <div>
+        <label>Дата</label>
+        <input id="cm-date" type="date">
+      </div>
+    </div>
+
+    <label style="margin-top:14px">Состав (заполнить по канонической ростер-карте)</label>
+    <div class="row">
+      <div>
+        <select id="cm-band-size">
+          <option value="4">4 чел (3 вокала + сакс)</option>
+          <option value="5">5 чел (+ гитара)</option>
+          <option value="6">6 чел (+ клавиши)</option>
+          <option value="7">7 чел (+ барабаны)</option>
+        </select>
+      </div>
+      <div>
+        <select id="cm-dark-voc" title="Темнокожий вокалист">
+          <option value="laz">LAZ (темнокожий)</option>
+          <option value="teddy">Teddy Fuentes</option>
+          <option value="">— без темнокожего —</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="check">
+      <input type="checkbox" id="cm-out-mskd">
+      <label for="cm-out-mskd" style="margin:0;text-transform:none;letter-spacing:0;color:var(--text);font-size:13px">
+        Выезд за МКАД (сакс → Афанасьев вместо Лео)
+      </label>
+    </div>
+
+    <label>Импорт из orders.db (опционально, username клиента)</label>
+    <input id="cm-lead" type="text" placeholder="kati_OOE">
+
+    <div class="actions">
+      <button onclick="hideCreateModal()">Отмена</button>
+      <button class="primary" onclick="submitCreateModal()">Создать</button>
+    </div>
+  </div>
+</div>
+
 <script>
   let CURRENT_EVENT = null;  // full event object loaded for edit
   let SAVE_TIMEOUT = null;
@@ -282,22 +372,120 @@
     }
   }
 
-  async function createEvent() {
-    const title = prompt('Название event:');
-    if (!title) return;
-    const date = prompt('Дата (YYYY-MM-DD):', new Date().toISOString().slice(0, 10));
+  function showCreateModal() {
+    document.getElementById('create-modal').style.display = 'flex';
+    document.getElementById('cm-title').focus();
+    document.getElementById('cm-date').value = new Date().toISOString().slice(0, 10);
+  }
+  function hideCreateModal() {
+    document.getElementById('create-modal').style.display = 'none';
+  }
+  async function submitCreateModal() {
+    const title = document.getElementById('cm-title').value.trim();
+    const date = document.getElementById('cm-date').value.trim();
+    if (!title) { toast('Название обязательно', 'error'); return; }
+    const body = {
+      title, date,
+      use_template: true,
+      band_size: parseInt(document.getElementById('cm-band-size').value) || 4,
+      out_of_moscow: document.getElementById('cm-out-mskd').checked,
+      dark_skinned_vocalist: document.getElementById('cm-dark-voc').value,
+      from_lead_username: document.getElementById('cm-lead').value.trim().replace(/^@/, ''),
+    };
     try {
       const ev = await api('/events', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({title, date}),
+        body: JSON.stringify(body),
       });
+      hideCreateModal();
       CURRENT_EVENT = ev;
       renderDetail();
       loadEventList();
       toast('Event создан');
     } catch (e) {
-      toast('Ошибка создания: ' + e.message, 'error');
+      toast('Ошибка: ' + e.message, 'error');
+    }
+  }
+  function createEvent() { showCreateModal(); }
+
+  async function importLead() {
+    if (!CURRENT_EVENT) return;
+    const u = prompt('Username лида в orders.db (без @):',
+                     (CURRENT_EVENT.lead_username || '').replace(/^@/, ''));
+    if (!u) return;
+    try {
+      const r = await api(`/events/${CURRENT_EVENT.id}/import_lead`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: u.replace(/^@/, '')}),
+      });
+      if (r.ok) {
+        CURRENT_EVENT = r.event;
+        renderDetail();
+        toast('Импорт: ' + (r.message || 'ok'));
+      } else {
+        toast(r.message || 'не найдено', 'error');
+      }
+    } catch (e) {
+      toast('Ошибка: ' + e.message, 'error');
+    }
+  }
+
+  async function resolveVenue() {
+    if (!CURRENT_EVENT) return;
+    try {
+      const r = await api(`/events/${CURRENT_EVENT.id}/resolve_venue`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({}),
+      });
+      if (r.ok) {
+        CURRENT_EVENT = r.event;
+        renderDetail();
+        toast(`Адрес найден (${r.source}): ${r.address.slice(0, 60)}…`);
+      } else {
+        toast(r.error || 'не найдено', 'error');
+      }
+    } catch (e) {
+      toast('Ошибка: ' + e.message, 'error');
+    }
+  }
+
+  async function createTgGroup() {
+    if (!CURRENT_EVENT) return;
+    try {
+      const r = await api(`/events/${CURRENT_EVENT.id}/create_tg_group`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({}),
+      });
+      if (!r.ok) { toast(r.error || 'fail', 'error'); return; }
+      const w = window.open('', '_blank');
+      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>TG group draft</title>
+        <style>body{font:14px/1.5 system-ui;background:#0d1117;color:#e6edf3;padding:24px;max-width:760px;margin:0 auto}
+        h2{color:#bc8cff} h3{color:#58a6ff;margin-top:20px}
+        pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;white-space:pre-wrap}
+        .members{background:#161b22;padding:12px;border-radius:6px;border:1px solid #30363d}
+        .row{padding:6px 0;border-bottom:1px solid #30363d}
+        .row:last-child{border:0}
+        .hint{background:rgba(240,136,62,0.15);border-left:3px solid #f0883e;padding:10px;border-radius:4px;margin:14px 0}
+        </style></head><body>
+        <h2>📋 Draft группового чата</h2>
+        <div class="hint"><b>Approval-only.</b> ${r.hint}</div>
+        <h3>Title</h3><pre>${r.draft_title}</pre>
+        <h3>Участники (${r.members_count})</h3>
+        <div class="members">${r.members.map(m => `
+          <div class="row">
+            <b>${m.Роль || ''}</b> · ${m.Имя || ''}
+            ${m.TG ? ` · ${m.TG}` : ''}
+            ${m['Телефон'] ? ` · ${m['Телефон']}` : ''}
+          </div>`).join('')}</div>
+        <h3>Briefing message (первое сообщение в группе)</h3>
+        <pre>${r.briefing_message}</pre>
+        </body></html>`);
+    } catch (e) {
+      toast('Ошибка: ' + e.message, 'error');
     }
   }
 
@@ -353,7 +541,12 @@
                  style="margin-left:8px;font-size:13px;font-weight:400"
                  oninput="CURRENT_EVENT.date = this.value; scheduleSave()">
         </div>
-        <button class="delete-btn" onclick="deleteEvent()">Удалить</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="action-btn" onclick="importLead()" title="Импорт Заказчик / TG / Phone / Площадка из orders.db">📥 Импорт лида</button>
+          <button class="action-btn" onclick="resolveVenue()" title="Geocode площадку → адрес (Yandex для RU, Google для зарубежа, Nominatim fallback)">🔍 Найти адрес</button>
+          <button class="action-btn" onclick="createTgGroup()" title="Draft TG-группы — approval only, не отправит ничего автоматически">💬 TG-чат draft</button>
+          <button class="delete-btn" onclick="deleteEvent()">Удалить</button>
+        </div>
       </div>
       <div id="sections-container"></div>
       <button class="add-section-btn" onclick="addSection()">+ Добавить секцию</button>
