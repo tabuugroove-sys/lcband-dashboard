@@ -498,69 +498,126 @@
     }
   }
 
+  // Strip HTML tags for editable textarea (Telegram parses HTML server-side; team
+  // sees plain text. We let user edit plain text and re-wrap on send if needed.)
+  function _stripHtml(s) {
+    return (s || '')
+      .replace(/<\/?b>/g, '')
+      .replace(/<\/?i>/g, '')
+      .replace(/<\/?u>/g, '')
+      .replace(/<\/?s>/g, '')
+      .replace(/<br\s*\/?>/g, '\n');
+  }
+
   async function postToBandChat() {
     if (!CURRENT_EVENT) return;
-    if (!CURRENT_EVENT.tg_chat_id) {
-      const cid = prompt('TG chat_id band-чата (отрицательное число для группы, например -123456789):');
-      if (!cid) return;
-      CURRENT_EVENT.tg_chat_id = parseInt(cid);
-      scheduleSave();
-      // Wait for save to flush, then continue
-      await new Promise(r => setTimeout(r, 1000));
-    }
-    const text = prompt('Текст для отправки в band-чат (пройдёт через approval bot):');
-    if (!text || !text.trim()) return;
-    try {
-      const r = await api(`/events/${CURRENT_EVENT.id}/post_to_band_chat`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({text: text.trim(), source: 'manual'}),
-      });
-      if (r.ok) {
-        toast(r.duplicate ? 'Уже в очереди' : `Draft в боте · ${r.approval_id}`);
-      } else {
-        toast(r.error || 'fail', 'error');
-      }
-    } catch (e) {
-      toast('Ошибка: ' + e.message, 'error');
-    }
+    // Open the same in-page modal as createTgGroup but with empty draft for ad-hoc.
+    return openBriefingModal({title: '🎸 Сообщение в band-чат', defaultText: '', members: []});
   }
 
   async function createTgGroup() {
     if (!CURRENT_EVENT) return;
+    setSaveState('строю briefing…', 'var(--orange)');
     try {
       const r = await api(`/events/${CURRENT_EVENT.id}/create_tg_group`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({}),
       });
-      if (!r.ok) { toast(r.error || 'fail', 'error'); return; }
-      const w = window.open('', '_blank');
-      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>TG group draft</title>
-        <style>body{font:14px/1.5 system-ui;background:#0d1117;color:#e6edf3;padding:24px;max-width:760px;margin:0 auto}
-        h2{color:#bc8cff} h3{color:#58a6ff;margin-top:20px}
-        pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;white-space:pre-wrap}
-        .members{background:#161b22;padding:12px;border-radius:6px;border:1px solid #30363d}
-        .row{padding:6px 0;border-bottom:1px solid #30363d}
-        .row:last-child{border:0}
-        .hint{background:rgba(240,136,62,0.15);border-left:3px solid #f0883e;padding:10px;border-radius:4px;margin:14px 0}
-        </style></head><body>
-        <h2>📋 Draft группового чата</h2>
-        <div class="hint"><b>Approval-only.</b> ${r.hint}</div>
-        <h3>Title</h3><pre>${r.draft_title}</pre>
-        <h3>Участники (${r.members_count})</h3>
-        <div class="members">${r.members.map(m => `
-          <div class="row">
-            <b>${m.Роль || ''}</b> · ${m.Имя || ''}
-            ${m.TG ? ` · ${m.TG}` : ''}
-            ${m['Телефон'] ? ` · ${m['Телефон']}` : ''}
-          </div>`).join('')}</div>
-        <h3>Briefing message (первое сообщение в группе)</h3>
-        <pre>${r.briefing_message}</pre>
-        </body></html>`);
+      if (!r.ok) { toast(r.error || 'fail', 'error'); setSaveState('сохранено', 'var(--green)'); return; }
+      setSaveState('сохранено', 'var(--green)');
+      openBriefingModal({
+        title: '📋 Briefing — первое сообщение в band-chat',
+        defaultText: _stripHtml(r.briefing_message),
+        draftTitle: r.draft_title,
+        members: r.members || [],
+        hint: r.hint || '',
+      });
     } catch (e) {
       toast('Ошибка: ' + e.message, 'error');
+      setSaveState('err: ' + e.message, 'var(--red)');
     }
+  }
+
+  // ── In-page modal: edit + send through approval bot ────────────────────────
+  function openBriefingModal({title, defaultText, draftTitle, members, hint}) {
+    const ev = CURRENT_EVENT;
+    if (!ev) return;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#0d1117;border:1px solid #30363d;border-radius:10px;max-width:760px;width:100%;max-height:90vh;display:flex;flex-direction:column;color:#e6edf3;font:14px/1.5 system-ui;';
+    box.innerHTML = `
+      <div style="padding:14px 18px;border-bottom:1px solid #30363d;display:flex;align-items:center;gap:12px;">
+        <div style="font-size:16px;font-weight:600;color:#bc8cff;flex:1">${title}</div>
+        <button id="bm-close" style="background:transparent;border:none;color:#e6edf3;font-size:20px;cursor:pointer;">×</button>
+      </div>
+      <div style="padding:14px 18px;flex:1;overflow:auto;">
+        ${draftTitle ? `<div style="margin-bottom:10px;font-size:13px;color:#7ee787;"><b>Title группы:</b> ${draftTitle}</div>` : ''}
+        ${members && members.length ? `
+          <details style="margin-bottom:14px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px 12px;">
+            <summary style="cursor:pointer;color:#58a6ff;font-size:13px;">Участники (${members.length})</summary>
+            <div style="margin-top:8px;font-size:13px;">
+              ${members.map(m => `<div style="padding:4px 0;border-bottom:1px solid #21262d;"><b>${m['Роль']||''}</b> · ${m['Имя']||''}${m.TG?` · <span style="color:#7ee787">${m.TG}</span>`:''}${m['Телефон']?` · ${m['Телефон']}`:''}</div>`).join('')}
+            </div>
+          </details>` : ''}
+        ${hint ? `<div style="background:rgba(240,136,62,0.12);border-left:3px solid #f0883e;padding:9px 12px;border-radius:4px;margin-bottom:12px;font-size:12.5px;">${hint}</div>` : ''}
+        <div style="font-size:12.5px;color:#8b949e;margin-bottom:6px;">Текст сообщения <span style="color:#f5c518">(редактируется ниже)</span>:</div>
+        <textarea id="bm-text" style="width:100%;min-height:340px;background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:12px;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical;">${defaultText || ''}</textarea>
+        <div style="margin-top:8px;font-size:11.5px;color:#6e7681;">📌 После «Отправить в band-chat» сообщение уйдёт в @lcband_notify_bot draft. Реальная отправка — только после твоего ✅ в боте.</div>
+      </div>
+      <div style="padding:12px 18px;border-top:1px solid #30363d;display:flex;gap:8px;justify-content:flex-end;align-items:center;">
+        <span id="bm-status" style="font-size:12px;color:#6e7681;flex:1;"></span>
+        <button id="bm-copy" style="padding:7px 12px;border-radius:6px;background:transparent;color:#58a6ff;border:1px solid #58a6ff;cursor:pointer;font-size:13px;">📋 Скопировать</button>
+        <button id="bm-cancel" style="padding:7px 12px;border-radius:6px;background:transparent;color:#e6edf3;border:1px solid #30363d;cursor:pointer;font-size:13px;">Отмена</button>
+        <button id="bm-send" style="padding:8px 16px;border-radius:6px;background:#3fb950;color:#0d1117;border:none;cursor:pointer;font-size:13px;font-weight:700;">📤 Отправить в band-chat</button>
+      </div>
+    `;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    const ta = box.querySelector('#bm-text');
+    ta.focus();
+    const close = () => { overlay.remove(); };
+    box.querySelector('#bm-close').onclick = close;
+    box.querySelector('#bm-cancel').onclick = close;
+    box.querySelector('#bm-copy').onclick = () => {
+      navigator.clipboard.writeText(ta.value).then(
+        () => { box.querySelector('#bm-status').textContent = 'скопировано в буфер'; },
+        () => { box.querySelector('#bm-status').textContent = 'не удалось скопировать'; }
+      );
+    };
+    box.querySelector('#bm-send').onclick = async () => {
+      const text = ta.value.trim();
+      if (!text) { box.querySelector('#bm-status').textContent = 'пусто — нечего отправлять'; return; }
+      // tg_chat_id check — band-chat must exist for real delivery
+      if (!ev.tg_chat_id) {
+        const cid = prompt('TG chat_id band-чата (отрицательное число для группы, например -123456789). Можно оставить пустым — bot покажет в /pending без auto-send в группу.');
+        if (cid) {
+          ev.tg_chat_id = parseInt(cid);
+          scheduleSave();
+          await new Promise(r => setTimeout(r, 700));
+        }
+      }
+      box.querySelector('#bm-send').disabled = true;
+      box.querySelector('#bm-status').textContent = 'отправляю в approval bot…';
+      try {
+        const r = await api(`/events/${ev.id}/post_to_band_chat`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({text: text, source: 'briefing'}),
+        });
+        if (r.ok) {
+          toast(r.duplicate ? 'Уже в очереди approval' : `Draft в боте · ${r.approval_id}`);
+          close();
+        } else {
+          box.querySelector('#bm-status').textContent = r.error || 'ошибка';
+          box.querySelector('#bm-send').disabled = false;
+        }
+      } catch (e) {
+        box.querySelector('#bm-status').textContent = 'ошибка: ' + e.message;
+        box.querySelector('#bm-send').disabled = false;
+      }
+    };
   }
 
   async function deleteEvent() {
