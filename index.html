@@ -3830,49 +3830,6 @@ function TabBar({ activeTab, setActiveTab, newLeadsCount, attentionCount, refusa
           )}
         </button>
       ))}
-      <a href="./events.html"
-         style={{
-           padding: '7px 11px',
-           borderRadius: 8,
-           background: 'rgba(63, 185, 80, 0.15)',
-           color: '#3fb950',
-           border: '1px solid rgba(63, 185, 80, 0.3)',
-           fontWeight: 600,
-           fontSize: 12.5,
-           textDecoration: 'none',
-           whiteSpace: 'nowrap',
-           display: 'inline-flex',
-           alignItems: 'center',
-           gap: 5,
-           flexShrink: 0,
-           marginLeft: 'auto',
-         }}
-         title="Согласование events — состав, гонорары, финансы, контакты">
-        <span>📋</span>
-        <span>Events</span>
-        <span style={{fontSize: 11, opacity: 0.7}}>→</span>
-      </a>
-      <a href="./architecture.html"
-         style={{
-           padding: '7px 11px',
-           borderRadius: 8,
-           background: 'rgba(188, 140, 255, 0.15)',
-           color: '#bc8cff',
-           border: '1px solid rgba(188, 140, 255, 0.3)',
-           fontWeight: 600,
-           fontSize: 12.5,
-           textDecoration: 'none',
-           whiteSpace: 'nowrap',
-           display: 'inline-flex',
-           alignItems: 'center',
-           gap: 5,
-           flexShrink: 0,
-         }}
-         title="Архитектура проекта + AI usage breakdown">
-        <span>🧠</span>
-        <span>Архитектура</span>
-        <span style={{fontSize: 11, opacity: 0.7}}>→</span>
-      </a>
     </div>
   );
 }
@@ -5264,13 +5221,36 @@ function App() {
               <UnreadBadge />
             </div>
           </div>
-          <button
-            className="refresh-btn"
-            onClick={() => load(true)}
-            disabled={refreshing}
-          >
-            <span className={refreshing ? 'spin' : ''}>↻</span>
-          </button>
+          <nav style={{display:'flex', gap:8, alignItems:'center', marginLeft:'auto', flexWrap:'wrap'}}>
+            <a href="./events.html"
+               style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
+                       background:'rgba(63,185,80,0.15)', color:'#3fb950', border:'1px solid rgba(63,185,80,0.35)',
+                       display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
+               title="Согласование events — состав, гонорары, финансы, контакты">
+              <span>📋</span><span>Events</span>
+            </a>
+            <a href="./architecture.html"
+               style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
+                       background:'rgba(188,140,255,0.15)', color:'#bc8cff', border:'1px solid rgba(188,140,255,0.35)',
+                       display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
+               title="Архитектура проекта + AI usage breakdown">
+              <span>🧠</span><span>Архитектура</span>
+            </a>
+            <a href="./dm-direct-funnel.html"
+               style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
+                       background:'rgba(245,197,24,0.15)', color:'#f5c518', border:'1px solid rgba(245,197,24,0.35)',
+                       display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
+               title="DM-direct funnel — прямые TG лиды">
+              <span>📨</span><span>DM funnel</span>
+            </a>
+            <button
+              className="refresh-btn"
+              onClick={() => load(true)}
+              disabled={refreshing}
+            >
+              <span className={refreshing ? 'spin' : ''}>↻</span>
+            </button>
+          </nav>
         </div>
       </div>
 
