@@ -566,9 +566,31 @@ sequenceDiagram
       document.getElementById('stat-top-service-sub').textContent =
         `${fmtN(topSvcCalls)} calls (${((topSvcCalls / totalSvcCalls) * 100).toFixed(0)}%)`;
     }
-    const stBody = ['<table class="purpose-table"><thead><tr><th>Service</th><th class="num">Calls</th><th class="num">In tok</th></tr></thead><tbody>'];
+    // Compute today vs yesterday deltas per service for the "+N ↑/↓ за 24ч" line
+    const days = data.days || [];
+    const todayBucket = days[days.length - 1] || {};
+    const yestBucket  = days[days.length - 2] || {};
+    const todaySvc = todayBucket.services || {};
+    const yestSvc  = yestBucket.services  || {};
+    const renderDelta = (today, yest) => {
+      const d = today - yest;
+      if (d > 0) return `<span style="color:var(--green);font-size:10px">▲ +${fmtN(d)}</span>`;
+      if (d < 0) return `<span style="color:var(--red);font-size:10px">▼ −${fmtN(-d)}</span>`;
+      return `<span style="color:var(--muted);font-size:10px">· 0</span>`;
+    };
+    const stBody = ['<table class="purpose-table"><thead><tr><th>Service</th><th class="num">Calls / 7д<br><span style="font-weight:400;color:var(--muted)">сегодня · Δ</span></th><th class="num">In tok / 7д<br><span style="font-weight:400;color:var(--muted)">сегодня · Δ</span></th></tr></thead><tbody>'];
     for (const [name, calls, in_t] of serviceList) {
-      stBody.push(`<tr><td>${name}</td><td class="num">${fmtN(calls)}</td><td class="num">${fmtN(in_t)}</td></tr>`);
+      const tCalls = (todaySvc[name]?.calls) || 0;
+      const yCalls = (yestSvc[name]?.calls) || 0;
+      const tTok   = (todaySvc[name]?.input_tok) || 0;
+      const yTok   = (yestSvc[name]?.input_tok) || 0;
+      stBody.push(
+        `<tr>
+          <td>${name}</td>
+          <td class="num">${fmtN(calls)}<div style="font-size:10px;color:var(--muted);margin-top:2px">${fmtN(tCalls)} ${renderDelta(tCalls, yCalls)}</div></td>
+          <td class="num">${fmtN(in_t)}<div style="font-size:10px;color:var(--muted);margin-top:2px">${fmtN(tTok)} ${renderDelta(tTok, yTok)}</div></td>
+        </tr>`
+      );
     }
     stBody.push('</tbody></table>');
     document.getElementById('service-table').innerHTML = stBody.join('');
