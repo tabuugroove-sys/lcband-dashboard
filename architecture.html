@@ -578,9 +578,9 @@ sequenceDiagram
         `${fmtN(topSvcCalls)} calls (${((topSvcCalls / totalSvcCalls) * 100).toFixed(0)}%)`;
     }
     // Compute today vs yesterday deltas per service for the "+N ↑/↓ за 24ч" line
-    const days = data.days || [];
-    const todayBucket = days[days.length - 1] || {};
-    const yestBucket  = days[days.length - 2] || {};
+    const dayList = data.days || [];
+    const todayBucket = dayList[dayList.length - 1] || {};
+    const yestBucket  = dayList[dayList.length - 2] || {};
     const todaySvc = todayBucket.services || {};
     const yestSvc  = yestBucket.services  || {};
     const renderDelta = (today, yest) => {
