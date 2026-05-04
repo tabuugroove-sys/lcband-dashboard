@@ -170,6 +170,16 @@
   table.section-table td input:hover { border-color: var(--border); }
   table.section-table td input:focus { border-color: var(--blue); background: var(--panel); }
   table.section-table .num-cell input { text-align: right; font-variant-numeric: tabular-nums; }
+  /* URL-cell: input + "🔗" open link side by side */
+  table.section-table .cell-wrap { display: flex; align-items: center; gap: 4px; }
+  table.section-table .cell-wrap input { flex: 1; }
+  table.section-table .open-link {
+    text-decoration: none; padding: 2px 6px; border-radius: 4px;
+    background: rgba(88, 166, 255, 0.15); color: var(--blue);
+    border: 1px solid rgba(88, 166, 255, 0.3); font-size: 11px;
+    flex-shrink: 0; line-height: 1;
+  }
+  table.section-table .open-link:hover { background: rgba(88, 166, 255, 0.3); }
   table.section-table tr:last-child td { border-bottom: 0; }
   table.section-table .row-actions { text-align: right; padding: 0 6px; }
   table.section-table .row-actions button {
@@ -643,9 +653,20 @@
         ${cols.map(c => {
           const v = row[c] === undefined ? '' : row[c];
           const isNum = typeof v === 'number' || (typeof v === 'string' && /^\d+(\.\d+)?$/.test(v));
-          return `<td class="${isNum ? 'num-cell' : ''}">
-            <input type="text" value="${escapeAttr(String(v))}"
-                   oninput="updateCell(${idx}, ${ri}, '${escapeAttr(c)}', this.value)">
+          const sval = String(v);
+          // If the cell value looks like a URL — show a small "🔗 открыть"
+          // link next to the input (works for Договор · URL, Фото костюмов,
+          // Схема заезда, etc. without any per-section knowledge).
+          const isUrl = /^https?:\/\//i.test(sval.trim());
+          const linkBtn = isUrl
+            ? `<a href="${escapeAttr(sval.trim())}" target="_blank" rel="noopener" class="open-link" title="Открыть в новой вкладке">🔗</a>`
+            : '';
+          return `<td class="${isNum ? 'num-cell' : ''} ${isUrl ? 'url-cell' : ''}">
+            <div class="cell-wrap">
+              <input type="text" value="${escapeAttr(sval)}"
+                     oninput="updateCell(${idx}, ${ri}, '${escapeAttr(c)}', this.value)">
+              ${linkBtn}
+            </div>
           </td>`;
         }).join('')}
         <td class="row-actions">
