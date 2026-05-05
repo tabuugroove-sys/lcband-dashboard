@@ -759,6 +759,96 @@
     `;
   }
 
+  // ─── Pricing helpers (auto-recalc) ─────────────────────────────
+  const KIRILL_RATE = 0.12;
+  function parseRu(s) {
+    if (typeof s === 'number') return s;
+    if (!s) return 0;
+    const cleaned = String(s).replace(/[\s ₽,]/g, '').replace(/[−–—]/g, '-');
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? 0 : n;
+  }
+  function fmtRuMoney(n) {
+    const abs = Math.abs(Math.round(n));
+    const formatted = abs.toLocaleString('ru-RU').replace(/,/g, ' ').replace(/ /g, ' ');
+    const sign = n < 0 ? '−' : '';
+    return `${sign}${formatted} ₽`;
+  }
+
+  function recomputeFinances() {
+    if (!CURRENT_EVENT) return false;
+    const sections = CURRENT_EVENT.sections || [];
+    const sostav = sections.find(s => s.name === 'Состав');
+    const finance = sections.find(s => s.name === 'Финансы');
+    if (!finance) return false;
+
+    // 1. Сумма гонораров команды
+    let band_total = 0;
+    const breakdown = [];
+    if (sostav) {
+      for (const r of (sostav.rows || [])) {
+        const fee = parseFloat(r['Гонорар']) || 0;
+        if (fee > 0) {
+          band_total += fee;
+          const firstName = (r['Имя'] || r['Роль'] || '').split(' ')[0];
+          breakdown.push(`${firstName} ${Math.round(fee/1000)}`);
+        }
+      }
+    }
+
+    // 2. Стоимость договора (input) и Бэклайн (input)
+    let contract = 0;
+    let backline = 0;
+    for (const r of (finance.rows || [])) {
+      const stat = (r['Статья'] || '');
+      if (stat.includes('Стоимость договора')) contract = parseRu(r['Сумма']);
+      else if (stat.includes('Бэклайн')) backline = Math.abs(parseRu(r['Сумма']));
+    }
+
+    // 3. Derived
+    const kirill = Math.round(contract * KIRILL_RATE);
+    const margin = contract - kirill - band_total - backline;
+    let changed = false;
+
+    // 4. Запись обратно
+    for (const r of (finance.rows || [])) {
+      const stat = (r['Статья'] || '');
+      if (stat.includes('Кирилл')) {
+        const newStat = `🔻 Кирилл — ИП ${(KIRILL_RATE*100).toFixed(0)}% от ${(contract/1000).toFixed(0)}к`;
+        const newSum = fmtRuMoney(-kirill);
+        if (r['Статья'] !== newStat) { r['Статья'] = newStat; changed = true; }
+        if (r['Сумма'] !== newSum) { r['Сумма'] = newSum; changed = true; }
+      } else if (stat.includes('Гонорары команды')) {
+        const newSum = fmtRuMoney(-band_total);
+        const newNote = breakdown.join(' + ');
+        if (r['Сумма'] !== newSum) { r['Сумма'] = newSum; changed = true; }
+        if (breakdown.length && r['Заметка'] !== newNote) { r['Заметка'] = newNote; changed = true; }
+      } else if (stat.includes('Маржа')) {
+        const newSum = fmtRuMoney(margin);
+        if (r['Сумма'] !== newSum) { r['Сумма'] = newSum; changed = true; }
+      }
+    }
+    return changed;
+  }
+
+  function rerenderFinanceSection() {
+    if (!CURRENT_EVENT) return;
+    const idx = (CURRENT_EVENT.sections || []).findIndex(s => s.name === 'Финансы');
+    if (idx < 0) return;
+    // Поиск DOM-узла секции Финансы по позиции среди .section в #event-detail
+    const detail = document.getElementById('event-detail');
+    if (!detail) return;
+    const sectionEls = detail.querySelectorAll('.section');
+    const targetEl = sectionEls[idx];
+    if (!targetEl) return;
+    // Запоминаем активный элемент (focus + selection) чтобы вернуть после re-render
+    const active = document.activeElement;
+    const activeIsInside = active && targetEl.contains(active);
+    targetEl.outerHTML = renderSection(CURRENT_EVENT.sections[idx], idx);
+    // Если фокус был не в Финансах, не трогаем
+    if (!activeIsInside) return;
+  }
+
   // ─── Mutations ─────────────────────────────────────────────────
   function updateCell(sIdx, rIdx, key, val) {
     if (!CURRENT_EVENT.sections[sIdx]) return;
@@ -770,6 +860,19 @@
       row[key] = val;
     }
     scheduleSave();
+
+    // Auto-recalc маржи если меняли в Составе (Гонорар) или Финансах (Стоимость/Бэклайн)
+    const sec = CURRENT_EVENT.sections[sIdx];
+    if (!sec) return;
+    if (sec.name === 'Состав' && key === 'Гонорар') {
+      if (recomputeFinances()) rerenderFinanceSection();
+    } else if (sec.name === 'Финансы') {
+      const stat = String(row['Статья'] || '');
+      // Меняли input-поля → пересчёт. Если меняли derived (Кирилл/Команда/Маржа) — recompute их перепишет, но это ок.
+      if (key === 'Сумма' && (stat.includes('Стоимость договора') || stat.includes('Бэклайн'))) {
+        if (recomputeFinances()) rerenderFinanceSection();
+      }
+    }
   }
 
   function addRow(sIdx) {
