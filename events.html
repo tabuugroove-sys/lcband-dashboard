@@ -182,6 +182,19 @@
   table.section-table .open-link:hover { background: rgba(88, 166, 255, 0.3); }
   table.section-table tr:last-child td { border-bottom: 0; }
   table.section-table .row-actions { text-align: right; padding: 0 6px; }
+  /* Boolean checkbox cell — Финал, Костюм и т.п. */
+  table.section-table .bool-cell { text-align: center; padding: 4px 8px; }
+  table.section-table .bool-toggle { display: inline-flex; align-items: center; cursor: pointer; user-select: none; }
+  table.section-table .bool-toggle input[type="checkbox"] { display: none; }
+  table.section-table .bool-mark {
+    font-size: 18px; line-height: 1;
+    display: inline-block; transition: transform 0.15s ease;
+    filter: grayscale(0.3);
+  }
+  table.section-table .bool-toggle input:checked ~ .bool-mark {
+    filter: none; transform: scale(1.05);
+  }
+  table.section-table .bool-toggle:hover .bool-mark { filter: brightness(1.2); }
   table.section-table .row-actions button {
     background: transparent; border: none; color: var(--muted);
     cursor: pointer; padding: 4px; font-size: 12px;
@@ -713,6 +726,21 @@
           const v = row[c] === undefined ? '' : row[c];
           const isNum = typeof v === 'number' || (typeof v === 'string' && /^\d+(\.\d+)?$/.test(v));
           const sval = String(v);
+          // Boolean / checkbox cell — для столбцов где значения true/false
+          // (Финал, Костюм и подобные). Распознаём по типу значения ИЛИ по
+          // тому что в столбце есть хотя бы одно значение boolean.
+          const colAllValues = rows.map(rr => rr[c]);
+          const isBoolCol = colAllValues.some(x => typeof x === 'boolean');
+          if (isBoolCol) {
+            const checked = (v === true || v === 'true');
+            return `<td class="bool-cell">
+              <label class="bool-toggle">
+                <input type="checkbox" ${checked ? 'checked' : ''}
+                       onchange="updateCell(${idx}, ${ri}, '${escapeAttr(c)}', this.checked)">
+                <span class="bool-mark">${checked ? '✅' : '⬜'}</span>
+              </label>
+            </td>`;
+          }
           // If the cell value looks like a URL — show a small "🔗 открыть"
           // link next to the input (works for Договор · URL, Фото костюмов,
           // Схема заезда, etc. without any per-section knowledge).
@@ -853,8 +881,11 @@
   function updateCell(sIdx, rIdx, key, val) {
     if (!CURRENT_EVENT.sections[sIdx]) return;
     const row = CURRENT_EVENT.sections[sIdx].rows[rIdx];
-    // Auto-cast to number if it looks numeric
-    if (val !== '' && !isNaN(Number(val)) && /^-?\d+(\.\d+)?$/.test(val.trim())) {
+    // Boolean (от checkbox onchange)
+    if (typeof val === 'boolean') {
+      row[key] = val;
+    } else if (val !== '' && !isNaN(Number(val)) && /^-?\d+(\.\d+)?$/.test(String(val).trim())) {
+      // Auto-cast to number if it looks numeric
       row[key] = parseFloat(val);
     } else {
       row[key] = val;
