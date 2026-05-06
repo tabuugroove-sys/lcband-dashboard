@@ -1,4 +1,6 @@
-const CACHE = 'lcb-v28-interest-stage-fix';
+// Service Worker — network-first для app shell (HTML/JS/CSS).
+// До v29 был cache-first → пользователь не видел свежие деплои до hard-reload.
+const CACHE = 'lcb-v29-network-first';
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
@@ -18,8 +20,10 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Google Sheets requests — network first, fall back to cache
-  if (e.request.url.includes('docs.google.com')) {
+  const url = e.request.url;
+
+  // Google Sheets — network first, fall back to cache
+  if (url.includes('docs.google.com')) {
     e.respondWith(
       fetch(e.request)
         .then(resp => {
@@ -31,7 +35,25 @@ self.addEventListener('fetch', e => {
     );
     return;
   }
-  // App shell — cache first
+
+  // App shell (HTML/JS/CSS на нашем origin) — NETWORK FIRST.
+  // Кешируем для офлайна, но всегда пробуем сначала свежее с сервера.
+  if (e.request.mode === 'navigate' || url.endsWith('.html') || url.endsWith('.js') || url.endsWith('.css')) {
+    e.respondWith(
+      fetch(e.request, { cache: 'no-cache' })
+        .then(resp => {
+          if (resp.ok) {
+            const clone = resp.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+          }
+          return resp;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Остальное (картинки, шрифты, API) — cache-first для скорости
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
