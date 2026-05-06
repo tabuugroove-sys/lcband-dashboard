@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LCB Contact Roles</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #f0c419;
+    --green: #3fb950;
+    --red: #f85149;
+    --blue: #58a6ff;
+    --orange: #ff9b54;
+    --purple: #c074ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; }
+  header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex;
+           justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;}
+  header h1 { margin: 0; font-size: 20px; color: var(--accent); }
+  header .meta { color: var(--muted); font-size: 13px; }
+  header .meta b { color: var(--text); }
+  .nav a { color: var(--blue); text-decoration: none; margin-right: 12px; font-size: 13px; }
+  .nav a:hover { text-decoration: underline; }
+  main { padding: 24px; max-width: 1600px; margin: 0 auto; }
+
+  .progress-banner { background: var(--panel); border: 1px solid var(--border);
+                     border-radius: 8px; padding: 16px; margin-bottom: 24px;
+                     display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+  .stat { text-align: center; }
+  .stat .v { font-size: 28px; font-weight: 700; color: var(--accent); }
+  .stat .l { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .progress-bar { height: 8px; background: var(--border); border-radius: 4px;
+                  overflow: hidden; margin-top: 8px; }
+  .progress-bar > div { height: 100%; background: var(--green); transition: width 0.3s; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--border);
+           border-radius: 8px; padding: 16px; }
+  .panel h2 { margin: 0 0 12px 0; font-size: 14px; text-transform: uppercase;
+              color: var(--muted); letter-spacing: 1px; }
+
+  /* Pie chart via flexbox bars */
+  .role-bars .row { display: grid; grid-template-columns: 200px 1fr 50px;
+                    gap: 12px; align-items: center; padding: 6px 0;
+                    border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .role-bars .name { color: var(--text); font-weight: 500; }
+  .role-bars .bar-container { background: var(--border); height: 20px;
+                              border-radius: 4px; overflow: hidden; }
+  .role-bars .bar { height: 100%; background: var(--accent); transition: width 0.3s; }
+  .role-bars .count { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* Role colors */
+  .r-client_organizer .bar, .r-event_agency .bar { background: var(--green); }
+  .r-client_private .bar { background: #4ec9b0; }
+  .r-contractor_host .bar, .r-contractor_dj .bar, .r-contractor_photo_video .bar,
+  .r-contractor_decor .bar, .r-contractor_dance_show .bar, .r-contractor_anim .bar,
+  .r-contractor_tech .bar, .r-contractor_other .bar { background: var(--blue); }
+  .r-musician_competitor .bar, .r-musician_solo .bar { background: var(--orange); }
+  .r-personal .bar { background: var(--purple); }
+  .r-bot_or_spam .bar { background: var(--red); }
+  .r-unknown .bar { background: var(--muted); }
+
+  /* Filters bar */
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .filters input, .filters select {
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 12px; border-radius: 6px; font-size: 13px;
+  }
+  .filters input { min-width: 240px; }
+  .chip { padding: 4px 10px; background: var(--panel); border: 1px solid var(--border);
+          border-radius: 16px; cursor: pointer; font-size: 12px; }
+  .chip.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; background: var(--panel);
+          border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  thead { background: rgba(0,0,0,0.3); }
+  th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { color: var(--muted); font-weight: 500; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+  tr:hover { background: rgba(255,255,255,0.02); }
+  td.role { font-weight: 600; }
+  td.role.client_organizer, td.role.event_agency { color: var(--green); }
+  td.role.client_private { color: #4ec9b0; }
+  td.role[class*="contractor_"] { color: var(--blue); }
+  td.role[class*="musician_"] { color: var(--orange); }
+  td.role.personal { color: var(--purple); }
+  td.role.bot_or_spam { color: var(--red); }
+  td.role.unknown { color: var(--muted); }
+
+  td .username { color: var(--blue); font-family: 'SF Mono', monospace; }
+  td.evidence { color: var(--muted); font-size: 12px; max-width: 400px;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  td.evidence:hover { white-space: normal; }
+  .badge { display: inline-block; padding: 2px 6px; border-radius: 3px;
+           font-size: 11px; background: rgba(255,255,255,0.05); color: var(--muted); }
+  .badge.cb { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+  .conf-high { color: var(--green); }
+  .conf-medium { color: var(--accent); }
+  .conf-low { color: var(--muted); }
+
+  .empty { text-align: center; padding: 40px; color: var(--muted); }
+  .loading { text-align: center; padding: 40px; color: var(--accent); }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🎭 LCB Contact Roles</h1>
+      <div class="meta">Классификация всех TG-контактов по ролям. Update: <b id="last-updated">…</b></div>
+    </div>
+    <div class="nav">
+      <a href="index.html">← LCB Dashboard</a>
+      <a href="dm-direct-funnel.html">DM Funnel</a>
+      <a href="events.html">Events</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Export progress -->
+    <div class="progress-banner" id="progress-banner">
+      <div class="stat">
+        <div class="v" id="stat-total">—</div>
+        <div class="l">Контактов классифицировано</div>
+      </div>
+      <div class="stat">
+        <div class="v" id="stat-synced">—</div>
+        <div class="l">Диалогов выгружено</div>
+      </div>
+      <div class="stat">
+        <div class="v" id="stat-msgs">—</div>
+        <div class="l">Сообщений в экспорте</div>
+      </div>
+      <div class="stat">
+        <div class="v" id="stat-mentioned">—</div>
+        <div class="l">Знают нас как кавер-группу</div>
+      </div>
+      <div style="grid-column: 1/-1;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;
+                    font-size: 12px; color: var(--muted);">
+          <span>Прогресс выгрузки</span>
+          <span id="progress-text">— / —</span>
+        </div>
+        <div class="progress-bar"><div id="progress-fill" style="width: 0%"></div></div>
+      </div>
+    </div>
+
+    <!-- Distribution by role -->
+    <div class="grid">
+      <div class="panel">
+        <h2>Распределение по ролям</h2>
+        <div class="role-bars" id="role-bars">
+          <div class="loading">Загрузка...</div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Полезные срезы</h2>
+        <div id="cohorts" class="role-bars">
+          <div class="loading">Загрузка...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <input id="search" placeholder="🔍 Имя / username / evidence...">
+      <select id="role-filter">
+        <option value="">Все роли</option>
+      </select>
+      <select id="city-filter">
+        <option value="">Все города</option>
+      </select>
+      <span class="chip" data-flag="mentioned_cover_band" id="chip-cb">🎵 Знают нас</span>
+      <span class="chip" data-flag="our_outreach" id="chip-our">📤 Cold pitch от нас</span>
+      <span class="chip" data-flag="client_first" id="chip-client">📥 Клиент написал первым</span>
+    </div>
+
+    <!-- Contacts table -->
+    <table>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Имя</th>
+          <th>Роль</th>
+          <th>Конф.</th>
+          <th>Город</th>
+          <th>Сообщений</th>
+          <th>Активность</th>
+          <th>Знают нас</th>
+          <th>Evidence / Notes</th>
+        </tr>
+      </thead>
+      <tbody id="contacts-tbody">
+        <tr><td colspan="9" class="loading">Загрузка...</td></tr>
+      </tbody>
+    </table>
+  </main>
+
+<script>
+const ROLE_LABELS = {
+  client_organizer: '🏢 Корпоратив-менеджер',
+  client_private: '💍 Частник (свадьба/ДР)',
+  event_agency: '🎪 Event-агентство',
+  contractor_host: '🎤 Ведущий/тамада',
+  contractor_dj: '🎧 DJ',
+  contractor_photo_video: '📸 Фото/видео',
+  contractor_decor: '🌸 Декор/флорист',
+  contractor_dance_show: '💃 Танцоры/шоу',
+  contractor_anim: '🎭 Аниматоры',
+  contractor_tech: '🔊 Звук/свет/тех',
+  contractor_other: '🛠️ Другие услуги',
+  musician_competitor: '🎸 Конкурент',
+  musician_solo: '🎙️ Солист',
+  personal: '👤 Личное',
+  bot_or_spam: '🤖 Бот/спам',
+  unknown: '❓ Unknown',
+};
+
+let allContacts = [];
+let activeFlags = new Set();
+
+// Resolve backend URL — same pattern as index.html
+let BACKEND = '';
+async function resolveBackend() {
+  if (location.protocol === 'file:' ||
+      location.hostname === '127.0.0.1' ||
+      location.hostname === 'localhost') {
+    BACKEND = '';
+    return;
+  }
+  try {
+    const r = await fetch('./backend_url.json', { cache: 'no-store' });
+    if (r.ok) {
+      const j = await r.json();
+      if (j && typeof j.url === 'string' && /^https:\/\//.test(j.url)) BACKEND = j.url;
+    }
+  } catch { /* leave fallback */ }
+}
+
+async function loadData() {
+  if (BACKEND === '' && location.protocol !== 'file:' &&
+      location.hostname !== '127.0.0.1' && location.hostname !== 'localhost') {
+    await resolveBackend();
+  }
+  let resp;
+  try {
+    resp = await fetch(BACKEND + '/api/contact_roles', { cache: 'no-store' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  } catch (e) {
+    document.getElementById('contacts-tbody').innerHTML =
+      `<tr><td colspan="9" class="empty">⚠️ Backend недоступен: ${e.message}</td></tr>`;
+    return;
+  }
+  const data = await resp.json();
+  renderProgress(data);
+  renderRoleDistribution(data);
+  renderCohorts(data);
+  populateFilters(data);
+  allContacts = Object.entries(data.contacts || {}).map(([uname, c]) => ({uname, ...c}));
+  applyFilters();
+
+  // Last updated
+  document.getElementById('last-updated').textContent = data.last_updated
+    ? new Date(data.last_updated).toLocaleString('ru-RU')
+    : 'нет данных';
+}
+
+function renderProgress(data) {
+  const stats = data.stats || {};
+  const exp = data.export_progress || {};
+  document.getElementById('stat-total').textContent = stats.total || 0;
+  document.getElementById('stat-synced').textContent = exp.synced_dialogs || 0;
+  document.getElementById('stat-msgs').textContent = (exp.total_msgs_exported || 0).toLocaleString();
+  // Mentioned cover band
+  let mentioned = 0;
+  for (const c of Object.values(data.contacts || {})) {
+    if (c.mentioned_cover_band) mentioned++;
+  }
+  document.getElementById('stat-mentioned').textContent = mentioned;
+
+  // Progress bar
+  const total = exp.total_dialogs_in_meta || 0;
+  const synced = exp.synced_dialogs || 0;
+  const pct = total > 0 ? (synced / total * 100) : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-text').textContent = `${synced} / ${total} (${pct.toFixed(0)}%)`;
+}
+
+function renderRoleDistribution(data) {
+  const byRole = (data.stats || {}).by_role || {};
+  const total = Object.values(byRole).reduce((s, n) => s + n, 0) || 1;
+  const sorted = Object.entries(byRole).sort((a, b) => b[1] - a[1]);
+  if (!sorted.length) {
+    document.getElementById('role-bars').innerHTML =
+      '<div class="empty">Пока нет классифицированных контактов</div>';
+    return;
+  }
+  document.getElementById('role-bars').innerHTML = sorted.map(([r, n]) => {
+    const pct = (n / total * 100).toFixed(0);
+    return `<div class="row r-${r}">
+      <div class="name">${ROLE_LABELS[r] || r}</div>
+      <div class="bar-container"><div class="bar" style="width:${pct}%"></div></div>
+      <div class="count">${n}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderCohorts(data) {
+  const contacts = Object.values(data.contacts || {});
+  const cohorts = [
+    { label: '🎵 Знают нас как кавер-группу', n: contacts.filter(c => c.mentioned_cover_band).length },
+    { label: '📤 От холодного outreach', n: contacts.filter(c => c.our_outreach).length },
+    { label: '📥 Клиент написал первым', n: contacts.filter(c => c.client_first).length },
+    { label: '📍 Москва', n: contacts.filter(c => c.city === 'Москва').length },
+    { label: '🏙️ СПб', n: contacts.filter(c => c.city === 'СПб').length },
+    { label: '✓ High confidence', n: contacts.filter(c => c.confidence === 'high').length },
+    { label: '? Low confidence', n: contacts.filter(c => c.confidence === 'low').length },
+  ];
+  const max = Math.max(...cohorts.map(c => c.n), 1);
+  document.getElementById('cohorts').innerHTML = cohorts.map(c => {
+    const pct = (c.n / max * 100).toFixed(0);
+    return `<div class="row">
+      <div class="name">${c.label}</div>
+      <div class="bar-container"><div class="bar" style="width:${pct}%; background: var(--accent);"></div></div>
+      <div class="count">${c.n}</div>
+    </div>`;
+  }).join('');
+}
+
+function populateFilters(data) {
+  const byRole = (data.stats || {}).by_role || {};
+  const roleSelect = document.getElementById('role-filter');
+  for (const [r, n] of Object.entries(byRole).sort((a, b) => b[1] - a[1])) {
+    const opt = document.createElement('option');
+    opt.value = r;
+    opt.textContent = `${ROLE_LABELS[r] || r} (${n})`;
+    roleSelect.appendChild(opt);
+  }
+  const cities = new Set();
+  for (const c of Object.values(data.contacts || {})) {
+    if (c.city) cities.add(c.city);
+  }
+  const citySelect = document.getElementById('city-filter');
+  for (const city of [...cities].sort()) {
+    const opt = document.createElement('option');
+    opt.value = city; opt.textContent = city;
+    citySelect.appendChild(opt);
+  }
+}
+
+function applyFilters() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const roleF = document.getElementById('role-filter').value;
+  const cityF = document.getElementById('city-filter').value;
+
+  let rows = allContacts.filter(c => {
+    if (roleF && c.role !== roleF) return false;
+    if (cityF && c.city !== cityF) return false;
+    for (const flag of activeFlags) {
+      if (!c[flag]) return false;
+    }
+    if (q) {
+      const haystack = (c.uname + ' ' + c.first_name + ' ' + c.last_name + ' ' +
+                        c.evidence + ' ' + c.notes).toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+
+  // Sort: knew us as cover-band first, then high-conf, then by msg_count desc
+  rows.sort((a, b) => {
+    if (a.mentioned_cover_band !== b.mentioned_cover_band) {
+      return a.mentioned_cover_band ? -1 : 1;
+    }
+    const cOrder = { high: 3, medium: 2, low: 1 };
+    if ((cOrder[a.confidence] || 0) !== (cOrder[b.confidence] || 0)) {
+      return (cOrder[b.confidence] || 0) - (cOrder[a.confidence] || 0);
+    }
+    return (b.msg_count || 0) - (a.msg_count || 0);
+  });
+
+  if (!rows.length) {
+    document.getElementById('contacts-tbody').innerHTML =
+      '<tr><td colspan="9" class="empty">По фильтрам ничего не найдено</td></tr>';
+    return;
+  }
+
+  document.getElementById('contacts-tbody').innerHTML = rows.slice(0, 500).map(c => {
+    const fullName = ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || '—';
+    const lastDate = c.last_msg_date ? c.last_msg_date.slice(0, 10) : '—';
+    const cb = c.mentioned_cover_band ? '<span class="badge cb">YES</span>' : '<span class="badge">—</span>';
+    return `<tr>
+      <td><span class="username">@${c.uname}</span></td>
+      <td>${fullName}</td>
+      <td class="role ${c.role}">${ROLE_LABELS[c.role] || c.role}</td>
+      <td><span class="conf-${c.confidence}">${c.confidence || '—'}</span></td>
+      <td>${c.city || '—'}</td>
+      <td>${c.msg_count || 0}</td>
+      <td>${lastDate}</td>
+      <td>${cb}</td>
+      <td class="evidence" title="${(c.evidence || '').replace(/"/g, '&quot;')} — ${(c.notes || '').replace(/"/g, '&quot;')}">${c.evidence || c.notes || '—'}</td>
+    </tr>`;
+  }).join('') + (rows.length > 500
+    ? `<tr><td colspan="9" class="empty">... и ещё ${rows.length - 500} (примените фильтры)</td></tr>`
+    : '');
+}
+
+document.getElementById('search').addEventListener('input', applyFilters);
+document.getElementById('role-filter').addEventListener('change', applyFilters);
+document.getElementById('city-filter').addEventListener('change', applyFilters);
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const flag = chip.dataset.flag;
+    if (activeFlags.has(flag)) {
+      activeFlags.delete(flag);
+      chip.classList.remove('active');
+    } else {
+      activeFlags.add(flag);
+      chip.classList.add('active');
+    }
+    applyFilters();
+  });
+});
+
+loadData();
+setInterval(loadData, 60000);  // refresh every minute
+</script>
+</body>
+</html>
