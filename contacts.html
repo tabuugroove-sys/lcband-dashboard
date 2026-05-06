@@ -287,12 +287,15 @@ function renderProgress(data) {
   }
   document.getElementById('stat-mentioned').textContent = mentioned;
 
-  // Progress bar
-  const total = exp.total_dialogs_in_meta || 0;
+  // Progress bar — относительно ИСТИННОГО total (всех TG private dialogs аккаунта),
+  // не относительно того что лежит в _meta. Иначе показывается фейковый 100%.
+  const realTotal = exp.real_total_tg_dialogs || exp.total_dialogs_in_meta || 0;
   const synced = exp.synced_dialogs || 0;
-  const pct = total > 0 ? (synced / total * 100) : 0;
+  const pct = realTotal > 0 ? (synced / realTotal * 100) : 0;
   document.getElementById('progress-fill').style.width = pct + '%';
-  document.getElementById('progress-text').textContent = `${synced} / ${total} (${pct.toFixed(0)}%)`;
+  document.getElementById('progress-text').textContent =
+    `${synced} / ${realTotal} (${pct.toFixed(0)}%)` +
+    (realTotal === 0 ? ' — ждём первое перечисление диалогов TG…' : '');
 }
 
 function renderRoleDistribution(data) {
