@@ -154,7 +154,7 @@
 <body>
 
 <header>
-  <h1>🧠 LC Band — Architecture & AI Usage</h1>
+  <h1>🧠 LC Band — Architecture & AI Usage <span style="color:var(--muted);font-weight:400;font-size:60%">(programmatic + Claude Code)</span></h1>
   <div class="updated" id="updated">загрузка…</div>
   <div class="nav-links">
     <button class="theme-toggle" id="theme-toggle" title="Переключить тему">🌙 Тёмная</button>
@@ -165,14 +165,20 @@
   </div>
 </header>
 
+<!-- Runaway alert banner — visible only когда session_usage_tracker найдёт сессию >5 MB за 24ч. -->
+<div id="runaway-banner" style="display:none;margin:16px 24px;padding:12px 16px;background:linear-gradient(90deg,#3a1f1f,#2a1a1a);border:1px solid var(--red,#f85149);border-radius:8px;color:#ffd6d6;font-size:13px;cursor:pointer" title="Click to inspect">
+  <strong style="color:#f85149">⚠️ Heavy session detected:</strong>
+  <span id="runaway-detail">…</span>
+</div>
+
 <div class="stats-bar">
   <div class="stat">
-    <div class="stat-label">Сегодня — calls</div>
+    <div class="stat-label">Сегодня — calls (programmatic)</div>
     <div class="stat-value" id="stat-today-calls">—</div>
     <div class="stat-sub" id="stat-today-tokens">—</div>
   </div>
   <div class="stat">
-    <div class="stat-label">7 дней — calls</div>
+    <div class="stat-label">7 дней — calls (programmatic)</div>
     <div class="stat-value" id="stat-week-calls">—</div>
     <div class="stat-sub" id="stat-week-tokens">—</div>
   </div>
@@ -185,6 +191,16 @@
     <div class="stat-label">Топ service (7д)</div>
     <div class="stat-value" id="stat-top-service">—</div>
     <div class="stat-sub" id="stat-top-service-sub">—</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Interactive (today)</div>
+    <div class="stat-value" id="stat-session-today-cost">—</div>
+    <div class="stat-sub" id="stat-session-today-sub">—</div>
+  </div>
+  <div class="stat" title="Combined daily burn rate: programmatic + interactive Claude Code">
+    <div class="stat-label">Combined burn (today)</div>
+    <div class="stat-value" id="stat-combined-cost">—</div>
+    <div class="stat-sub" id="stat-combined-sub">programmatic + interactive</div>
   </div>
 </div>
 
@@ -387,29 +403,59 @@ flowchart LR
 
   ORDERS[("orders.db")]:::store
   ACT[("session_actions.jsonl")]:::store
-  USAGE[("ai_usage.json")]:::store
+  USAGE[("ai_usage.json<br/>programmatic")]:::store
   WALK_R[("browser_walk_result.json")]:::store
+  SESSIONS[("~/.claude/projects/*.jsonl<br/>interactive Claude Code")]:::store
 
   ORDERS --> BACKEND["dashboard_backend.py<br/>Flask :8878<br/>30s cache"]:::agent
   ACT --> BACKEND
   USAGE --> BACKEND
   WALK_R --> BACKEND
+  SESSIONS --> BACKEND
 
   BACKEND --> EP1["/api/dashboard_data"]:::agent
   BACKEND --> EP2["/api/db/snapshot"]:::agent
   BACKEND --> EP3["/api/ai_usage_breakdown"]:::agent
   BACKEND --> EP4["/api/dm_direct_funnel"]:::agent
+  BACKEND --> EP5["/api/session_usage_breakdown"]:::agent
 
   TUNNEL["Cloudflare tunnel<br/>tagged-shadow-permission-agents"]:::chan
   EP1 --> TUNNEL
   EP2 --> TUNNEL
   EP3 --> TUNNEL
   EP4 --> TUNNEL
+  EP5 --> TUNNEL
 
   TUNNEL --> PAGES["GitHub Pages<br/>tabuugroove-sys.github.io/lcband-dashboard"]:::chan
   PAGES --> PAGE1["index.html — operator dashboard"]:::chan
   PAGES --> PAGE2["architecture.html — этa страница"]:::chan
   PAGES --> PAGE3["dm-direct-funnel.html"]:::chan
+    </div>
+  </section>
+
+  <section class="mindmap-card">
+    <h2>8. Interactive Claude Code sessions — что не покрывает ai_usage.json</h2>
+    <p class="diagram-note">session_usage_tracker.py сканит локальные транскрипты (~/.claude/projects/*.jsonl), оценивает токены через native message.usage (точно) с фолбэком на размер × pricing. Кэш 60с. Дополняет programmatic-вызовы из claude_cli.</p>
+    <div class="mermaid">
+flowchart LR
+  classDef store fill:#2a2a2a,stroke:#8b949e,color:#e6edf3
+  classDef agent fill:#2d2a4a,stroke:#bc8cff,color:#e6edf3
+  classDef ai fill:#3d2f1a,stroke:#f0883e,color:#e6edf3
+  classDef alert fill:#3a1f1f,stroke:#f85149,color:#e6edf3
+
+  CC["💻 Claude Code sessions<br/>(ручные + агентские + computer/playwright use)"]:::agent
+  CC --> SES[("~/.claude/projects/*.jsonl<br/>транскрипты per-session")]:::store
+
+  SES --> TRACK["session_usage_tracker.py<br/>scan + aggregate, 60s cache"]:::ai
+  TRACK --> EP["/api/session_usage_breakdown"]:::agent
+
+  EP --> M1["days[] — daily cost by model"]:::agent
+  EP --> M2["top_sessions[] — top-10 heaviest"]:::agent
+  EP --> M3{"runaway_alert<br/>session > 5MB / 24h ?"}
+  M3 -->|"yes"| BANNER["⚠️ banner на architecture.html"]:::alert
+  M3 -.->|"no"| HIDDEN["banner hidden"]:::store
+
+  EP --> UI["architecture.html<br/>2 stat-cards + Heavy sessions table"]:::agent
     </div>
   </section>
 
@@ -484,6 +530,10 @@ sequenceDiagram
     <div class="panel-card">
       <h2>Calls / day</h2>
       <div id="heatmap" class="heatmap"></div>
+    </div>
+    <div class="panel-card">
+      <h2>Heavy sessions (7д · interactive)</h2>
+      <div id="heavy-sessions" class="loading">загрузка…</div>
     </div>
   </aside>
 
@@ -1453,9 +1503,88 @@ sequenceDiagram
     `;
   }
 
+  // ── Interactive Claude Code session usage ────────────────────────────
+  // Fetches /api/session_usage_breakdown and fills:
+  //   • #stat-session-today-cost / -sub  — sessions cost для today
+  //   • #stat-combined-cost / -sub       — programmatic + interactive combined
+  //   • #runaway-banner                  — alert если есть тяжёлая сессия
+  //   • #heavy-sessions                  — top-10 таблица в side-panel
+  // Combined burn использует window.__progTodayCalls — но cost-в-долларах
+  // у programmatic-блока не считается в JS (там tokens), поэтому combined
+  // показывается как «interactive $X / programmatic N calls» — честно.
+  async function loadSessionUsage() {
+    const base = await getBackendUrl();
+    let data;
+    try {
+      const r = await fetch(`${base}/api/session_usage_breakdown?days=7&threshold_mb=5`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      data = await r.json();
+    } catch (e) {
+      document.getElementById('heavy-sessions').innerHTML =
+        '<div class="error">backend offline или session_usage_tracker недоступен</div>';
+      return;
+    }
+
+    const today = data.today || {};
+    const win = data.window || {};
+    const fmtUsd = (v) => '$' + (Number(v) || 0).toFixed(2);
+
+    document.getElementById('stat-session-today-cost').textContent = fmtUsd(today.cost_usd);
+    const todayByModel = today.by_model || {};
+    const modelChips = Object.entries(todayByModel)
+      .filter(([_, v]) => v > 0.01)
+      .sort((a, b) => b[1] - a[1])
+      .map(([m, v]) => `${m} ${fmtUsd(v)}`)
+      .join(' · ');
+    document.getElementById('stat-session-today-sub').textContent =
+      `${today.calls || 0} sessions${modelChips ? ' · ' + modelChips : ''}`;
+
+    document.getElementById('stat-combined-cost').textContent = fmtUsd(today.cost_usd);
+    document.getElementById('stat-combined-sub').textContent =
+      `interactive only — programmatic в ai_usage.json считается в calls/токенах, не USD`;
+
+    // Runaway banner
+    const banner = document.getElementById('runaway-banner');
+    const ra = data.runaway_alert || {};
+    if (ra.active && ra.session) {
+      const s = ra.session;
+      const promptShort = (s.first_prompt || '').slice(0, 80).replace(/\s+/g, ' ');
+      document.getElementById('runaway-detail').innerHTML =
+        `<strong>${s.size_mb} MB</strong> · ${s.model} · est. ${fmtUsd(s.cost_usd)}` +
+        ` · ${s.id.slice(0, 8)} · started ${s.started_at || '?'}` +
+        (promptShort ? `<br><span style="color:#ffb0b0;font-size:12px">«${promptShort}…»</span>` : '');
+      banner.style.display = 'block';
+      banner.onclick = () => alert(
+        `Session ID: ${s.id}\nFile: ~/.claude/projects/-Users-a1111-lcband/${s.id}.jsonl\n\n` +
+        `Inspect:\n  python3 ~/lcband/session_usage_tracker.py --no-cache | jq '.runaway_alert'`
+      );
+    } else {
+      banner.style.display = 'none';
+    }
+
+    // Heavy sessions table
+    const top = data.top_sessions || [];
+    if (!top.length) {
+      document.getElementById('heavy-sessions').innerHTML =
+        '<div style="color:var(--muted);font-size:12px">нет данных за 7 дней</div>';
+      return;
+    }
+    const rows = ['<table class="purpose-table"><thead><tr><th>MB</th><th>model</th><th class="num">$ est</th><th>prompt</th></tr></thead><tbody>'];
+    for (const s of top) {
+      const model = (s.model || '').replace('claude-', '').replace('-20251001', '');
+      const prompt = (s.first_prompt || '').slice(0, 50).replace(/[<>&]/g, c =>
+        ({'<': '&lt;', '>': '&gt;', '&': '&amp;'}[c]));
+      const flag = s.estimated ? ' <span title="estimated from size, no native usage" style="color:var(--muted)">~</span>' : '';
+      rows.push(`<tr title="${s.id}"><td>${s.size_mb}</td><td style="font-size:11px">${model}</td><td class="num">${fmtUsd(s.cost_usd)}${flag}</td><td style="font-size:11px;color:var(--muted)">${prompt}…</td></tr>`);
+    }
+    rows.push('</tbody></table>');
+    document.getElementById('heavy-sessions').innerHTML = rows.join('');
+  }
+
   loadUsage();
   loadInventory();
-  setInterval(() => { loadUsage(); loadInventory(); }, 60000);
+  loadSessionUsage();
+  setInterval(() => { loadUsage(); loadInventory(); loadSessionUsage(); }, 60000);
 </script>
 
 </body>
