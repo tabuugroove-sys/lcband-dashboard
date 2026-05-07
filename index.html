@@ -4358,6 +4358,69 @@ function RefusalsSection({ refused, categories }) {
   );
 }
 
+function TgSafetyStatus() {
+  // Live cold/reply daily counters + ban status (07.05.2026).
+  // Backend: /api/tg_safety. Refresh каждые 30 сек.
+  const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+  const [data, setData] = React.useState(null);
+  React.useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const r = await fetch(`${backendUrl}/api/tg_safety`, { cache: 'no-store' });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (alive) setData(d);
+      } catch (_) {}
+    };
+    load();
+    const iv = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [backendUrl]);
+  if (!data) {
+    return (
+      <div style={{marginTop:16,padding:12,background:'rgba(59,130,246,0.08)',borderRadius:8,fontSize:11,color:'var(--muted)'}}>
+        💡 Anti-ban: jitter 15-35с, лимиты загружаются…
+      </div>
+    );
+  }
+  const { cold, reply, banned, ban_reason } = data;
+  const colorFor = (pct) => pct >= 90 ? '#f85149' : (pct >= 70 ? '#f0883e' : '#3fb950');
+  const bar = (label, info) => (
+    <div style={{marginTop:6}}>
+      <div style={{display:'flex',justifyContent:'space-between',fontSize:11}}>
+        <span>{label}: <strong>{info.used}</strong> / {info.limit}</span>
+        <span style={{color:'var(--muted)'}}>{info.remaining} осталось</span>
+      </div>
+      <div style={{height:6,background:'rgba(255,255,255,0.06)',borderRadius:3,marginTop:3,overflow:'hidden'}}>
+        <div style={{
+          width: `${Math.min(100, info.pct)}%`,
+          height: '100%',
+          background: colorFor(info.pct),
+          transition: 'width 0.3s'
+        }} />
+      </div>
+    </div>
+  );
+  return (
+    <div style={{marginTop:16,padding:12,background:'rgba(59,130,246,0.08)',borderRadius:8,fontSize:11,color:'var(--muted)'}}>
+      <div style={{fontWeight:600,marginBottom:6,color:'var(--text)'}}>
+        💡 TG Send Limits сегодня
+        {banned && (
+          <span style={{marginLeft:8,padding:'2px 6px',background:'#3a1f1f',color:'#f85149',borderRadius:4,fontSize:10}}>
+            ⚠️ BANNED: {ban_reason || 'PeerFlood cooldown'}
+          </span>
+        )}
+      </div>
+      {bar('Cold pitches (anti-PeerFlood)', cold)}
+      {bar('Replies (active dialogs)', reply)}
+      <div style={{marginTop:8,fontSize:10,color:'var(--muted)'}}>
+        jitter 15-35с · cold limit anti-flood · reply limit мягкий (TG не штрафует за reply-traffic)
+      </div>
+    </div>
+  );
+}
+
 function BroadcastsSection({ categories }) {
   const REFUSAL_META = {
     low_budget:      { emoji: '💰', label: 'Низкий бюджет',        template: 'Предложить дуэт/трио (Template D)' },
@@ -4425,9 +4488,7 @@ function BroadcastsSection({ categories }) {
             );
           })}
         </div>
-        <div style={{marginTop:16,padding:12,background:'rgba(59,130,246,0.08)',borderRadius:8,fontSize:11,color:'var(--muted)'}}>
-          💡 Рассылки идут через Telethon с anti-ban защитой (jitter 15-35сек, max 40/день). Перед стартом — проверка @SpamBot.
-        </div>
+        <TgSafetyStatus />
       </div>
     </div>
   );
