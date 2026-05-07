@@ -289,14 +289,17 @@ flowchart TD
 
   <section class="mindmap-card">
     <h2>3. AI calls map — кто какой purpose дёргает</h2>
-    <p class="diagram-note">Все AI-вызовы → claude_cli.call_opus* (CLI первый слой). API fallback только при CLI failure (per memory feedback_cli_first_api_fallback).</p>
+    <p class="diagram-note">Все AI-вызовы оркеструются через claude_cli.call_opus*. Для classification/extraction purposes (whitelist в codex_cli.CODEX_LAYER1_PURPOSES) Codex Layer 1 пробуется первым. Для генерации/relay/responder сразу Claude. Fail-fast: упал/quota → следующий слой без задержки. Quota → 5h cooldown.</p>
     <div class="mermaid">
 flowchart LR
   classDef agent fill:#2d2a4a,stroke:#bc8cff,color:#e6edf3
   classDef ai fill:#3d2f1a,stroke:#f0883e,color:#e6edf3
   classDef cli fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
+  classDef codex fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
 
-  CLI["claude_cli.call_opus*<br/>CLI first → API fallback"]:::cli
+  CODEX["codex_cli<br/>Layer 1 — gpt-5 (ChatGPT Plus, $0)<br/>only for classification purposes<br/>fail-fast 15s · quota 5h cooldown"]:::codex
+  CLI["claude_cli.call_opus*<br/>Layer 2 — sonnet/opus (Max, $0)<br/>+ Gemini Layer 3 + API Layer 4"]:::cli
+  CODEX -.fail/quota.-> CLI
 
   MON["tg-monitor"]:::agent --> P1["classify_batch"]:::ai
   WALK["browser-walk"]:::agent --> P1
@@ -403,9 +406,10 @@ flowchart LR
 
   ORDERS[("orders.db")]:::store
   ACT[("session_actions.jsonl")]:::store
-  USAGE[("ai_usage.json<br/>programmatic")]:::store
+  USAGE[("ai_usage.json<br/>programmatic + codex L1")]:::store
   WALK_R[("browser_walk_result.json")]:::store
   SESSIONS[("~/.claude/projects/*.jsonl<br/>interactive Claude Code")]:::store
+  CODEX_CD[("/tmp/codex_quota_cooldown<br/>5h cooldown state")]:::store
 
   ORDERS --> BACKEND["dashboard_backend.py<br/>Flask :8878<br/>30s cache"]:::agent
   ACT --> BACKEND
