@@ -148,8 +148,93 @@
 
   footer { text-align: center; color: var(--muted); font-size: 11px; padding: 24px; border-top: 1px solid var(--border); }
   footer a { color: var(--muted); }
+
+  /* ── Live Token Burn (07.05.2026) ──────────────────────────────────── */
+  .live-burn-panel {
+    margin: 16px 24px;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(59,130,246,0.06), rgba(168,85,247,0.04));
+    border: 1px solid rgba(59,130,246,0.15);
+    border-radius: 10px;
+  }
+  .live-burn-panel h2 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .live-burn-panel h2 .src {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .live-burn-grid {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 900px) { .live-burn-grid { grid-template-columns: 1fr; } }
+  .burn-chart-card {
+    background: rgba(0,0,0,0.18);
+    border-radius: 8px;
+    padding: 10px 12px;
+    min-height: 200px;
+  }
+  .burn-chart-card canvas { width: 100% !important; height: 200px !important; }
+  .burn-stats { display: flex; flex-direction: column; gap: 8px; }
+  .burn-stat {
+    background: rgba(0,0,0,0.18);
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  .burn-stat .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .burn-stat .value { font-size: 18px; font-weight: 600; color: var(--text); margin-top: 2px; }
+  .burn-stat .sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .burn-stat.peak .value { color: var(--orange, #f0883e); }
+  .burn-stat.hot .value { color: var(--purple, #bc8cff); font-size: 13px; }
+
+  .controls-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    padding: 12px;
+    background: rgba(0,0,0,0.15);
+    border-radius: 6px;
+  }
+  .controls-row .ctrl { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+  .controls-row .ctrl label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .controls-row .ctrl input[type=range] { width: 100%; }
+  .controls-row .ctrl .row { display: flex; align-items: center; gap: 8px; }
+  .controls-row button {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(0,0,0,0.25);
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .controls-row button:hover { background: rgba(255,255,255,0.06); }
+  .controls-row button.danger { border-color: var(--red, #f85149); color: var(--red, #f85149); }
+  .controls-row .switch { display: flex; align-items: center; gap: 8px; }
+  .controls-row .switch input { width: 18px; height: 18px; }
+
+  .config-status {
+    margin-top: 10px;
+    padding: 6px 10px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 4px;
+    font-size: 10px;
+    color: var(--muted);
+    font-family: monospace;
+  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -170,6 +255,68 @@
   <strong style="color:#f85149">⚠️ Heavy session detected:</strong>
   <span id="runaway-detail">…</span>
 </div>
+
+<!-- ⚡ Real-time Token Burn — live cost graph + admin controls (07.05.2026). -->
+<section class="live-burn-panel">
+  <h2>⚡ Real-time Token Burn <span class="src">источник: ccusage daily --json + ai_usage_tracker (last hour)</span></h2>
+  <div class="live-burn-grid">
+    <div class="burn-chart-card">
+      <canvas id="burn-chart"></canvas>
+    </div>
+    <div class="burn-stats">
+      <div class="burn-stat">
+        <div class="label">Today total</div>
+        <div class="value" id="burn-today">—</div>
+        <div class="sub" id="burn-today-sub">—</div>
+      </div>
+      <div class="burn-stat peak">
+        <div class="label">Peak day (30д)</div>
+        <div class="value" id="burn-peak">—</div>
+        <div class="sub" id="burn-peak-sub">—</div>
+      </div>
+      <div class="burn-stat hot">
+        <div class="label">Last hour calls (live)</div>
+        <div class="value" id="burn-hour">—</div>
+        <div class="sub" id="burn-hour-sub">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="controls-row" id="burn-controls">
+    <div class="ctrl">
+      <label>Codex Layer 1 routing</label>
+      <div class="switch">
+        <input type="checkbox" id="rc-codex-enabled">
+        <span id="rc-codex-state">—</span>
+      </div>
+    </div>
+    <div class="ctrl">
+      <label>Max cold/day (anti-PeerFlood)</label>
+      <div class="row">
+        <input type="range" id="rc-max-cold" min="10" max="200" step="5" value="50">
+        <span id="rc-max-cold-val">—</span>
+      </div>
+    </div>
+    <div class="ctrl">
+      <label>Max reply/day</label>
+      <div class="row">
+        <input type="range" id="rc-max-reply" min="100" max="5000" step="50" value="1000">
+        <span id="rc-max-reply-val">—</span>
+      </div>
+    </div>
+    <div class="ctrl">
+      <label>🚨 Emergency (Sonnet вместо Opus для всех)</label>
+      <div class="switch">
+        <input type="checkbox" id="rc-force-sonnet">
+        <span id="rc-force-sonnet-state">—</span>
+      </div>
+    </div>
+    <div class="ctrl">
+      <label>Codex cooldown</label>
+      <button id="rc-reset-cooldown" type="button">♻ Reset 5h cooldown</button>
+    </div>
+  </div>
+  <div class="config-status" id="rc-status">config: загрузка…</div>
+</section>
 
 <div class="stats-bar">
   <div class="stat">
@@ -1584,6 +1731,205 @@ sequenceDiagram
     rows.push('</tbody></table>');
     document.getElementById('heavy-sessions').innerHTML = rows.join('');
   }
+
+  // ── Live Token Burn (07.05.2026) ────────────────────────────────────
+  // Pulls /api/ccusage_summary (cached 120s) + /api/runtime_config.
+  // Renders Chart.js bar chart of daily cost split by model + control panel.
+  let _burnChart = null;
+  let _adminToken = localStorage.getItem('lcband_admin_token') || '';
+
+  function _ensureAdminToken(promptIfMissing = true) {
+    if (_adminToken) return _adminToken;
+    if (!promptIfMissing) return '';
+    const t = (window.prompt('Admin token (DASHBOARD_ADMIN_TOKEN из .env):') || '').trim();
+    if (t) { localStorage.setItem('lcband_admin_token', t); _adminToken = t; }
+    return _adminToken;
+  }
+
+  async function loadCcusage() {
+    const base = await getBackendUrl();
+    let data;
+    try {
+      const r = await fetch(`${base}/api/ccusage_summary`, { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      data = await r.json();
+    } catch (e) {
+      document.getElementById('burn-today').textContent = 'offline';
+      return;
+    }
+
+    const daily = (data.daily || []).slice(-14); // показываем 14 дней
+    const today = data.today || {};
+    const totals = data.totals || {};
+    const lastHour = data.last_hour || {};
+
+    document.getElementById('burn-today').textContent = '$' + (today.totalCost || 0).toFixed(2);
+    const todayModels = (today.modelsUsed || []).map(m => m.replace('claude-', '').replace('-20251001', '')).join(', ');
+    document.getElementById('burn-today-sub').textContent = todayModels || (data.error || '—');
+
+    // Peak day (30д)
+    const peak = daily.reduce((max, d) => (d.totalCost || 0) > (max.totalCost || 0) ? d : max, {});
+    if (peak.date) {
+      document.getElementById('burn-peak').textContent = '$' + (peak.totalCost || 0).toFixed(2);
+      document.getElementById('burn-peak-sub').textContent = peak.date + ' · all-time: $' + (totals.totalCost || 0).toFixed(0);
+    }
+
+    // Last hour calls + breakdown по сервисам
+    const hourCalls = lastHour.calls || 0;
+    document.getElementById('burn-hour').textContent = hourCalls;
+    const bySvc = lastHour.by_service || {};
+    const top3 = Object.entries(bySvc).sort((a,b) => b[1]-a[1]).slice(0,3)
+      .map(([s,n]) => `${s.replace('cli_','')}=${n}`).join(' · ');
+    document.getElementById('burn-hour-sub').textContent = top3 || '—';
+
+    // Chart.js bar chart — stacked by model, last 14 days
+    const ctx = document.getElementById('burn-chart');
+    if (!ctx || typeof Chart === 'undefined') return;
+    const labels = daily.map(d => d.date.slice(5)); // MM-DD
+    const modelOrder = ['claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'];
+    const modelColors = {
+      'claude-opus-4-7':   '#bc8cff',
+      'claude-opus-4-6':   '#a86bff',
+      'claude-sonnet-4-6': '#58a6ff',
+      'claude-haiku-4-5-20251001': '#3fb950',
+    };
+    const datasets = modelOrder.map(model => ({
+      label: model.replace('claude-', '').replace('-20251001', ''),
+      data: daily.map(d => {
+        const mb = (d.modelBreakdowns || []).find(b => b.modelName === model);
+        return mb ? +(mb.cost || 0).toFixed(2) : 0;
+      }),
+      backgroundColor: modelColors[model] || '#888',
+      borderWidth: 0,
+    }));
+
+    if (_burnChart) {
+      _burnChart.data.labels = labels;
+      _burnChart.data.datasets = datasets;
+      _burnChart.update('none');
+    } else {
+      _burnChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#aaa', font: { size: 10 } } },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`,
+                footer: (items) => 'Total: $' + items.reduce((s,i) => s + i.parsed.y, 0).toFixed(2),
+              }
+            }
+          },
+          scales: {
+            x: { stacked: true, ticks: { color: '#888', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+            y: { stacked: true, ticks: { color: '#888', callback: v => '$' + v }, grid: { color: 'rgba(255,255,255,0.04)' } },
+          }
+        }
+      });
+    }
+  }
+
+  async function loadRuntimeConfig() {
+    const base = await getBackendUrl();
+    let cfg;
+    try {
+      const r = await fetch(`${base}/api/runtime_config`, { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      cfg = await r.json();
+    } catch (e) {
+      document.getElementById('rc-status').textContent = 'config: backend offline';
+      return;
+    }
+    // Bind controls к текущему состоянию (без триггера change events)
+    const codexEl = document.getElementById('rc-codex-enabled');
+    const sonnetEl = document.getElementById('rc-force-sonnet');
+    const coldEl = document.getElementById('rc-max-cold');
+    const replyEl = document.getElementById('rc-max-reply');
+    if (codexEl) codexEl.checked = !!cfg.codex_enabled;
+    if (sonnetEl) sonnetEl.checked = !!cfg.force_sonnet_emergency;
+    if (coldEl) coldEl.value = cfg.max_cold_per_day || 50;
+    if (replyEl) replyEl.value = cfg.max_reply_per_day || 1000;
+    document.getElementById('rc-codex-state').textContent = cfg.codex_enabled ? 'ON' : 'OFF';
+    document.getElementById('rc-force-sonnet-state').textContent = cfg.force_sonnet_emergency ? '⚠ ACTIVE' : 'off';
+    document.getElementById('rc-max-cold-val').textContent = cfg.max_cold_per_day || 50;
+    document.getElementById('rc-max-reply-val').textContent = cfg.max_reply_per_day || 1000;
+    document.getElementById('rc-status').textContent =
+      `config last updated: ${cfg.updated_at || 'never'} by ${cfg.updated_by || '—'}`;
+  }
+
+  async function postRuntimeConfig(updates) {
+    const token = _ensureAdminToken();
+    if (!token) {
+      alert('Admin token нужен. Возьми DASHBOARD_ADMIN_TOKEN из ~/lcband/.env');
+      return false;
+    }
+    const base = await getBackendUrl();
+    try {
+      const r = await fetch(`${base}/api/runtime_config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Token': token },
+        body: JSON.stringify({ updates, updated_by: 'dashboard' }),
+      });
+      const result = await r.json();
+      if (!r.ok) {
+        alert('Ошибка: ' + (result.error || r.status));
+        if (r.status === 403) {
+          // Сброс невалидного токена
+          localStorage.removeItem('lcband_admin_token');
+          _adminToken = '';
+        }
+        return false;
+      }
+      await loadRuntimeConfig();
+      return true;
+    } catch (e) {
+      alert('Network error: ' + e.message);
+      return false;
+    }
+  }
+
+  function bindRuntimeControls() {
+    document.getElementById('rc-codex-enabled')?.addEventListener('change', e =>
+      postRuntimeConfig({ codex_enabled: e.target.checked }));
+    document.getElementById('rc-force-sonnet')?.addEventListener('change', e => {
+      if (e.target.checked && !confirm('🚨 Все Opus → Sonnet для ВСЕЙ системы. Продолжить?')) {
+        e.target.checked = false; return;
+      }
+      postRuntimeConfig({ force_sonnet_emergency: e.target.checked });
+    });
+    // Sliders — debounce, чтобы не слать на каждое движение
+    let coldTimer, replyTimer;
+    document.getElementById('rc-max-cold')?.addEventListener('input', e => {
+      document.getElementById('rc-max-cold-val').textContent = e.target.value;
+      clearTimeout(coldTimer);
+      coldTimer = setTimeout(() => postRuntimeConfig({ max_cold_per_day: +e.target.value }), 500);
+    });
+    document.getElementById('rc-max-reply')?.addEventListener('input', e => {
+      document.getElementById('rc-max-reply-val').textContent = e.target.value;
+      clearTimeout(replyTimer);
+      replyTimer = setTimeout(() => postRuntimeConfig({ max_reply_per_day: +e.target.value }), 500);
+    });
+    document.getElementById('rc-reset-cooldown')?.addEventListener('click', async () => {
+      const token = _ensureAdminToken();
+      if (!token) return;
+      const base = await getBackendUrl();
+      const r = await fetch(`${base}/api/codex_cooldown_reset`, {
+        method: 'POST',
+        headers: { 'X-Admin-Token': token },
+      });
+      const result = await r.json();
+      alert(r.ok ? `Сброшен. Was active: ${result.was_active}` : 'Ошибка: ' + (result.error || r.status));
+    });
+  }
+
+  bindRuntimeControls();
+  loadCcusage();
+  loadRuntimeConfig();
+  setInterval(() => { loadCcusage(); loadRuntimeConfig(); }, 60000);
 
   loadUsage();
   loadInventory();
