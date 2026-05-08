@@ -456,6 +456,30 @@
     <span id="cm-codex-calls"></span>
   </div>
 
+  <!-- 🟣 Opus live burn — real-time расход лимита Opus (08.05.2026) -->
+  <div class="global-impact" id="opus-live-row" style="margin-top:10px;background:rgba(188,140,255,0.10);border:1px solid rgba(188,140,255,0.30)">
+    <div class="stat-cell">
+      <span class="lbl">🟣 Opus today</span>
+      <span class="val" id="opus-today">—</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)" id="opus-today-pct">— от $—</span>
+    </div>
+    <div class="stat-cell">
+      <span class="lbl">🟣 Opus last hour (live)</span>
+      <span class="val" id="opus-hour">—</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)" id="opus-hour-sub">— calls · burn rate</span>
+    </div>
+    <div class="stat-cell">
+      <span class="lbl">🟣 Opus 7д</span>
+      <span class="val" id="opus-7d">—</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)" id="opus-7d-pct">— % weekly</span>
+    </div>
+    <div class="stat-cell">
+      <span class="lbl">⏳ При текущем темпе</span>
+      <span class="val" id="opus-exhaust">—</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)">часов до исчерпания daily Opus budget</span>
+    </div>
+  </div>
+
   <div class="config-status" id="rc-status">config: загрузка…</div>
 </section>
 
@@ -2109,8 +2133,51 @@ sequenceDiagram
       speedEl.className = 'val';
     }
 
-    // Split bar (Interactive vs Programmatic за 24h) + forecast
+    // 🟣 Opus live burn — real-time (08.05.2026)
     const cm = stats.claude_max_usage || {};
+    if (cm.opus_today_cost_usd !== undefined) {
+      const opusToday = +(cm.opus_today_cost_usd || 0);
+      const opusBudget = +(cm.opus_daily_budget_usd || 0);
+      const opusPct = +(cm.opus_pct_of_daily_budget || 0);
+      const opusHour = +(cm.opus_last_hour_cost_usd || 0);
+      const opusHourCalls = +(cm.opus_last_hour_calls || 0);
+      const opus7d = +(cm.opus_last_7d_cost_usd || 0);
+      const opus7dPct = +(cm.opus_last_7d_pct_of_weekly || 0);
+      const exhaust = cm.opus_hours_to_budget_exhaust;
+
+      const todayEl = document.getElementById('opus-today');
+      todayEl.textContent = '$' + opusToday.toFixed(2);
+      todayEl.className = 'val ' + (opusPct > 90 ? 'warn' : opusPct > 70 ? '' : 'good');
+      document.getElementById('opus-today-pct').textContent =
+        `${opusPct}% от $${opusBudget}/день`;
+
+      const hourEl = document.getElementById('opus-hour');
+      hourEl.textContent = '$' + opusHour.toFixed(2);
+      // Цвет live: > $5/час = пик, < $1 = норм
+      hourEl.className = 'val ' + (opusHour > 5 ? 'warn' : opusHour < 1 ? 'good' : '');
+      document.getElementById('opus-hour-sub').textContent =
+        `${opusHourCalls} calls · ${opusHour.toFixed(2)}$/час`;
+
+      document.getElementById('opus-7d').textContent = '$' + opus7d.toFixed(0);
+      document.getElementById('opus-7d-pct').textContent = `${opus7dPct}% weekly Max`;
+
+      const exEl = document.getElementById('opus-exhaust');
+      if (exhaust === null || exhaust === undefined) {
+        exEl.textContent = '∞';
+        exEl.className = 'val good';
+      } else if (exhaust < 1) {
+        exEl.textContent = `<1ч 🔥`;
+        exEl.className = 'val warn';
+      } else if (exhaust < 6) {
+        exEl.textContent = `${exhaust.toFixed(1)}ч ⚠`;
+        exEl.className = 'val warn';
+      } else {
+        exEl.textContent = `${exhaust.toFixed(0)}ч`;
+        exEl.className = 'val good';
+      }
+    }
+
+    // Split bar (Interactive vs Programmatic за 24h) + forecast
     if (cm.last_24h_cost_usd) {
       const intPct = cm.interactive_pct_24h || 0;
       const progPct = cm.programmatic_pct_24h || 0;
