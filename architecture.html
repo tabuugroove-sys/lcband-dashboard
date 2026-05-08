@@ -362,11 +362,11 @@
 
   <!-- Глобальный impact preview — расход / скорость / экономия -->
   <div class="global-impact" id="global-impact">
-    <div class="stat-cell"><span class="lbl">Today $</span><span class="val" id="gi-today">—</span></div>
+    <div class="stat-cell"><span class="lbl">Today % нед</span><span class="val" id="gi-today">—</span></div>
     <div class="stat-cell"><span class="lbl">Projected 24h</span><span class="val" id="gi-projected">—</span></div>
     <div class="stat-cell"><span class="lbl">vs baseline 7д</span><span class="val" id="gi-vsbase">—</span></div>
     <div class="stat-cell"><span class="lbl">Calls → Codex</span><span class="val good" id="gi-redirected">—</span></div>
-    <div class="stat-cell"><span class="lbl">Saved $/день</span><span class="val good" id="gi-saved">—</span></div>
+    <div class="stat-cell"><span class="lbl">Saved % нед</span><span class="val good" id="gi-saved">—</span></div>
     <div class="stat-cell"><span class="lbl">Δ скорости</span><span class="val" id="gi-speed">—</span></div>
   </div>
 
@@ -1797,19 +1797,21 @@ sequenceDiagram
 
     const today = data.today || {};
     const win = data.window || {};
+    const _sessWb = 800; // weekly budget $800; updated by loadCcusage if cm.weekly_budget_usd available
     const fmtUsd = (v) => '$' + (Number(v) || 0).toFixed(2);
+    const fmtPct = (v) => ((Number(v) || 0) / _sessWb * 100).toFixed(1) + '%';
 
-    document.getElementById('stat-session-today-cost').textContent = fmtUsd(today.cost_usd);
+    document.getElementById('stat-session-today-cost').textContent = fmtPct(today.cost_usd);
     const todayByModel = today.by_model || {};
     const modelChips = Object.entries(todayByModel)
       .filter(([_, v]) => v > 0.01)
       .sort((a, b) => b[1] - a[1])
-      .map(([m, v]) => `${m} ${fmtUsd(v)}`)
+      .map(([m, v]) => `${m} ${fmtPct(v)}`)
       .join(' · ');
     document.getElementById('stat-session-today-sub').textContent =
       `${today.calls || 0} sessions${modelChips ? ' · ' + modelChips : ''}`;
 
-    document.getElementById('stat-combined-cost').textContent = fmtUsd(today.cost_usd);
+    document.getElementById('stat-combined-cost').textContent = fmtPct(today.cost_usd);
     document.getElementById('stat-combined-sub').textContent =
       `interactive only — programmatic в ai_usage.json считается в calls/токенах, не USD`;
 
@@ -1882,15 +1884,17 @@ sequenceDiagram
     const totals = data.totals || {};
     const lastHour = data.last_hour || {};
 
-    document.getElementById('burn-today').textContent = '$' + (today.totalCost || 0).toFixed(2);
+    const _burnWb = 800;
+    const _burnPct = (v) => ((Number(v) || 0) / _burnWb * 100).toFixed(1) + '%';
+    document.getElementById('burn-today').textContent = _burnPct(today.totalCost);
     const todayModels = (today.modelsUsed || []).map(m => m.replace('claude-', '').replace('-20251001', '')).join(', ');
     document.getElementById('burn-today-sub').textContent = todayModels || (data.error || '—');
 
     // Peak day (30д)
     const peak = daily.reduce((max, d) => (d.totalCost || 0) > (max.totalCost || 0) ? d : max, {});
     if (peak.date) {
-      document.getElementById('burn-peak').textContent = '$' + (peak.totalCost || 0).toFixed(2);
-      document.getElementById('burn-peak-sub').textContent = peak.date + ' · all-time: $' + (totals.totalCost || 0).toFixed(0);
+      document.getElementById('burn-peak').textContent = _burnPct(peak.totalCost);
+      document.getElementById('burn-peak-sub').textContent = peak.date + ' · all-time: ' + _burnPct(totals.totalCost);
     }
 
     // Last hour calls + breakdown по сервисам
@@ -2084,14 +2088,16 @@ sequenceDiagram
 
     // Global impact stats
     const t = stats.totals || {};
-    document.getElementById('gi-today').textContent = '$' + (t.today_cost_usd || 0).toFixed(2);
-    document.getElementById('gi-projected').textContent = '$' + (t.projected_24h_usd || 0).toFixed(2);
+    const _wb = (stats.claude_max_usage || {}).weekly_budget_usd || 800;
+    const _pctW = (v) => ((Number(v) || 0) / _wb * 100).toFixed(1) + '%';
+    document.getElementById('gi-today').textContent = _pctW(t.today_cost_usd);
+    document.getElementById('gi-projected').textContent = _pctW(t.projected_24h_usd);
     const pct = t.pct_of_baseline || 0;
     const vsEl = document.getElementById('gi-vsbase');
-    vsEl.textContent = pct + '% (avg $' + (t.baseline_7d_avg_usd || 0).toFixed(0) + ')';
+    vsEl.textContent = pct + '% (avg ' + _pctW(t.baseline_7d_avg_usd) + ' нед)';
     vsEl.className = 'val ' + (pct > 130 ? 'warn' : (pct < 80 ? 'good' : ''));
     document.getElementById('gi-redirected').textContent = t.redirected_calls_total || 0;
-    document.getElementById('gi-saved').textContent = '$' + (t.estimated_savings_usd || 0).toFixed(2);
+    document.getElementById('gi-saved').textContent = _pctW(t.estimated_savings_usd);
     const speed = t.speed_delta_sec_total || 0;
     const speedEl = document.getElementById('gi-speed');
     if (speed > 0) {
@@ -2110,7 +2116,7 @@ sequenceDiagram
     if (cm.last_24h_cost_usd) {
       const intPct = cm.interactive_pct_24h || 0;
       const progPct = cm.programmatic_pct_24h || 0;
-      document.getElementById('split-total').textContent = '$' + (cm.last_24h_cost_usd || 0).toFixed(2);
+      document.getElementById('split-total').textContent = _pctW(cm.last_24h_cost_usd);
       const intBar = document.getElementById('split-interactive');
       const progBar = document.getElementById('split-programmatic');
       intBar.style.width = intPct + '%';
@@ -2118,44 +2124,42 @@ sequenceDiagram
       intBar.textContent = intPct >= 8 ? `${intPct}%` : '';
       progBar.textContent = progPct >= 8 ? `${progPct}%` : '';
       document.getElementById('split-int-detail').textContent =
-        `$${(cm.interactive_24h_cost_usd || 0).toFixed(2)} (${intPct}%)`;
+        `${_pctW(cm.interactive_24h_cost_usd)} (${intPct}%)`;
       document.getElementById('split-prog-detail').textContent =
-        `$${(cm.programmatic_24h_cost_usd || 0).toFixed(2)} (${progPct}%)`;
+        `${_pctW(cm.programmatic_24h_cost_usd)} (${progPct}%)`;
 
       // Forecast today
-      document.getElementById('fc-total').textContent = '$' + (cm.projected_today_total_usd || 0).toFixed(2);
-      document.getElementById('fc-int').textContent = '$' + (cm.projected_today_interactive_usd || 0).toFixed(2);
-      document.getElementById('fc-prog').textContent = '$' + (cm.projected_today_programmatic_usd || 0).toFixed(2);
+      document.getElementById('fc-total').textContent = _pctW(cm.projected_today_total_usd);
+      document.getElementById('fc-int').textContent = _pctW(cm.projected_today_interactive_usd);
+      document.getElementById('fc-prog').textContent = _pctW(cm.projected_today_programmatic_usd);
     }
 
     // Claude Max plan budget — 24h / 7d / projected weekly
     if (cm.daily_budget_usd) {
-      document.getElementById('cm-24h').textContent = '$' + (cm.last_24h_cost_usd || 0).toFixed(2);
+      document.getElementById('cm-24h').textContent = _pctW(cm.last_24h_cost_usd);
       const pct24 = cm.pct_24h_of_daily || 0;
       const pct24El = document.getElementById('cm-24h-pct');
-      pct24El.textContent = `${pct24}% от $${cm.daily_budget_usd}/день`;
+      pct24El.textContent = `${pct24}% от дневного лимита`;
       document.getElementById('cm-24h').className = 'val ' +
         (pct24 > 130 ? 'warn' : (pct24 < 80 ? 'good' : ''));
 
-      document.getElementById('cm-7d').textContent = '$' + (cm.last_7d_cost_usd || 0).toFixed(2);
+      document.getElementById('cm-7d').textContent = _pctW(cm.last_7d_cost_usd);
       const pct7 = cm.pct_7d_of_weekly || 0;
-      document.getElementById('cm-7d-pct').textContent = `${pct7}% от $${cm.weekly_budget_usd}/нед`;
+      document.getElementById('cm-7d-pct').textContent = `${pct7}% от недельного лимита`;
       document.getElementById('cm-7d').className = 'val ' +
         (pct7 > 90 ? 'warn' : (pct7 < 70 ? 'good' : ''));
 
-      document.getElementById('cm-projected').textContent =
-        '$' + (cm.projected_weekly_opus_cost_usd || 0).toFixed(2);
+      document.getElementById('cm-projected').textContent = _pctW(cm.projected_weekly_opus_cost_usd);
       const pctP = cm.projected_weekly_pct_of_max || 0;
       document.getElementById('cm-projected-pct').textContent =
         `${pctP}% от Max лимита (с current faders)`;
       document.getElementById('cm-projected').className = 'val ' +
         (pctP > 90 ? 'warn' : (pctP < 50 ? 'good' : ''));
 
-      document.getElementById('cm-all-opus').textContent =
-        '$' + (cm.weekly_all_opus_cost_usd || 0).toFixed(2);
+      document.getElementById('cm-all-opus').textContent = _pctW(cm.weekly_all_opus_cost_usd);
       const savings = cm.weekly_savings_usd || 0;
       document.getElementById('cm-savings').textContent =
-        savings > 0 ? `экономия $${savings.toFixed(2)}/нед` : 'savings 0';
+        savings > 0 ? `экономия ${_pctW(savings)}/нед` : 'savings 0';
 
       document.getElementById('cm-codex-calls').textContent = cm.projected_weekly_codex_calls || 0;
     }
