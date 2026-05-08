@@ -2065,23 +2065,22 @@ sequenceDiagram
         (data.redirected_calls ? ` (+${data.redirected_calls} → codex)` : '');
       card.querySelector('[data-fld="quota"]').textContent = `quota: ${stateLine}`;
 
-      // Прогноз: при текущей quota и baseline=last_24h, какая доля пойдёт куда.
-      // Opus получит min(quota, baseline). Codex — остальное.
-      let opusShare, codexShare;
-      if (quota >= 9999) {
-        opusShare = 100; codexShare = 0;
-      } else if (quota === 0) {
-        opusShare = 0; codexShare = 100;
-      } else {
-        const opusCalls = Math.min(quota, baseline);
-        opusShare = Math.round(100 * opusCalls / baseline);
-        codexShare = 100 - opusShare;
-      }
-      // Подпись: проценты от 24h baseline
-      card.querySelector('[data-fld="opus-pct"]').textContent =
-        `${opusShare}% Claude (от ${last24h}/24h)`;
-      card.querySelector('[data-fld="codex-pct"]').textContent =
-        `${codexShare}% Codex`;
+      // РЕАЛЬНЫЙ split за 24h (что фактически дошло до Codex vs Claude).
+      // Это отличается от "intent" (где slider стоит) — показывает actual
+      // routing: Codex может фейлить на сложных промтах → fallback в Claude.
+      const realCodexPct = data.codex_success_pct || 0;
+      const realClaudePct = data.opus_fallback_pct || 0;
+      const codex24 = data.last_24h_codex || 0;
+      const opus24 = data.last_24h_opus || 0;
+      // Цвет fallback: высокий = плохо (Codex не справляется → платим Claude)
+      const fallbackBad = realClaudePct > 50 && opus24 > 5;
+      const realLine = (last24h > 0)
+        ? `Реально: ${realCodexPct}% Codex (${codex24}) · ${realClaudePct}% Claude (${opus24})`
+        : 'нет calls за 24h';
+      card.querySelector('[data-fld="opus-pct"]').textContent = realLine;
+      const codexEl = card.querySelector('[data-fld="codex-pct"]');
+      codexEl.textContent = fallbackBad ? '⚠ Codex часто фейлит' : '';
+      codexEl.style.color = fallbackBad ? 'var(--orange,#f0883e)' : 'var(--muted)';
       // Обновить градиент трека: slider.value = % Codex
       slider.style.setProperty('--fader-val', slider.value + '%');
     }
