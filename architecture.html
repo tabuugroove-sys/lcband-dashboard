@@ -370,6 +370,41 @@
     <div class="stat-cell"><span class="lbl">Δ скорости</span><span class="val" id="gi-speed">—</span></div>
   </div>
 
+  <!-- Split bar: Interactive vs Programmatic за 24h -->
+  <div style="margin-top:10px;padding:10px 12px;background:rgba(0,0,0,0.18);border-radius:6px;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--muted);margin-bottom:4px">
+      <span>📊 Distribution за 24h</span>
+      <span id="split-total">$—</span>
+    </div>
+    <div id="split-bar" style="display:flex;height:18px;border-radius:4px;overflow:hidden;background:rgba(255,255,255,0.05)">
+      <div id="split-interactive" style="background:linear-gradient(90deg,#bc8cff,#a86bff);width:0%;display:flex;align-items:center;justify-content:center;font-size:10px;color:white;font-weight:600;transition:width 0.3s">—</div>
+      <div id="split-programmatic" style="background:linear-gradient(90deg,#3fb950,#2ea043);width:0%;display:flex;align-items:center;justify-content:center;font-size:10px;color:white;font-weight:600;transition:width 0.3s">—</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px">
+      <span><span style="display:inline-block;width:8px;height:8px;background:#bc8cff;border-radius:2px;margin-right:4px"></span>Interactive (Claude Code) <span id="split-int-detail">—</span></span>
+      <span><span style="display:inline-block;width:8px;height:8px;background:#3fb950;border-radius:2px;margin-right:4px"></span>Programmatic (CLI агенты) <span id="split-prog-detail">—</span></span>
+    </div>
+  </div>
+
+  <!-- Прогноз на сегодня — отдельная строка -->
+  <div class="global-impact" id="forecast-row" style="margin-top:8px;background:rgba(59,130,246,0.06)">
+    <div class="stat-cell">
+      <span class="lbl">🔮 Прогноз сегодня — TOTAL</span>
+      <span class="val" id="fc-total">—</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)" id="fc-total-sub">экстраполяция from текущего часа</span>
+    </div>
+    <div class="stat-cell">
+      <span class="lbl">— interactive</span>
+      <span class="val" style="color:#bc8cff" id="fc-int">—</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)">сессии Claude Code</span>
+    </div>
+    <div class="stat-cell">
+      <span class="lbl">— programmatic</span>
+      <span class="val" style="color:#3fb950" id="fc-prog">—</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)">CLI агенты + cron</span>
+    </div>
+  </div>
+
   <!-- Claude Max plan budget tracking (07.05.2026) -->
   <div class="global-impact" id="claude-max-row" style="margin-top:8px;background:rgba(168,85,247,0.06)">
     <div class="stat-cell">
@@ -2070,8 +2105,30 @@ sequenceDiagram
       speedEl.className = 'val';
     }
 
-    // Claude Max plan budget — 24h / 7d / projected weekly
+    // Split bar (Interactive vs Programmatic за 24h) + forecast
     const cm = stats.claude_max_usage || {};
+    if (cm.last_24h_cost_usd) {
+      const intPct = cm.interactive_pct_24h || 0;
+      const progPct = cm.programmatic_pct_24h || 0;
+      document.getElementById('split-total').textContent = '$' + (cm.last_24h_cost_usd || 0).toFixed(2);
+      const intBar = document.getElementById('split-interactive');
+      const progBar = document.getElementById('split-programmatic');
+      intBar.style.width = intPct + '%';
+      progBar.style.width = progPct + '%';
+      intBar.textContent = intPct >= 8 ? `${intPct}%` : '';
+      progBar.textContent = progPct >= 8 ? `${progPct}%` : '';
+      document.getElementById('split-int-detail').textContent =
+        `$${(cm.interactive_24h_cost_usd || 0).toFixed(2)} (${intPct}%)`;
+      document.getElementById('split-prog-detail').textContent =
+        `$${(cm.programmatic_24h_cost_usd || 0).toFixed(2)} (${progPct}%)`;
+
+      // Forecast today
+      document.getElementById('fc-total').textContent = '$' + (cm.projected_today_total_usd || 0).toFixed(2);
+      document.getElementById('fc-int').textContent = '$' + (cm.projected_today_interactive_usd || 0).toFixed(2);
+      document.getElementById('fc-prog').textContent = '$' + (cm.projected_today_programmatic_usd || 0).toFixed(2);
+    }
+
+    // Claude Max plan budget — 24h / 7d / projected weekly
     if (cm.daily_budget_usd) {
       document.getElementById('cm-24h').textContent = '$' + (cm.last_24h_cost_usd || 0).toFixed(2);
       const pct24 = cm.pct_24h_of_daily || 0;
