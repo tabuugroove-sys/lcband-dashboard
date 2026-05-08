@@ -370,6 +370,35 @@
     <div class="stat-cell"><span class="lbl">Δ скорости</span><span class="val" id="gi-speed">—</span></div>
   </div>
 
+  <!-- Claude Max plan budget tracking (07.05.2026) -->
+  <div class="global-impact" id="claude-max-row" style="margin-top:8px;background:rgba(168,85,247,0.06)">
+    <div class="stat-cell">
+      <span class="lbl">⏱ Claude Code 24h</span>
+      <span class="val" id="cm-24h">—</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)" id="cm-24h-pct">— от $—/день</span>
+    </div>
+    <div class="stat-cell">
+      <span class="lbl">📅 Claude Code 7д</span>
+      <span class="val" id="cm-7d">—</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)" id="cm-7d-pct">— от $—/нед</span>
+    </div>
+    <div class="stat-cell">
+      <span class="lbl">📊 Прогноз weekly (current faders)</span>
+      <span class="val good" id="cm-projected">—</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)" id="cm-projected-pct">—% от Max лимита</span>
+    </div>
+    <div class="stat-cell">
+      <span class="lbl">↩ Если бы всё → Opus</span>
+      <span class="val" id="cm-all-opus">—</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)" id="cm-savings">экономия —</span>
+    </div>
+    <div class="stat-cell">
+      <span class="lbl">🔄 Weekly Codex calls</span>
+      <span class="val" id="cm-codex-calls">—</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)">бесплатно через ChatGPT Plus</span>
+    </div>
+  </div>
+
   <div class="config-status" id="rc-status">config: загрузка…</div>
 </section>
 
@@ -2039,6 +2068,39 @@ sequenceDiagram
     } else {
       speedEl.textContent = '0с (нет редиректов)';
       speedEl.className = 'val';
+    }
+
+    // Claude Max plan budget — 24h / 7d / projected weekly
+    const cm = stats.claude_max_usage || {};
+    if (cm.daily_budget_usd) {
+      document.getElementById('cm-24h').textContent = '$' + (cm.last_24h_cost_usd || 0).toFixed(2);
+      const pct24 = cm.pct_24h_of_daily || 0;
+      const pct24El = document.getElementById('cm-24h-pct');
+      pct24El.textContent = `${pct24}% от $${cm.daily_budget_usd}/день`;
+      document.getElementById('cm-24h').className = 'val ' +
+        (pct24 > 130 ? 'warn' : (pct24 < 80 ? 'good' : ''));
+
+      document.getElementById('cm-7d').textContent = '$' + (cm.last_7d_cost_usd || 0).toFixed(2);
+      const pct7 = cm.pct_7d_of_weekly || 0;
+      document.getElementById('cm-7d-pct').textContent = `${pct7}% от $${cm.weekly_budget_usd}/нед`;
+      document.getElementById('cm-7d').className = 'val ' +
+        (pct7 > 90 ? 'warn' : (pct7 < 70 ? 'good' : ''));
+
+      document.getElementById('cm-projected').textContent =
+        '$' + (cm.projected_weekly_opus_cost_usd || 0).toFixed(2);
+      const pctP = cm.projected_weekly_pct_of_max || 0;
+      document.getElementById('cm-projected-pct').textContent =
+        `${pctP}% от Max лимита (с current faders)`;
+      document.getElementById('cm-projected').className = 'val ' +
+        (pctP > 90 ? 'warn' : (pctP < 50 ? 'good' : ''));
+
+      document.getElementById('cm-all-opus').textContent =
+        '$' + (cm.weekly_all_opus_cost_usd || 0).toFixed(2);
+      const savings = cm.weekly_savings_usd || 0;
+      document.getElementById('cm-savings').textContent =
+        savings > 0 ? `экономия $${savings.toFixed(2)}/нед` : 'savings 0';
+
+      document.getElementById('cm-codex-calls').textContent = cm.projected_weekly_codex_calls || 0;
     }
 
     document.getElementById('rc-status').textContent =
