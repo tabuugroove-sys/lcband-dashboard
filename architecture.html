@@ -1787,23 +1787,7 @@ sequenceDiagram
 
     const today = data.today || {};
     const win = data.window || {};
-    const _sessWb = 800; // weekly budget $800; updated by loadCcusage if cm.weekly_budget_usd available
     const fmtUsd = (v) => '$' + (Number(v) || 0).toFixed(2);
-    const fmtPct = (v) => ((Number(v) || 0) / _sessWb * 100).toFixed(1) + '%';
-
-    document.getElementById('stat-session-today-cost').textContent = fmtPct(today.cost_usd);
-    const todayByModel = today.by_model || {};
-    const modelChips = Object.entries(todayByModel)
-      .filter(([_, v]) => v > 0.01)
-      .sort((a, b) => b[1] - a[1])
-      .map(([m, v]) => `${m} ${fmtPct(v)}`)
-      .join(' · ');
-    document.getElementById('stat-session-today-sub').textContent =
-      `${today.calls || 0} sessions${modelChips ? ' · ' + modelChips : ''}`;
-
-    document.getElementById('stat-combined-cost').textContent = fmtPct(today.cost_usd);
-    document.getElementById('stat-combined-sub').textContent =
-      `interactive only — programmatic в ai_usage.json считается в calls/токенах, не USD`;
 
     // Runaway banner
     const banner = document.getElementById('runaway-banner');
