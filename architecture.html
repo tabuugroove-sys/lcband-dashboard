@@ -232,6 +232,80 @@
     color: var(--muted);
     font-family: monospace;
   }
+
+  /* ── Fader controls (4 categories Opus ↔ Codex) ─────────────────── */
+  .faders-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  @media (max-width: 800px) { .faders-grid { grid-template-columns: 1fr; } }
+  .fader-card {
+    background: rgba(0,0,0,0.20);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .fader-card .fader-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .fader-card .fader-stats {
+    font-size: 10px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+  }
+  .fader-track {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .fader-track .end-label {
+    font-size: 10px;
+    width: 42px;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .fader-track .end-label.opus { color: var(--purple, #bc8cff); }
+  .fader-track .end-label.codex { color: var(--green, #3fb950); }
+  .fader-track input[type=range] {
+    flex: 1;
+    accent-color: var(--blue, #58a6ff);
+  }
+  .fader-readout {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .fader-readout .opus-pct { color: var(--purple, #bc8cff); font-weight: 600; }
+  .fader-readout .codex-pct { color: var(--green, #3fb950); font-weight: 600; }
+
+  .global-impact {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: rgba(0,0,0,0.18);
+    border-radius: 6px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 8px;
+    font-size: 11px;
+  }
+  .global-impact .stat-cell {
+    display: flex;
+    flex-direction: column;
+  }
+  .global-impact .stat-cell .lbl { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .global-impact .stat-cell .val { font-size: 14px; font-weight: 600; color: var(--text); margin-top: 2px; }
+  .global-impact .stat-cell .val.warn { color: var(--orange, #f0883e); }
+  .global-impact .stat-cell .val.good { color: var(--green, #3fb950); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -281,40 +355,21 @@
       </div>
     </div>
   </div>
-  <div class="controls-row" id="burn-controls">
-    <div class="ctrl">
-      <label>Codex Layer 1 routing</label>
-      <div class="switch">
-        <input type="checkbox" id="rc-codex-enabled">
-        <span id="rc-codex-state">—</span>
-      </div>
-    </div>
-    <div class="ctrl">
-      <label>Max cold/day (anti-PeerFlood)</label>
-      <div class="row">
-        <input type="range" id="rc-max-cold" min="10" max="200" step="5" value="50">
-        <span id="rc-max-cold-val">—</span>
-      </div>
-    </div>
-    <div class="ctrl">
-      <label>Max reply/day</label>
-      <div class="row">
-        <input type="range" id="rc-max-reply" min="100" max="5000" step="50" value="1000">
-        <span id="rc-max-reply-val">—</span>
-      </div>
-    </div>
-    <div class="ctrl">
-      <label>🚨 Emergency (Sonnet вместо Opus для всех)</label>
-      <div class="switch">
-        <input type="checkbox" id="rc-force-sonnet">
-        <span id="rc-force-sonnet-state">—</span>
-      </div>
-    </div>
-    <div class="ctrl">
-      <label>Codex cooldown</label>
-      <button id="rc-reset-cooldown" type="button">♻ Reset 5h cooldown</button>
-    </div>
+  <!-- 4 fader'а: Opus ↔ Codex per category -->
+  <div class="faders-grid" id="faders-grid">
+    <!-- Fill via JS — 4 cards -->
   </div>
+
+  <!-- Глобальный impact preview — расход / скорость / экономия -->
+  <div class="global-impact" id="global-impact">
+    <div class="stat-cell"><span class="lbl">Today $</span><span class="val" id="gi-today">—</span></div>
+    <div class="stat-cell"><span class="lbl">Projected 24h</span><span class="val" id="gi-projected">—</span></div>
+    <div class="stat-cell"><span class="lbl">vs baseline 7д</span><span class="val" id="gi-vsbase">—</span></div>
+    <div class="stat-cell"><span class="lbl">Calls → Codex</span><span class="val good" id="gi-redirected">—</span></div>
+    <div class="stat-cell"><span class="lbl">Saved $/день</span><span class="val good" id="gi-saved">—</span></div>
+    <div class="stat-cell"><span class="lbl">Δ скорости</span><span class="val" id="gi-speed">—</span></div>
+  </div>
+
   <div class="config-status" id="rc-status">config: загрузка…</div>
 </section>
 
@@ -1833,32 +1888,134 @@ sequenceDiagram
     }
   }
 
+  // Категории fader'ов — порядок и labels синхронизированы с purpose_categories.py
+  const FADER_CATEGORIES = [
+    { key: 'client_generation', label: '1. Генерация ответов клиенту' },
+    { key: 'client_review',     label: '2. Ревью ответов клиентам' },
+    { key: 'funnel_review',     label: '3. Ревью шага воронки' },
+    { key: 'other_opus',        label: '4. Прочие Opus процессы' },
+  ];
+
+  function _buildFaderCards() {
+    const grid = document.getElementById('faders-grid');
+    if (!grid || grid.children.length) return; // build один раз
+    for (const cat of FADER_CATEGORIES) {
+      const div = document.createElement('div');
+      div.className = 'fader-card';
+      div.dataset.category = cat.key;
+      div.innerHTML = `
+        <div class="fader-title">${cat.label}</div>
+        <div class="fader-stats">
+          <span data-fld="used">used: —</span>
+          <span data-fld="quota">quota: —</span>
+        </div>
+        <div class="fader-track">
+          <span class="end-label opus">Opus</span>
+          <input type="range" min="0" max="100" step="5" value="100" data-cat="${cat.key}">
+          <span class="end-label codex">Codex</span>
+        </div>
+        <div class="fader-readout">
+          <span class="opus-pct" data-fld="opus-pct">100% Opus</span>
+          <span class="codex-pct" data-fld="codex-pct">0% Codex</span>
+        </div>
+      `;
+      grid.appendChild(div);
+    }
+  }
+
+  // Slider value 0..100 = % calls которые пойдут в CODEX. 0 = всё Opus, 100 = всё Codex.
+  // Backend хранит quota = max opus calls/day; UI преобразует туда-обратно используя
+  // estimated_total_today как baseline количество calls этой категории за сегодня.
+  function _quotaToSliderPct(quota, estimatedTotal) {
+    // Если quota >= 9999 (unlimited) → 0% codex (всё opus)
+    if (quota >= 9999) return 0;
+    if (estimatedTotal <= 0) return quota >= 100 ? 0 : 100; // нет данных — heuristic
+    const opusFrac = Math.min(1, quota / estimatedTotal);
+    return Math.round((1 - opusFrac) * 100);
+  }
+  function _sliderPctToQuota(sliderPct, estimatedTotal) {
+    // sliderPct = % to codex. 0 → quota=∞ (opus всё). 100 → quota=0 (codex всё).
+    if (sliderPct <= 0) return 10000;
+    if (sliderPct >= 100) return 0;
+    const opusFrac = (100 - sliderPct) / 100;
+    // Используем оценку дневного объёма; если 0 — fallback 100
+    const baseline = Math.max(estimatedTotal || 100, 20);
+    return Math.max(0, Math.round(baseline * opusFrac));
+  }
+
   async function loadRuntimeConfig() {
     const base = await getBackendUrl();
-    let cfg;
+    let cfg, stats;
     try {
-      const r = await fetch(`${base}/api/runtime_config`, { cache: 'no-store' });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      cfg = await r.json();
+      const [r1, r2] = await Promise.all([
+        fetch(`${base}/api/runtime_config`, { cache: 'no-store' }),
+        fetch(`${base}/api/category_routing_stats`, { cache: 'no-store' }),
+      ]);
+      if (!r1.ok || !r2.ok) throw new Error('HTTP ' + r1.status + '/' + r2.status);
+      cfg = await r1.json();
+      stats = await r2.json();
     } catch (e) {
       document.getElementById('rc-status').textContent = 'config: backend offline';
       return;
     }
-    // Bind controls к текущему состоянию (без триггера change events)
-    const codexEl = document.getElementById('rc-codex-enabled');
-    const sonnetEl = document.getElementById('rc-force-sonnet');
-    const coldEl = document.getElementById('rc-max-cold');
-    const replyEl = document.getElementById('rc-max-reply');
-    if (codexEl) codexEl.checked = !!cfg.codex_enabled;
-    if (sonnetEl) sonnetEl.checked = !!cfg.force_sonnet_emergency;
-    if (coldEl) coldEl.value = cfg.max_cold_per_day || 50;
-    if (replyEl) replyEl.value = cfg.max_reply_per_day || 1000;
-    document.getElementById('rc-codex-state').textContent = cfg.codex_enabled ? 'ON' : 'OFF';
-    document.getElementById('rc-force-sonnet-state').textContent = cfg.force_sonnet_emergency ? '⚠ ACTIVE' : 'off';
-    document.getElementById('rc-max-cold-val').textContent = cfg.max_cold_per_day || 50;
-    document.getElementById('rc-max-reply-val').textContent = cfg.max_reply_per_day || 1000;
+
+    _buildFaderCards();
+
+    const quotas = cfg.category_opus_quota || {};
+    const catsByKey = {};
+    for (const c of (stats.categories || [])) catsByKey[c.category] = c;
+
+    // Update each fader card
+    for (const cat of FADER_CATEGORIES) {
+      const card = document.querySelector(`.fader-card[data-category="${cat.key}"]`);
+      if (!card) continue;
+      const data = catsByKey[cat.key] || {};
+      const quota = quotas[cat.key] !== undefined ? quotas[cat.key] : 10000;
+      const used = data.used_today || 0;
+      // Estimated total для пересчёта slider — используем max(used, baseline 50)
+      const estTotal = Math.max(used, 50);
+      const slider = card.querySelector('input[type=range]');
+      // Не перебиваем если пользователь сейчас тащит slider (focus)
+      if (document.activeElement !== slider) {
+        const sliderVal = _quotaToSliderPct(quota, estTotal);
+        slider.value = sliderVal;
+        slider.dataset.estTotal = estTotal;
+      }
+      card.querySelector('[data-fld="used"]').textContent =
+        `used: ${used}` + (data.redirected_calls ? ` (+${data.redirected_calls} → codex)` : '');
+      card.querySelector('[data-fld="quota"]').textContent =
+        quota >= 9999 ? 'quota: ∞' : `quota: ${quota}`;
+      const codexPct = +slider.value;
+      card.querySelector('[data-fld="opus-pct"]').textContent = `${100 - codexPct}% Opus`;
+      card.querySelector('[data-fld="codex-pct"]').textContent = `${codexPct}% Codex`;
+    }
+
+    // Global impact stats
+    const t = stats.totals || {};
+    document.getElementById('gi-today').textContent = '$' + (t.today_cost_usd || 0).toFixed(2);
+    document.getElementById('gi-projected').textContent = '$' + (t.projected_24h_usd || 0).toFixed(2);
+    const pct = t.pct_of_baseline || 0;
+    const vsEl = document.getElementById('gi-vsbase');
+    vsEl.textContent = pct + '% (avg $' + (t.baseline_7d_avg_usd || 0).toFixed(0) + ')';
+    vsEl.className = 'val ' + (pct > 130 ? 'warn' : (pct < 80 ? 'good' : ''));
+    document.getElementById('gi-redirected').textContent = t.redirected_calls_total || 0;
+    document.getElementById('gi-saved').textContent = '$' + (t.estimated_savings_usd || 0).toFixed(2);
+    const speed = t.speed_delta_sec_total || 0;
+    const speedEl = document.getElementById('gi-speed');
+    if (speed > 0) {
+      speedEl.textContent = `–${speed.toFixed(0)}с быстрее`;
+      speedEl.className = 'val good';
+    } else if (speed < 0) {
+      speedEl.textContent = `+${Math.abs(speed).toFixed(0)}с медленнее`;
+      speedEl.className = 'val warn';
+    } else {
+      speedEl.textContent = '0с (нет редиректов)';
+      speedEl.className = 'val';
+    }
+
     document.getElementById('rc-status').textContent =
-      `config last updated: ${cfg.updated_at || 'never'} by ${cfg.updated_by || '—'}`;
+      `config: ${cfg.updated_at || 'default'} by ${cfg.updated_by || '—'} · ` +
+      `Opus today calls (sum 4 cat): ${(stats.categories || []).reduce((s,c) => s + (c.used_today||0), 0)}`;
   }
 
   async function postRuntimeConfig(updates) {
@@ -1893,36 +2050,35 @@ sequenceDiagram
   }
 
   function bindRuntimeControls() {
-    document.getElementById('rc-codex-enabled')?.addEventListener('change', e =>
-      postRuntimeConfig({ codex_enabled: e.target.checked }));
-    document.getElementById('rc-force-sonnet')?.addEventListener('change', e => {
-      if (e.target.checked && !confirm('🚨 Все Opus → Sonnet для ВСЕЙ системы. Продолжить?')) {
-        e.target.checked = false; return;
+    // Делегированный обработчик на all faders. Срабатывает при отпускании
+    // (change), не на каждом input — debounce естественный.
+    let pendingTimer;
+    document.getElementById('faders-grid')?.addEventListener('input', e => {
+      if (e.target.tagName !== 'INPUT' || e.target.type !== 'range') return;
+      // Live-обновление readout под слайдером
+      const card = e.target.closest('.fader-card');
+      if (card) {
+        const codexPct = +e.target.value;
+        card.querySelector('[data-fld="opus-pct"]').textContent = `${100 - codexPct}% Opus`;
+        card.querySelector('[data-fld="codex-pct"]').textContent = `${codexPct}% Codex`;
       }
-      postRuntimeConfig({ force_sonnet_emergency: e.target.checked });
     });
-    // Sliders — debounce, чтобы не слать на каждое движение
-    let coldTimer, replyTimer;
-    document.getElementById('rc-max-cold')?.addEventListener('input', e => {
-      document.getElementById('rc-max-cold-val').textContent = e.target.value;
-      clearTimeout(coldTimer);
-      coldTimer = setTimeout(() => postRuntimeConfig({ max_cold_per_day: +e.target.value }), 500);
-    });
-    document.getElementById('rc-max-reply')?.addEventListener('input', e => {
-      document.getElementById('rc-max-reply-val').textContent = e.target.value;
-      clearTimeout(replyTimer);
-      replyTimer = setTimeout(() => postRuntimeConfig({ max_reply_per_day: +e.target.value }), 500);
-    });
-    document.getElementById('rc-reset-cooldown')?.addEventListener('click', async () => {
-      const token = _ensureAdminToken();
-      if (!token) return;
-      const base = await getBackendUrl();
-      const r = await fetch(`${base}/api/codex_cooldown_reset`, {
-        method: 'POST',
-        headers: { 'X-Admin-Token': token },
-      });
-      const result = await r.json();
-      alert(r.ok ? `Сброшен. Was active: ${result.was_active}` : 'Ошибка: ' + (result.error || r.status));
+    document.getElementById('faders-grid')?.addEventListener('change', e => {
+      if (e.target.tagName !== 'INPUT' || e.target.type !== 'range') return;
+      const cat = e.target.dataset.cat;
+      const sliderPct = +e.target.value;
+      const estTotal = +(e.target.dataset.estTotal || 100);
+      const newQuota = _sliderPctToQuota(sliderPct, estTotal);
+      // Получаем текущий config, обновляем только этот ключ в category_opus_quota
+      clearTimeout(pendingTimer);
+      pendingTimer = setTimeout(async () => {
+        // Берём свежую копию quotas чтобы не затереть параллельные изменения
+        const base = await getBackendUrl();
+        const cur = await (await fetch(`${base}/api/runtime_config`, { cache: 'no-store' })).json();
+        const quotas = Object.assign({}, cur.category_opus_quota || {});
+        quotas[cat] = newQuota;
+        await postRuntimeConfig({ category_opus_quota: quotas });
+      }, 400);
     });
   }
 
