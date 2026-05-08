@@ -386,52 +386,36 @@
     </div>
   </div>
 
-  <!-- Прогноз на сегодня — отдельная строка -->
-  <div class="global-impact" id="forecast-row" style="margin-top:8px;background:rgba(59,130,246,0.06)">
-    <div class="stat-cell">
-      <span class="lbl">🔮 Прогноз сегодня — TOTAL</span>
-      <span class="val" id="fc-total">—</span>
-      <span class="sub" style="font-size:10px;color:var(--muted)" id="fc-total-sub">экстраполяция от начала дня</span>
+  <!-- Health bar: weekly budget -->
+  <div id="health-bar-block" style="margin-top:12px;padding:14px 16px;background:rgba(0,0,0,0.22);border-radius:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+      <span style="font-size:12px;font-weight:600;color:var(--fg)">💊 Недельный лимит</span>
+      <span style="font-size:11px;color:var(--muted)" id="hb-reset-label">сброс через —</span>
     </div>
-    <div class="stat-cell">
-      <span class="lbl">— interactive</span>
-      <span class="val" style="color:#bc8cff" id="fc-int">—</span>
-      <span class="sub" style="font-size:10px;color:var(--muted)">сессии Claude Code</span>
+
+    <!-- Bar -->
+    <div style="height:24px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,0.06);display:flex;position:relative">
+      <div id="hb-used"    style="background:linear-gradient(90deg,#6e40c9,#a855f7);height:100%;transition:width 0.5s;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,0.7);font-weight:600"></div>
+      <div id="hb-agents"  style="background:linear-gradient(90deg,#f59e0b,#d97706);height:100%;transition:width 0.5s;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,0.85);font-weight:600"></div>
+      <div id="hb-free"    style="background:linear-gradient(90deg,#22c55e,#16a34a);height:100%;transition:width 0.5s;flex:1;display:flex;align-items:center;justify-content:center;font-size:11px;color:white;font-weight:700"></div>
     </div>
-    <div class="stat-cell">
-      <span class="lbl">— programmatic</span>
-      <span class="val" style="color:#3fb950" id="fc-prog">—</span>
-      <span class="sub" style="font-size:10px;color:var(--muted)">CLI агенты + cron</span>
+
+    <!-- Legend -->
+    <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#a855f7;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Использовано <span id="hb-used-label" style="color:var(--fg);font-weight:600">—</span></span>
+      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Агенты до сброса <span id="hb-agents-label" style="color:#f59e0b;font-weight:600">—</span></span>
+      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Остаток на код <span id="hb-free-label" style="color:#22c55e;font-weight:600">—</span></span>
     </div>
   </div>
 
-  <!-- Claude Max plan budget tracking (07.05.2026) -->
-  <div class="global-impact" id="claude-max-row" style="margin-top:8px;background:rgba(168,85,247,0.06)">
-    <div class="stat-cell">
-      <span class="lbl">⏱ Claude Code 24h</span>
-      <span class="val" id="cm-24h">—</span>
-      <span class="sub" style="font-size:10px;color:var(--muted)" id="cm-24h-pct">— от $—/день</span>
-    </div>
-    <div class="stat-cell">
-      <span class="lbl">📅 Claude Code 7д</span>
-      <span class="val" id="cm-7d">—</span>
-      <span class="sub" style="font-size:10px;color:var(--muted)" id="cm-7d-pct">— от $—/нед</span>
-    </div>
-    <div class="stat-cell">
-      <span class="lbl">📊 Прогноз weekly (current faders)</span>
-      <span class="val good" id="cm-projected">—</span>
-      <span class="sub" style="font-size:10px;color:var(--muted)" id="cm-projected-pct">—% от Max лимита</span>
-    </div>
-    <div class="stat-cell">
-      <span class="lbl">↩ Если бы всё → Opus</span>
-      <span class="val" id="cm-all-opus">—</span>
-      <span class="sub" style="font-size:10px;color:var(--muted)" id="cm-savings">экономия —</span>
-    </div>
-    <div class="stat-cell">
-      <span class="lbl">🔄 Weekly Codex calls</span>
-      <span class="val" id="cm-codex-calls">—</span>
-      <span class="sub" style="font-size:10px;color:var(--muted)">бесплатно через ChatGPT Plus</span>
-    </div>
+  <!-- Hidden elements kept for JS compat -->
+  <div style="display:none">
+    <span id="fc-total"></span><span id="fc-int"></span><span id="fc-prog"></span>
+    <span id="cm-24h"></span><span id="cm-24h-pct"></span>
+    <span id="cm-7d"></span><span id="cm-7d-pct"></span>
+    <span id="cm-projected"></span><span id="cm-projected-pct"></span>
+    <span id="cm-all-opus"></span><span id="cm-savings"></span>
+    <span id="cm-codex-calls"></span>
   </div>
 
   <div class="config-status" id="rc-status">config: загрузка…</div>
@@ -2137,6 +2121,36 @@ sequenceDiagram
         savings > 0 ? `экономия ${_fmt(savings)}/нед` : 'savings 0';
 
       document.getElementById('cm-codex-calls').textContent = cm.projected_weekly_codex_calls || 0;
+
+      // ── Health bar ──────────────────────────────────────────────────────
+      const usedPct   = Math.min(pct7, 100);
+      const progDay   = cm.programmatic_24h_pct_of_weekly || 0;
+      // hours until weekly reset: Anthropic resets weekly; approximate from pct_7d label
+      // Use 1 day (24h) as conservative estimate — agents run ~1 more full cycle
+      const hoursLeft = 20; // conservative: ~20h to reset at 10pm BRT tomorrow
+      const agentsForecast = Math.min(+(progDay * hoursLeft / 24).toFixed(1), 100 - usedPct);
+      const freePct   = Math.max(0, +(100 - usedPct - agentsForecast).toFixed(1));
+
+      document.getElementById('hb-used').style.width   = usedPct + '%';
+      document.getElementById('hb-agents').style.width = agentsForecast + '%';
+      // hb-free takes remaining via flex:1
+
+      document.getElementById('hb-used').textContent   = usedPct >= 8 ? usedPct.toFixed(1) + '%' : '';
+      document.getElementById('hb-agents').textContent = agentsForecast >= 4 ? '~' + agentsForecast + '%' : '';
+      document.getElementById('hb-free').textContent   = freePct > 0 ? freePct.toFixed(1) + '%' : '';
+
+      document.getElementById('hb-used-label').textContent   = usedPct.toFixed(1) + '%';
+      document.getElementById('hb-agents-label').textContent = '~' + agentsForecast + '%';
+      document.getElementById('hb-free-label').textContent   = freePct.toFixed(1) + '%';
+
+      // Colour free segment red if critically low
+      const freeEl = document.getElementById('hb-free');
+      freeEl.style.background = freePct < 3
+        ? 'linear-gradient(90deg,#ef4444,#dc2626)'
+        : freePct < 6
+          ? 'linear-gradient(90deg,#f59e0b,#d97706)'
+          : 'linear-gradient(90deg,#22c55e,#16a34a)';
+      document.getElementById('hb-free-label').style.color = freePct < 3 ? '#ef4444' : freePct < 6 ? '#f59e0b' : '#22c55e';
     }
 
     document.getElementById('rc-status').textContent =
