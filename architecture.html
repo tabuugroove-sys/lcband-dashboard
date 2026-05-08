@@ -273,11 +273,40 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
-  .fader-track .end-label.opus { color: var(--purple, #bc8cff); }
-  .fader-track .end-label.codex { color: var(--green, #3fb950); }
+  .fader-track .end-label.codex-side { color: var(--blue, #58a6ff); }
+  .fader-track .end-label.claude-side { color: var(--orange, #f0883e); }
   .fader-track input[type=range] {
     flex: 1;
-    accent-color: var(--blue, #58a6ff);
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 4px;
+    background: linear-gradient(to right,
+      var(--blue, #58a6ff) 0%,
+      var(--blue, #58a6ff) var(--fader-val, 100%),
+      var(--orange, #f0883e) var(--fader-val, 100%),
+      var(--orange, #f0883e) 100%);
+    outline: none;
+    cursor: pointer;
+  }
+  .fader-track input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #0d1117;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.4);
+    cursor: pointer;
+  }
+  .fader-track input[type=range]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #0d1117;
+    cursor: pointer;
   }
   .fader-readout {
     display: flex;
@@ -285,8 +314,8 @@
     font-size: 11px;
     color: var(--muted);
   }
-  .fader-readout .opus-pct { color: var(--purple, #bc8cff); font-weight: 600; }
-  .fader-readout .codex-pct { color: var(--green, #3fb950); font-weight: 600; }
+  .fader-readout .codex-pct { color: var(--blue, #58a6ff); font-weight: 600; }
+  .fader-readout .claude-pct { color: var(--orange, #f0883e); font-weight: 600; }
 
   .global-impact {
     margin-top: 12px;
@@ -1947,13 +1976,13 @@ sequenceDiagram
           <span data-fld="quota">quota: —</span>
         </div>
         <div class="fader-track">
-          <span class="end-label opus">Opus</span>
-          <input type="range" min="0" max="100" step="5" value="100" data-cat="${cat.key}">
-          <span class="end-label codex">Codex</span>
+          <span class="end-label codex-side">Codex</span>
+          <input type="range" min="0" max="100" step="5" value="100" data-cat="${cat.key}" style="--fader-val:100%">
+          <span class="end-label claude-side">Claude</span>
         </div>
         <div class="fader-readout">
-          <span class="opus-pct" data-fld="opus-pct">100% Opus</span>
-          <span class="codex-pct" data-fld="codex-pct">0% Codex</span>
+          <span class="codex-pct" data-fld="codex-pct">100% Codex</span>
+          <span class="claude-pct" data-fld="opus-pct">0% Claude</span>
         </div>
       `;
       grid.appendChild(div);
@@ -2050,9 +2079,11 @@ sequenceDiagram
       }
       // Подпись: проценты от 24h baseline
       card.querySelector('[data-fld="opus-pct"]').textContent =
-        `${opusShare}% Opus (от ${last24h}/24h)`;
+        `${opusShare}% Claude (от ${last24h}/24h)`;
       card.querySelector('[data-fld="codex-pct"]').textContent =
         `${codexShare}% Codex`;
+      // Обновить градиент трека: slider.value = % Codex
+      slider.style.setProperty('--fader-val', slider.value + '%');
     }
 
     // Global impact stats
@@ -2215,8 +2246,9 @@ sequenceDiagram
       const card = e.target.closest('.fader-card');
       if (card) {
         const codexPct = +e.target.value;
-        card.querySelector('[data-fld="opus-pct"]').textContent = `${100 - codexPct}% Opus`;
         card.querySelector('[data-fld="codex-pct"]').textContent = `${codexPct}% Codex`;
+        card.querySelector('[data-fld="opus-pct"]').textContent = `${100 - codexPct}% Claude`;
+        e.target.style.setProperty('--fader-val', codexPct + '%');
       }
     });
     document.getElementById('faders-grid')?.addEventListener('change', e => {
