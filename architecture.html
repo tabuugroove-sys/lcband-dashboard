@@ -2124,11 +2124,12 @@ sequenceDiagram
 
       // ── Health bar ──────────────────────────────────────────────────────
       const usedPct   = Math.min(pct7, 100);
-      const progDay   = cm.programmatic_24h_pct_of_weekly || 0;
-      // hours until weekly reset: Anthropic resets weekly; approximate from pct_7d label
-      // Use 1 day (24h) as conservative estimate — agents run ~1 more full cycle
-      const hoursLeft = 20; // conservative: ~20h to reset at 10pm BRT tomorrow
-      const agentsForecast = Math.min(+(progDay * hoursLeft / 24).toFixed(1), 100 - usedPct);
+      const hoursLeft = cm.hours_until_reset || 0;
+      const agentsForecast = Math.min(+(cm.agents_until_reset_pct || 0), 100 - usedPct);
+      if (hoursLeft > 0) {
+        const h = Math.floor(hoursLeft), m = Math.round((hoursLeft - h) * 60);
+        document.getElementById('hb-reset-label').textContent = `сброс через ${h}ч ${m}м`;
+      }
       const freePct   = Math.max(0, +(100 - usedPct - agentsForecast).toFixed(1));
 
       document.getElementById('hb-used').style.width   = usedPct + '%';
