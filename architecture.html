@@ -1966,26 +1966,26 @@ sequenceDiagram
     for (const c of (stats.categories || [])) catsByKey[c.category] = c;
 
     // Update each fader card
+    // 100% baseline = last_24h_calls (sliding window, стабильно независимо от
+    // времени суток). Slider положение → quota = baseline × (1 - codex_pct).
     for (const cat of FADER_CATEGORIES) {
       const card = document.querySelector(`.fader-card[data-category="${cat.key}"]`);
       if (!card) continue;
       const data = catsByKey[cat.key] || {};
       const quota = quotas[cat.key] !== undefined ? Number(quotas[cat.key]) : 10000;
       const used = data.used_today || 0;
-      // Estimated total — для slider pct надо понимать сколько обычно calls/день
-      // в этой категории. Используем max(used, 50) как приближение (минимум 50
-      // чтобы slider не клацал слишком резко при низкой нагрузке).
-      const estTotal = Math.max(used, 50);
+      const last24h = data.last_24h_calls || 0;
+      // Если данных за 24h меньше 20 — используем минимум 20 для устойчивости.
+      // Это редкая ситуация (новая category или тихий период).
+      const baseline = Math.max(last24h, 20);
       const slider = card.querySelector('input[type=range]');
-      // Не перебиваем если пользователь сейчас тащит slider (focus)
       if (document.activeElement !== slider) {
-        const sliderVal = _quotaToSliderPct(quota, estTotal);
+        const sliderVal = _quotaToSliderPct(quota, baseline);
         slider.value = sliderVal;
-        slider.dataset.estTotal = estTotal;
+        slider.dataset.estTotal = baseline;
       }
-      // Effective state — учитываем превышение quota
       const quotaExceeded = quota < 9999 && used >= quota;
-      const codexPct = +slider.value;
+
       let stateLine = '';
       if (quota >= 9999) {
         stateLine = '∞ (всегда Opus)';
@@ -1995,26 +1995,27 @@ sequenceDiagram
         stateLine = `${quota}` + (quotaExceeded ? ' ⚠ ИСЧЕРПАНА → Codex' : ` (осталось ${quota - used})`);
       }
       card.querySelector('[data-fld="used"]').textContent =
-        `used: ${used}` + (data.redirected_calls ? ` (+${data.redirected_calls} → codex)` : '');
+        `today: ${used} · last 24h: ${last24h}` +
+        (data.redirected_calls ? ` (+${data.redirected_calls} → codex)` : '');
       card.querySelector('[data-fld="quota"]').textContent = `quota: ${stateLine}`;
 
-      // Effective routing % с учётом текущего used vs quota
-      let effectiveOpusPct, effectiveCodexPct;
+      // Прогноз: при текущей quota и baseline=last_24h, какая доля пойдёт куда.
+      // Opus получит min(quota, baseline). Codex — остальное.
+      let opusShare, codexShare;
       if (quota >= 9999) {
-        effectiveOpusPct = 100; effectiveCodexPct = 0;
+        opusShare = 100; codexShare = 0;
       } else if (quota === 0) {
-        effectiveOpusPct = 0; effectiveCodexPct = 100;
-      } else if (used >= quota) {
-        effectiveOpusPct = 0; effectiveCodexPct = 100;  // quota burned
+        opusShare = 0; codexShare = 100;
       } else {
-        // Сколько оставшихся calls пойдёт в Opus до исчерпания
-        const remaining = quota - used;
-        const expectedRemaining = Math.max(estTotal - used, remaining);
-        effectiveOpusPct = Math.round(100 * remaining / expectedRemaining);
-        effectiveCodexPct = 100 - effectiveOpusPct;
+        const opusCalls = Math.min(quota, baseline);
+        opusShare = Math.round(100 * opusCalls / baseline);
+        codexShare = 100 - opusShare;
       }
-      card.querySelector('[data-fld="opus-pct"]').textContent = `${effectiveOpusPct}% Opus (сейчас)`;
-      card.querySelector('[data-fld="codex-pct"]').textContent = `${effectiveCodexPct}% Codex (сейчас)`;
+      // Подпись: проценты от 24h baseline
+      card.querySelector('[data-fld="opus-pct"]').textContent =
+        `${opusShare}% Opus (от ${last24h}/24h)`;
+      card.querySelector('[data-fld="codex-pct"]').textContent =
+        `${codexShare}% Codex`;
     }
 
     // Global impact stats
