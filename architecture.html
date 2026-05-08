@@ -406,6 +406,15 @@
       <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Агенты до сброса <span id="hb-agents-label" style="color:#f59e0b;font-weight:600">—</span></span>
       <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Остаток на код <span id="hb-free-label" style="color:#22c55e;font-weight:600">—</span></span>
     </div>
+
+    <!-- Second bar: code-only remaining -->
+    <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--muted);margin-bottom:6px">
+      <span>💻 Доступно на код (за вычетом агентов)</span>
+      <span id="hb2-pct" style="color:#22c55e;font-weight:700;font-size:14px">—</span>
+    </div>
+    <div style="height:14px;border-radius:4px;background:rgba(255,255,255,0.06);overflow:hidden;position:relative">
+      <div id="hb2-fill" style="height:100%;background:linear-gradient(90deg,#22c55e,#16a34a);transition:width 0.5s;width:0%"></div>
+    </div>
   </div>
 
   <!-- Hidden elements kept for JS compat -->
@@ -2146,12 +2155,18 @@ sequenceDiagram
 
       // Colour free segment red if critically low
       const freeEl = document.getElementById('hb-free');
-      freeEl.style.background = freePct < 3
-        ? 'linear-gradient(90deg,#ef4444,#dc2626)'
-        : freePct < 6
-          ? 'linear-gradient(90deg,#f59e0b,#d97706)'
-          : 'linear-gradient(90deg,#22c55e,#16a34a)';
-      document.getElementById('hb-free-label').style.color = freePct < 3 ? '#ef4444' : freePct < 6 ? '#f59e0b' : '#22c55e';
+      const freeColor = freePct < 3 ? 'linear-gradient(90deg,#ef4444,#dc2626)'
+        : freePct < 6 ? 'linear-gradient(90deg,#f59e0b,#d97706)'
+        : 'linear-gradient(90deg,#22c55e,#16a34a)';
+      const freeTextColor = freePct < 3 ? '#ef4444' : freePct < 6 ? '#f59e0b' : '#22c55e';
+      freeEl.style.background = freeColor;
+      document.getElementById('hb-free-label').style.color = freeTextColor;
+
+      // Second bar: code-only available
+      document.getElementById('hb2-pct').textContent = freePct.toFixed(1) + '%';
+      document.getElementById('hb2-pct').style.color = freeTextColor;
+      document.getElementById('hb2-fill').style.width = Math.min(freePct, 100) + '%';
+      document.getElementById('hb2-fill').style.background = freeColor;
     }
 
     document.getElementById('rc-status').textContent =
