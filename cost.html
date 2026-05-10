@@ -159,6 +159,11 @@ async function loadBackend() {
   } catch { return ''; }
 }
 
+function esc(s) {
+  // HTML-escape для строк из API (purpose, model, service, session_id и т.д.)
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 function fmt$(v) { return '$' + (v||0).toLocaleString('en-US', {maximumFractionDigits:2}); }
 function fmtTok(v) {
   v = v || 0;
@@ -247,10 +252,10 @@ function render(d) {
   }).join('');
   document.getElementById('budget-rows').innerHTML = rows;
 
-  // Purposes
+  // Purposes (esc(purpose) — может содержать любые символы)
   const ptbody = document.querySelector('#purposes tbody');
   ptbody.innerHTML = (d.today_purposes_top||[]).map(p =>
-    `<tr><td>${modelTag(p.service)}</td><td>${p.purpose}</td>` +
+    `<tr><td>${modelTag(p.service)}</td><td>${esc(p.purpose)}</td>` +
     `<td style="text-align:right" class="cost">${p.calls}</td></tr>`
   ).join('');
 
@@ -262,27 +267,27 @@ function render(d) {
     `<td style="text-align:right" class="cost">${fmt$(s.cost_usd)}</td></tr>`
   ).join('');
 
-  // Sessions
+  // Sessions (escape session_id и modified — могут содержать спец-символы)
   const ses = d.top_sessions_7d||[];
   document.querySelector('#sessions tbody').innerHTML = ses.map(s =>
-    `<tr><td class="muted">${(s.session_id||'').slice(0,8)}</td>` +
+    `<tr><td class="muted">${esc((s.session_id||'').slice(0,8))}</td>` +
     `<td>${modelTag(s.model)}</td>` +
     `<td style="text-align:right" class="cost">${fmt$(s.cost_usd)}</td>` +
     `<td style="text-align:right" class="cost muted">${fmtTok((s.input_tok||0)+(s.output_tok||0))}</td>` +
-    `<td class="muted">${(s.modified||'').slice(5,16)}</td></tr>`
+    `<td class="muted">${esc((s.modified||'').slice(5,16))}</td></tr>`
   ).join('') || '<tr><td colspan="5" class="muted">нет данных</td></tr>';
 
-  // Runaway
+  // Runaway (top tool name — внешний tool input)
   const ra = d.stop_log_runaway||[];
   const log_count = d.stop_log_count_7d||0;
   document.getElementById('runaway-status').textContent =
     (ra.length ? '⚠️ ' + ra.length + ' runaway' : '✅ чисто') +
     ' · всего сессий 7d: ' + log_count;
   document.querySelector('#runaway-tbl tbody').innerHTML = ra.map(r =>
-    `<tr><td class="muted">${(r.ts||'').slice(5,16)}</td>` +
+    `<tr><td class="muted">${esc((r.ts||'').slice(5,16))}</td>` +
     `<td style="text-align:right" class="cost">${(r.transcript_size_mb||0).toFixed(1)}</td>` +
     `<td style="text-align:right" class="cost">${fmt$(r.estimated_cost_usd)}</td>` +
-    `<td class="muted">${Object.keys(r.tools||{})[0]||'—'}</td></tr>`
+    `<td class="muted">${esc(Object.keys(r.tools||{})[0]||'—')}</td></tr>`
   ).join('') || '<tr><td colspan="4" class="muted">пока пусто</td></tr>';
 }
 
