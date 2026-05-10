@@ -335,6 +335,65 @@
   .global-impact .stat-cell .val { font-size: 14px; font-weight: 600; color: var(--text); margin-top: 2px; }
   .global-impact .stat-cell .val.warn { color: var(--orange, #f0883e); }
   .global-impact .stat-cell .val.good { color: var(--green, #3fb950); }
+  .limit-budget-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  @media (max-width: 900px) { .limit-budget-grid { grid-template-columns: 1fr; } }
+  .limit-budget-card {
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 13px 14px;
+  }
+  .limit-budget-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 10px;
+  }
+  .limit-budget-title { font-size: 14px; font-weight: 800; color: var(--fg); }
+  .limit-budget-sub { font-size: 11px; color: var(--muted); text-align: right; line-height: 1.35; }
+  .limit-budget-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 11px;
+  }
+  .limit-budget-kpi { background: rgba(255,255,255,0.05); border-radius: 7px; padding: 7px 8px; }
+  .limit-budget-kpi .k { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.35px; }
+  .limit-budget-kpi .v { color: var(--fg); font-size: 15px; font-weight: 800; margin-top: 2px; }
+  .budget-row { margin-top: 10px; }
+  .budget-row-top { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; margin-bottom: 5px; }
+  .budget-row-name { color: var(--fg); font-weight: 650; }
+  .budget-row-delta.good { color: var(--green); }
+  .budget-row-delta.warn { color: var(--red); }
+  .budget-meter {
+    position: relative;
+    height: 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden;
+  }
+  .budget-meter-fill { height: 100%; width: 0%; border-radius: 999px; transition: width 0.35s ease; }
+  .budget-meter-fill.code { background: linear-gradient(90deg,#1f6feb,#58a6ff); }
+  .budget-meter-fill.background { background: linear-gradient(90deg,#f59e0b,#d97706); }
+  .budget-meter-fill.over { background: linear-gradient(90deg,#f59e0b,#ef4444); }
+  .budget-marker {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    background: rgba(255,255,255,0.88);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
+  }
+  .budget-row-foot { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 10px; margin-top: 4px; }
+  .budget-policy { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); color: var(--muted); font-size: 11px; }
+  .budget-policy input[type=range] { width: 100%; margin-top: 6px; }
+  .budget-policy strong { color: var(--fg); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -359,7 +418,7 @@
   <span id="runaway-detail">…</span>
 </div>
 
-<!-- ⚡ Real-time Token Burn — live cost graph + admin controls (07.05.2026). -->
+<!-- ⚡ Real-time Token Burn — live percent-of-limit graph + admin controls (07.05.2026). -->
 <section class="live-burn-panel">
   <h2>⚡ Real-time Token Burn <span class="src">ccusage estimate, не официальный Claude Max meter · last hour = successful ai_call + Codex fail status</span></h2>
   <div class="live-burn-grid">
@@ -399,11 +458,15 @@
     <div class="stat-cell"><span class="lbl">Δ скорости</span><span class="val" id="gi-speed">—</span></div>
   </div>
 
+  <div class="limit-budget-grid" id="limit-budget-grid">
+    <div class="limit-budget-card">Claude/Codex budget ledger loading…</div>
+  </div>
+
   <!-- Split bar: Interactive vs Programmatic за 24h -->
   <div style="margin-top:10px;padding:10px 12px;background:rgba(0,0,0,0.18);border-radius:6px;">
     <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--muted);margin-bottom:4px">
       <span>📊 Distribution за 24h</span>
-      <span id="split-total">$—</span>
+      <span id="split-total">—%</span>
     </div>
     <div id="split-bar" style="display:flex;height:18px;border-radius:4px;overflow:hidden;background:rgba(255,255,255,0.05)">
       <div id="split-interactive" style="background:linear-gradient(90deg,#bc8cff,#a86bff);width:0%;display:flex;align-items:center;justify-content:center;font-size:10px;color:white;font-weight:600;transition:width 0.3s">—</div>
@@ -461,7 +524,7 @@
     <div class="stat-cell">
       <span class="lbl">🟣 Opus today</span>
       <span class="val" id="opus-today">—</span>
-      <span class="sub" style="font-size:10px;color:var(--muted)" id="opus-today-pct">— от $—</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)" id="opus-today-pct">— от дневного плана</span>
     </div>
     <div class="stat-cell">
       <span class="lbl">🟣 Opus last hour (live)</span>
@@ -476,7 +539,7 @@
     <div class="stat-cell">
       <span class="lbl">⏳ При текущем темпе</span>
       <span class="val" id="opus-exhaust">—</span>
-      <span class="sub" style="font-size:10px;color:var(--muted)">часов до исчерпания daily Opus budget</span>
+      <span class="sub" style="font-size:10px;color:var(--muted)">часов до исчерпания дневного Opus-плана</span>
     </div>
   </div>
 
@@ -599,8 +662,8 @@ flowchart LR
   classDef cli fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
   classDef codex fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
 
-  CODEX["codex_cli<br/>Layer 1 — gpt-5.5 (ChatGPT account, $0)<br/>only for classification purposes<br/>fail-fast 15s · quota 5h cooldown"]:::codex
-  CLI["claude_cli.call_opus*<br/>Layer 2 — sonnet/opus (Max, $0)<br/>+ Gemini Layer 3 + API Layer 4"]:::cli
+  CODEX["codex_cli<br/>Layer 1 — gpt-5.5 (ChatGPT account)<br/>only for classification purposes<br/>fail-fast 15s · quota 5h cooldown"]:::codex
+  CLI["claude_cli.call_opus*<br/>Layer 2 — sonnet/opus (Max subscription)<br/>+ Gemini Layer 3 + API Layer 4"]:::cli
   CODEX -.fail/quota.-> CLI
 
   MON["tg-monitor"]:::agent --> P1["classify_batch"]:::ai
@@ -922,14 +985,26 @@ sequenceDiagram
   };
 
   async function getBackendUrl() {
+    const candidates = [];
     try {
       const r = await fetch('./backend_url.json?_=' + Date.now());
       if (r.ok) {
         const j = await r.json();
-        if (j && j.url) return j.url.replace(/\/$/, '');
+        if (j && j.url) candidates.push(j.url.replace(/\/$/, ''));
       }
     } catch (_) {}
-    return 'http://127.0.0.1:8878';
+    candidates.push('http://127.0.0.1:8878');
+
+    for (const url of [...new Set(candidates)]) {
+      try {
+        const ctrl = new AbortController();
+        const timeout = setTimeout(() => ctrl.abort(), 1200);
+        const r = await fetch(`${url}/api/health`, { cache: 'no-store', signal: ctrl.signal });
+        clearTimeout(timeout);
+        if (r.ok) return url;
+      } catch (_) {}
+    }
+    return candidates[candidates.length - 1];
   }
 
   async function loadUsage() {
@@ -1152,9 +1227,9 @@ sequenceDiagram
   // Архитектура 04.05: 3-tier для всех — Claude CLI → Gemini CLI → API
   // (см. claude_cli._gemini_layer2 / _gemini_layer2_json).
   const DEFAULT_CHAIN = [
-    { tier: 1, label: 'Claude CLI', detail: 'Max-подписка, $0 за токен. Sonnet/Opus/Haiku по purpose.',
+    { tier: 1, label: 'Claude CLI', detail: 'Max-подписка, без API-биллинга за токены. Sonnet/Opus/Haiku по purpose.',
       services: ['cli_opus', 'cli_sonnet', 'cli_haiku', 'cli_claude'], free: true },
-    { tier: 2, label: 'Gemini CLI', detail: 'Google Code Assist OAuth, $0. Auto-fallback по моделям: 3-flash-preview → 3.1-flash-lite-preview → 2.5-flash → 2.5-flash-lite. Срабатывает только если Claude CLI упал.',
+    { tier: 2, label: 'Gemini CLI', detail: 'Google Code Assist OAuth. Auto-fallback по моделям: 3-flash-preview → 3.1-flash-lite-preview → 2.5-flash → 2.5-flash-lite. Срабатывает только если Claude CLI упал.',
       services: ['cli_gemini'], free: true },
     { tier: 3, label: 'API Haiku', detail: 'Если оба CLI упали — переключаемся на платный Anthropic API. Это последний resort. Memory feedback_cli_first_api_fallback.',
       services: ['api_opus', 'api_sonnet', 'api_haiku'], free: false },
@@ -1164,9 +1239,9 @@ sequenceDiagram
     // local second brain per CLAUDE.md), Claude вторым, API третьим.
     // См. tg_direct_inbound_sync.py:598-648 для точной реализации.
     tg_direct_inbound_classify: [
-      { tier: 1, label: 'Gemini CLI', detail: 'Layer 1 — preferred. Code Assist OAuth, $0. Auto model chain.',
+      { tier: 1, label: 'Gemini CLI', detail: 'Layer 1 — preferred. Code Assist OAuth. Auto model chain.',
         services: ['cli_gemini'], free: true },
-      { tier: 2, label: 'Claude CLI Sonnet', detail: 'Layer 2 — обёртка _call_claude_cli_only БЕЗ внутреннего API fallback. $0 (Max).',
+      { tier: 2, label: 'Claude CLI Sonnet', detail: 'Layer 2 — обёртка _call_claude_cli_only БЕЗ внутреннего API fallback. Max subscription.',
         services: ['cli_claude'], free: true },
       { tier: 3, label: 'API Haiku', detail: 'Layer 3 — только если оба CLI упали И есть бюджет API_FALLBACK_BUDGET_USD. Платно.',
         services: ['api_haiku', 'api_sonnet', 'api_opus', 'cli_opus', 'cli_sonnet'], free: false },
@@ -1357,7 +1432,7 @@ sequenceDiagram
     TGRESP: { role: 'tg-responder — every 2min', what: 'Читает inbound DM, генерит ответ через Opus, шлёт через ai_review гейт. Anti-ban: 8/run, 40/day, jitter 15-35s.', why: 'Memory feedback_tg_anti_ban — main account защита от PeerFlood.', where: 'tg_responder.py' },
     VKRESP: { role: 'vk-responder — every 30min', what: 'То же для VK DM.', why: '—', where: 'vk_responder.py' },
 
-    CLI: { role: 'claude_cli.call_opus* — единая точка AI', what: 'Все AI-вызовы LCB идут через эту функцию: subprocess claude CLI первым слоем, API fallback вторым (memory feedback_cli_first_api_fallback).', why: 'Max plan = $0 за токен. CLI должен покрывать 99% вызовов.', where: 'claude_cli.py' },
+    CLI: { role: 'claude_cli.call_opus* — единая точка AI', what: 'Все AI-вызовы LCB идут через эту функцию: subprocess claude CLI первым слоем, API fallback вторым (memory feedback_cli_first_api_fallback).', why: 'Max plan закрывает токены подпиской. CLI должен покрывать 99% вызовов.', where: 'claude_cli.py' },
 
     ORDERS: { role: 'orders.db — Single Source of Truth', what: 'SQLite файл, единственный авторитетный источник лидов. Все боты пишут через orders_db_bridge.', why: 'Memory project_db_architecture — Sheets backup только, читать нельзя.', where: 'orders.db' },
     SENT: { role: 'sent_proposals.json — dedupe', what: 'Чтобы не отправить 2 раза одному username. В adhoc-скриптах нельзя писать клиенту мимо send_proposal (memory feedback_adhoc_must_use_send_proposal).', why: '—', where: '—' },
@@ -1815,9 +1890,8 @@ sequenceDiagram
   //   • #stat-combined-cost / -sub       — programmatic + interactive combined
   //   • #runaway-banner                  — alert если есть тяжёлая сессия
   //   • #heavy-sessions                  — top-10 таблица в side-panel
-  // Combined burn использует window.__progTodayCalls — но cost-в-долларах
-  // у programmatic-блока не считается в JS (там tokens), поэтому combined
-  // показывается как «interactive $X / programmatic N calls» — честно.
+  // Combined burn показывает проценты от недельного лимита; сырые dollar cost
+  // остаются только внутренним ccusage input и не выводятся оператору.
   async function loadSessionUsage() {
     const base = await getBackendUrl();
     let data;
@@ -1833,7 +1907,8 @@ sequenceDiagram
 
     const today = data.today || {};
     const win = data.window || {};
-    const fmtUsd = (v) => '$' + (Number(v) || 0).toFixed(2);
+    const weeklyBudgetUsd = Number(data.weekly_budget_usd || 800);
+    const fmtPctOfWeek = (v) => ((Number(v) || 0) / Math.max(weeklyBudgetUsd, 0.01) * 100).toFixed(1) + '%';
 
     // Runaway banner
     const banner = document.getElementById('runaway-banner');
@@ -1842,7 +1917,7 @@ sequenceDiagram
       const s = ra.session;
       const promptShort = (s.first_prompt || '').slice(0, 80).replace(/\s+/g, ' ');
       document.getElementById('runaway-detail').innerHTML =
-        `<strong>${s.size_mb} MB</strong> · ${s.model} · est. ${fmtUsd(s.cost_usd)}` +
+        `<strong>${s.size_mb} MB</strong> · ${s.model} · est. ${fmtPctOfWeek(s.cost_usd)} лимита` +
         ` · ${s.id.slice(0, 8)} · started ${s.started_at || '?'}` +
         (promptShort ? `<br><span style="color:#ffb0b0;font-size:12px">«${promptShort}…»</span>` : '');
       banner.style.display = 'block';
@@ -1861,13 +1936,13 @@ sequenceDiagram
         '<div style="color:var(--muted);font-size:12px">нет данных за 7 дней</div>';
       return;
     }
-    const rows = ['<table class="purpose-table"><thead><tr><th>MB</th><th>model</th><th class="num">$ est</th><th>prompt</th></tr></thead><tbody>'];
+    const rows = ['<table class="purpose-table"><thead><tr><th>MB</th><th>model</th><th class="num">% нед est</th><th>prompt</th></tr></thead><tbody>'];
     for (const s of top) {
       const model = (s.model || '').replace('claude-', '').replace('-20251001', '');
       const prompt = (s.first_prompt || '').slice(0, 50).replace(/[<>&]/g, c =>
         ({'<': '&lt;', '>': '&gt;', '&': '&amp;'}[c]));
       const flag = s.estimated ? ' <span title="estimated from size, no native usage" style="color:var(--muted)">~</span>' : '';
-      rows.push(`<tr title="${s.id}"><td>${s.size_mb}</td><td style="font-size:11px">${model}</td><td class="num">${fmtUsd(s.cost_usd)}${flag}</td><td style="font-size:11px;color:var(--muted)">${prompt}…</td></tr>`);
+      rows.push(`<tr title="${s.id}"><td>${s.size_mb}</td><td style="font-size:11px">${model}</td><td class="num">${fmtPctOfWeek(s.cost_usd)}${flag}</td><td style="font-size:11px;color:var(--muted)">${prompt}…</td></tr>`);
     }
     rows.push('</tbody></table>');
     document.getElementById('heavy-sessions').innerHTML = rows.join('');
@@ -1875,7 +1950,7 @@ sequenceDiagram
 
   // ── Live Token Burn (07.05.2026) ────────────────────────────────────
   // Pulls /api/ccusage_summary (cached 120s) + /api/runtime_config.
-  // Renders Chart.js bar chart of daily cost split by model + control panel.
+  // Renders Chart.js bar chart of daily % of weekly limit split by model + control panel.
   let _burnChart = null;
   let _adminToken = localStorage.getItem('lcband_admin_token') || '';
 
@@ -1952,7 +2027,7 @@ sequenceDiagram
       label: model.replace('claude-', '').replace('-20251001', ''),
       data: daily.map(d => {
         const mb = (d.modelBreakdowns || []).find(b => b.modelName === model);
-        return mb ? +(mb.cost || 0).toFixed(2) : 0;
+        return mb ? +((Number(mb.cost || 0) / Math.max(_burnWb, 0.01)) * 100).toFixed(2) : 0;
       }),
       backgroundColor: modelColors[model] || '#888',
       borderWidth: 0,
@@ -1974,14 +2049,14 @@ sequenceDiagram
             legend: { position: 'bottom', labels: { color: '#aaa', font: { size: 10 } } },
             tooltip: {
               callbacks: {
-                label: (ctx) => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`,
-                footer: (items) => 'Total: $' + items.reduce((s,i) => s + i.parsed.y, 0).toFixed(2),
+                label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}%`,
+                footer: (items) => 'Total: ' + items.reduce((s,i) => s + i.parsed.y, 0).toFixed(2) + '%',
               }
             }
           },
           scales: {
             x: { stacked: true, ticks: { color: '#888', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
-            y: { stacked: true, ticks: { color: '#888', callback: v => '$' + v }, grid: { color: 'rgba(255,255,255,0.04)' } },
+            y: { stacked: true, ticks: { color: '#888', callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.04)' } },
           }
         }
       });
@@ -2043,6 +2118,100 @@ sequenceDiagram
     return Math.max(0, Math.round(baseline * opusFrac));
   }
 
+  function _limitPct(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '—';
+    return n.toFixed(Math.abs(n % 1) > 0.01 ? 1 : 0) + '%';
+  }
+
+  function _clampPct(v) {
+    return Math.max(0, Math.min(100, Number(v) || 0));
+  }
+
+  function _budgetDeltaText(row) {
+    const d = Number(row?.carryover_pct || 0);
+    if (d < -0.1) return { text: `перерасход ${_limitPct(Math.abs(d))}`, cls: 'warn' };
+    if (d > 0.1) return { text: `запас +${_limitPct(d)}`, cls: 'good' };
+    return { text: 'ровно по плану', cls: '' };
+  }
+
+  function _budgetRowHtml(kind, row) {
+    row = row || {};
+    const delta = _budgetDeltaText(row);
+    const used = _clampPct(row.used_pct);
+    const marker = _clampPct(row.budget_by_now_pct);
+    const over = row.status === 'over' ? ' over' : '';
+    const name = kind === 'code' ? 'Код' : 'Фоновые процессы';
+    return `
+      <div class="budget-row">
+        <div class="budget-row-top">
+          <span class="budget-row-name">${name}: факт ${_limitPct(row.used_pct)}</span>
+          <span class="budget-row-delta ${delta.cls}">${delta.text}</span>
+        </div>
+        <div class="budget-meter" title="Маркер = сколько можно было потратить к текущему моменту недели">
+          <div class="budget-meter-fill ${kind}${over}" style="width:${used}%"></div>
+          <div class="budget-marker" style="left:${marker}%"></div>
+        </div>
+        <div class="budget-row-foot">
+          <span>план к сейчас: ${_limitPct(row.budget_by_now_pct)}</span>
+          <span>сегодня можно: ${_limitPct(row.today_allowance_pct)} · база ${_limitPct(row.daily_budget_pct)}/день</span>
+        </div>
+      </div>`;
+  }
+
+  function _renderLimitBudgetCard(key, data) {
+    data = data || {};
+    const rows = data.rows || {};
+    const total = rows.total || {};
+    const code = rows.code || {};
+    const bg = rows.background || {};
+    const title = key === 'claude' ? 'Claude' : 'Codex';
+    const icon = key === 'claude' ? '🟣' : '🔵';
+    const totalDelta = _budgetDeltaText(total);
+    const policy = data.policy || {};
+    const dailyTotal = Number(policy.daily_total_pct || 14);
+    const codeDaily = Number(policy.code_daily_pct || 9);
+    const bgDaily = Number(policy.background_daily_pct || Math.max(0, dailyTotal - codeDaily));
+    const unavailable = !data.available ? '<div class="error">нет official usage snapshot</div>' : '';
+    return `
+      <div class="limit-budget-card" data-provider="${key}">
+        <div class="limit-budget-head">
+          <div>
+            <div class="limit-budget-title">${icon} ${title}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${data.split_source || 'split source —'}</div>
+          </div>
+          <div class="limit-budget-sub">
+            неделя ${_limitPct(data.weekly_used_pct)} · ${data.weekly_reset_label || 'reset —'}<br>
+            день ${Number(data.elapsed_days || 0).toFixed(1)}/7 · weekly budget
+          </div>
+        </div>
+        ${unavailable}
+        <div class="limit-budget-kpis">
+          <div class="limit-budget-kpi"><div class="k">План/день</div><div class="v">${_limitPct(dailyTotal)}</div></div>
+          <div class="limit-budget-kpi"><div class="k">Факт нед.</div><div class="v">${_limitPct(data.weekly_used_pct)}</div></div>
+          <div class="limit-budget-kpi"><div class="k">Баланс</div><div class="v ${totalDelta.cls}">${totalDelta.text.replace('перерасход ', '-').replace('запас +', '+')}</div></div>
+        </div>
+        ${_budgetRowHtml('code', code)}
+        ${_budgetRowHtml('background', bg)}
+        <div class="budget-policy">
+          <div>
+            Split plan: <strong><span data-fld="code-day">${_limitPct(codeDaily)}</span> код</strong>
+            / <strong><span data-fld="bg-day">${_limitPct(bgDaily)}</span> фон</strong>
+            из ${_limitPct(dailyTotal)}/день
+          </div>
+          <input type="range" min="0" max="${dailyTotal}" step="0.5" value="${codeDaily}"
+                 data-provider="${key}" data-total="${dailyTotal}" class="budget-code-slider">
+        </div>
+      </div>`;
+  }
+
+  function renderLimitBudgets(stats) {
+    const grid = document.getElementById('limit-budget-grid');
+    if (!grid) return;
+    const providers = (stats.limit_budget || {}).providers || {};
+    grid.innerHTML = ['claude', 'codex'].map(k => _renderLimitBudgetCard(k, providers[k])).join('');
+  }
+
   async function loadRuntimeConfig() {
     const base = await getBackendUrl();
     let cfg, stats;
@@ -2060,6 +2229,7 @@ sequenceDiagram
     }
 
     _buildFaderCards();
+    renderLimitBudgets(stats);
 
     const quotas = cfg.category_opus_quota || {};
     const catsByKey = {};
@@ -2160,30 +2330,29 @@ sequenceDiagram
     // 🟣 Opus live burn — real-time (08.05.2026)
     const cm = stats.claude_max_usage || {};
     if (cm.opus_today_cost_usd !== undefined) {
-      const opusToday = +(cm.opus_today_cost_usd || 0);
-      const opusBudget = +(cm.opus_daily_budget_usd || 0);
+      const opusTodayPctWeek = +(cm.opus_today_pct_of_weekly || 0);
+      const opusBudgetPctWeek = +(cm.opus_daily_budget_pct_of_weekly || 0);
       const opusPct = +(cm.opus_pct_of_daily_budget || 0);
-      const opusHour = +(cm.opus_last_hour_cost_usd || 0);
+      const opusHourPctWeek = +(cm.opus_last_hour_pct_of_weekly || 0);
       const opusHourCalls = +(cm.opus_last_hour_calls || 0);
-      const opus7d = +(cm.opus_last_7d_cost_usd || 0);
       const opus7dPct = +(cm.opus_last_7d_pct_of_weekly || 0);
       const exhaust = cm.opus_hours_to_budget_exhaust;
 
       const todayEl = document.getElementById('opus-today');
-      todayEl.textContent = '$' + opusToday.toFixed(2);
+      todayEl.textContent = _fmt(opusTodayPctWeek);
       todayEl.className = 'val ' + (opusPct > 90 ? 'warn' : opusPct > 70 ? '' : 'good');
       document.getElementById('opus-today-pct').textContent =
-        `${opusPct}% от $${opusBudget}/день`;
+        `${opusPct}% от дневного Opus-плана (${_fmt(opusBudgetPctWeek)}/день)`;
 
       const hourEl = document.getElementById('opus-hour');
-      hourEl.textContent = '$' + opusHour.toFixed(2);
-      // Цвет live: > $5/час = пик, < $1 = норм
-      hourEl.className = 'val ' + (opusHour > 5 ? 'warn' : opusHour < 1 ? 'good' : '');
+      hourEl.textContent = _fmt(opusHourPctWeek);
+      // Цвет live: >0.7%/час = пик, <0.15%/час = норм
+      hourEl.className = 'val ' + (opusHourPctWeek > 0.7 ? 'warn' : opusHourPctWeek < 0.15 ? 'good' : '');
       document.getElementById('opus-hour-sub').textContent =
-        `${opusHourCalls} calls · ${opusHour.toFixed(2)}$/час`;
+        `${opusHourCalls} calls · темп ${_fmt(opusHourPctWeek * 24)}/сутки`;
 
-      document.getElementById('opus-7d').textContent = '$' + opus7d.toFixed(0);
-      document.getElementById('opus-7d-pct').textContent = `${opus7dPct}% weekly estimate`;
+      document.getElementById('opus-7d').textContent = _fmt(opus7dPct);
+      document.getElementById('opus-7d-pct').textContent = 'за 7 дней по ccusage estimate';
 
       const exEl = document.getElementById('opus-exhaust');
       if (exhaust === null || exhaust === undefined) {
@@ -2257,7 +2426,6 @@ sequenceDiagram
       // ccusage/session data is only used to split the official % into code vs agents.
       const plan = stats.claude_plan_usage || {};
       const weeklyWindow = (plan.windows || {}).seven_day || {};
-      const fiveHourWindow = (plan.windows || {}).five_hour || {};
       const weeklySplit = plan.weekly_split || {};
       const hasOfficialWeekly = plan.available && weeklyWindow.used_percentage !== undefined;
 
@@ -2280,11 +2448,8 @@ sequenceDiagram
 
       if (hasOfficialWeekly) {
         const stale = plan.stale ? ' · stale' : '';
-        const fiveHourText = fiveHourWindow.used_percentage !== undefined
-          ? ` · 5h ${Number(fiveHourWindow.used_percentage || 0).toFixed(1)}% ${fiveHourWindow.reset_label || ''}`
-          : '';
         document.getElementById('hb-reset-label').textContent =
-          `Claude official weekly ${officialUsedPct.toFixed(1)}% · ${weeklyWindow.reset_label || 'reset —'}${fiveHourText}${stale}`;
+          `Claude official weekly ${officialUsedPct.toFixed(1)}% · ${weeklyWindow.reset_label || 'reset —'}${stale}`;
       } else {
         const hoursLeft = cm.hours_until_reset || 0;
         if (hoursLeft > 0) {
@@ -2394,6 +2559,39 @@ sequenceDiagram
         const quotas = Object.assign({}, cur.category_opus_quota || {});
         quotas[cat] = newQuota;
         await postRuntimeConfig({ category_opus_quota: quotas });
+      }, 400);
+    });
+
+    document.getElementById('limit-budget-grid')?.addEventListener('input', e => {
+      if (!e.target.classList.contains('budget-code-slider')) return;
+      const total = Number(e.target.dataset.total || 14);
+      const code = Number(e.target.value || 0);
+      const bg = Math.max(0, total - code);
+      const card = e.target.closest('.limit-budget-card');
+      const codeEl = card?.querySelector('[data-fld="code-day"]');
+      const bgEl = card?.querySelector('[data-fld="bg-day"]');
+      if (codeEl) codeEl.textContent = _limitPct(code);
+      if (bgEl) bgEl.textContent = _limitPct(bg);
+    });
+
+    document.getElementById('limit-budget-grid')?.addEventListener('change', e => {
+      if (!e.target.classList.contains('budget-code-slider')) return;
+      const provider = e.target.dataset.provider;
+      if (!provider) return;
+      const total = Number(e.target.dataset.total || 14);
+      const code = Number(e.target.value || 0);
+      const bg = Math.max(0, total - code);
+      clearTimeout(pendingTimer);
+      pendingTimer = setTimeout(async () => {
+        const base = await getBackendUrl();
+        const cur = await (await fetch(`${base}/api/runtime_config`, { cache: 'no-store' })).json();
+        const policy = JSON.parse(JSON.stringify(cur.limit_budget_policy || {}));
+        policy[provider] = {
+          daily_total_pct: total,
+          code_daily_pct: code,
+          background_daily_pct: bg,
+        };
+        await postRuntimeConfig({ limit_budget_policy: policy });
       }, 400);
     });
   }
