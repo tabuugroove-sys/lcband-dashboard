@@ -348,6 +348,10 @@
     border-radius: 10px;
     padding: 13px 14px;
   }
+  .limit-budget-card.stale {
+    border-color: rgba(245,158,11,0.35);
+    background: rgba(245,158,11,0.07);
+  }
   .limit-budget-head {
     display: flex;
     justify-content: space-between;
@@ -662,7 +666,7 @@ flowchart LR
   classDef cli fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
   classDef codex fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
 
-  CODEX["codex_cli<br/>Layer 1 — gpt-5.5 (ChatGPT account)<br/>only for classification purposes<br/>fail-fast 15s · quota 5h cooldown"]:::codex
+  CODEX["codex_cli<br/>Layer 1 — gpt-5.5 (ChatGPT account)<br/>only for classification purposes<br/>fail-fast 45s · quota 5h cooldown"]:::codex
   CLI["claude_cli.call_opus*<br/>Layer 2 — sonnet/opus (Max subscription)<br/>+ Gemini Layer 3 + API Layer 4"]:::cli
   CODEX -.fail/quota.-> CLI
 
@@ -920,6 +924,7 @@ sequenceDiagram
 <footer>
   <a href="https://github.com/tabuugroove-sys/lcband-dashboard">github.com/tabuugroove-sys/lcband-dashboard</a>
   · backend <span id="backend-status">…</span>
+  · cloudflare <span id="cloudflare-status">…</span>
 </footer>
 
 <script>
@@ -1010,6 +1015,7 @@ sequenceDiagram
   async function loadUsage() {
     const base = await getBackendUrl();
     const statusEl = document.getElementById('backend-status');
+    const cfEl = document.getElementById('cloudflare-status');
     let data;
     try {
       const r = await fetch(`${base}/api/ai_usage_breakdown?days=7`);
@@ -1017,9 +1023,14 @@ sequenceDiagram
       data = await r.json();
       statusEl.textContent = 'live';
       statusEl.style.color = 'var(--green)';
+      loadCloudflareStatus(base);
     } catch (e) {
       statusEl.textContent = 'offline';
       statusEl.style.color = 'var(--red)';
+      if (cfEl) {
+        cfEl.textContent = 'unknown';
+        cfEl.style.color = 'var(--muted)';
+      }
       document.getElementById('purpose-table').innerHTML =
         '<div class="error">Backend offline. Проверь ' + base + '/api/health</div>';
       return;
@@ -1190,6 +1201,38 @@ sequenceDiagram
     window.__purposeModel = purposeModel;
 
     applyHeatAndClicks(byPurpose);
+  }
+
+  async function loadCloudflareStatus(base) {
+    const el = document.getElementById('cloudflare-status');
+    if (!el) return;
+    try {
+      const r = await fetch(`${base}/api/cloudflare_tunnel_status`, { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      if (!j.available) {
+        el.textContent = 'no samples';
+        el.style.color = 'var(--muted)';
+        return;
+      }
+      const cf = j.cf || {};
+      const ray = cf.cf_ray ? ` · ray ${cf.cf_ray}` : '';
+      const title = cf.body_title ? ` · ${cf.body_title}` : '';
+      const age = Number.isFinite(Number(j.age_seconds)) ? ` · ${Math.round(j.age_seconds / 60)}м` : '';
+      if (j.status === 'ok') {
+        el.textContent = `ok${age}`;
+        el.style.color = 'var(--green)';
+      } else if (j.status === 'blocked') {
+        el.textContent = `blocked ${j.reason || ''}${ray}${title}`.trim();
+        el.style.color = 'var(--red)';
+      } else {
+        el.textContent = `${j.status || 'error'}: ${j.reason || ''}${ray}${age}`.trim();
+        el.style.color = j.stale ? 'var(--muted)' : 'var(--orange)';
+      }
+    } catch (e) {
+      el.textContent = 'status unavailable';
+      el.style.color = 'var(--muted)';
+    }
   }
 
   // Maps the P-codes used in diagram 3 (AI calls map) to purpose strings logged
@@ -2006,7 +2049,7 @@ sequenceDiagram
     const topFail = Object.entries(failReasons).sort((a,b) => b[1]-a[1])[0];
     let codexTail = '';
     if (codexFails > 0) {
-      codexTail = ` · Codex fail ${codexFails}${topFail ? ': ' + topFail[0] : ''}`;
+      codexTail = ` · Codex fail ${codexFails}${topFail ? ': ' + _codexReasonLabel(topFail[0]) : ''}`;
     } else if (codexCooldowns > 0) {
       codexTail = ` · Codex cooldown ${codexCooldowns}`;
     }
@@ -2124,8 +2167,33 @@ sequenceDiagram
     return n.toFixed(Math.abs(n % 1) > 0.01 ? 1 : 0) + '%';
   }
 
+  function _formatAge(seconds) {
+    const n = Number(seconds);
+    if (!Number.isFinite(n) || n < 0) return 'возраст неизвестен';
+    if (n < 90) return `${Math.round(n)}с назад`;
+    const minutes = Math.round(n / 60);
+    if (minutes < 90) return `${minutes}м назад`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 48) return `${hours}ч назад`;
+    return `${Math.round(hours / 24)}д назад`;
+  }
+
   function _clampPct(v) {
     return Math.max(0, Math.min(100, Number(v) || 0));
+  }
+
+  function _codexReasonLabel(reason) {
+    const r = String(reason || '');
+    const labels = {
+      old_gpt5_model_not_supported: 'старый gpt-5 (уже исправлено на gpt-5.5)',
+      model_not_supported: 'модель не поддержана',
+      quota_or_rate_limit: 'лимит/rate-limit',
+      codex_binary_not_found: 'codex binary not found',
+      json_parse_failed: 'невалидный JSON',
+    };
+    if (labels[r]) return labels[r];
+    if (r.startsWith('timeout_')) return `таймаут ${r.replace('timeout_', '')}`;
+    return r || 'unknown';
   }
 
   function _budgetDeltaText(row) {
@@ -2139,7 +2207,7 @@ sequenceDiagram
     row = row || {};
     const delta = _budgetDeltaText(row);
     const used = _clampPct(row.used_pct);
-    const marker = _clampPct(row.budget_by_now_pct);
+    const marker = _clampPct(row.today_allowance_pct ?? row.daily_budget_pct ?? row.budget_by_now_pct);
     const over = row.status === 'over' ? ' over' : '';
     const name = kind === 'code' ? 'Код' : 'Фоновые процессы';
     return `
@@ -2148,13 +2216,13 @@ sequenceDiagram
           <span class="budget-row-name">${name}: факт ${_limitPct(row.used_pct)}</span>
           <span class="budget-row-delta ${delta.cls}">${delta.text}</span>
         </div>
-        <div class="budget-meter" title="Маркер = сколько можно было потратить к текущему моменту недели">
+        <div class="budget-meter" title="Белая черта = сколько можно потратить сегодня с учетом запаса/перерасхода">
           <div class="budget-meter-fill ${kind}${over}" style="width:${used}%"></div>
           <div class="budget-marker" style="left:${marker}%"></div>
         </div>
         <div class="budget-row-foot">
           <span>план к сейчас: ${_limitPct(row.budget_by_now_pct)}</span>
-          <span>сегодня можно: ${_limitPct(row.today_allowance_pct)} · база ${_limitPct(row.daily_budget_pct)}/день</span>
+          <span>белая черта: ${_limitPct(marker)} · база ${_limitPct(row.daily_budget_pct)}/день</span>
         </div>
       </div>`;
   }
@@ -2172,23 +2240,34 @@ sequenceDiagram
     const dailyTotal = Number(policy.daily_total_pct || 14);
     const codeDaily = Number(policy.code_daily_pct || 9);
     const bgDaily = Number(policy.background_daily_pct || Math.max(0, dailyTotal - codeDaily));
-    const unavailable = !data.available ? '<div class="error">нет official usage snapshot</div>' : '';
+    const ageLabel = _formatAge(data.age_seconds);
+    const isDerived = !!data.derived;
+    const isStale = !!data.stale && !isDerived;
+    const unavailable = !data.available
+      ? `<div class="error">official usage не свежий: last known ${_limitPct(data.weekly_used_pct)} · ${ageLabel}. Не считаю это live-фактом.</div>`
+      : '';
+    const factLabel = data.available ? (isDerived ? 'Effective' : 'Факт нед.') : 'Last known';
+    const sourceLabel = isDerived
+      ? `effective: official ${_limitPct(data.official_weekly_used_pct)} + local ${_limitPct(data.estimated_delta_pct)} · snapshot ${ageLabel}`
+      : data.available
+      ? (data.split_source || 'split source —')
+      : `stale ${ageLabel} · ${data.source || 'source —'}`;
     return `
-      <div class="limit-budget-card" data-provider="${key}">
+      <div class="limit-budget-card${isStale ? ' stale' : ''}" data-provider="${key}">
         <div class="limit-budget-head">
           <div>
             <div class="limit-budget-title">${icon} ${title}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">${data.split_source || 'split source —'}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${sourceLabel}</div>
           </div>
           <div class="limit-budget-sub">
-            неделя ${_limitPct(data.weekly_used_pct)} · ${data.weekly_reset_label || 'reset —'}<br>
+            ${data.available ? (isDerived ? 'effective' : 'неделя') : 'last known'} ${_limitPct(data.weekly_used_pct)} · ${data.weekly_reset_label || 'reset —'}<br>
             день ${Number(data.elapsed_days || 0).toFixed(1)}/7 · weekly budget
           </div>
         </div>
         ${unavailable}
         <div class="limit-budget-kpis">
           <div class="limit-budget-kpi"><div class="k">План/день</div><div class="v">${_limitPct(dailyTotal)}</div></div>
-          <div class="limit-budget-kpi"><div class="k">Факт нед.</div><div class="v">${_limitPct(data.weekly_used_pct)}</div></div>
+          <div class="limit-budget-kpi"><div class="k">${factLabel}</div><div class="v">${_limitPct(data.weekly_used_pct)}</div></div>
           <div class="limit-budget-kpi"><div class="k">Баланс</div><div class="v ${totalDelta.cls}">${totalDelta.text.replace('перерасход ', '-').replace('запас +', '+')}</div></div>
         </div>
         ${_budgetRowHtml('code', code)}
@@ -2285,7 +2364,7 @@ sequenceDiagram
       let codexNote = '';
       let codexWarn = false;
       if (codexFails24 > 0) {
-        codexNote = `⚠ Codex fail ${codexFails24} · ${codexFailReason || 'unknown'}`;
+        codexNote = `⚠ Codex fail ${codexFails24} · ${_codexReasonLabel(codexFailReason)}`;
         codexWarn = true;
       } else if (codexCooldown24 > 0) {
         codexNote = `⏳ Codex cooldown ${codexCooldown24}`;
@@ -2428,6 +2507,9 @@ sequenceDiagram
       const weeklyWindow = (plan.windows || {}).seven_day || {};
       const weeklySplit = plan.weekly_split || {};
       const hasOfficialWeekly = plan.available && weeklyWindow.used_percentage !== undefined;
+      const isDerivedWeekly = !!weeklySplit.derived;
+      const hasFreshOfficialWeekly = hasOfficialWeekly && !plan.stale && !isDerivedWeekly;
+      const isStaleOfficialWeekly = hasOfficialWeekly && plan.stale && !isDerivedWeekly;
 
       const officialUsedPct = hasOfficialWeekly
         ? Math.min(100, +(weeklySplit.total_used_pct ?? weeklyWindow.used_percentage ?? 0))
@@ -2446,10 +2528,17 @@ sequenceDiagram
         ? Math.max(0, +(weeklySplit.code_remaining_pct ?? (100 - codeUsedPct - agentsTotalPct)).toFixed(1))
         : Math.max(0, +(100 - officialUsedPct - backgroundReservePct).toFixed(1));
 
-      if (hasOfficialWeekly) {
-        const stale = plan.stale ? ' · stale' : '';
+      if (isDerivedWeekly) {
+        const official = Number(weeklySplit.official_used_pct ?? weeklyWindow.used_percentage ?? 0);
+        const delta = Number(weeklySplit.estimated_delta_pct || 0);
         document.getElementById('hb-reset-label').textContent =
-          `Claude official weekly ${officialUsedPct.toFixed(1)}% · ${weeklyWindow.reset_label || 'reset —'}${stale}`;
+          `Claude effective ${officialUsedPct.toFixed(1)}% = official ${official.toFixed(1)}% + local ${delta.toFixed(1)}% · snapshot ${_formatAge(plan.age_seconds)}`;
+      } else if (hasFreshOfficialWeekly) {
+        document.getElementById('hb-reset-label').textContent =
+          `Claude official live ${officialUsedPct.toFixed(1)}% · ${weeklyWindow.reset_label || 'reset —'}`;
+      } else if (isStaleOfficialWeekly) {
+        document.getElementById('hb-reset-label').textContent =
+          `Claude official stale · last known ${officialUsedPct.toFixed(1)}% · ${_formatAge(plan.age_seconds)}`;
       } else {
         const hoursLeft = cm.hours_until_reset || 0;
         if (hoursLeft > 0) {
@@ -2458,24 +2547,33 @@ sequenceDiagram
         }
       }
 
-      document.getElementById('hb-used').style.width = codeUsedPct + '%';
-      document.getElementById('hb-agents').style.width = agentsTotalPct + '%';
+      const usedEl = document.getElementById('hb-used');
+      const agentsEl = document.getElementById('hb-agents');
+      usedEl.style.width = codeUsedPct + '%';
+      agentsEl.style.width = agentsTotalPct + '%';
+      usedEl.style.background = isStaleOfficialWeekly
+        ? 'linear-gradient(90deg,#64748b,#94a3b8)'
+        : 'linear-gradient(90deg,#6e40c9,#a855f7)';
+      agentsEl.style.background = isStaleOfficialWeekly
+        ? 'linear-gradient(90deg,#a16207,#f59e0b)'
+        : 'linear-gradient(90deg,#f59e0b,#d97706)';
       // hb-free takes remaining via flex:1
 
-      document.getElementById('hb-used').textContent =
+      usedEl.textContent =
         codeUsedPct >= 4 ? codeUsedPct.toFixed(1) + '%' : '';
-      document.getElementById('hb-agents').textContent =
+      agentsEl.textContent =
         agentsTotalPct >= 4 ? agentsTotalPct.toFixed(1) + '%' : '';
       document.getElementById('hb-free').textContent =
         freePct > 0 ? freePct.toFixed(1) + '%' : '';
 
+      const stalePrefix = isStaleOfficialWeekly ? 'last known ' : '';
       document.getElementById('hb-used-label').textContent =
-        codeUsedPct.toFixed(1) + '%';
+        stalePrefix + codeUsedPct.toFixed(1) + '%';
       document.getElementById('hb-agents-label').textContent =
         hasOfficialWeekly
-          ? `${backgroundUsedPct.toFixed(1)}% уже + ${backgroundReservePct.toFixed(1)}% резерв`
+          ? `${stalePrefix}${backgroundUsedPct.toFixed(1)}% уже + ${backgroundReservePct.toFixed(1)}% резерв`
           : `~${backgroundReservePct.toFixed(1)}% резерв`;
-      document.getElementById('hb-free-label').textContent = freePct.toFixed(1) + '%';
+      document.getElementById('hb-free-label').textContent = stalePrefix + freePct.toFixed(1) + '%';
 
       // Colour free segment red if critically low
       const freeEl = document.getElementById('hb-free');
