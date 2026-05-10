@@ -2457,10 +2457,17 @@ sequenceDiagram
       // routing: Codex может фейлить на сложных промтах → fallback в Claude.
       const realCodexPct = data.codex_success_pct || 0;
       const realClaudePct = data.opus_fallback_pct || 0;
+      const recentCodexPct = data.codex_success_6h_pct || 0;
+      const recentClaudePct = data.opus_fallback_6h_pct || 0;
       const codex24 = data.last_24h_codex || 0;
       const opus24 = data.last_24h_opus || 0;
+      const codex6h = data.last_6h_codex || 0;
+      const opus6h = data.last_6h_opus || 0;
+      const recentTotal = data.last_6h_calls || 0;
       const codexFails24 = data.last_24h_codex_fails || 0;
       const codexCooldown24 = data.last_24h_codex_cooldown || 0;
+      const codexFails6h = data.last_6h_codex_fails || 0;
+      const codexCooldown6h = data.last_6h_codex_cooldown || 0;
       const codexFailReason = data.top_codex_fail_reason || '';
       // Не называем высокий Claude-share "фейлом": часть вызовов может идти в
       // Claude по настройке quota/маршрутизации. Реальный fail показываем только
@@ -2475,9 +2482,14 @@ sequenceDiagram
       } else if (realClaudePct > 50 && opus24 > 5 && quota < 9999) {
         codexNote = 'ℹ много Claude: quota/route, не факт fail';
       }
+      const recentLine = recentTotal > 0
+        ? ` · сейчас 6ч: ${recentCodexPct}% Codex (${codex6h}) · ${recentClaudePct}% Claude (${opus6h})` +
+          (codexFails6h ? ` · fail ${codexFails6h}` : '') +
+          (codexCooldown6h ? ` · cooldown ${codexCooldown6h}` : '')
+        : ' · сейчас 6ч: нет calls';
       const realLine = (last24h > 0)
-        ? `Реально: ${realCodexPct}% Codex (${codex24}) · ${realClaudePct}% Claude (${opus24})`
-        : 'нет calls за 24h';
+        ? `24ч: ${realCodexPct}% Codex (${codex24}) · ${realClaudePct}% Claude (${opus24})${recentLine}`
+        : '24ч: нет calls' + recentLine;
       card.querySelector('[data-fld="opus-pct"]').textContent = realLine;
       const codexEl = card.querySelector('[data-fld="codex-pct"]');
       codexEl.textContent = codexNote;
