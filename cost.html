@@ -45,6 +45,19 @@ tr:last-child td { border-bottom: none; }
 .refresh button { background: none; border: 1px solid var(--border); padding: 4px 10px;
                   border-radius: 6px; cursor: pointer; color: var(--muted); }
 .refresh button:hover { color: var(--fg); border-color: var(--fg); }
+.alerts { margin-bottom: 14px; }
+.alert { padding: 10px 14px; border-radius: 8px; margin-bottom: 6px;
+         border: 1px solid var(--border); display: flex; align-items: flex-start;
+         gap: 10px; }
+.alert .body { flex: 1; }
+.alert .title { font-weight: 600; margin-bottom: 2px; }
+.alert .msg { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.alert.danger { background: #fff5f5; border-color: #ffd0d0; color: var(--danger); }
+.alert.warn   { background: #fff8e1; border-color: #ffd896; color: #b45309; }
+.alert.info   { background: #f0f7ff; border-color: #d0e3ff; color: #1e40af; }
+.alert.danger .msg { color: #7f1d1d; }
+.alert.warn .msg { color: #78350f; }
+.alert.info .msg { color: #1e3a8a; }
 .tag { display: inline-block; background: var(--border); padding: 1px 8px;
        border-radius: 10px; font-size: 11px; color: var(--muted); margin-right: 4px; }
 .cost { font-variant-numeric: tabular-nums; font-weight: 500; }
@@ -61,6 +74,8 @@ a:hover { text-decoration: underline; }
 </span></h1>
 <div class="sub">Куда тратятся токены: ccusage daily + plan limits + per-purpose breakdown + interactive sessions + Stop-hook log
   &middot; <a href="index.html">← Главная</a></div>
+
+<div id="alerts" class="alerts"></div>
 
 <div class="grid">
   <div class="card">
@@ -196,6 +211,19 @@ async function load() {
 }
 
 function render(d) {
+  // Alerts (внешние API health) — рендерим первыми чтобы было заметно сразу.
+  const alerts = d.alerts || [];
+  const icons = { danger: '🚨', warn: '⚠️', info: 'ℹ️' };
+  document.getElementById('alerts').innerHTML = alerts.map(a => {
+    const sev = ['danger','warn','info'].includes(a.severity) ? a.severity : 'info';
+    return `<div class="alert ${sev}">` +
+      `<span>${icons[sev]||'ℹ️'}</span>` +
+      `<div class="body">` +
+        `<div class="title">${esc(a.title||'')}</div>` +
+        `<div class="msg">${esc(a.msg||'')}</div>` +
+      `</div></div>`;
+  }).join('');
+
   // Today
   const t = d.today || {};
   document.getElementById('today-cost').textContent = fmt$(t.total_cost_usd);
