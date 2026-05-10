@@ -85,6 +85,30 @@
   .order-summary .cell { background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:4px; }
   .order-summary .cell .lbl { color:var(--muted); font-size:10px; text-transform:uppercase; }
   .order-summary .cell .val { font-weight:600; font-size:13px; margin-top:2px; }
+
+  /* Light theme overrides — matches html[data-theme="light"] convention */
+  html[data-theme="light"] body { background:#fafbfc; color:#1f2328; }
+  html[data-theme="light"] .order-card { background:#fff !important; border-color:#d0d7de !important; }
+  html[data-theme="light"] .order-header { border-bottom-color:#d0d7de; }
+  html[data-theme="light"] .vendor-card { background:#f6f8fa !important; border-color:#d0d7de !important; }
+  html[data-theme="light"] .order-summary .cell { background:#f6f8fa; }
+  html[data-theme="light"] .conv-popup { background:#fff !important; border-color:#0969da; box-shadow:0 4px 14px rgba(0,0,0,0.15); }
+  html[data-theme="light"] .conv-popup .msg { border-bottom-color:#d0d7de; }
+  html[data-theme="light"] .conv-popup .msg.in { color:#1f2328; }
+  html[data-theme="light"] .conv-popup .msg.out { color:#0969da; }
+  html[data-theme="light"] .conv-popup .msg .when { color:#656d76; }
+  html[data-theme="light"] .full-conv { background:#f6f8fa; }
+  html[data-theme="light"] .full-conv .msg { border-bottom-color:#d0d7de; }
+  html[data-theme="light"] .full-conv .msg.out { color:#0969da; }
+  html[data-theme="light"] .empty { background:#f6f8fa; color:#656d76; border-color:#d0d7de; }
+  html[data-theme="light"] .request-box { background:rgba(9,105,218,0.06); border-left-color:#0969da; }
+  html[data-theme="light"] .badge.client { background:rgba(9,105,218,0.12); color:#0969da; }
+  html[data-theme="light"] .hover-trigger { border-bottom-color:#656d76; }
+  html[data-theme="light"] .header h1 { color:#1f2328; }
+  html[data-theme="light"] .header .nav a { color:#656d76; }
+  html[data-theme="light"] .header .nav a:hover { color:#0969da; }
+  html[data-theme="light"] details summary { color:#656d76; }
+  html[data-theme="light"] details summary:hover { color:#1f2328; }
 </style>
   <link rel="stylesheet" href="_theme.css">
   <script src="_theme.js"></script>
