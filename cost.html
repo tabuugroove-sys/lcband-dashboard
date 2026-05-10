@@ -91,6 +91,26 @@ a:hover { text-decoration: underline; }
   </div>
 </div>
 
+<div class="card" style="margin-bottom:18px;">
+  <h2>Дневной бюджет policy (% от weekly limit)</h2>
+  <table style="width:100%;">
+    <thead><tr>
+      <th>Provider</th>
+      <th style="text-align:right">Code</th>
+      <th style="text-align:right">Background</th>
+      <th style="text-align:right">Total/day</th>
+      <th style="text-align:right">Used today</th>
+      <th>Status</th>
+    </tr></thead>
+    <tbody id="budget-rows"></tbody>
+  </table>
+  <div class="label" style="margin-top:6px;">
+    Code = interactive Claude Code/Codex CLI (твоя работа в редакторе) ·
+    Background = programmatic вызовы из бизнес-кода (tg_responder, classifier, и т.д.).
+    Bar становится 🟠 при 60%+, 🔴 при 85%+ от daily budget.
+  </div>
+</div>
+
 <div class="grid">
   <div class="card" style="grid-column: span 2;">
     <h2>Today · top purposes (programmatic AI)</h2>
@@ -204,6 +224,28 @@ function render(d) {
   x5bar.parentElement.className = barClass(x5.used_percentage||0);
   document.getElementById('codex-windows').textContent =
     (cx.plan_type||'—') + ' · 5h ' + (x5.reset_label||'?') + ' / 7d ' + (x7.reset_label||'?');
+
+  // Budget policy
+  const bp = d.budget_policy || {};
+  const bu = d.budget_utilisation || {};
+  const rows = ['claude','codex'].map(p => {
+    const pol = bp[p] || {};
+    const ut = bu[p] || {};
+    const used = ut.used_total_pct || 0;
+    const total = ut.daily_budget_pct || 14;
+    const ratio = ut.ratio_used_to_daily || 0;
+    const cls = ratio>=0.85 ? 'danger' : (ratio>=0.6 ? 'warn' : 'ok');
+    const dot = cls==='danger'?'🔴':(cls==='warn'?'🟠':'🟢');
+    return `<tr>` +
+      `<td><strong>${p}</strong></td>` +
+      `<td style="text-align:right" class="cost">${(pol.code_daily_pct||0).toFixed(0)}%</td>` +
+      `<td style="text-align:right" class="cost">${(pol.background_daily_pct||0).toFixed(0)}%</td>` +
+      `<td style="text-align:right" class="cost">${total.toFixed(0)}%</td>` +
+      `<td style="text-align:right" class="cost">${used.toFixed(1)}%</td>` +
+      `<td>${dot} ${(ratio*100).toFixed(0)}% от daily</td>` +
+      `</tr>`;
+  }).join('');
+  document.getElementById('budget-rows').innerHTML = rows;
 
   // Purposes
   const ptbody = document.querySelector('#purposes tbody');
