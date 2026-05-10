@@ -195,7 +195,7 @@ function renderVendor(v) {
   const watchedClass = v.client_watched ? 'watched-yes' : 'watched-no';
   const watchedText = v.client_watched ? '👁 посмотрел' : 'не смотрел';
   const qualityHtml = v.quality_score !== null
-    ? `<span class="quality" style="color:${v.quality_score>=8?'var(--green)':v.quality_score>=5?'var(--gold)':'var(--red)'}">⭐ ${v.quality_score}/10</span>`
+    ? `<span class="quality" title="${escHtml(v.quality_reasoning||'')}" style="color:${v.quality_score>=8?'var(--green)':v.quality_score>=5?'var(--gold)':'var(--red)'};cursor:help">⭐ ${v.quality_score}/10</span>`
     : `<span class="quality" style="color:var(--muted)">не оценено</span>`;
   const promoHtml = v.promo_url
     ? `<a href="${escHtml(v.promo_url)}" target="_blank" style="color:var(--accent);font-size:11px">📹 промо</a>`
