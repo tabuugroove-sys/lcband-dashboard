@@ -8,7 +8,7 @@
 :root {
   --bg: #fff; --fg: #1a1a1a; --muted: #6c6c70; --border: #e5e5e7;
   --accent: #0070f3; --warn: #ff9500; --danger: #ff3b30; --ok: #34c759;
-  --opus: #af52de; --sonnet: #5856d6; --haiku: #007aff; --codex: #34c759;
+  --opus: #af52de; --sonnet: #5856d6; --haiku: #007aff; --codex: #34c759; --gemini: #10a37f;
 }
 * { box-sizing: border-box; }
 body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -39,6 +39,7 @@ tr:last-child td { border-bottom: none; }
 .dot.sonnet { background: var(--sonnet); }
 .dot.haiku { background: var(--haiku); }
 .dot.codex { background: var(--codex); }
+.dot.gemini { background: var(--gemini); }
 .runaway { background: #fff5f5; border-color: #ffd0d0; }
 .runaway h2 { color: var(--danger); }
 .refresh { float: right; font-size: 12px; color: var(--muted); }
@@ -137,7 +138,10 @@ a:hover { text-decoration: underline; }
   </div>
 
   <div class="card">
-    <h2>Today · by service</h2>
+    <h2>Today · by AI backend</h2>
+    <div class="label" style="margin:-4px 0 8px 0;">
+      CLI-строки разделены по провайдерам: Gemini CLI ≠ Codex CLI.
+    </div>
     <table id="services"><thead><tr>
       <th>Service</th><th style="text-align:right">Calls</th>
       <th style="text-align:right">$</th>
@@ -188,13 +192,34 @@ function fmtTok(v) {
   if (v >= 1e3) return (v/1e3).toFixed(1) + 'k';
   return String(v);
 }
+function prettyModelName(name) {
+  const raw = String(name || '').replace(/^cli[_-]/i, '').replace(/_/g, '-');
+  const n = raw.toLowerCase();
+  if (n.includes('gpt-5.5')) return 'GPT-5.5';
+  if (n.includes('gpt-5')) return 'GPT-5';
+  if (n.includes('opus')) return 'Opus';
+  if (n.includes('sonnet')) return 'Sonnet';
+  if (n.includes('haiku')) return 'Haiku';
+  if (n.includes('gemini')) return 'Gemini';
+  return raw;
+}
 function modelTag(name) {
-  const n = (name||'').toLowerCase();
-  if (n.includes('opus')) return '<span class="dot opus"></span>Opus';
-  if (n.includes('sonnet')) return '<span class="dot sonnet"></span>Sonnet';
-  if (n.includes('haiku')) return '<span class="dot haiku"></span>Haiku';
-  if (n.includes('codex') || n.includes('gpt')) return '<span class="dot codex"></span>'+name;
-  return name;
+  const raw = String(name || '');
+  const n = raw.toLowerCase();
+
+  if (n.startsWith('cli_codex') || n.includes('codex')) {
+    const model = raw.replace(/^cli_codex[_-]?/i, '');
+    const suffix = model ? ` <span class="muted">· ${esc(prettyModelName(model))}</span>` : '';
+    return `<span class="dot codex"></span>Codex CLI${suffix}`;
+  }
+  if (n.startsWith('cli_gemini') || n.includes('gemini')) {
+    return '<span class="dot gemini"></span>Gemini CLI';
+  }
+  if (n.includes('opus')) return '<span class="dot opus"></span>Claude Opus';
+  if (n.includes('sonnet')) return '<span class="dot sonnet"></span>Claude Sonnet';
+  if (n.includes('haiku')) return '<span class="dot haiku"></span>Claude Haiku';
+  if (n.includes('gpt')) return `<span class="dot codex"></span>${esc(prettyModelName(raw))}`;
+  return esc(raw);
 }
 function barClass(pct) { if (pct>=85) return 'bar danger'; if (pct>=60) return 'bar warn'; return 'bar'; }
 
