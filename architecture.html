@@ -418,7 +418,7 @@
   <!-- Health bar: weekly budget -->
   <div id="health-bar-block" style="margin-top:12px;padding:14px 16px;background:rgba(0,0,0,0.22);border-radius:8px;">
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
-      <span style="font-size:12px;font-weight:600;color:var(--fg)">💊 Недельный burn estimate</span>
+      <span style="font-size:12px;font-weight:600;color:var(--fg)">💊 Claude weekly limit</span>
       <span style="font-size:11px;color:var(--muted)" id="hb-reset-label">сброс через —</span>
     </div>
 
@@ -431,9 +431,9 @@
 
     <!-- Legend -->
     <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
-      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#a855f7;border-radius:2px;margin-right:5px;vertical-align:middle"></span>ccusage estimate <span id="hb-used-label" style="color:var(--fg);font-weight:600">—</span></span>
-      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Прогноз агентов <span id="hb-agents-label" style="color:#f59e0b;font-weight:600">—</span></span>
-      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Остаток estimate <span id="hb-free-label" style="color:#22c55e;font-weight:600">—</span></span>
+      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#a855f7;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Код уже <span id="hb-used-label" style="color:var(--fg);font-weight:600">—</span></span>
+      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Фон/агенты <span id="hb-agents-label" style="color:#f59e0b;font-weight:600">—</span></span>
+      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Остаток на код <span id="hb-free-label" style="color:#22c55e;font-weight:600">—</span></span>
     </div>
 
     <!-- Second bar: code-only remaining -->
@@ -2253,26 +2253,64 @@ sequenceDiagram
       document.getElementById('cm-codex-calls').textContent = cm.projected_weekly_codex_calls || 0;
 
       // ── Health bar ──────────────────────────────────────────────────────
-      const usedPct   = Math.min(pct7, 100);
-      const hoursLeft = cm.hours_until_reset || 0;
-      const agentsForecast = Math.min(+(cm.agents_until_reset_pct || 0), 100 - usedPct);
-      if (hoursLeft > 0) {
-        const h = Math.floor(hoursLeft), m = Math.round((hoursLeft - h) * 60);
-        document.getElementById('hb-reset-label').textContent = `оценочный сброс через ${h}ч ${m}м`;
-      }
-      const freePct   = Math.max(0, +(100 - usedPct - agentsForecast).toFixed(1));
+      // Source of truth for the limit itself is Claude Code statusLine.rate_limits.
+      // ccusage/session data is only used to split the official % into code vs agents.
+      const plan = stats.claude_plan_usage || {};
+      const weeklyWindow = (plan.windows || {}).seven_day || {};
+      const fiveHourWindow = (plan.windows || {}).five_hour || {};
+      const weeklySplit = plan.weekly_split || {};
+      const hasOfficialWeekly = plan.available && weeklyWindow.used_percentage !== undefined;
 
-      document.getElementById('hb-used').style.width   = usedPct + '%';
-      document.getElementById('hb-agents').style.width = agentsForecast + '%';
+      const officialUsedPct = hasOfficialWeekly
+        ? Math.min(100, +(weeklySplit.total_used_pct ?? weeklyWindow.used_percentage ?? 0))
+        : Math.min(pct7, 100);
+      const codeUsedPct = hasOfficialWeekly
+        ? Math.max(0, +(weeklySplit.code_used_pct || 0))
+        : officialUsedPct;
+      const backgroundUsedPct = hasOfficialWeekly
+        ? Math.max(0, +(weeklySplit.background_used_pct || 0))
+        : 0;
+      const backgroundReservePct = hasOfficialWeekly
+        ? Math.max(0, +(weeklySplit.background_reserved_pct || 0))
+        : Math.min(+(cm.agents_until_reset_pct || 0), 100 - officialUsedPct);
+      const agentsTotalPct = Math.min(100, +(backgroundUsedPct + backgroundReservePct).toFixed(1));
+      const freePct = hasOfficialWeekly
+        ? Math.max(0, +(weeklySplit.code_remaining_pct ?? (100 - codeUsedPct - agentsTotalPct)).toFixed(1))
+        : Math.max(0, +(100 - officialUsedPct - backgroundReservePct).toFixed(1));
+
+      if (hasOfficialWeekly) {
+        const stale = plan.stale ? ' · stale' : '';
+        const fiveHourText = fiveHourWindow.used_percentage !== undefined
+          ? ` · 5h ${Number(fiveHourWindow.used_percentage || 0).toFixed(1)}% ${fiveHourWindow.reset_label || ''}`
+          : '';
+        document.getElementById('hb-reset-label').textContent =
+          `Claude official weekly ${officialUsedPct.toFixed(1)}% · ${weeklyWindow.reset_label || 'reset —'}${fiveHourText}${stale}`;
+      } else {
+        const hoursLeft = cm.hours_until_reset || 0;
+        if (hoursLeft > 0) {
+          const h = Math.floor(hoursLeft), m = Math.round((hoursLeft - h) * 60);
+          document.getElementById('hb-reset-label').textContent = `fallback estimate · сброс через ${h}ч ${m}м`;
+        }
+      }
+
+      document.getElementById('hb-used').style.width = codeUsedPct + '%';
+      document.getElementById('hb-agents').style.width = agentsTotalPct + '%';
       // hb-free takes remaining via flex:1
 
-      document.getElementById('hb-used').textContent   = usedPct >= 8 ? usedPct.toFixed(1) + '%' : '';
-      document.getElementById('hb-agents').textContent = agentsForecast >= 4 ? '~' + agentsForecast + '%' : '';
-      document.getElementById('hb-free').textContent   = freePct > 0 ? freePct.toFixed(1) + '%' : '';
+      document.getElementById('hb-used').textContent =
+        codeUsedPct >= 4 ? codeUsedPct.toFixed(1) + '%' : '';
+      document.getElementById('hb-agents').textContent =
+        agentsTotalPct >= 4 ? agentsTotalPct.toFixed(1) + '%' : '';
+      document.getElementById('hb-free').textContent =
+        freePct > 0 ? freePct.toFixed(1) + '%' : '';
 
-      document.getElementById('hb-used-label').textContent   = usedPct.toFixed(1) + '%';
-      document.getElementById('hb-agents-label').textContent = '~' + agentsForecast + '%';
-      document.getElementById('hb-free-label').textContent   = freePct.toFixed(1) + '%';
+      document.getElementById('hb-used-label').textContent =
+        codeUsedPct.toFixed(1) + '%';
+      document.getElementById('hb-agents-label').textContent =
+        hasOfficialWeekly
+          ? `${backgroundUsedPct.toFixed(1)}% уже + ${backgroundReservePct.toFixed(1)}% резерв`
+          : `~${backgroundReservePct.toFixed(1)}% резерв`;
+      document.getElementById('hb-free-label').textContent = freePct.toFixed(1) + '%';
 
       // Colour free segment red if critically low
       const freeEl = document.getElementById('hb-free');
