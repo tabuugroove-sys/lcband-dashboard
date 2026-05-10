@@ -2324,6 +2324,7 @@ sequenceDiagram
     const codeOver = Math.max(0, codeUsed - codeAllowance);
     const borrowedFromBg = Math.min(bgAllowance, codeOver);
 
+    total.display_allowance_pct = Math.round(Number(total.daily_budget_pct ?? total.today_allowance_pct ?? 0) * 10) / 10;
     code.display_allowance_pct = Math.round(codeAllowance * 10) / 10;
     bg.borrowed_by_code_pct = Math.round(borrowedFromBg * 10) / 10;
     bg.display_allowance_pct = Math.round(Math.max(bgUsed, bgAllowance - borrowedFromBg) * 10) / 10;
