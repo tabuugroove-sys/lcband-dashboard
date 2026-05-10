@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LC Band — Broker Pipeline</title>
+<style>
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e;
+    --card: #161b22; --border: #30363d; --accent: #58a6ff;
+    --green: #3fb950; --orange: #f0883e; --red: #f85149;
+    --purple: #bc8cff; --gold: #d29922;
+  }
+  body.light { --bg:#fafbfc; --fg:#1f2328; --muted:#656d76; --card:#fff;
+                --border:#d0d7de; --accent:#0969da; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+         background:var(--bg); color:var(--fg); line-height:1.5; padding:20px; }
+  .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; }
+  .header h1 { margin:0; font-size:22px; }
+  .header .nav { display:flex; gap:14px; font-size:13px; }
+  .header .nav a { color:var(--muted); text-decoration:none; }
+  .header .nav a:hover { color:var(--accent); }
+  .meta { color:var(--muted); font-size:12px; margin-bottom:18px; }
+  .order-card { background:var(--card); border:1px solid var(--border); border-radius:8px;
+                padding:18px; margin-bottom:16px; }
+  .order-header { display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;
+                  margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border); }
+  .order-title { font-size:18px; font-weight:600; }
+  .order-meta { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--muted); }
+  .badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+  .badge.client { background:rgba(88,166,255,0.15); color:var(--accent); }
+  .badge.contractor { background:rgba(63,185,80,0.15); color:var(--green); }
+  .badge.warn { background:rgba(240,136,62,0.15); color:var(--orange); }
+  .badge.urgent { background:rgba(248,81,73,0.15); color:var(--red); }
+
+  .request-box { background:rgba(88,166,255,0.06); border-left:3px solid var(--accent);
+                 padding:10px 12px; margin:10px 0; border-radius:4px; font-size:13px; }
+  .request-box .label { font-size:11px; color:var(--muted); text-transform:uppercase;
+                        letter-spacing:0.5px; margin-bottom:4px; }
+  .request-box .text { white-space:pre-wrap; }
+
+  .hover-trigger { cursor:help; border-bottom:1px dashed var(--muted); position:relative; }
+  .hover-trigger:hover .conv-popup { display:block; }
+  .conv-popup { display:none; position:absolute; top:100%; left:0; z-index:100;
+                background:var(--card); border:1px solid var(--accent); border-radius:6px;
+                padding:10px; max-width:520px; min-width:320px; box-shadow:0 4px 14px rgba(0,0,0,0.4);
+                font-size:12px; max-height:400px; overflow-y:auto; }
+  .conv-popup .msg { padding:4px 0; border-bottom:1px dashed var(--border); }
+  .conv-popup .msg:last-child { border-bottom:none; }
+  .conv-popup .msg.out { color:var(--accent); }
+  .conv-popup .msg.in { color:var(--fg); }
+  .conv-popup .msg .when { color:var(--muted); font-size:10px; margin-right:6px; }
+
+  .casting-section { margin-top:14px; }
+  .casting-section h3 { font-size:13px; text-transform:uppercase; letter-spacing:0.5px;
+                        color:var(--muted); margin:14px 0 8px; }
+  .casting-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));
+                  gap:10px; }
+  .vendor-card { background:rgba(255,255,255,0.03); border:1px solid var(--border);
+                 border-radius:6px; padding:10px; font-size:12px; position:relative; }
+  .vendor-card .name { font-weight:600; font-size:13px; }
+  .vendor-card .username { color:var(--accent); font-size:11px; }
+  .vendor-card .rate { color:var(--gold); margin-top:4px; }
+  .vendor-card .margin { color:var(--green); font-weight:600; font-size:13px; }
+  .vendor-card .quality { display:inline-block; padding:1px 6px; border-radius:3px;
+                          background:rgba(255,255,255,0.06); font-size:11px; }
+  .vendor-card .watched-yes { color:var(--green); }
+  .vendor-card .watched-no { color:var(--muted); }
+
+  .empty { color:var(--muted); font-style:italic; padding:14px; text-align:center;
+           background:rgba(255,255,255,0.02); border:1px dashed var(--border); border-radius:6px; }
+  .empty.urgent { color:var(--red); }
+
+  details { margin-top:8px; }
+  details summary { cursor:pointer; color:var(--muted); font-size:12px; }
+  details summary:hover { color:var(--fg); }
+  .full-conv { margin-top:8px; padding:10px; background:rgba(0,0,0,0.2); border-radius:4px;
+               max-height:300px; overflow-y:auto; font-size:11px; }
+  .full-conv .msg { padding:3px 0; border-bottom:1px dashed var(--border); }
+  .full-conv .msg.out { color:var(--accent); }
+  .full-conv .msg .when { color:var(--muted); font-size:10px; margin-right:5px; }
+
+  .order-summary { display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:10px; margin:10px 0; font-size:12px; }
+  .order-summary .cell { background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:4px; }
+  .order-summary .cell .lbl { color:var(--muted); font-size:10px; text-transform:uppercase; }
+  .order-summary .cell .val { font-weight:600; font-size:13px; margin-top:2px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🤝 Broker Pipeline</h1>
+  <div class="nav">
+    <a href="index.html">← Dashboard</a>
+    <a href="architecture.html">Architecture</a>
+    <a href="pricing.html">Pricing</a>
+  </div>
+</div>
+<div class="meta" id="meta">Загрузка…</div>
+<div id="orders"></div>
+
+<script>
+async function getBackendUrl() {
+  // GitHub Pages → 127.0.0.1:8878 (assumes user runs backend locally)
+  return location.protocol === 'file:' || location.hostname === '127.0.0.1' || location.hostname === 'localhost'
+    ? `${location.protocol}//${location.hostname}:8878`
+    : 'http://127.0.0.1:8878';
+}
+
+function escHtml(s) {
+  return (s || '').toString()
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+function fmtMoney(v) {
+  if (!v) return '—';
+  return Number(v).toLocaleString('ru-RU') + ' ₽';
+}
+
+function renderConvPopup(msgs, label) {
+  if (!msgs || !msgs.length) return `<div class="empty">нет переписки</div>`;
+  return `<div class="conv-popup">
+    <div style="color:var(--muted);font-size:10px;margin-bottom:6px">${escHtml(label)} · последние ${msgs.length}</div>
+    ${msgs.map(m => `<div class="msg ${m.out?'out':'in'}">
+      <span class="when">${escHtml((m.date||'').slice(5,16))}</span>
+      <strong>${m.out?'WE':'THEY'}:</strong> ${escHtml((m.text||'').slice(0,180))}
+    </div>`).join('')}
+  </div>`;
+}
+
+function renderFullConv(msgs) {
+  if (!msgs || !msgs.length) return '<div class="empty">переписки нет</div>';
+  return `<div class="full-conv">${msgs.map(m => `
+    <div class="msg ${m.out?'out':'in'}">
+      <span class="when">${escHtml((m.date||'').slice(5,16))}</span>
+      <strong>${m.out?'WE':'THEY'}:</strong> ${escHtml(m.text||'')}
+    </div>`).join('')}</div>`;
+}
+
+function renderVendor(v) {
+  const watchedClass = v.client_watched ? 'watched-yes' : 'watched-no';
+  const watchedText = v.client_watched ? '👁 посмотрел' : 'не смотрел';
+  const qualityHtml = v.quality_score !== null
+    ? `<span class="quality" style="color:${v.quality_score>=8?'var(--green)':v.quality_score>=5?'var(--gold)':'var(--red)'}">⭐ ${v.quality_score}/10</span>`
+    : `<span class="quality" style="color:var(--muted)">не оценено</span>`;
+  const promoHtml = v.promo_url
+    ? `<a href="${escHtml(v.promo_url)}" target="_blank" style="color:var(--accent);font-size:11px">📹 промо</a>`
+    : `<span style="color:var(--muted);font-size:11px">нет промо</span>`;
+  return `<div class="vendor-card">
+    <div class="name">${escHtml(v.name || '—')}</div>
+    <div class="username hover-trigger">@${escHtml(v.username)}
+      ${renderConvPopup([{out:false,text:v.last_msg_preview||'(тыка для подгрузки)',date:v.last_contact||''}],
+                       'переписка с подрядчиком')}
+    </div>
+    <div style="margin-top:6px;font-size:11px;color:var(--muted)">${escHtml(v.notes||'').slice(0,100)}</div>
+    <div class="rate">📋 ${escHtml(v.rate_quote||'ставка не указана')}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+      <div style="font-size:11px;color:var(--muted)">
+        наш price: <strong style="color:var(--fg)">${fmtMoney(v.estimated_client_price)}</strong>
+      </div>
+      <div class="margin">+${fmtMoney(v.estimated_margin)}</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+      ${qualityHtml} ${promoHtml}
+      <span class="${watchedClass}" style="font-size:11px">${watchedText}</span>
+    </div>
+  </div>`;
+}
+
+function renderOrder(o) {
+  const eventDate = o.event_date || '—';
+  const isUrgent = (() => {
+    const m = (o.event_date||'').match(/(\d{1,2})[\.\s](\d{1,2}|\w+)/);
+    return m && parseInt(m[1]) <= 14;  // crude: less than 2 weeks
+  })();
+
+  // assigned contractor
+  const contractorBlock = o.contractor_username
+    ? `<div class="hover-trigger" style="display:inline-block">
+        <span class="badge contractor">📌 @${escHtml(o.contractor_username)}</span>
+        ${renderConvPopup(o.contractor_messages, 'переписка с подрядчиком')}
+       </div>`
+    : `<span class="badge warn">подрядчик не назначен</span>`;
+
+  return `<div class="order-card" data-id="${o.id}">
+    <div class="order-header">
+      <div>
+        <div class="order-title">${escHtml(o.service_label)}</div>
+        <div class="order-meta">
+          <span class="hover-trigger">
+            <span class="badge client">👤 @${escHtml(o.client_username)} ${escHtml(o.client_name||'')}</span>
+            ${renderConvPopup(o.client_messages.slice(-15), 'переписка с клиентом')}
+          </span>
+          ${contractorBlock}
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--muted)">id <code>${o.id}</code></div>
+        <div style="font-size:13px;margin-top:4px">${escHtml(o.status)}</div>
+      </div>
+    </div>
+
+    <div class="order-summary">
+      <div class="cell"><div class="lbl">📅 Дата</div><div class="val ${isUrgent?'':''}" style="${isUrgent?'color:var(--red)':''}">${escHtml(eventDate)}</div></div>
+      <div class="cell"><div class="lbl">📍 Гео</div><div class="val">${escHtml(o.event_location||'—')}</div></div>
+      <div class="cell"><div class="lbl">👥 Гостей</div><div class="val">${escHtml(o.guests||'—')}</div></div>
+      <div class="cell"><div class="lbl">💰 Бюджет</div><div class="val">${escHtml(o.budget||'—')}</div></div>
+    </div>
+
+    <div class="request-box">
+      <div class="label">Исходный запрос</div>
+      <div class="text">${escHtml(o.original_request||'—')}</div>
+    </div>
+
+    <div class="casting-section">
+      <h3>🎭 Кастинг — ${o.casting.length} ${o.casting.length===0?'(нет в реестре, заказ закрыт)':'кандидатов в бюджете'}</h3>
+      ${o.casting.length === 0
+        ? '<div class="empty urgent">В реестре нет vendors для этого service_type. Per правило feedback_broker_use_known_vendors — silent skip.</div>'
+        : `<div class="casting-grid">${o.casting.map(renderVendor).join('')}</div>`}
+    </div>
+
+    <details>
+      <summary>📜 Полная переписка с клиентом (${o.client_messages.length} сообщений)</summary>
+      ${renderFullConv(o.client_messages)}
+    </details>
+    ${o.contractor_messages && o.contractor_messages.length ? `
+    <details>
+      <summary>📜 Переписка с подрядчиком @${escHtml(o.contractor_username)} (${o.contractor_messages.length})</summary>
+      ${renderFullConv(o.contractor_messages)}
+    </details>` : ''}
+  </div>`;
+}
+
+async function load() {
+  const base = await getBackendUrl();
+  try {
+    const r = await fetch(`${base}/api/broker_dashboard`, { cache: 'no-store' });
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+
+    const m = data._meta;
+    document.getElementById('meta').innerHTML =
+      `Активных заказов: <strong>${m.total_active}</strong> · ` +
+      `Реестр vendors: <strong>${m.roster_size}</strong> · ` +
+      `Обновлено ${(m.generated_at||'').slice(11,19)}`;
+
+    const html = data.orders.map(renderOrder).join('');
+    document.getElementById('orders').innerHTML = html ||
+      '<div class="empty">Активных заказов нет.</div>';
+  } catch (e) {
+    document.getElementById('meta').innerHTML =
+      `<span style="color:var(--red)">Ошибка: ${escHtml(e.message)}</span>`;
+  }
+}
+load();
+setInterval(load, 30000); // refresh каждые 30s
+</script>
+</body>
+</html>
