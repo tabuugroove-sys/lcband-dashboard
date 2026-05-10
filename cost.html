@@ -184,17 +184,17 @@ a:hover { text-decoration: underline; }
       <th>Purpose</th>
       <th style="text-align:right">Calls</th>
       <th>Сейчас</th>
-      <th style="text-align:right">$ today</th>
+      <th style="text-align:right">% weekly</th>
       <th>Force model</th>
       <th>Распределение</th>
     </tr></thead>
     <tbody id="funnel-models"></tbody>
   </table>
   <div class="label" style="margin-top:6px;">
-    Колонка «Force model»: выбери — applied немедленно через POST /api/runtime_config/force_model.
-    «default» = Codex first → Opus fallback (наша обычная цепочка).
-    «$ today» — реальная стоимость текущей доминантной модели на этом объёме.
-    Hover на selector — экстраполированная стоимость на этом объёме calls для каждой модели.
+    <strong>Конвенция:</strong> CLI вызовы (Claude Max / ChatGPT Plus / Gemini Code Assist) метрятся
+    в <strong>% от weekly limit</strong>, не в долларах. API-вызовы (`*_api`) — в $.
+    «% weekly» — оценка сколько % weekly limit съест эта модель на текущем объёме calls.
+    Selector «Force model»: выбери — POST /api/runtime_config/force_model, агенты подхватят за 30s.
   </div>
   <div id="funnel-toast" style="margin-top:8px;font-size:13px;"></div>
 </div>
@@ -392,26 +392,30 @@ function render(d) {
       const weakDominant = (r.dominant_model||'').match(/haiku|gemini/i) && complexPurposes.includes(r.purpose);
       const dot = weakDominant ? '⚠️' : '';
 
-      // Cost в текущей dominant модели
+      // Сейчас доминантная модель → её % weekly на текущем объёме
       const dominantKey = (r.dominant_model||'').replace(/^cli_/,'').replace(/_gpt-5\.5$/,'');
-      const dominantEst = (r.model_estimates||{})[dominantKey] || {daily_cost_usd: 0};
-      const todayCost = dominantEst.daily_cost_usd || 0;
+      const dominantEst = (r.model_estimates||{})[dominantKey] || {daily_pct_weekly: 0};
+      const todayPct = dominantEst.daily_pct_weekly || 0;
 
-      // Selector
+      // Selector — каждая опция показывает «% weekly» (CLI subscription metering)
       const cur = r.current_force || '';
       const opts = ['<option value="">default (Codex→Opus)</option>'];
       choices.forEach(m => {
         const est = (r.model_estimates||{})[m] || {};
-        const lbl = (est.label||m) + ' · $' + (est.daily_cost_usd||0).toFixed(2) + '/day';
+        const sub = est.subscription === 'code_assist_free' ? '(free)' :
+                    est.subscription === 'chatgpt_plus' ? '(ChatGPT Plus)' :
+                    '(Claude Max)';
+        const pct = (est.daily_pct_weekly || 0).toFixed(2);
+        const lbl = (est.label||m) + ' · ~' + pct + '% weekly ' + sub;
         opts.push('<option value="'+m+'"'+(cur===m?' selected':'')+'>'+esc(lbl)+'</option>');
       });
-      const selector = '<select onchange="setForceModel(\''+esc(r.purpose)+'\', this.value)" style="font-size:12px;max-width:200px;">'+opts.join('')+'</select>';
+      const selector = '<select onchange="setForceModel(\''+esc(r.purpose)+'\', this.value)" style="font-size:11px;max-width:240px;">'+opts.join('')+'</select>';
 
       return '<tr>' +
         '<td><code style="font-size:12px;">'+esc(r.purpose)+'</code></td>' +
         '<td style="text-align:right" class="cost">'+r.total+'</td>' +
         '<td>'+dot+modelTag(r.dominant_model)+' <span class="muted" style="font-size:11px;">'+r.dominant_pct+'%</span></td>' +
-        '<td style="text-align:right" class="cost">$'+todayCost.toFixed(2)+'</td>' +
+        '<td style="text-align:right" class="cost">~'+todayPct.toFixed(2)+'%</td>' +
         '<td>'+selector+'</td>' +
         '<td style="white-space:nowrap;">'+bar+'</td>' +
         '</tr>';
