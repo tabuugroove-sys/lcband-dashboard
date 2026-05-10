@@ -192,23 +192,25 @@ a:hover { text-decoration: underline; }
 </div>
 
 <div class="card" style="margin-bottom:18px;">
-  <h2>🎯 Воронка — какая модель отвечает + переключение</h2>
+  <h2>🎯 Воронка — реальный расход + переключение</h2>
   <table style="width:100%;">
     <thead><tr>
       <th>Purpose</th>
-      <th style="text-align:right">Calls</th>
-      <th>Сейчас</th>
-      <th style="text-align:right">% weekly</th>
+      <th style="text-align:right">Всего</th>
+      <th style="text-align:right">Opus</th>
+      <th style="text-align:right">Codex</th>
+      <th style="text-align:right">Sonnet/Haiku</th>
+      <th style="text-align:right">Gemini</th>
+      <th style="text-align:right">Σ %wk</th>
       <th>Force model</th>
-      <th>Распределение</th>
     </tr></thead>
     <tbody id="funnel-models"></tbody>
   </table>
   <div class="label" style="margin-top:6px;">
-    <strong>Конвенция:</strong> CLI вызовы (Claude Max / ChatGPT Plus / Gemini Code Assist) метрятся
-    в <strong>% от weekly limit</strong>, не в долларах. API-вызовы (`*_api`) — в $.
-    «% weekly» — оценка сколько % weekly limit съест эта модель на текущем объёме calls.
-    Selector «Force model»: выбери — POST /api/runtime_config/force_model, агенты подхватят за 30s.
+    <strong>Конвенция:</strong> CLI (Claude Max / ChatGPT Plus / Gemini) → <strong>% weekly limit</strong>, API → $.
+    Каждая ячейка модели показывает <code>calls→%weekly</code> — РЕАЛЬНО съедено сегодня (не theoretical).
+    «Σ %wk» — суммарный реальный расход на purpose.
+    Selector «Force model»: значение в () — theoretical если бы ВСЕ {total} calls пошли через эту модель.
   </div>
   <div id="funnel-toast" style="margin-top:8px;font-size:13px;"></div>
 </div>
@@ -386,54 +388,55 @@ function render(d) {
     `<td style="text-align:right" class="cost">${fmt$(s.cost_usd)}</td></tr>`
   ).join('');
 
-  // Funnel models — модель за шаг воронки + selector для смены
+  // Funnel models — РЕАЛЬНЫЙ per-model breakdown + selector для смены
   const fmTbody = document.getElementById('funnel-models');
   if (fmTbody) {
     const rows = (d.funnel_models_today || []);
     const choices = d.model_choices || ['opus','sonnet','haiku','codex','gemini'];
+    function cell(est) {
+      // Render <calls>→<% weekly>; пустая если 0
+      if (!est || !est.actual_calls) return '<span class="muted">—</span>';
+      return '<span class="cost">'+est.actual_calls+'<span class="muted" style="font-size:11px;">→'+est.actual_pct_weekly.toFixed(2)+'%</span></span>';
+    }
+
     fmTbody.innerHTML = rows.map(r => {
-      const total = r.total || 1;
-      const models = r.models || {};
-      const entries = Object.entries(models).sort((a,b) => b[1]-a[1]);
-      const bar = entries.map(([s, c]) => {
-        const pct = (c/total*100).toFixed(0);
-        const color = s.includes('opus')?'#af52de': s.includes('codex')?'#34c759':
-                      s.includes('sonnet')?'#5856d6': s.includes('haiku')?'#007aff':
-                      s.includes('gemini')?'#ff9500':'#999';
-        return '<span style="display:inline-block;height:10px;width:'+pct+'%;background:'+color+';" title="'+esc(s)+': '+c+'"></span>';
-      }).join('');
-      const complexPurposes = ['senior_strategist_audit','senior_strategist_rewrite','refusal_classify','funnel_sync','funnel_audit','presend_review','compose_proposal'];
-      const weakDominant = (r.dominant_model||'').match(/haiku|gemini/i) && complexPurposes.includes(r.purpose);
-      const dot = weakDominant ? '⚠️' : '';
-
-      // Сейчас доминантная модель → её % weekly на текущем объёме
-      const dominantKey = (r.dominant_model||'').replace(/^cli_/,'').replace(/_gpt-5\.5$/,'');
-      const dominantEst = (r.model_estimates||{})[dominantKey] || {daily_pct_weekly: 0};
-      const todayPct = dominantEst.daily_pct_weekly || 0;
-
-      // Selector — каждая опция показывает «% weekly» (CLI subscription metering)
+      const me = r.model_estimates || {};
       const cur = r.current_force || '';
+
+      // Selector — каждая опция = theoretical если ВСЁ через эту модель
       const opts = ['<option value="">default (Codex→Opus)</option>'];
       choices.forEach(m => {
-        const est = (r.model_estimates||{})[m] || {};
+        const est = me[m] || {};
         const sub = est.subscription === 'code_assist_free' ? '(free)' :
                     est.subscription === 'chatgpt_plus' ? '(ChatGPT Plus)' :
                     '(Claude Max)';
-        const pct = (est.daily_pct_weekly || 0).toFixed(2);
-        const lbl = (est.label||m) + ' · ~' + pct + '% weekly ' + sub;
+        const pct = (est.theoretical_pct_weekly || 0).toFixed(2);
+        const lbl = (est.label||m) + ' · all→~' + pct + '%wk ' + sub;
         opts.push('<option value="'+m+'"'+(cur===m?' selected':'')+'>'+esc(lbl)+'</option>');
       });
-      const selector = '<select onchange="setForceModel(\''+esc(r.purpose)+'\', this.value)" style="font-size:11px;max-width:240px;">'+opts.join('')+'</select>';
+      const selector = '<select onchange="setForceModel(\''+esc(r.purpose)+'\', this.value)" style="font-size:11px;max-width:260px;">'+opts.join('')+'</select>';
+
+      // Combine sonnet+haiku в одну колонку (реже встречается)
+      const sonHaiCell = (me.sonnet?.actual_calls || me.haiku?.actual_calls)
+        ? '<span class="cost">'+
+            (me.sonnet?.actual_calls||0) + (me.haiku?.actual_calls ? '+' + me.haiku.actual_calls : '') +
+            '<span class="muted" style="font-size:11px;">→'+
+            ((me.sonnet?.actual_pct_weekly||0)+(me.haiku?.actual_pct_weekly||0)).toFixed(2)+'%</span></span>'
+        : '<span class="muted">—</span>';
+
+      const totalReal = r.real_total_pct_weekly || 0;
 
       return '<tr>' +
         '<td><code style="font-size:12px;">'+esc(r.purpose)+'</code></td>' +
         '<td style="text-align:right" class="cost">'+r.total+'</td>' +
-        '<td>'+dot+modelTag(r.dominant_model)+' <span class="muted" style="font-size:11px;">'+r.dominant_pct+'%</span></td>' +
-        '<td style="text-align:right" class="cost">~'+todayPct.toFixed(2)+'%</td>' +
+        '<td style="text-align:right">'+cell(me.opus)+'</td>' +
+        '<td style="text-align:right">'+cell(me.codex)+'</td>' +
+        '<td style="text-align:right">'+sonHaiCell+'</td>' +
+        '<td style="text-align:right">'+cell(me.gemini)+'</td>' +
+        '<td style="text-align:right" class="cost"><strong>'+totalReal.toFixed(2)+'%</strong></td>' +
         '<td>'+selector+'</td>' +
-        '<td style="white-space:nowrap;">'+bar+'</td>' +
         '</tr>';
-    }).join('') || '<tr><td colspan="6" class="muted">нет данных за сегодня</td></tr>';
+    }).join('') || '<tr><td colspan="8" class="muted">нет данных за сегодня</td></tr>';
   }
 
   // Sessions (escape session_id и modified — могут содержать спец-символы)
