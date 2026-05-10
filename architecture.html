@@ -2279,7 +2279,7 @@ sequenceDiagram
   }
 
   function _budgetDeltaText(row) {
-    const allowance = Number(row?.today_allowance_pct ?? row?.daily_budget_pct ?? row?.budget_by_now_pct ?? 0);
+    const allowance = Number(row?.display_allowance_pct ?? row?.today_allowance_pct ?? row?.daily_budget_pct ?? row?.budget_by_now_pct ?? 0);
     const used = Number(row?.used_pct || 0);
     const d = allowance - used;
     if (d < -0.1) return { text: `перерасход ${_limitPct(Math.abs(d))}`, cls: 'warn' };
@@ -2291,9 +2291,11 @@ sequenceDiagram
     row = row || {};
     const delta = _budgetDeltaText(row);
     const used = _clampPct(row.used_pct);
-    const marker = _clampPct(row.today_allowance_pct ?? row.daily_budget_pct ?? row.budget_by_now_pct);
+    const marker = _clampPct(row.display_allowance_pct ?? row.today_allowance_pct ?? row.daily_budget_pct ?? row.budget_by_now_pct);
     const over = row.status === 'over' ? ' over' : '';
     const name = kind === 'code' ? 'Код' : 'Фоновые процессы';
+    const borrowed = Number(row.borrowed_by_code_pct || 0);
+    const borrowedText = borrowed > 0.1 ? ` · код забрал ${_limitPct(borrowed)}` : '';
     return `
       <div class="budget-row">
         <div class="budget-row-top">
@@ -2306,14 +2308,31 @@ sequenceDiagram
         </div>
         <div class="budget-row-foot">
           <span>план к сейчас: ${_limitPct(row.budget_by_now_pct)}</span>
-          <span>белая черта: ${_limitPct(marker)} · база ${_limitPct(row.daily_budget_pct)}/день</span>
+          <span>белая черта: ${_limitPct(marker)} · база ${_limitPct(row.daily_budget_pct)}/день${borrowedText}</span>
         </div>
       </div>`;
   }
 
+  function _applyCrossBucketBorrowing(rows) {
+    const total = Object.assign({}, rows.total || {});
+    const code = Object.assign({}, rows.code || {});
+    const bg = Object.assign({}, rows.background || {});
+    const codeAllowance = Number(code.daily_budget_pct ?? code.today_allowance_pct ?? 0);
+    const bgAllowance = Number(bg.daily_budget_pct ?? bg.today_allowance_pct ?? 0);
+    const codeUsed = Number(code.used_pct || 0);
+    const bgUsed = Number(bg.used_pct || 0);
+    const codeOver = Math.max(0, codeUsed - codeAllowance);
+    const borrowedFromBg = Math.min(bgAllowance, codeOver);
+
+    code.display_allowance_pct = Math.round(codeAllowance * 10) / 10;
+    bg.borrowed_by_code_pct = Math.round(borrowedFromBg * 10) / 10;
+    bg.display_allowance_pct = Math.round(Math.max(bgUsed, bgAllowance - borrowedFromBg) * 10) / 10;
+    return { total, code, background: bg };
+  }
+
   function _renderLimitBudgetCard(key, data) {
     data = data || {};
-    const rows = data.rows || {};
+    const rows = _applyCrossBucketBorrowing(data.rows || {});
     const total = rows.total || {};
     const code = rows.code || {};
     const bg = rows.background || {};
