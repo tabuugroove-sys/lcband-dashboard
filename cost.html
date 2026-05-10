@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Расход — LC Band</title>
+<style>
+:root {
+  --bg: #fff; --fg: #1a1a1a; --muted: #6c6c70; --border: #e5e5e7;
+  --accent: #0070f3; --warn: #ff9500; --danger: #ff3b30; --ok: #34c759;
+  --opus: #af52de; --sonnet: #5856d6; --haiku: #007aff; --codex: #34c759;
+}
+* { box-sizing: border-box; }
+body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+       margin: 0; background: var(--bg); color: var(--fg); padding: 16px; }
+h1 { margin: 0 0 4px 0; font-size: 22px; }
+.sub { color: var(--muted); margin-bottom: 18px; font-size: 13px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 12px; margin-bottom: 18px; }
+.card { background: #fafafa; border: 1px solid var(--border); border-radius: 10px;
+        padding: 14px; }
+.card h2 { font-size: 13px; margin: 0 0 10px 0; color: var(--muted);
+           text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.big { font-size: 28px; font-weight: 600; line-height: 1.1; }
+.label { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.bar { background: var(--border); height: 6px; border-radius: 3px; overflow: hidden;
+       margin-top: 6px; }
+.bar > span { display: block; height: 100%; background: var(--accent); }
+.bar.warn > span { background: var(--warn); }
+.bar.danger > span { background: var(--danger); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 600; font-size: 11px;
+     text-transform: uppercase; letter-spacing: 0.3px; }
+tr:last-child td { border-bottom: none; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+       margin-right: 6px; vertical-align: middle; }
+.dot.opus { background: var(--opus); }
+.dot.sonnet { background: var(--sonnet); }
+.dot.haiku { background: var(--haiku); }
+.dot.codex { background: var(--codex); }
+.runaway { background: #fff5f5; border-color: #ffd0d0; }
+.runaway h2 { color: var(--danger); }
+.refresh { float: right; font-size: 12px; color: var(--muted); }
+.refresh button { background: none; border: 1px solid var(--border); padding: 4px 10px;
+                  border-radius: 6px; cursor: pointer; color: var(--muted); }
+.refresh button:hover { color: var(--fg); border-color: var(--fg); }
+.tag { display: inline-block; background: var(--border); padding: 1px 8px;
+       border-radius: 10px; font-size: 11px; color: var(--muted); margin-right: 4px; }
+.cost { font-variant-numeric: tabular-nums; font-weight: 500; }
+.muted { color: var(--muted); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<h1>💰 Расход <span class="refresh">
+  <span id="ts" class="muted"></span>
+  <button onclick="load()">Обновить</button>
+</span></h1>
+<div class="sub">Куда тратятся токены: ccusage daily + plan limits + per-purpose breakdown + interactive sessions + Stop-hook log
+  &middot; <a href="index.html">← Главная</a></div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Сегодня · ccusage</h2>
+    <div class="big" id="today-cost">—</div>
+    <div class="label" id="today-models"></div>
+  </div>
+
+  <div class="card">
+    <h2>Claude · 5h limit</h2>
+    <div class="big" id="claude-5h">—</div>
+    <div class="bar"><span id="claude-5h-bar" style="width:0%"></span></div>
+    <div class="label" id="claude-5h-reset"></div>
+  </div>
+
+  <div class="card">
+    <h2>Claude · 7d limit</h2>
+    <div class="big" id="claude-7d">—</div>
+    <div class="bar"><span id="claude-7d-bar" style="width:0%"></span></div>
+    <div class="label" id="claude-7d-reset"></div>
+  </div>
+
+  <div class="card">
+    <h2>Codex · 5h / weekly</h2>
+    <div class="big" id="codex-5h">—</div>
+    <div class="bar"><span id="codex-5h-bar" style="width:0%"></span></div>
+    <div class="label" id="codex-windows"></div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card" style="grid-column: span 2;">
+    <h2>Today · top purposes (programmatic AI)</h2>
+    <table id="purposes"><thead><tr>
+      <th>Service</th><th>Purpose</th><th style="text-align:right">Calls</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card">
+    <h2>Today · by service</h2>
+    <table id="services"><thead><tr>
+      <th>Service</th><th style="text-align:right">Calls</th>
+      <th style="text-align:right">$</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card" style="grid-column: span 2;">
+    <h2>Top interactive sessions · 7d (Claude Code)</h2>
+    <table id="sessions"><thead><tr>
+      <th>Session</th><th>Model</th><th style="text-align:right">Cost</th>
+      <th style="text-align:right">Tokens</th><th>Modified</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card runaway">
+    <h2>⚠️ Runaway sessions (Stop-hook)</h2>
+    <div id="runaway-status">—</div>
+    <table id="runaway-tbl"><thead><tr>
+      <th>When</th><th style="text-align:right">MB</th>
+      <th style="text-align:right">$</th><th>Top tool</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+</div>
+
+<script>
+const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+
+async function loadBackend() {
+  if (backendUrl) return backendUrl;
+  try {
+    const r = await fetch('backend_url.json', { cache: 'no-store' });
+    const j = await r.json();
+    return j.url || '';
+  } catch { return ''; }
+}
+
+function fmt$(v) { return '$' + (v||0).toLocaleString('en-US', {maximumFractionDigits:2}); }
+function fmtTok(v) {
+  v = v || 0;
+  if (v >= 1e6) return (v/1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return (v/1e3).toFixed(1) + 'k';
+  return String(v);
+}
+function modelTag(name) {
+  const n = (name||'').toLowerCase();
+  if (n.includes('opus')) return '<span class="dot opus"></span>Opus';
+  if (n.includes('sonnet')) return '<span class="dot sonnet"></span>Sonnet';
+  if (n.includes('haiku')) return '<span class="dot haiku"></span>Haiku';
+  if (n.includes('codex') || n.includes('gpt')) return '<span class="dot codex"></span>'+name;
+  return name;
+}
+function barClass(pct) { if (pct>=85) return 'bar danger'; if (pct>=60) return 'bar warn'; return 'bar'; }
+
+async function load() {
+  const bu = await loadBackend();
+  const url = bu + '/api/cost_overview';
+  document.getElementById('ts').textContent = 'грузится…';
+  try {
+    const r = await fetch(url, { cache: 'no-store' });
+    const d = await r.json();
+    render(d);
+    document.getElementById('ts').textContent = new Date().toLocaleTimeString('ru-RU').slice(0,5) + ' MSK';
+  } catch (e) {
+    document.getElementById('ts').textContent = 'ошибка: ' + e.message;
+  }
+}
+
+function render(d) {
+  // Today
+  const t = d.today || {};
+  document.getElementById('today-cost').textContent = fmt$(t.total_cost_usd);
+  document.getElementById('today-models').innerHTML = (t.models||[]).map(m =>
+    modelTag(m.name) + ' ' + fmt$(m.cost_usd)
+  ).join(' &middot; ');
+
+  // Claude plan
+  const cp = d.claude_plan || {};
+  const c5 = (cp.windows||{}).five_hour || {};
+  const c7 = (cp.windows||{}).seven_day || {};
+  document.getElementById('claude-5h').textContent = (c5.used_percentage ?? '—') + '%';
+  const c5bar = document.getElementById('claude-5h-bar');
+  c5bar.style.width = (c5.used_percentage||0) + '%';
+  c5bar.parentElement.className = barClass(c5.used_percentage||0);
+  document.getElementById('claude-5h-reset').textContent = c5.reset_label || (cp.available ? 'no 5h reset' : 'нет данных');
+
+  document.getElementById('claude-7d').textContent = (c7.used_percentage ?? '—') + '%';
+  const c7bar = document.getElementById('claude-7d-bar');
+  c7bar.style.width = (c7.used_percentage||0) + '%';
+  c7bar.parentElement.className = barClass(c7.used_percentage||0);
+  document.getElementById('claude-7d-reset').textContent = c7.reset_label || '';
+
+  // Codex
+  const cx = d.codex_plan || {};
+  const x5 = (cx.windows||{}).five_hour || {};
+  const x7 = (cx.windows||{}).seven_day || {};
+  document.getElementById('codex-5h').textContent = (x5.used_percentage ?? '—') + '% · ' + (x7.used_percentage ?? '—') + '%';
+  const x5bar = document.getElementById('codex-5h-bar');
+  x5bar.style.width = (x5.used_percentage||0) + '%';
+  x5bar.parentElement.className = barClass(x5.used_percentage||0);
+  document.getElementById('codex-windows').textContent =
+    (cx.plan_type||'—') + ' · 5h ' + (x5.reset_label||'?') + ' / 7d ' + (x7.reset_label||'?');
+
+  // Purposes
+  const ptbody = document.querySelector('#purposes tbody');
+  ptbody.innerHTML = (d.today_purposes_top||[]).map(p =>
+    `<tr><td>${modelTag(p.service)}</td><td>${p.purpose}</td>` +
+    `<td style="text-align:right" class="cost">${p.calls}</td></tr>`
+  ).join('');
+
+  // Services
+  const stbody = document.querySelector('#services tbody');
+  stbody.innerHTML = (d.today_services||[]).map(s =>
+    `<tr><td>${modelTag(s.service)}</td>` +
+    `<td style="text-align:right" class="cost">${s.calls}</td>` +
+    `<td style="text-align:right" class="cost">${fmt$(s.cost_usd)}</td></tr>`
+  ).join('');
+
+  // Sessions
+  const ses = d.top_sessions_7d||[];
+  document.querySelector('#sessions tbody').innerHTML = ses.map(s =>
+    `<tr><td class="muted">${(s.session_id||'').slice(0,8)}</td>` +
+    `<td>${modelTag(s.model)}</td>` +
+    `<td style="text-align:right" class="cost">${fmt$(s.cost_usd)}</td>` +
+    `<td style="text-align:right" class="cost muted">${fmtTok((s.input_tok||0)+(s.output_tok||0))}</td>` +
+    `<td class="muted">${(s.modified||'').slice(5,16)}</td></tr>`
+  ).join('') || '<tr><td colspan="5" class="muted">нет данных</td></tr>';
+
+  // Runaway
+  const ra = d.stop_log_runaway||[];
+  const log_count = d.stop_log_count_7d||0;
+  document.getElementById('runaway-status').textContent =
+    (ra.length ? '⚠️ ' + ra.length + ' runaway' : '✅ чисто') +
+    ' · всего сессий 7d: ' + log_count;
+  document.querySelector('#runaway-tbl tbody').innerHTML = ra.map(r =>
+    `<tr><td class="muted">${(r.ts||'').slice(5,16)}</td>` +
+    `<td style="text-align:right" class="cost">${(r.transcript_size_mb||0).toFixed(1)}</td>` +
+    `<td style="text-align:right" class="cost">${fmt$(r.estimated_cost_usd)}</td>` +
+    `<td class="muted">${Object.keys(r.tools||{})[0]||'—'}</td></tr>`
+  ).join('') || '<tr><td colspan="4" class="muted">пока пусто</td></tr>';
+}
+
+load();
+setInterval(load, 60000);
+</script>
+
+</body>
+</html>
