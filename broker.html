@@ -109,6 +109,15 @@
   html[data-theme="light"] .header .nav a:hover { color:#0969da; }
   html[data-theme="light"] details summary { color:#656d76; }
   html[data-theme="light"] details summary:hover { color:#1f2328; }
+
+  /* Inline theme toggle button (matches architecture.html style) */
+  .theme-toggle { background:var(--card); border:1px solid var(--border); color:var(--fg);
+                  border-radius:6px; padding:6px 12px; font-size:12px; cursor:pointer; }
+  .theme-toggle:hover { background:var(--border); }
+  html[data-theme="light"] .theme-toggle { background:#fff; border-color:#d0d7de; color:#1f2328; }
+  html[data-theme="light"] .theme-toggle:hover { background:#f6f8fa; }
+  /* Hide the floating button from _theme.js — we use inline */
+  .lcb-theme-toggle { display:none !important; }
 </style>
   <link rel="stylesheet" href="_theme.css">
   <script src="_theme.js"></script>
@@ -117,6 +126,7 @@
 <div class="header">
   <h1>🤝 Broker Pipeline</h1>
   <div class="nav">
+    <button class="theme-toggle" id="theme-toggle" title="Переключить тему">🌙 Тёмная</button>
     <a href="index.html">← Dashboard</a>
     <a href="architecture.html">Architecture</a>
     <a href="pricing.html">Pricing</a>
@@ -126,6 +136,23 @@
 <div id="orders"></div>
 
 <script>
+// Sync inline theme button with _theme.js (которая ставит data-theme на <html>)
+(function syncThemeButton() {
+  const btn = document.getElementById('theme-toggle');
+  function update() {
+    const cur = document.documentElement.getAttribute('data-theme') || 'light';
+    btn.textContent = cur === 'light' ? '☀️ Светлая' : '🌙 Тёмная';
+  }
+  update();
+  btn.addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme') || 'light';
+    const next = cur === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('lcb_theme', next); } catch {}
+    update();
+  });
+})();
+
 async function getBackendUrl() {
   // GitHub Pages → 127.0.0.1:8878 (assumes user runs backend locally)
   return location.protocol === 'file:' || location.hostname === '127.0.0.1' || location.hostname === 'localhost'
