@@ -342,7 +342,7 @@
 <body>
 
 <header>
-  <h1>🧠 LC Band — Architecture & AI Usage <span style="color:var(--muted);font-weight:400;font-size:60%">(programmatic + Claude Code)</span></h1>
+  <h1>🧠 LC Band — Architecture & AI Usage <span style="color:var(--muted);font-weight:400;font-size:60%">(programmatic + Claude Code estimates)</span></h1>
   <div class="updated" id="updated">загрузка…</div>
   <div class="nav-links">
     <button class="theme-toggle" id="theme-toggle" title="Переключить тему">🌙 Тёмная</button>
@@ -361,14 +361,14 @@
 
 <!-- ⚡ Real-time Token Burn — live cost graph + admin controls (07.05.2026). -->
 <section class="live-burn-panel">
-  <h2>⚡ Real-time Token Burn <span class="src">источник: ccusage daily --json + ai_usage_tracker (last hour)</span></h2>
+  <h2>⚡ Real-time Token Burn <span class="src">ccusage estimate, не официальный Claude Max meter · last hour = successful ai_call + Codex fail status</span></h2>
   <div class="live-burn-grid">
     <div class="burn-chart-card">
       <canvas id="burn-chart"></canvas>
     </div>
     <div class="burn-stats">
       <div class="burn-stat">
-        <div class="label">Today total</div>
+        <div class="label">Today Claude est.</div>
         <div class="value" id="burn-today">—</div>
         <div class="sub" id="burn-today-sub">—</div>
       </div>
@@ -418,7 +418,7 @@
   <!-- Health bar: weekly budget -->
   <div id="health-bar-block" style="margin-top:12px;padding:14px 16px;background:rgba(0,0,0,0.22);border-radius:8px;">
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
-      <span style="font-size:12px;font-weight:600;color:var(--fg)">💊 Недельный лимит</span>
+      <span style="font-size:12px;font-weight:600;color:var(--fg)">💊 Недельный burn estimate</span>
       <span style="font-size:11px;color:var(--muted)" id="hb-reset-label">сброс через —</span>
     </div>
 
@@ -431,14 +431,14 @@
 
     <!-- Legend -->
     <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
-      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#a855f7;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Использовано <span id="hb-used-label" style="color:var(--fg);font-weight:600">—</span></span>
-      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Агенты до сброса <span id="hb-agents-label" style="color:#f59e0b;font-weight:600">—</span></span>
-      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Остаток на код <span id="hb-free-label" style="color:#22c55e;font-weight:600">—</span></span>
+      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#a855f7;border-radius:2px;margin-right:5px;vertical-align:middle"></span>ccusage estimate <span id="hb-used-label" style="color:var(--fg);font-weight:600">—</span></span>
+      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Прогноз агентов <span id="hb-agents-label" style="color:#f59e0b;font-weight:600">—</span></span>
+      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Остаток estimate <span id="hb-free-label" style="color:#22c55e;font-weight:600">—</span></span>
     </div>
 
     <!-- Second bar: code-only remaining -->
     <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--muted);margin-bottom:6px">
-      <span>💻 Доступно на код (за вычетом агентов)</span>
+      <span>💻 Оценочно доступно на код (за вычетом агентов)</span>
       <span id="hb2-pct" style="color:#22c55e;font-weight:700;font-size:14px">—</span>
     </div>
     <div style="height:14px;border-radius:4px;background:rgba(255,255,255,0.06);overflow:hidden;position:relative">
@@ -599,7 +599,7 @@ flowchart LR
   classDef cli fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
   classDef codex fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
 
-  CODEX["codex_cli<br/>Layer 1 — gpt-5 (ChatGPT Plus, $0)<br/>only for classification purposes<br/>fail-fast 15s · quota 5h cooldown"]:::codex
+  CODEX["codex_cli<br/>Layer 1 — gpt-5.5 (ChatGPT account, $0)<br/>only for classification purposes<br/>fail-fast 15s · quota 5h cooldown"]:::codex
   CLI["claude_cli.call_opus*<br/>Layer 2 — sonnet/opus (Max, $0)<br/>+ Gemini Layer 3 + API Layer 4"]:::cli
   CODEX -.fail/quota.-> CLI
 
@@ -1925,7 +1925,17 @@ sequenceDiagram
     const bySvc = lastHour.by_service || {};
     const top3 = Object.entries(bySvc).sort((a,b) => b[1]-a[1]).slice(0,3)
       .map(([s,n]) => `${s.replace('cli_','')}=${n}`).join(' · ');
-    document.getElementById('burn-hour-sub').textContent = top3 || '—';
+    const codexFails = lastHour.codex_failures || 0;
+    const codexCooldowns = lastHour.codex_cooldowns || 0;
+    const failReasons = lastHour.codex_fail_reasons || {};
+    const topFail = Object.entries(failReasons).sort((a,b) => b[1]-a[1])[0];
+    let codexTail = '';
+    if (codexFails > 0) {
+      codexTail = ` · Codex fail ${codexFails}${topFail ? ': ' + topFail[0] : ''}`;
+    } else if (codexCooldowns > 0) {
+      codexTail = ` · Codex cooldown ${codexCooldowns}`;
+    }
+    document.getElementById('burn-hour-sub').textContent = (top3 || '—') + codexTail;
 
     // Chart.js bar chart — stacked by model, last 14 days
     const ctx = document.getElementById('burn-chart');
@@ -2096,15 +2106,29 @@ sequenceDiagram
       const realClaudePct = data.opus_fallback_pct || 0;
       const codex24 = data.last_24h_codex || 0;
       const opus24 = data.last_24h_opus || 0;
-      // Цвет fallback: высокий = плохо (Codex не справляется → платим Claude)
-      const fallbackBad = realClaudePct > 50 && opus24 > 5;
+      const codexFails24 = data.last_24h_codex_fails || 0;
+      const codexCooldown24 = data.last_24h_codex_cooldown || 0;
+      const codexFailReason = data.top_codex_fail_reason || '';
+      // Не называем высокий Claude-share "фейлом": часть вызовов может идти в
+      // Claude по настройке quota/маршрутизации. Реальный fail показываем только
+      // когда codex_cli явно залогировал причину.
+      let codexNote = '';
+      let codexWarn = false;
+      if (codexFails24 > 0) {
+        codexNote = `⚠ Codex fail ${codexFails24} · ${codexFailReason || 'unknown'}`;
+        codexWarn = true;
+      } else if (codexCooldown24 > 0) {
+        codexNote = `⏳ Codex cooldown ${codexCooldown24}`;
+      } else if (realClaudePct > 50 && opus24 > 5 && quota < 9999) {
+        codexNote = 'ℹ много Claude: quota/route, не факт fail';
+      }
       const realLine = (last24h > 0)
         ? `Реально: ${realCodexPct}% Codex (${codex24}) · ${realClaudePct}% Claude (${opus24})`
         : 'нет calls за 24h';
       card.querySelector('[data-fld="opus-pct"]').textContent = realLine;
       const codexEl = card.querySelector('[data-fld="codex-pct"]');
-      codexEl.textContent = fallbackBad ? '⚠ Codex часто фейлит' : '';
-      codexEl.style.color = fallbackBad ? 'var(--orange,#f0883e)' : 'var(--muted)';
+      codexEl.textContent = codexNote;
+      codexEl.style.color = codexWarn ? 'var(--orange,#f0883e)' : 'var(--muted)';
       // Обновить градиент трека: slider.value = % Codex
       slider.style.setProperty('--fader-val', slider.value + '%');
     }
@@ -2159,7 +2183,7 @@ sequenceDiagram
         `${opusHourCalls} calls · ${opusHour.toFixed(2)}$/час`;
 
       document.getElementById('opus-7d').textContent = '$' + opus7d.toFixed(0);
-      document.getElementById('opus-7d-pct').textContent = `${opus7dPct}% weekly Max`;
+      document.getElementById('opus-7d-pct').textContent = `${opus7dPct}% weekly estimate`;
 
       const exEl = document.getElementById('opus-exhaust');
       if (exhaust === null || exhaust === undefined) {
@@ -2204,20 +2228,20 @@ sequenceDiagram
       document.getElementById('cm-24h').textContent = _fmt(cm.last_24h_pct_of_weekly);
       const pct24 = cm.pct_24h_of_daily || 0;
       const pct24El = document.getElementById('cm-24h-pct');
-      pct24El.textContent = `${pct24}% от дневного лимита`;
+      pct24El.textContent = `${pct24}% от дневного estimate`;
       document.getElementById('cm-24h').className = 'val ' +
         (pct24 > 130 ? 'warn' : (pct24 < 80 ? 'good' : ''));
 
       document.getElementById('cm-7d').textContent = _fmt(cm.last_7d_pct_of_weekly);
       const pct7 = cm.pct_7d_of_weekly || 0;
-      document.getElementById('cm-7d-pct').textContent = `${pct7}% от недельного лимита`;
+      document.getElementById('cm-7d-pct').textContent = `${pct7}% от недельного estimate`;
       document.getElementById('cm-7d').className = 'val ' +
         (pct7 > 90 ? 'warn' : (pct7 < 70 ? 'good' : ''));
 
       document.getElementById('cm-projected').textContent = _fmt(cm.projected_weekly_pct_of_weekly);
       const pctP = cm.projected_weekly_pct_of_max || 0;
       document.getElementById('cm-projected-pct').textContent =
-        `${pctP}% от Max лимита (с current faders)`;
+        `${pctP}% от weekly estimate (с current faders)`;
       document.getElementById('cm-projected').className = 'val ' +
         (pctP > 90 ? 'warn' : (pctP < 50 ? 'good' : ''));
 
@@ -2234,7 +2258,7 @@ sequenceDiagram
       const agentsForecast = Math.min(+(cm.agents_until_reset_pct || 0), 100 - usedPct);
       if (hoursLeft > 0) {
         const h = Math.floor(hoursLeft), m = Math.round((hoursLeft - h) * 60);
-        document.getElementById('hb-reset-label').textContent = `сброс через ${h}ч ${m}м`;
+        document.getElementById('hb-reset-label').textContent = `оценочный сброс через ${h}ч ${m}м`;
       }
       const freePct   = Math.max(0, +(100 - usedPct - agentsForecast).toFixed(1));
 
