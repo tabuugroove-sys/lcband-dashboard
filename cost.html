@@ -108,6 +108,20 @@ a:hover { text-decoration: underline; }
 
 <div id="alerts" class="alerts"></div>
 
+<div class="card" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>🔴 Live AI calls — реал-тайм routing</span>
+    <span style="font-size:11px;color:var(--muted);">
+      <label><input type="checkbox" id="live-pause" /> пауза</label>
+      &middot; <span id="live-status">connecting…</span>
+    </span>
+  </h2>
+  <div id="live-feed" style="max-height:380px;overflow:auto;font: 12px/1.5 'SF Mono','Menlo','Consolas',monospace;background:#0d1117;color:#c9d1d9;border-radius:6px;padding:10px;"></div>
+  <div class="label" style="margin-top:6px;">
+    Последние ~50 AI вызовов (auto-refresh 3s). 🟢 = Codex success, 🟣 = Opus, 🔵 = Sonnet/Haiku, 🟠 = Gemini, ❌ = codex_cli_fail (timeout/exit/cooldown). После fail видна fallback модель в следующей строке.
+  </div>
+</div>
+
 <div class="grid">
   <div class="card">
     <h2>Сегодня · ccusage</h2>
@@ -445,6 +459,79 @@ function render(d) {
     `<td class="muted">${esc(Object.keys(r.tools||{})[0]||'—')}</td></tr>`
   ).join('') || '<tr><td colspan="4" class="muted">пока пусто</td></tr>';
 }
+
+// ────────── LIVE AI calls feed ──────────
+let _liveLastTs = '';
+function modelDot(service, kind) {
+  const s = (service||'').toLowerCase();
+  if (kind === 'codex_cli_fail') return '❌';
+  if (kind === 'codex_cli_cooldown') return '⏸';
+  if (s.includes('codex')) return '🟢';
+  if (s.includes('opus')) return '🟣';
+  if (s.includes('sonnet')) return '🔵';
+  if (s.includes('haiku')) return '🩵';
+  if (s.includes('gemini')) return '🟠';
+  return '⚪';
+}
+function modelColor(service, kind) {
+  const s = (service||'').toLowerCase();
+  if (kind === 'codex_cli_fail' || kind === 'codex_cli_cooldown') return '#f85149';
+  if (s.includes('codex')) return '#3fb950';
+  if (s.includes('opus')) return '#bc8cff';
+  if (s.includes('sonnet')) return '#79c0ff';
+  if (s.includes('haiku')) return '#56d4dd';
+  if (s.includes('gemini')) return '#f0883e';
+  return '#8b949e';
+}
+function shortService(s) {
+  return (s||'').replace(/^cli_/,'').replace(/_gpt-5\.5$/,'').replace(/_api$/,'·api');
+}
+async function loadLive() {
+  if (document.getElementById('live-pause')?.checked) {
+    document.getElementById('live-status').textContent = '⏸ paused';
+    return;
+  }
+  const bu = await loadBackend();
+  if (!bu) return;
+  try {
+    const url = bu + '/api/recent_ai_calls?limit=50' + (_liveLastTs ? '&since_ts=' + encodeURIComponent(_liveLastTs) : '');
+    const r = await fetch(url, {cache:'no-store'});
+    const j = await r.json();
+    const feed = document.getElementById('live-feed');
+    if (!feed) return;
+    const events = j.events || [];
+    if (events.length) {
+      _liveLastTs = j.newest_ts || _liveLastTs;
+      const wasNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
+      events.forEach(e => {
+        const t = (e.ts||'').slice(11,19);
+        const dot = modelDot(e.service, e.kind);
+        const color = modelColor(e.service, e.kind);
+        const svc = shortService(e.service) || (e.kind === 'codex_cli_fail' ? 'codex_FAIL' : e.kind);
+        const tok = (e.input_tok || e.output_tok)
+          ? '<span style="color:#6e7681;">'+(e.input_tok||0)+'→'+(e.output_tok||0)+'</span>'
+          : '';
+        const reason = e.reason ? '<span style="color:#f85149;font-style:italic;"> '+esc(e.reason)+'</span>' : '';
+        const line = '<div>' +
+          '<span style="color:#6e7681;">'+t+'</span> ' +
+          dot + ' <span style="color:'+color+';font-weight:600;">'+esc(svc.padEnd(10))+'</span> ' +
+          '<span style="color:#c9d1d9;">'+esc(e.purpose||'?').padEnd(28)+'</span> ' +
+          tok + reason +
+          '</div>';
+        feed.insertAdjacentHTML('beforeend', line);
+      });
+      // Trim — храним max 200 lines в DOM
+      while (feed.children.length > 200) feed.removeChild(feed.firstChild);
+      if (wasNearBottom) feed.scrollTop = feed.scrollHeight;
+    }
+    document.getElementById('live-status').textContent = '🟢 last: ' + new Date().toLocaleTimeString('ru-RU').slice(0,8);
+  } catch (e) {
+    document.getElementById('live-status').textContent = '❌ ' + e.message;
+  }
+}
+// Initial load (без since_ts → берёт last 50)
+loadLive();
+setInterval(loadLive, 3000);
 
 async function setForceModel(purpose, model) {
   const bu = await loadBackend();
