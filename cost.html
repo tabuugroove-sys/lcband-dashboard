@@ -13,6 +13,24 @@
 * { box-sizing: border-box; }
 body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
        margin: 0; background: var(--bg); color: var(--fg); padding: 16px; }
+nav.topnav { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 16px 0; }
+nav.topnav a {
+  padding: 7px 11px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid;
+  white-space: nowrap;
+}
+nav.topnav .home { background: rgba(255,149,0,0.12); color: var(--warn); border-color: rgba(255,149,0,0.35); }
+nav.topnav .events { background: rgba(52,199,89,0.12); color: var(--ok); border-color: rgba(52,199,89,0.35); }
+nav.topnav .pricing { background: rgba(255,149,0,0.12); color: var(--warn); border-color: rgba(255,149,0,0.35); }
+nav.topnav .arch { background: rgba(175,82,222,0.12); color: var(--opus); border-color: rgba(175,82,222,0.35); }
+nav.topnav .broker { background: rgba(16,163,127,0.12); color: var(--gemini); border-color: rgba(16,163,127,0.35); }
+nav.topnav .funnel { background: rgba(0,122,255,0.10); color: var(--haiku); border-color: rgba(0,122,255,0.30); }
+nav.topnav .cost { background: rgba(0,112,243,0.14); color: var(--accent); border-color: rgba(0,112,243,0.45); }
+nav.topnav .active { box-shadow: inset 0 0 0 1px currentColor; }
 h1 { margin: 0 0 4px 0; font-size: 22px; }
 .sub { color: var(--muted); margin-bottom: 18px; font-size: 13px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -71,12 +89,22 @@ a:hover { text-decoration: underline; }
 </head>
 <body>
 
+<nav class="topnav" aria-label="Main navigation">
+  <a class="home" href="./index.html">← Дашборд</a>
+  <a class="events" href="./events.html">📋 Events</a>
+  <a class="pricing" href="./pricing.html">💰 Pricing</a>
+  <a class="arch" href="./architecture.html">🧠 Архитектура</a>
+  <a class="broker" href="./broker.html">🤝 Broker</a>
+  <a class="funnel" href="./dm-direct-funnel.html">📨 DM funnel</a>
+  <a class="cost active" href="./cost.html">💸 Расход</a>
+</nav>
+
 <h1>💰 Расход <span class="refresh">
   <span id="ts" class="muted"></span>
   <button onclick="load()">Обновить</button>
 </span></h1>
 <div class="sub">Куда тратятся токены: ccusage daily + plan limits + per-purpose breakdown + interactive sessions + Stop-hook log
-  &middot; <a href="index.html">← Главная</a></div>
+  &middot; official usage probes</div>
 
 <div id="alerts" class="alerts"></div>
 
