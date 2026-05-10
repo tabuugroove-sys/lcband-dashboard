@@ -1,0 +1,90 @@
+/* Shared light-theme override для всех страниц dashboard.
+ * Подключение: <link rel="stylesheet" href="_theme.css">.
+ *
+ * Принцип: для светлой темы инвертируем фон/цвет body и переопределяем
+ * самые частые селекторы (card/panel/header/nav). Это даёт ~80% покрытия
+ * без полного refactor каждой страницы.
+ *
+ * Если страница имеет свой :root[data-theme="light"] (architecture.html),
+ * её собственные правила перевесят — naturally.
+ */
+
+html[data-theme="light"] body {
+  background: #fafafa !important;
+  color: #1a1a1a !important;
+}
+
+html[data-theme="light"] .card,
+html[data-theme="light"] .panel,
+html[data-theme="light"] [class*="-card"],
+html[data-theme="light"] [class*="-panel"],
+html[data-theme="light"] header,
+html[data-theme="light"] aside,
+html[data-theme="light"] nav,
+html[data-theme="light"] section,
+html[data-theme="light"] table,
+html[data-theme="light"] tbody,
+html[data-theme="light"] tr,
+html[data-theme="light"] td {
+  background-color: transparent;
+}
+
+html[data-theme="light"] .card,
+html[data-theme="light"] .panel,
+html[data-theme="light"] [class*="-card"],
+html[data-theme="light"] [class*="-panel"],
+html[data-theme="light"] section.card,
+html[data-theme="light"] header.card {
+  background: #ffffff !important;
+  border-color: #e5e5e7 !important;
+  color: #1a1a1a !important;
+}
+
+html[data-theme="light"] a { color: #0070f3 !important; }
+html[data-theme="light"] th { background: #f6f8fa !important; color: #59636e !important; }
+html[data-theme="light"] td { border-color: #e5e5e7 !important; }
+html[data-theme="light"] hr { border-color: #e5e5e7 !important; }
+html[data-theme="light"] input,
+html[data-theme="light"] textarea,
+html[data-theme="light"] select {
+  background: #fff !important;
+  color: #1a1a1a !important;
+  border-color: #d0d7de !important;
+}
+html[data-theme="light"] button {
+  background: #f6f8fa !important;
+  color: #1a1a1a !important;
+  border-color: #d0d7de !important;
+}
+html[data-theme="light"] code,
+html[data-theme="light"] pre {
+  background: #f6f8fa !important;
+  color: #1f2328 !important;
+}
+
+/* Toggle button (floating bottom-right) */
+.lcb-theme-toggle {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 9999;
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.lcb-theme-toggle:hover { transform: scale(1.1); }
+html[data-theme="light"] .lcb-theme-toggle {
+  background: rgba(255,255,255,0.9) !important;
+  color: #1a1a1a !important;
+  border-color: rgba(0,0,0,0.15) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}

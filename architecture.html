@@ -401,6 +401,8 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="_theme.css">
+  <script src="_theme.js"></script>
 </head>
 <body>
 
@@ -575,6 +577,85 @@
 </div>
 
 <main>
+  <!-- ────────── COST WIDGET (10.05.2026) ────────── -->
+  <section class="mindmap-card" id="cost-widget" style="margin-bottom:16px;">
+    <h2 style="display:flex;justify-content:space-between;align-items:center;">
+      <span>💰 Расход — live (60s refresh)</span>
+      <a href="cost.html" style="font-size:13px;text-decoration:none;color:var(--blue);">подробнее →</a>
+    </h2>
+    <div id="cost-widget-alerts" style="margin-bottom:10px;"></div>
+    <div id="cost-widget-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+      <div class="cw-card"><div class="cw-label">Сегодня</div><div class="cw-big" id="cw-today">—</div><div class="cw-sub" id="cw-models">грузится…</div></div>
+      <div class="cw-card"><div class="cw-label">Claude · 5h</div><div class="cw-big" id="cw-claude-5h">—</div><div class="cw-bar"><span id="cw-claude-5h-bar"></span></div><div class="cw-sub" id="cw-claude-5h-sub"></div></div>
+      <div class="cw-card"><div class="cw-label">Claude · 7d</div><div class="cw-big" id="cw-claude-7d">—</div><div class="cw-bar"><span id="cw-claude-7d-bar"></span></div><div class="cw-sub" id="cw-claude-7d-sub"></div></div>
+      <div class="cw-card"><div class="cw-label">Codex · 5h / 7d</div><div class="cw-big" id="cw-codex">—</div><div class="cw-bar"><span id="cw-codex-bar"></span></div><div class="cw-sub" id="cw-codex-sub"></div></div>
+    </div>
+  </section>
+  <style>
+    .cw-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+    .cw-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; }
+    .cw-big { font-size: 22px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .cw-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .cw-bar { background: var(--border); height: 4px; border-radius: 2px; margin-top: 6px; overflow: hidden; }
+    .cw-bar > span { display: block; height: 100%; width: 0%; background: var(--blue); transition: width .3s; }
+    .cw-bar.warn > span { background: var(--orange); }
+    .cw-bar.danger > span { background: var(--red); }
+    .cw-alert { padding: 8px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 6px;
+                border: 1px solid var(--border); }
+    .cw-alert.danger { background: rgba(248,81,73,0.12); border-color: var(--red); color: var(--red); }
+    .cw-alert.warn   { background: rgba(240,136,62,0.12); border-color: var(--orange); color: var(--orange); }
+    .cw-alert.info   { background: rgba(88,166,255,0.10); border-color: var(--blue); color: var(--blue); }
+  </style>
+  <script>
+  (function(){
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function fmt$(v){ return '$' + (v||0).toLocaleString('en-US',{maximumFractionDigits:2}); }
+    function barClass(p){ return p>=85?'danger':(p>=60?'warn':''); }
+    async function loadBackend(){
+      try { const r = await fetch('backend_url.json',{cache:'no-store'}); return (await r.json()).url || ''; }
+      catch { return ''; }
+    }
+    async function fetchCost(){
+      const bu = await loadBackend();
+      if(!bu) return null;
+      try{ const r = await fetch(bu+'/api/cost_overview',{cache:'no-store'}); return await r.json(); }
+      catch{ return null; }
+    }
+    function renderCost(d){
+      if(!d) return;
+      const t = d.today || {};
+      document.getElementById('cw-today').textContent = fmt$(t.total_cost_usd);
+      document.getElementById('cw-models').innerHTML = (t.models||[])
+        .map(m => esc(m.name||'').replace(/^claude-/,'') + ' ' + fmt$(m.cost_usd)).join(' · ');
+
+      const cp = d.claude_plan || {}; const c5 = (cp.windows||{}).five_hour||{}; const c7 = (cp.windows||{}).seven_day||{};
+      document.getElementById('cw-claude-5h').textContent = (c5.used_percentage??'—')+'%';
+      document.getElementById('cw-claude-5h-bar').style.width = (c5.used_percentage||0)+'%';
+      document.getElementById('cw-claude-5h-bar').parentElement.className = 'cw-bar '+barClass(c5.used_percentage||0);
+      document.getElementById('cw-claude-5h-sub').textContent = c5.reset_label || (cp.available?'':'нет данных');
+      document.getElementById('cw-claude-7d').textContent = (c7.used_percentage??'—')+'%';
+      document.getElementById('cw-claude-7d-bar').style.width = (c7.used_percentage||0)+'%';
+      document.getElementById('cw-claude-7d-bar').parentElement.className = 'cw-bar '+barClass(c7.used_percentage||0);
+      document.getElementById('cw-claude-7d-sub').textContent = c7.reset_label || '';
+
+      const cx = d.codex_plan || {}; const x5 = (cx.windows||{}).five_hour||{}; const x7 = (cx.windows||{}).seven_day||{};
+      document.getElementById('cw-codex').textContent = (x5.used_percentage??'—')+'% · '+(x7.used_percentage??'—')+'%';
+      document.getElementById('cw-codex-bar').style.width = (x5.used_percentage||0)+'%';
+      document.getElementById('cw-codex-bar').parentElement.className = 'cw-bar '+barClass(x5.used_percentage||0);
+      document.getElementById('cw-codex-sub').textContent = (cx.plan_type||'—')+' · '+(x7.reset_label||'?');
+
+      const icons = {danger:'🚨',warn:'⚠️',info:'ℹ️'};
+      document.getElementById('cost-widget-alerts').innerHTML = (d.alerts||[]).map(a=>{
+        const sev = ['danger','warn','info'].includes(a.severity)?a.severity:'info';
+        return '<div class="cw-alert '+sev+'">'+(icons[sev]||'ℹ️')+' <strong>'+esc(a.title||'')+'</strong> — '+esc((a.msg||'').slice(0,160))+'</div>';
+      }).join('');
+    }
+    fetchCost().then(renderCost);
+    setInterval(()=>fetchCost().then(renderCost), 60000);
+  })();
+  </script>
+  <!-- ────────── END COST WIDGET ────────── -->
+
   <div class="diagrams-col">
   <section class="mindmap-card">
     <h2>1. Inbound classification — пост из чата → лид в DB</h2>
@@ -2198,7 +2279,9 @@ sequenceDiagram
   }
 
   function _budgetDeltaText(row) {
-    const d = Number(row?.carryover_pct || 0);
+    const allowance = Number(row?.today_allowance_pct ?? row?.daily_budget_pct ?? row?.budget_by_now_pct ?? 0);
+    const used = Number(row?.used_pct || 0);
+    const d = allowance - used;
     if (d < -0.1) return { text: `перерасход ${_limitPct(Math.abs(d))}`, cls: 'warn' };
     if (d > 0.1) return { text: `запас +${_limitPct(d)}`, cls: 'good' };
     return { text: 'ровно по плану', cls: '' };
