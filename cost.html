@@ -178,22 +178,25 @@ a:hover { text-decoration: underline; }
 </div>
 
 <div class="card" style="margin-bottom:18px;">
-  <h2>🎯 Воронка — какая модель отвечает за шаг (today)</h2>
+  <h2>🎯 Воронка — какая модель отвечает + переключение</h2>
   <table style="width:100%;">
     <thead><tr>
       <th>Purpose</th>
       <th style="text-align:right">Calls</th>
-      <th>Главная модель</th>
-      <th style="text-align:right">Доля</th>
+      <th>Сейчас</th>
+      <th style="text-align:right">$ today</th>
+      <th>Force model</th>
       <th>Распределение</th>
     </tr></thead>
     <tbody id="funnel-models"></tbody>
   </table>
   <div class="label" style="margin-top:6px;">
-    Если «главная модель» = <strong>Haiku CLI</strong> или <strong>Gemini</strong> на сложных purposes
-    (senior_strategist_audit, refusal_classify, funnel_sync) — это слабая модель для critical funnel decisions.
-    Идеально: Codex для простых classify, Sonnet для audit/rewrite, Opus только для critical pathway.
+    Колонка «Force model»: выбери — applied немедленно через POST /api/runtime_config/force_model.
+    «default» = Codex first → Opus fallback (наша обычная цепочка).
+    «$ today» — реальная стоимость текущей доминантной модели на этом объёме.
+    Hover на selector — экстраполированная стоимость на этом объёме calls для каждой модели.
   </div>
+  <div id="funnel-toast" style="margin-top:8px;font-size:13px;"></div>
 </div>
 
 <div class="grid">
@@ -369,14 +372,14 @@ function render(d) {
     `<td style="text-align:right" class="cost">${fmt$(s.cost_usd)}</td></tr>`
   ).join('');
 
-  // Funnel models — какая модель отвечает за шаг воронки
+  // Funnel models — модель за шаг воронки + selector для смены
   const fmTbody = document.getElementById('funnel-models');
   if (fmTbody) {
     const rows = (d.funnel_models_today || []);
+    const choices = d.model_choices || ['opus','sonnet','haiku','codex','gemini'];
     fmTbody.innerHTML = rows.map(r => {
       const total = r.total || 1;
       const models = r.models || {};
-      // Sorted entries для bar
       const entries = Object.entries(models).sort((a,b) => b[1]-a[1]);
       const bar = entries.map(([s, c]) => {
         const pct = (c/total*100).toFixed(0);
@@ -385,18 +388,34 @@ function render(d) {
                       s.includes('gemini')?'#ff9500':'#999';
         return '<span style="display:inline-block;height:10px;width:'+pct+'%;background:'+color+';" title="'+esc(s)+': '+c+'"></span>';
       }).join('');
-      // Главная модель — warn если это слабая модель на сложном purpose
-      const complexPurposes = ['senior_strategist_audit','senior_strategist_rewrite','refusal_classify','funnel_sync','funnel_audit','presend_review'];
+      const complexPurposes = ['senior_strategist_audit','senior_strategist_rewrite','refusal_classify','funnel_sync','funnel_audit','presend_review','compose_proposal'];
       const weakDominant = (r.dominant_model||'').match(/haiku|gemini/i) && complexPurposes.includes(r.purpose);
-      const dotColor = weakDominant ? '⚠️' : '✓';
+      const dot = weakDominant ? '⚠️' : '';
+
+      // Cost в текущей dominant модели
+      const dominantKey = (r.dominant_model||'').replace(/^cli_/,'').replace(/_gpt-5\.5$/,'');
+      const dominantEst = (r.model_estimates||{})[dominantKey] || {daily_cost_usd: 0};
+      const todayCost = dominantEst.daily_cost_usd || 0;
+
+      // Selector
+      const cur = r.current_force || '';
+      const opts = ['<option value="">default (Codex→Opus)</option>'];
+      choices.forEach(m => {
+        const est = (r.model_estimates||{})[m] || {};
+        const lbl = (est.label||m) + ' · $' + (est.daily_cost_usd||0).toFixed(2) + '/day';
+        opts.push('<option value="'+m+'"'+(cur===m?' selected':'')+'>'+esc(lbl)+'</option>');
+      });
+      const selector = '<select onchange="setForceModel(\''+esc(r.purpose)+'\', this.value)" style="font-size:12px;max-width:200px;">'+opts.join('')+'</select>';
+
       return '<tr>' +
-        '<td>'+esc(r.purpose)+'</td>' +
+        '<td><code style="font-size:12px;">'+esc(r.purpose)+'</code></td>' +
         '<td style="text-align:right" class="cost">'+r.total+'</td>' +
-        '<td>'+dotColor+' '+modelTag(r.dominant_model)+'</td>' +
-        '<td style="text-align:right" class="cost">'+r.dominant_pct+'%</td>' +
+        '<td>'+dot+modelTag(r.dominant_model)+' <span class="muted" style="font-size:11px;">'+r.dominant_pct+'%</span></td>' +
+        '<td style="text-align:right" class="cost">$'+todayCost.toFixed(2)+'</td>' +
+        '<td>'+selector+'</td>' +
         '<td style="white-space:nowrap;">'+bar+'</td>' +
         '</tr>';
-    }).join('') || '<tr><td colspan="5" class="muted">нет данных за сегодня</td></tr>';
+    }).join('') || '<tr><td colspan="6" class="muted">нет данных за сегодня</td></tr>';
   }
 
   // Sessions (escape session_id и modified — могут содержать спец-символы)
@@ -421,6 +440,28 @@ function render(d) {
     `<td style="text-align:right" class="cost">${fmt$(r.estimated_cost_usd)}</td>` +
     `<td class="muted">${esc(Object.keys(r.tools||{})[0]||'—')}</td></tr>`
   ).join('') || '<tr><td colspan="4" class="muted">пока пусто</td></tr>';
+}
+
+async function setForceModel(purpose, model) {
+  const bu = await loadBackend();
+  const toast = document.getElementById('funnel-toast');
+  toast.innerHTML = '<span class="muted">⏳ применяется…</span>';
+  try {
+    const r = await fetch(bu + '/api/runtime_config/force_model', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({purpose, model: model || 'default'}),
+    });
+    const j = await r.json();
+    if (j.error) {
+      toast.innerHTML = '<span style="color:var(--danger);">❌ ' + esc(j.error) + '</span>';
+    } else {
+      toast.innerHTML = '<span style="color:var(--ok);">✅ ' + esc(j.action || 'updated') + ' · агенты подхватят за 30s</span>';
+      setTimeout(() => { toast.innerHTML = ''; load(); }, 3000);
+    }
+  } catch (e) {
+    toast.innerHTML = '<span style="color:var(--danger);">❌ ' + esc(e.message) + '</span>';
+  }
 }
 
 load();
