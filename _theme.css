@@ -62,6 +62,92 @@ html[data-theme="light"] pre {
   color: #1f2328 !important;
 }
 
+/* ──────────────────────────────────────────────────────────────────────
+ * Aggressive overrides — for pages that don't have their own light-theme.
+ * Применяется только если страница не имеет своего :root[data-theme="light"].
+ * Цель: чтобы текст был ВСЕГДА читаемым на светлом фоне.
+ * ────────────────────────────────────────────────────────────────────── */
+
+/* Любой div с rgba(0,0,0,*) фоном — превращаем в светлый */
+html[data-theme="light"] div[style*="background:rgba(0,0,0"],
+html[data-theme="light"] div[style*="background: rgba(0,0,0"],
+html[data-theme="light"] div[style*="background:#0d1117"],
+html[data-theme="light"] div[style*="background:#161b22"],
+html[data-theme="light"] div[style*="background:#1a"],
+html[data-theme="light"] div[style*="background:#21262d"],
+html[data-theme="light"] div[style*="background:#0a"] {
+  background: #f6f8fa !important;
+  color: #1f2328 !important;
+}
+
+/* Белый/светлый текст inline → тёмный (для inline style colors) */
+html[data-theme="light"] [style*="color:#fff"],
+html[data-theme="light"] [style*="color: #fff"],
+html[data-theme="light"] [style*="color:white"],
+html[data-theme="light"] [style*="color:#e6edf3"],
+html[data-theme="light"] [style*="color:#f0f6fc"],
+html[data-theme="light"] [style*="color:#fafafa"] {
+  color: #1f2328 !important;
+}
+
+/* Тёмные цветные акценты (purple, blue) на тёмном bg → корректнее на свету */
+html[data-theme="light"] [style*="color:#bc8cff"] { color: #8250df !important; }
+html[data-theme="light"] [style*="color:#58a6ff"] { color: #0969da !important; }
+html[data-theme="light"] [style*="color:#3fb950"] { color: #1a7f37 !important; }
+html[data-theme="light"] [style*="color:#f85149"] { color: #cf222e !important; }
+html[data-theme="light"] [style*="color:#f0883e"] { color: #bc4c00 !important; }
+html[data-theme="light"] [style*="color:#d29922"] { color: #9a6700 !important; }
+html[data-theme="light"] [style*="color:#8b949e"] { color: #656d76 !important; }
+
+/* Универсальные «строки/items» */
+html[data-theme="light"] .row,
+html[data-theme="light"] .item,
+html[data-theme="light"] .stat,
+html[data-theme="light"] .stat-cell,
+html[data-theme="light"] .stat-value,
+html[data-theme="light"] .lead,
+html[data-theme="light"] .lead-row,
+html[data-theme="light"] [class*="-row"],
+html[data-theme="light"] [class*="-item"],
+html[data-theme="light"] [class*="-cell"] {
+  background: rgba(0,0,0,0.02) !important;
+  color: #1f2328 !important;
+}
+
+/* Header/Footer с тёмным фоном */
+html[data-theme="light"] [class*="header"][style*="background"],
+html[data-theme="light"] [class*="topbar"],
+html[data-theme="light"] .nav-container,
+html[data-theme="light"] .main-header {
+  background: #f6f8fa !important;
+  color: #1f2328 !important;
+  border-bottom: 1px solid #d0d7de !important;
+}
+
+/* Чтобы любой <span>/<small>/<p> с серым muted цветом стал читаемым */
+html[data-theme="light"] .muted,
+html[data-theme="light"] .sub,
+html[data-theme="light"] .label,
+html[data-theme="light"] .lbl,
+html[data-theme="light"] .stat-label,
+html[data-theme="light"] .meta {
+  color: #656d76 !important;
+}
+
+/* Mermaid диаграммы — оставляем свои стили, но текст должен быть тёмным */
+html[data-theme="light"] .mermaid * {
+  color: inherit;
+}
+
+/* Tooltips/popups */
+html[data-theme="light"] [class*="tooltip"],
+html[data-theme="light"] [class*="popup"] {
+  background: #fff !important;
+  color: #1f2328 !important;
+  border: 1px solid #d0d7de !important;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.12) !important;
+}
+
 /* Toggle button (floating bottom-right) */
 .lcb-theme-toggle {
   position: fixed;
