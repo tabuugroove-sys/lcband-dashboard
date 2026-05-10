@@ -177,6 +177,25 @@ a:hover { text-decoration: underline; }
   </div>
 </div>
 
+<div class="card" style="margin-bottom:18px;">
+  <h2>🎯 Воронка — какая модель отвечает за шаг (today)</h2>
+  <table style="width:100%;">
+    <thead><tr>
+      <th>Purpose</th>
+      <th style="text-align:right">Calls</th>
+      <th>Главная модель</th>
+      <th style="text-align:right">Доля</th>
+      <th>Распределение</th>
+    </tr></thead>
+    <tbody id="funnel-models"></tbody>
+  </table>
+  <div class="label" style="margin-top:6px;">
+    Если «главная модель» = <strong>Haiku CLI</strong> или <strong>Gemini</strong> на сложных purposes
+    (senior_strategist_audit, refusal_classify, funnel_sync) — это слабая модель для critical funnel decisions.
+    Идеально: Codex для простых classify, Sonnet для audit/rewrite, Opus только для critical pathway.
+  </div>
+</div>
+
 <div class="grid">
   <div class="card" style="grid-column: span 2;">
     <h2>Top interactive sessions · 7d (Claude Code)</h2>
@@ -349,6 +368,36 @@ function render(d) {
     `<td style="text-align:right" class="cost">${s.calls}</td>` +
     `<td style="text-align:right" class="cost">${fmt$(s.cost_usd)}</td></tr>`
   ).join('');
+
+  // Funnel models — какая модель отвечает за шаг воронки
+  const fmTbody = document.getElementById('funnel-models');
+  if (fmTbody) {
+    const rows = (d.funnel_models_today || []);
+    fmTbody.innerHTML = rows.map(r => {
+      const total = r.total || 1;
+      const models = r.models || {};
+      // Sorted entries для bar
+      const entries = Object.entries(models).sort((a,b) => b[1]-a[1]);
+      const bar = entries.map(([s, c]) => {
+        const pct = (c/total*100).toFixed(0);
+        const color = s.includes('opus')?'#af52de': s.includes('codex')?'#34c759':
+                      s.includes('sonnet')?'#5856d6': s.includes('haiku')?'#007aff':
+                      s.includes('gemini')?'#ff9500':'#999';
+        return '<span style="display:inline-block;height:10px;width:'+pct+'%;background:'+color+';" title="'+esc(s)+': '+c+'"></span>';
+      }).join('');
+      // Главная модель — warn если это слабая модель на сложном purpose
+      const complexPurposes = ['senior_strategist_audit','senior_strategist_rewrite','refusal_classify','funnel_sync','funnel_audit','presend_review'];
+      const weakDominant = (r.dominant_model||'').match(/haiku|gemini/i) && complexPurposes.includes(r.purpose);
+      const dotColor = weakDominant ? '⚠️' : '✓';
+      return '<tr>' +
+        '<td>'+esc(r.purpose)+'</td>' +
+        '<td style="text-align:right" class="cost">'+r.total+'</td>' +
+        '<td>'+dotColor+' '+modelTag(r.dominant_model)+'</td>' +
+        '<td style="text-align:right" class="cost">'+r.dominant_pct+'%</td>' +
+        '<td style="white-space:nowrap;">'+bar+'</td>' +
+        '</tr>';
+    }).join('') || '<tr><td colspan="5" class="muted">нет данных за сегодня</td></tr>';
+  }
 
   // Sessions (escape session_id и modified — могут содержать спец-символы)
   const ses = d.top_sessions_7d||[];
