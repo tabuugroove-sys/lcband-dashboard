@@ -51,6 +51,28 @@ th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--bord
 th { color: var(--muted); font-weight: 600; font-size: 11px;
      text-transform: uppercase; letter-spacing: 0.3px; }
 tr:last-child td { border-bottom: none; }
+#burn-procs tbody tr.proc-row { cursor: pointer; transition: background .12s ease; }
+#burn-procs tbody tr.proc-row:hover { background: rgba(0,112,243,0.06); }
+#burn-procs tbody tr.proc-row.selected { background: rgba(0,112,243,0.11); }
+.process-popover {
+  position: fixed;
+  z-index: 1000;
+  width: min(420px, calc(100vw - 32px));
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(0,0,0,.18);
+  padding: 14px;
+  color: var(--fg);
+}
+.process-popover .head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:10px; }
+.process-popover .title { font-weight:700; font-size:14px; line-height:1.25; }
+.process-popover .close { border:1px solid var(--border); background:transparent; color:var(--muted); border-radius:6px; cursor:pointer; line-height:1; padding:4px 7px; }
+.process-popover .meta { color: var(--muted); font-size:11px; font-family:'SF Mono','Menlo','Consolas',monospace; margin-top:3px; word-break:break-word; }
+.process-popover .sec { margin-top:10px; }
+.process-popover .sec-title { color: var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.35px; font-weight:700; margin-bottom:3px; }
+.process-popover .sec-body { font-size:12px; line-height:1.45; }
+.process-popover .pill { display:inline-block; border:1px solid var(--border); border-radius:999px; padding:1px 7px; margin:2px 4px 2px 0; font-size:11px; color:var(--muted); }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
        margin-right: 6px; vertical-align: middle; }
 .dot.opus { background: var(--opus); }
@@ -138,6 +160,7 @@ a:hover { text-decoration: underline; }
     </tr></thead>
     <tbody></tbody>
   </table>
+  <div id="process-popover" class="process-popover" style="display:none;"></div>
   <div class="label" style="margin-top:6px;">
     «Load» = burn rate (за 15 мин) ÷ sustainable rate (если 100% → лимит ровно к концу недели).
     🟢 &lt;80% sustainable · 🟠 80-150% ускоренный · 🔴 &gt;150% OVERLOAD.
@@ -579,6 +602,180 @@ function etaLabel(loadPct) {
   return `🚨 лимит за ${mins.toFixed(0)} мин!`;
 }
 
+const PROCESS_INFO = {
+  tg_responder_cli: {
+    title: 'TG responder — автоответ клиенту в личке',
+    does: 'Собирает контекст переписки и заказа, генерирует ответ клиенту и отдаёт его в pre-send review перед отправкой.',
+    affects: ['DM клиентам', 'стадии воронки', 'approval/pre-send review', 'расход Codex/Claude'],
+    risk: 'Если ошибается, может отправить не тот тон, цену или следующий шаг клиенту.',
+    where: 'tg_responder.py → claude_cli/codex_cli',
+  },
+  presend_review: {
+    title: 'Pre-send review — стоп-кран перед отправкой',
+    does: 'Проверяет готовый черновик перед отправкой: соответствует ли правилам переписки, нет ли контактов, ценовых ошибок или опасных обещаний.',
+    affects: ['автоотправка', 'качество ответов', 'блокировка рискованных сообщений'],
+    risk: 'Высокий расход здесь обычно значит много черновиков, повторные проверки или fallback с Codex на Claude.',
+    where: 'pre-send review path через claude_cli.py',
+  },
+  musician_presend_review_sax: {
+    title: 'Pre-send review для музыкантов',
+    does: 'Проверяет сообщения подрядчикам/музыкантам: не раскрываем контакты организатора, даём только нужные детали по задаче.',
+    affects: ['сакс/drum show/подрядчики', 'безопасность контактов', 'broker-процессы'],
+    risk: 'Если пропустить, можно случайно отправить контакты клиента или лишнюю коммерческую информацию.',
+    where: 'musician/broker review rules',
+  },
+  classify_batch: {
+    title: 'Classify batch — первичная классификация постов',
+    does: 'Пакетом прогоняет новые посты из event-чатов и решает: лид для группы, drum show, solo musician, мусор или пропуск.',
+    affects: ['новые лиды', 'воронка TG', 'drum show/solo musician funnels', 'количество дальнейших AI вызовов'],
+    risk: 'Если классифицирует плохо, мусор попадает в работу или хороший лид не попадёт в воронку.',
+    where: 'lcb_classifier.py / telegram_monitor.py',
+  },
+  contact_role_classify: {
+    title: 'Contact role classify — кто это: клиент или подрядчик',
+    does: 'Определяет роль контакта в переписке: организатор/клиент, музыкант, подрядчик, брокерский контакт или мусор.',
+    affects: ['папки TG', 'непрочитанные бейджи', 'broker vs client routing', 'urgent alerts'],
+    risk: 'Если путает подрядчика с клиентом, чаты захламляют воронку и появляются лишние бейджи.',
+    where: 'contact role classifier / tg_contact_roles',
+  },
+  refusal_classify: {
+    title: 'Refusal classify — отказ/неактуально',
+    does: 'Проверяет сообщения на отказ, “уже выбрали”, “неактуально”, “дорого”, перенос или стоп коммуникации.',
+    affects: ['отмены', 'follow-up', 'не отправлять лишние пинги', 'чистота воронки'],
+    risk: 'Если не заметит отказ, система может продолжить писать человеку и раздражать его.',
+    where: 'refusal classifier / responder/follow-up flow',
+  },
+  compose_proposal: {
+    title: 'Compose proposal — генерация КП/питча',
+    does: 'Собирает коммерческое предложение по запросу: состав, цена, формат, ссылки, следующий вопрос клиенту.',
+    affects: ['первый питч', 'цены', 'конверсия в интерес', 'расход сильных моделей'],
+    risk: 'Ошибки здесь дорогие: неверная цена или состав может потерять заказ.',
+    where: 'proposal generation / telegram_monitor.py',
+  },
+  funnel_step_review: {
+    title: 'Funnel step review — проверка стадии воронки',
+    does: 'Решает, куда перенести лид: новый, написали, ответил, интерес, переговоры, follow-up, отмена.',
+    affects: ['цифры дашборда', 'папки Telegram', 'follow-up расписание', 'urgent alerts'],
+    risk: 'Если ошибается со стадией, ты видишь неправильную воронку и агенты делают не тот следующий шаг.',
+    where: 'funnel review / update_statuses',
+  },
+  vk_followup_classify: {
+    title: 'VK follow-up classify',
+    does: 'Классифицирует VK-переписки для решения, нужен ли follow-up, пауза, отмена или ручной ответ.',
+    affects: ['VK лиды', 'follow-up очередь', 'ручные уведомления'],
+    risk: 'Плохая классификация создаёт лишние пинги или пропускает горячий ответ.',
+    where: 'vk_followup.py',
+  },
+  broker_intake: {
+    title: 'Broker intake — посреднический заказ',
+    does: 'Определяет, что запрос нужно вести как брокерский: подобрать подрядчика, скрыть контакты, считать маржу.',
+    affects: ['broker pipeline', 'подбор подрядчиков', 'маржа', 'карточки кандидатов'],
+    risk: 'Если ошибается, подрядчики попадают в клиентскую воронку или клиенту уходит неправильная логика.',
+    where: 'broker_pipeline.py',
+  },
+  broker_relay_to_client: {
+    title: 'Broker relay to client — передача кандидатов клиенту',
+    does: 'Готовит сообщение организатору с вариантами подрядчиков без прямых контактов и с клиентской ценой.',
+    affects: ['broker продажи', 'контакты подрядчиков', 'цены с маржой'],
+    risk: 'Нельзя раскрывать телефоны/@username подрядчика и нельзя показывать внутреннюю закупочную цену.',
+    where: 'broker relay/review flow',
+  },
+  senior_strategist_audit: {
+    title: 'Senior strategist audit — дорогой аудит логики',
+    does: 'Сильная модель проверяет сложные решения/цепочки и ищет ошибки в стратегии ответа или маршрутизации.',
+    affects: ['качество решений', 'расход Opus/Claude', 'поиск системных ошибок'],
+    risk: 'Полезно, но может быстро съедать лимит, если запускать часто.',
+    where: 'audit/strategy review',
+  },
+};
+const SERVICE_INFO = {
+  cli_codex: 'Codex CLI через ChatGPT/Codex лимит. Обычно первый слой для review/classification.',
+  cli_gemini: 'Gemini CLI. Обычно дешёвая классификация/фильтр; не должен принимать критичные коммерческие решения.',
+  cli_opus: 'Claude Opus CLI через Max. Сильный, но дорогой по лимиту слой.',
+  cli_sonnet: 'Claude Sonnet CLI через Max. Средний слой: дешевле Opus, сильнее Haiku.',
+  cli_haiku: 'Claude Haiku CLI/API. Быстрый слой для простых задач.',
+};
+let _selectedProcessKey = '';
+let _lastBurnProcesses = {};
+
+function describeProcess(p) {
+  const purpose = p?.purpose || '?';
+  const service = p?.service || '?';
+  const base = PROCESS_INFO[purpose] || {
+    title: purpose,
+    does: 'Специального описания ещё нет. Это AI-вызов с таким purpose; по названию можно понять участок пайплайна, который его вызвал.',
+    affects: ['AI routing', 'расход лимитов', 'соответствующий агент/пайплайн'],
+    risk: 'Если load высокий, этот process сейчас активно ест лимит или часто вызывается.',
+    where: 'ai_timeline.jsonl по service/purpose',
+  };
+  const serviceText = Object.entries(SERVICE_INFO).find(([prefix]) => service.startsWith(prefix))?.[1]
+    || 'AI service/layer. Смотри bucket и service name для понимания, какой лимит тратится.';
+  return {...base, serviceText};
+}
+
+function showProcessPopover(key, anchor) {
+  const p = _lastBurnProcesses[key];
+  const pop = document.getElementById('process-popover');
+  if (!p || !pop || !anchor) return;
+  const info = describeProcess(p);
+  const affects = (info.affects || []).map(x => `<span class="pill">${esc(x)}</span>`).join('');
+  pop.innerHTML = `
+    <div class="head">
+      <div>
+        <div class="title">${esc(info.title)}</div>
+        <div class="meta">${esc(p.service)} · ${esc(p.purpose)} · ${esc(p.bucket || '')}</div>
+      </div>
+      <button class="close" type="button" aria-label="close">×</button>
+    </div>
+    <div class="sec"><div class="sec-title">Что делает</div><div class="sec-body">${esc(info.does)}</div></div>
+    <div class="sec"><div class="sec-title">На что влияет</div><div class="sec-body">${affects}</div></div>
+    <div class="sec"><div class="sec-title">Модель / лимит</div><div class="sec-body">${esc(info.serviceText)}</div></div>
+    <div class="sec"><div class="sec-title">Когда опасно</div><div class="sec-body">${esc(info.risk)}</div></div>
+    <div class="sec"><div class="sec-title">Где искать</div><div class="sec-body"><code>${esc(info.where)}</code></div></div>
+  `;
+  const r = anchor.getBoundingClientRect();
+  pop.style.display = 'block';
+  const left = Math.min(window.innerWidth - pop.offsetWidth - 12, Math.max(12, r.left + 24));
+  const top = Math.min(window.innerHeight - pop.offsetHeight - 12, Math.max(12, r.bottom + 6));
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  pop.querySelector('.close')?.addEventListener('click', () => {
+    _selectedProcessKey = '';
+    pop.style.display = 'none';
+    document.querySelectorAll('#burn-procs tbody tr.selected').forEach(el => el.classList.remove('selected'));
+  }, {once:true});
+}
+
+function bindProcessPopover() {
+  const tbody = document.querySelector('#burn-procs tbody');
+  if (!tbody || tbody.dataset.boundPopover) return;
+  tbody.dataset.boundPopover = '1';
+  tbody.addEventListener('click', e => {
+    const row = e.target.closest('tr.proc-row');
+    if (!row) return;
+    _selectedProcessKey = row.dataset.key || '';
+    tbody.querySelectorAll('tr.selected').forEach(el => el.classList.remove('selected'));
+    row.classList.add('selected');
+    showProcessPopover(_selectedProcessKey, row);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      _selectedProcessKey = '';
+      const pop = document.getElementById('process-popover');
+      if (pop) pop.style.display = 'none';
+      tbody.querySelectorAll('tr.selected').forEach(el => el.classList.remove('selected'));
+    }
+  });
+  document.addEventListener('click', e => {
+    const pop = document.getElementById('process-popover');
+    if (!pop || pop.style.display === 'none') return;
+    if (e.target.closest('#process-popover') || e.target.closest('#burn-procs')) return;
+    _selectedProcessKey = '';
+    pop.style.display = 'none';
+    tbody.querySelectorAll('tr.selected').forEach(el => el.classList.remove('selected'));
+  });
+}
+
 function dualSparklineSVG(systemData, userData) {
   // Activity Monitor style: filled area для System (red) и User (blue) поверх.
   // Шкала фиксированная: 0 → max(всех значений, 200%) — чтобы overload spike виден.
@@ -648,7 +845,10 @@ function renderBurn(d) {
   const tbody = document.querySelector('#burn-procs tbody');
   if (tbody) {
     const procs = d.top_processes || [];
+    _lastBurnProcesses = {};
     tbody.innerHTML = procs.map(p => {
+      const key = `${p.service || ''}::${p.purpose || ''}`;
+      _lastBurnProcesses[key] = p;
       const load = p.load_pct || 0;
       const color = burnColor(load);
       const emoji = burnEmoji(load);
@@ -656,13 +856,19 @@ function renderBurn(d) {
                        p.bucket === 'gemini' ? '<span class="dot gemini"></span>gemini' :
                        p.bucket === 'api'   ? 'api $' :
                        '<span class="dot haiku"></span>claude';
-      return `<tr>
+      return `<tr class="proc-row${key === _selectedProcessKey ? ' selected' : ''}" data-key="${esc(key)}" title="Нажми, чтобы открыть описание процесса">
         <td><code style="font-size:11px;">${esc(p.service)}</code> · ${esc(p.purpose)}</td>
         <td style="text-align:right" class="cost">${p.calls}</td>
         <td style="text-align:right;font-size:11px;">${bucketTag}</td>
         <td style="text-align:right;color:${color};font-weight:600;">${emoji} ${load.toFixed(1)}%</td>
       </tr>`;
     }).join('') || '<tr><td colspan="4" class="muted">тишина за 15 мин</td></tr>';
+    bindProcessPopover();
+    if (_selectedProcessKey && _lastBurnProcesses[_selectedProcessKey]) {
+      const row = Array.from(tbody.querySelectorAll('tr.proc-row'))
+        .find(el => el.dataset.key === _selectedProcessKey);
+      if (row) showProcessPopover(_selectedProcessKey, row);
+    }
   }
 }
 async function loadBurn() {
