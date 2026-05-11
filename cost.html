@@ -298,6 +298,19 @@ a:hover { text-decoration: underline; }
 
 <div class="card" style="margin-bottom:18px;">
   <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>🎛️ Routing preset</span>
+    <span style="font-size:11px;color:var(--muted);" id="preset-current">—</span>
+  </h2>
+  <div id="preset-buttons" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;"></div>
+  <div class="label" style="margin-top:8px;">
+    Один клик меняет routing всех strategist/review/generation purposes. Подробности при наведении.
+    Для точечной настройки конкретного purpose — см. таблицу «🎯 Воронка» ниже.
+  </div>
+  <div id="preset-toast" style="margin-top:6px;font-size:13px;"></div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
     <span>🌐 Remote Claude sessions</span>
     <span style="font-size:11px;color:var(--muted);" id="remote-count">—</span>
   </h2>
@@ -1440,6 +1453,67 @@ async function loadBurn() {
 }
 loadBurn();
 setInterval(loadBurn, 3000);
+
+// ────────── ROUTING PRESETS ──────────
+async function loadPresets() {
+  const bu = await loadBackend();
+  if (!bu) return;
+  try {
+    const r = await fetch(bu + '/api/runtime_config/presets', {cache:'no-store'});
+    const d = await r.json();
+    const cur = d.current_preset || 'custom';
+    document.getElementById('preset-current').textContent =
+      'Активен: ' + (cur === 'custom' ? 'custom (не из presets)' : cur);
+    const container = document.getElementById('preset-buttons');
+    if (!container) return;
+    // Order: quality / balanced / codex_first / economy
+    const order = ['quality','balanced','codex_first','economy'];
+    container.innerHTML = order.map(k => {
+      const p = d.presets[k];
+      if (!p) return '';
+      const isActive = k === cur;
+      const bg = isActive ? 'background:rgba(0,112,243,0.14);border-color:var(--accent);' : '';
+      return `<button onclick="applyPreset('${k}')" title="${esc(p.description)}" style="
+        padding:10px 12px;
+        border:1.5px solid var(--border);
+        border-radius:8px;
+        background:var(--panel-2,#fafafa);
+        cursor:pointer;
+        text-align:left;
+        font-size:13px;
+        line-height:1.35;
+        transition:all .15s;
+        ${bg}">
+        <div style="font-weight:600;margin-bottom:3px;">${esc(p.label)}</div>
+        <div style="font-size:11px;color:var(--muted);">${esc(p.description.slice(0,100))}</div>
+      </button>`;
+    }).join('');
+  } catch (e) { /* silent */ }
+}
+async function applyPreset(key) {
+  const bu = await loadBackend();
+  const toast = document.getElementById('preset-toast');
+  toast.innerHTML = '<span class="muted">⏳ применяется…</span>';
+  try {
+    const r = await fetch(bu + '/api/runtime_config/preset', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({preset: key}),
+    });
+    const j = await r.json();
+    if (j.error) {
+      toast.innerHTML = '<span style="color:var(--danger);">❌ ' + esc(j.error) + '</span>';
+    } else {
+      toast.innerHTML = '<span style="color:var(--ok);">✅ ' + esc(j.label || key) +
+        ' applied · агенты подхватят за 30s</span>';
+      setTimeout(() => { toast.innerHTML = ''; loadPresets(); load(); }, 2500);
+    }
+  } catch (e) {
+    toast.innerHTML = '<span style="color:var(--danger);">❌ ' + esc(e.message) + '</span>';
+  }
+}
+loadPresets();
+setInterval(loadPresets, 15000);
 
 // ────────── REMOTE Claude sessions ──────────
 function ageDot(sec) {
