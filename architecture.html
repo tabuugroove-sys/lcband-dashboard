@@ -527,7 +527,7 @@
       <div id="hb-used"    style="background:linear-gradient(90deg,#6e40c9,#a855f7);height:100%;border-radius:4px;transition:width 0.5s;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,0.85);font-weight:600;box-shadow:inset 0 -1px 0 rgba(0,0,0,0.2)"></div>
       <div id="hb-agents"  style="background:linear-gradient(90deg,#f59e0b,#d97706);height:100%;border-radius:4px;transition:width 0.5s;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,0.95);font-weight:600;box-shadow:inset 0 -1px 0 rgba(0,0,0,0.2)"></div>
       <div id="hb-free"    style="background:linear-gradient(90deg,#22c55e,#16a34a);height:100%;border-radius:4px;transition:width 0.5s;flex:1;display:flex;align-items:center;justify-content:center;font-size:11px;color:white;font-weight:700;box-shadow:inset 0 -1px 0 rgba(0,0,0,0.2)"></div>
-      <div id="hb-plan-marker" style="position:absolute;top:-4px;bottom:-4px;left:0%;width:2px;background:rgba(255,255,255,0.95);box-shadow:0 0 0 1px rgba(0,0,0,0.45),0 0 10px rgba(255,255,255,0.6);border-radius:2px;z-index:5;transition:left 0.5s ease" title="План к сейчас"></div>
+      <div id="hb-plan-marker" style="position:absolute;top:-4px;bottom:-4px;left:0%;width:2px;background:rgba(255,255,255,0.95);box-shadow:0 0 0 1px rgba(0,0,0,0.45),0 0 10px rgba(255,255,255,0.6);border-radius:2px;z-index:5;transition:left 0.5s ease" title="Максимум к концу расчётного дня"></div>
     </div>
 
     <!-- Legend -->
@@ -2326,7 +2326,7 @@ sequenceDiagram
           <span class="budget-row-name">Usage weekly: факт ${_limitPct(totalUsed)}</span>
           <span class="budget-row-delta ${delta.cls}">${delta.text}</span>
         </div>
-        <div class="budget-meter combined" title="App + CLI usage from weekly limit. Белая черта = план к сейчас">
+        <div class="budget-meter combined" title="App + CLI usage from weekly limit. Белая черта = максимум к концу расчётного дня">
           <div class="budget-meter-segment app" style="width:${appWidth}%"></div>
           <div class="budget-meter-segment cli${over}" style="left:${appWidth}%;width:${cliWidth}%"></div>
           <div class="budget-marker" style="left:${marker}%"></div>
@@ -2337,7 +2337,7 @@ sequenceDiagram
           <span>Всего <strong>${_limitPct(totalUsed)}</strong> от weekly limit</span>
         </div>
         <div class="budget-row-foot">
-          <span>план к сейчас: ${_limitPct(total.budget_by_now_pct)}</span>
+          <span>макс. к концу дня: ${_limitPct(total.budget_by_now_pct)}</span>
           <span>база ${_limitPct(total.daily_budget_pct)}/день · ${data.next_budget_day_label || data.weekly_reset_label || 'reset —'}</span>
         </div>
       </div>`;
@@ -2371,8 +2371,8 @@ sequenceDiagram
     const icon = key === 'claude' ? '🟣' : '🔵';
     const totalDelta = _budgetDeltaText(total);
     const policy = data.policy || {};
-    const dailyTotal = Number(policy.daily_total_pct || 14);
-    const codeDaily = Number(policy.code_daily_pct || 9);
+    const dailyTotal = Number(policy.daily_total_pct || (100 / 7));
+    const codeDaily = Number(policy.code_daily_pct || 12);
     const bgDaily = Number(policy.background_daily_pct || Math.max(0, dailyTotal - codeDaily));
     const ageLabel = _formatAge(data.age_seconds);
     const isDerived = !!data.derived;
@@ -2731,7 +2731,7 @@ sequenceDiagram
       const planMarker = document.getElementById('hb-plan-marker');
       if (planMarker) {
         planMarker.style.left = planMarkerPct + '%';
-        planMarker.title = `План к сейчас: ${_limitPct(planMarkerPct)} · ${claudeBudget.next_budget_day_label || claudeBudget.weekly_reset_label || ''}`;
+        planMarker.title = `Максимум к концу расчётного дня: ${_limitPct(planMarkerPct)} · следующая ступень ${claudeBudget.next_budget_day_label || claudeBudget.weekly_reset_label || ''}`;
       }
 
       // Second bar: code-only available
