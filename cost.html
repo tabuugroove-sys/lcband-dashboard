@@ -150,7 +150,7 @@ a:hover { text-decoration: underline; }
     <span>🖥️ CLI burn — Activity Monitor style</span>
     <span style="font-size:11px;color:var(--muted);">load = real rate ÷ sustainable rate · refresh 3s</span>
   </h2>
-  <div id="burn-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;"></div>
+  <div id="burn-cards" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:10px;"></div>
   <table id="burn-procs" style="width:100%;">
     <thead><tr>
       <th>Process (service · purpose)</th>
@@ -793,7 +793,7 @@ function dualSparklineSVG(systemData, userData) {
     return 'M ' + data.map((v, i) => `${(i*step).toFixed(1)},${(h - (v/dMax)*h).toFixed(1)}`).join(' L ');
   }
   const sustY = (h - (100/dMax)*h).toFixed(1);
-  return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="overflow:hidden;">
+  return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="display:block;max-width:100%;overflow:hidden;">
     <line x1="0" y1="${sustY}" x2="${w}" y2="${sustY}" stroke="var(--muted)" stroke-width="0.5" stroke-dasharray="3,3" />
     <path d="${pathArea(userData)}"   fill="rgba(0,122,255,0.18)" />
     <path d="${pathArea(systemData)}" fill="rgba(255,59,48,0.20)" />
@@ -824,8 +824,8 @@ function renderBurn(d) {
           <div><span class="muted">Idle:</span> <strong>${idleP.toFixed(1)}%</strong></div>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
-        <div style="flex:1;">${spark}</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:6px;min-width:0;">
+        <div style="flex:1;min-width:0;overflow:hidden;">${spark}</div>
         <div style="text-align:right;">
           <div style="font-size:22px;font-weight:600;color:${totalColor};font-variant-numeric:tabular-nums;">
             ${totalEmoji} ${totalP.toFixed(0)}%
