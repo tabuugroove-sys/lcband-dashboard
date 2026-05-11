@@ -298,6 +298,29 @@ a:hover { text-decoration: underline; }
 
 <div class="card" style="margin-bottom:18px;">
   <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>🌐 Remote Claude sessions</span>
+    <span style="font-size:11px;color:var(--muted);" id="remote-count">—</span>
+  </h2>
+  <table id="remote-sources" style="width:100%;">
+    <thead><tr>
+      <th>Host</th>
+      <th>Model</th>
+      <th style="text-align:right">5h limit</th>
+      <th style="text-align:right">7d limit</th>
+      <th style="text-align:right">Last ping</th>
+      <th>cwd</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+  <div class="label" style="margin-top:6px;">
+    Активные Claude Code сессии на других машинах (POST statusLine на /api/claude_statusline_ingest).
+    🟢 ping &lt;90s · 🟡 90-300s · 🔴 stale &gt;300s.
+    Их 5h/7d % limit учитываются в общем Max-бакете — но локальный realtime_burn их не видит.
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
     <span>🖥️ CLI burn — Activity Monitor style</span>
     <span style="font-size:11px;color:var(--muted);">load = real rate ÷ sustainable rate · refresh 3s</span>
   </h2>
@@ -1417,6 +1440,60 @@ async function loadBurn() {
 }
 loadBurn();
 setInterval(loadBurn, 3000);
+
+// ────────── REMOTE Claude sessions ──────────
+function ageDot(sec) {
+  if (sec < 90)  return '🟢';
+  if (sec < 300) return '🟡';
+  return '🔴';
+}
+function ageLabel(sec) {
+  if (sec < 90)   return sec + 's';
+  if (sec < 3600) return Math.round(sec/60) + ' min';
+  return (sec/3600).toFixed(1) + 'h';
+}
+async function loadRemoteSources() {
+  const bu = await loadBackend();
+  if (!bu) return;
+  try {
+    const r = await fetch(bu + '/api/claude_remote_sources', {cache:'no-store'});
+    const d = await r.json();
+    const sources = d.sources || [];
+    const tbody = document.querySelector('#remote-sources tbody');
+    const counter = document.getElementById('remote-count');
+    if (!tbody) return;
+    if (!sources.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="muted">нет remote сессий · смотри /api/claude_statusline_ingest для подключения</td></tr>';
+      if (counter) counter.textContent = '0 hosts';
+      return;
+    }
+    if (counter) counter.textContent = sources.length + (sources.length === 1 ? ' host' : ' hosts');
+    tbody.innerHTML = sources.map(s => {
+      const rl = s.rate_limits || {};
+      const h5 = rl.five_hour || {};
+      const h7 = rl.seven_day || {};
+      const p5 = h5.used_percentage;
+      const p7 = h7.used_percentage;
+      const fmtPct = v => (v == null || v === '') ? '—' : (Number(v).toFixed(1) + '%');
+      const color5 = (p5 != null && p5 >= 85) ? 'var(--danger)' :
+                    (p5 != null && p5 >= 60) ? 'var(--warn)' : 'var(--ok)';
+      const color7 = (p7 != null && p7 >= 85) ? 'var(--danger)' :
+                    (p7 != null && p7 >= 60) ? 'var(--warn)' : 'var(--ok)';
+      const age = s.age_sec || 0;
+      const cwd = s.cwd ? `<code style="font-size:11px;color:var(--muted);">${esc(s.cwd)}</code>` : '<span class="muted">—</span>';
+      return `<tr>
+        <td><code style="font-size:12px;font-weight:600;">${esc(s.host)}</code></td>
+        <td>${esc(s.model || '?')}</td>
+        <td style="text-align:right;color:${color5};font-weight:500;">${fmtPct(p5)}</td>
+        <td style="text-align:right;color:${color7};font-weight:500;">${fmtPct(p7)}</td>
+        <td style="text-align:right;" class="muted">${ageDot(age)} ${ageLabel(age)}</td>
+        <td>${cwd}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) { /* silent */ }
+}
+loadRemoteSources();
+setInterval(loadRemoteSources, 5000);
 loadRoutingControls();
 setInterval(loadRoutingControls, 30000);
 
