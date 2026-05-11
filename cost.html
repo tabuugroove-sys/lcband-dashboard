@@ -111,6 +111,20 @@ a:hover { text-decoration: underline; }
 
 <div class="card" style="margin-bottom:18px;">
   <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>🔴 Live AI calls — реал-тайм routing</span>
+    <span style="font-size:11px;color:var(--muted);">
+      <label><input type="checkbox" id="live-pause" /> пауза</label>
+      &middot; <span id="live-status">connecting…</span>
+    </span>
+  </h2>
+  <div id="live-feed" style="max-height:380px;overflow:auto;font: 12px/1.5 'SF Mono','Menlo','Consolas',monospace;background:#0d1117;color:#c9d1d9;border-radius:6px;padding:10px;"></div>
+  <div class="label" style="margin-top:6px;">
+    Последние ~50 AI вызовов (auto-refresh 3s). 🟢 = Codex success, 🟣 = Opus, 🔵 = Sonnet/Haiku, 🟠 = Gemini, ❌ = codex_cli_fail (timeout/exit/cooldown). После fail видна fallback модель в следующей строке.
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
     <span>🖥️ CLI burn — Activity Monitor style</span>
     <span style="font-size:11px;color:var(--muted);">load = real rate ÷ sustainable rate · refresh 3s</span>
   </h2>
@@ -127,22 +141,8 @@ a:hover { text-decoration: underline; }
   <div class="label" style="margin-top:6px;">
     «Load» = burn rate (за 15 мин) ÷ sustainable rate (если 100% → лимит ровно к концу недели).
     🟢 &lt;80% sustainable · 🟠 80-150% ускоренный · 🔴 &gt;150% OVERLOAD.
-    Sparkline = последние 60 sec (1 точка/сек).
+    Sparkline = 15 мин (1 точка на 15 sec).
     Claude Max и ChatGPT Plus — независимые лимиты, два отдельных бара.
-  </div>
-</div>
-
-<div class="card" style="margin-bottom:18px;">
-  <h2 style="display:flex;justify-content:space-between;align-items:center;">
-    <span>🔴 Live AI calls — реал-тайм routing</span>
-    <span style="font-size:11px;color:var(--muted);">
-      <label><input type="checkbox" id="live-pause" /> пауза</label>
-      &middot; <span id="live-status">connecting…</span>
-    </span>
-  </h2>
-  <div id="live-feed" style="max-height:380px;overflow:auto;font: 12px/1.5 'SF Mono','Menlo','Consolas',monospace;background:#0d1117;color:#c9d1d9;border-radius:6px;padding:10px;"></div>
-  <div class="label" style="margin-top:6px;">
-    Последние ~50 AI вызовов (auto-refresh 3s). 🟢 = Codex success, 🟣 = Opus, 🔵 = Sonnet/Haiku, 🟠 = Gemini, ❌ = codex_cli_fail (timeout/exit/cooldown). После fail видна fallback модель в следующей строке.
   </div>
 </div>
 
