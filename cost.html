@@ -239,6 +239,23 @@ tr:last-child td { border-bottom: none; }
 .muted { color: var(--muted); }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
+#live-feed .live-call-row {
+  display: grid;
+  grid-template-columns: 70px 20px minmax(230px, 300px) minmax(210px, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  white-space: nowrap;
+}
+#live-feed .live-model {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#live-feed .live-purpose {
+  color: #c9d1d9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 </style>
   <link rel="stylesheet" href="_theme.css">
   <script src="_theme.js"></script>
@@ -275,7 +292,7 @@ a:hover { text-decoration: underline; }
   </h2>
   <div id="live-feed" style="max-height:380px;overflow:auto;font: 12px/1.5 'SF Mono','Menlo','Consolas',monospace;background:#0d1117;color:#c9d1d9;border-radius:6px;padding:10px;"></div>
   <div class="label" style="margin-top:6px;">
-    Последние ~50 AI вызовов (auto-refresh 3s). 🟢 = Codex success, 🟣 = Opus, 🔵 = Sonnet/Haiku, 🟠 = Gemini, ❌ = codex_cli_fail (timeout/exit/cooldown). После fail видна fallback модель в следующей строке.
+    Последние ~50 AI вызовов (auto-refresh 3s). Жирным показана точная model из API: cli_codex_gpt-5.5, cli_gemini-3-flash-preview, opus/sonnet/haiku и т.д. 🟢 = Codex, 🟣 = Opus, 🔵 = Sonnet, 🩵 = Haiku, 🟠 = Gemini, ❌ = fail.
   </div>
 </div>
 
@@ -1405,8 +1422,8 @@ setInterval(loadRoutingControls, 30000);
 
 // ────────── LIVE AI calls feed ──────────
 let _liveLastTs = '';
-function modelDot(service, kind) {
-  const s = (service||'').toLowerCase();
+function modelDot(service, kind, model) {
+  const s = ((model||'') + ' ' + (service||'')).toLowerCase();
   if (kind === 'codex_cli_fail') return '❌';
   if (kind === 'codex_cli_cooldown') return '⏸';
   if (s.includes('codex')) return '🟢';
@@ -1416,8 +1433,8 @@ function modelDot(service, kind) {
   if (s.includes('gemini')) return '🟠';
   return '⚪';
 }
-function modelColor(service, kind) {
-  const s = (service||'').toLowerCase();
+function modelColor(service, kind, model) {
+  const s = ((model||'') + ' ' + (service||'')).toLowerCase();
   if (kind === 'codex_cli_fail' || kind === 'codex_cli_cooldown') return '#f85149';
   if (s.includes('codex')) return '#3fb950';
   if (s.includes('opus')) return '#bc8cff';
@@ -1426,8 +1443,8 @@ function modelColor(service, kind) {
   if (s.includes('gemini')) return '#f0883e';
   return '#8b949e';
 }
-function shortService(s) {
-  return (s||'').replace(/^cli_/,'').replace(/_gpt-5\.5$/,'').replace(/_api$/,'·api');
+function liveModelName(e) {
+  return e.model || e.service || (e.kind === 'codex_cli_fail' ? 'codex_cli_fail' : e.kind) || 'unknown_model';
 }
 async function loadLive() {
   if (document.getElementById('live-pause')?.checked) {
@@ -1448,18 +1465,19 @@ async function loadLive() {
       const wasNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
       events.forEach(e => {
         const t = fmtTimeSP(e.ts);
-        const dot = modelDot(e.service, e.kind);
-        const color = modelColor(e.service, e.kind);
-        const svc = shortService(e.service) || (e.kind === 'codex_cli_fail' ? 'codex_FAIL' : e.kind);
+        const dot = modelDot(e.service, e.kind, e.model);
+        const color = modelColor(e.service, e.kind, e.model);
+        const model = liveModelName(e);
         const tok = (e.input_tok || e.output_tok)
           ? '<span style="color:#6e7681;">'+(e.input_tok||0)+'→'+(e.output_tok||0)+'</span>'
           : '';
         const reason = e.reason ? '<span style="color:#f85149;font-style:italic;"> '+esc(e.reason)+'</span>' : '';
-        const line = '<div>' +
-          '<span style="color:#6e7681;">'+t+'</span> ' +
-          dot + ' <span style="color:'+color+';font-weight:600;">'+esc(svc.padEnd(10))+'</span> ' +
-          '<span style="color:#c9d1d9;">'+esc(e.purpose||'?').padEnd(28)+'</span> ' +
-          tok + reason +
+        const line = '<div class="live-call-row" title="'+esc((e.service||'')+' · '+model+' · '+(e.purpose||''))+'">' +
+          '<span style="color:#6e7681;">'+t+'</span>' +
+          '<span>'+dot+'</span>' +
+          '<span class="live-model" style="color:'+color+';">'+esc(model)+'</span>' +
+          '<span class="live-purpose">'+esc(e.purpose||'?')+'</span>' +
+          '<span>'+tok + reason + '</span>' +
           '</div>';
         feed.insertAdjacentHTML('beforeend', line);
       });
