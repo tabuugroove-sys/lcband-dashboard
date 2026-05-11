@@ -2224,24 +2224,14 @@ sequenceDiagram
     }
   }
 
-  // Slider value 0..100 = % calls которые пойдут в CODEX. 0 = всё Opus, 100 = всё Codex.
-  // Backend хранит quota = max opus calls/day; UI преобразует туда-обратно используя
-  // estimated_total_today как baseline количество calls этой категории за сегодня.
-  function _quotaToSliderPct(quota, estimatedTotal) {
-    // Если quota >= 9999 (unlimited) → 0% codex (всё opus)
+  // Slider value 0..100 = target % calls которые пойдут в CODEX.
+  // Backend теперь хранит category_codex_weight_pct: честный weighted split.
+  function _legacyQuotaToCodexPct(quota, estimatedTotal) {
+    // Migration fallback для старых конфигов до category_codex_weight_pct.
     if (quota >= 9999) return 0;
     if (estimatedTotal <= 0) return quota >= 100 ? 0 : 100; // нет данных — heuristic
     const opusFrac = Math.min(1, quota / estimatedTotal);
     return Math.round((1 - opusFrac) * 100);
-  }
-  function _sliderPctToQuota(sliderPct, estimatedTotal) {
-    // sliderPct = % to codex. 0 → quota=∞ (opus всё). 100 → quota=0 (codex всё).
-    if (sliderPct <= 0) return 10000;
-    if (sliderPct >= 100) return 0;
-    const opusFrac = (100 - sliderPct) / 100;
-    // Используем оценку дневного объёма; если 0 — fallback 100
-    const baseline = Math.max(estimatedTotal || 100, 20);
-    return Math.max(0, Math.round(baseline * opusFrac));
   }
 
   function _limitPct(v) {
@@ -2292,7 +2282,10 @@ sequenceDiagram
     row = row || {};
     const delta = _budgetDeltaText(row);
     const used = _clampPct(row.used_pct);
-    const marker = _clampPct(row.display_allowance_pct ?? row.today_allowance_pct ?? row.daily_budget_pct ?? row.budget_by_now_pct);
+    // White marker = time-based weekly plan by this provider's own reset window.
+    // Allowance/carryover is still shown as text, but the marker must move with time.
+    const marker = _clampPct(row.budget_by_now_pct ?? row.display_allowance_pct ?? row.today_allowance_pct ?? row.daily_budget_pct);
+    const allowance = _clampPct(row.display_allowance_pct ?? row.today_allowance_pct ?? row.daily_budget_pct);
     const over = row.status === 'over' ? ' over' : '';
     const name = kind === 'code' ? 'Код' : 'Фоновые процессы';
     const borrowed = Number(row.borrowed_by_code_pct || 0);
@@ -2309,7 +2302,7 @@ sequenceDiagram
         </div>
         <div class="budget-row-foot">
           <span>план к сейчас: ${_limitPct(row.budget_by_now_pct)}</span>
-          <span>белая черта: ${_limitPct(marker)} · база ${_limitPct(row.daily_budget_pct)}/день${borrowedText}</span>
+          <span>белая черта: ${_limitPct(marker)} · allowance ${_limitPct(allowance)} · база ${_limitPct(row.daily_budget_pct)}/день${borrowedText}</span>
         </div>
       </div>`;
   }
@@ -2366,7 +2359,7 @@ sequenceDiagram
           </div>
           <div class="limit-budget-sub">
             ${data.available ? (isDerived ? 'effective' : 'неделя') : 'last known'} ${_limitPct(data.weekly_used_pct)} · ${data.weekly_reset_label || 'reset —'}<br>
-            день ${Number(data.elapsed_days || 0).toFixed(1)}/7 · weekly budget
+            день ${data.budget_day_index || Math.ceil(Number(data.elapsed_days || 0)) || '—'}/7 · ${data.next_budget_day_label || 'next day —'}
           </div>
         </div>
         ${unavailable}
@@ -2415,43 +2408,35 @@ sequenceDiagram
     _buildFaderCards();
     renderLimitBudgets(stats);
 
+    const weights = cfg.category_codex_weight_pct || {};
     const quotas = cfg.category_opus_quota || {};
     const catsByKey = {};
     for (const c of (stats.categories || [])) catsByKey[c.category] = c;
 
-    // Update each fader card
-    // 100% baseline = last_24h_calls (sliding window, стабильно независимо от
-    // времени суток). Slider положение → quota = baseline × (1 - codex_pct).
+    // Update each fader card. Slider is target Codex share, not an Opus quota.
     for (const cat of FADER_CATEGORIES) {
       const card = document.querySelector(`.fader-card[data-category="${cat.key}"]`);
       if (!card) continue;
       const data = catsByKey[cat.key] || {};
       const quota = quotas[cat.key] !== undefined ? Number(quotas[cat.key]) : 10000;
+      const configuredWeight = weights[cat.key] !== undefined
+        ? Number(weights[cat.key])
+        : (data.codex_weight_pct !== undefined ? Number(data.codex_weight_pct) : _legacyQuotaToCodexPct(quota, Math.max(data.last_24h_calls || 0, 20)));
+      const codexWeight = Math.max(0, Math.min(100, Math.round(configuredWeight || 0)));
       const used = data.used_today || 0;
       const last24h = data.last_24h_calls || 0;
-      // Если данных за 24h меньше 20 — используем минимум 20 для устойчивости.
-      // Это редкая ситуация (новая category или тихий период).
-      const baseline = Math.max(last24h, 20);
       const slider = card.querySelector('input[type=range]');
       if (document.activeElement !== slider) {
-        const sliderVal = _quotaToSliderPct(quota, baseline);
-        slider.value = sliderVal;
-        slider.dataset.estTotal = baseline;
+        slider.value = codexWeight;
       }
-      const quotaExceeded = quota < 9999 && used >= quota;
 
-      let stateLine = '';
-      if (quota >= 9999) {
-        stateLine = '∞ (всегда Opus)';
-      } else if (quota === 0) {
-        stateLine = '0 (всё → Codex)';
-      } else {
-        stateLine = `${quota}` + (quotaExceeded ? ' ⚠ ИСЧЕРПАНА → Codex' : ` (осталось ${quota - used})`);
-      }
+      const stateLine = `${codexWeight}% Codex / ${100 - codexWeight}% Claude`;
+      const targetCodex = data.target_codex_24h !== undefined ? Number(data.target_codex_24h).toFixed(1) : '—';
+      const targetClaude = data.target_claude_24h !== undefined ? Number(data.target_claude_24h).toFixed(1) : '—';
       card.querySelector('[data-fld="used"]').textContent =
-        `today: ${used} · last 24h: ${last24h}` +
-        (data.redirected_calls ? ` (+${data.redirected_calls} → codex)` : '');
-      card.querySelector('[data-fld="quota"]').textContent = `quota: ${stateLine}`;
+        `today Claude: ${used} · last 24h: ${last24h}`;
+      card.querySelector('[data-fld="quota"]').textContent =
+        `target: ${stateLine} · 24ч план ${targetCodex}/${targetClaude}`;
 
       // РЕАЛЬНЫЙ split за 24h (что фактически дошло до Codex vs Claude).
       // Это отличается от "intent" (где slider стоит) — показывает actual
@@ -2480,8 +2465,8 @@ sequenceDiagram
         codexWarn = true;
       } else if (codexCooldown24 > 0) {
         codexNote = `⏳ Codex cooldown ${codexCooldown24}`;
-      } else if (realClaudePct > 50 && opus24 > 5 && quota < 9999) {
-        codexNote = 'ℹ много Claude: quota/route, не факт fail';
+      } else if (realClaudePct > (100 - codexWeight + 20) && opus24 > 5 && codexWeight > 0) {
+        codexNote = 'ℹ Claude выше target: route/fallback, не факт fail';
       }
       const recentLine = recentTotal > 0
         ? ` · сейчас 6ч: ${recentCodexPct}% Codex (${codex6h}) · ${recentClaudePct}% Claude (${opus6h})` +
@@ -2551,9 +2536,13 @@ sequenceDiagram
       document.getElementById('opus-7d-pct').textContent = 'за 7 дней по ccusage estimate';
 
       const exEl = document.getElementById('opus-exhaust');
+      // 11.05: backend возвращает null когда burn <$0.50/час (Codex обрабатывает,
+      // Opus почти не используется). Раньше fallback на max(0.01) давал
+      // астрономические числа типа 48879ч — теперь явный label.
       if (exhaust === null || exhaust === undefined) {
-        exEl.textContent = '∞';
+        exEl.textContent = 'не сгорит';
         exEl.className = 'val good';
+        exEl.title = 'Opus burn rate < $0.50/час — при текущем темпе дневной план не исчерпается';
       } else if (exhaust < 1) {
         exEl.textContent = `<1ч 🔥`;
         exEl.className = 'val warn';
@@ -2763,17 +2752,15 @@ sequenceDiagram
       if (e.target.tagName !== 'INPUT' || e.target.type !== 'range') return;
       const cat = e.target.dataset.cat;
       const sliderPct = +e.target.value;
-      const estTotal = +(e.target.dataset.estTotal || 100);
-      const newQuota = _sliderPctToQuota(sliderPct, estTotal);
-      // Получаем текущий config, обновляем только этот ключ в category_opus_quota
+      // Получаем текущий config, обновляем только этот ключ в category_codex_weight_pct
       clearTimeout(pendingTimer);
       pendingTimer = setTimeout(async () => {
-        // Берём свежую копию quotas чтобы не затереть параллельные изменения
+        // Берём свежую копию weights чтобы не затереть параллельные изменения
         const base = await getBackendUrl();
         const cur = await (await fetch(`${base}/api/runtime_config`, { cache: 'no-store' })).json();
-        const quotas = Object.assign({}, cur.category_opus_quota || {});
-        quotas[cat] = newQuota;
-        await postRuntimeConfig({ category_opus_quota: quotas });
+        const weights = Object.assign({}, cur.category_codex_weight_pct || {});
+        weights[cat] = Math.max(0, Math.min(100, sliderPct));
+        await postRuntimeConfig({ category_codex_weight_pct: weights });
       }, 400);
     });
 
