@@ -2307,7 +2307,9 @@ sequenceDiagram
   }
 
   function _budgetDeltaText(row) {
-    const allowance = Number(row?.display_allowance_pct ?? row?.today_allowance_pct ?? row?.daily_budget_pct ?? row?.budget_by_now_pct ?? 0);
+    // Balance must match the white marker: maximum allowed by the end of the
+    // current provider budget day. Daily/base allowances are only explanatory.
+    const allowance = Number(row?.budget_by_now_pct ?? row?.display_allowance_pct ?? row?.today_allowance_pct ?? row?.daily_budget_pct ?? 0);
     const used = Number(row?.used_pct || 0);
     const d = allowance - used;
     if (d < -0.1) return { text: `перерасход ${_limitPct(Math.abs(d))}`, cls: 'warn' };
@@ -2361,7 +2363,7 @@ sequenceDiagram
     const codeOver = Math.max(0, codeUsed - codeAllowance);
     const borrowedFromBg = Math.min(bgAllowance, codeOver);
 
-    total.display_allowance_pct = Math.round(Number(total.daily_budget_pct ?? total.today_allowance_pct ?? 0) * 10) / 10;
+    total.display_allowance_pct = Math.round(Number(total.budget_by_now_pct ?? total.today_allowance_pct ?? total.daily_budget_pct ?? 0) * 10) / 10;
     code.display_allowance_pct = Math.round(codeAllowance * 10) / 10;
     bg.borrowed_by_code_pct = Math.round(borrowedFromBg * 10) / 10;
     bg.display_allowance_pct = Math.round(Math.max(bgUsed, bgAllowance - borrowedFromBg) * 10) / 10;
