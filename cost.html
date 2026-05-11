@@ -111,6 +111,29 @@ a:hover { text-decoration: underline; }
 
 <div class="card" style="margin-bottom:18px;">
   <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>🖥️ CLI burn — Activity Monitor style</span>
+    <span style="font-size:11px;color:var(--muted);">load = real rate ÷ sustainable rate · refresh 3s</span>
+  </h2>
+  <div id="burn-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;"></div>
+  <table id="burn-procs" style="width:100%;">
+    <thead><tr>
+      <th>Process (service · purpose)</th>
+      <th style="text-align:right">Calls 15m</th>
+      <th style="text-align:right">Bucket</th>
+      <th style="text-align:right">Load %</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+  <div class="label" style="margin-top:6px;">
+    «Load» = burn rate (за 15 мин) ÷ sustainable rate (если 100% → лимит ровно к концу недели).
+    🟢 &lt;80% sustainable · 🟠 80-150% ускоренный · 🔴 &gt;150% OVERLOAD.
+    Sparkline = последние 60 sec (1 точка/сек).
+    Claude Max и ChatGPT Plus — независимые лимиты, два отдельных бара.
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
     <span>🔴 Live AI calls — реал-тайм routing</span>
     <span style="font-size:11px;color:var(--muted);">
       <label><input type="checkbox" id="live-pause" /> пауза</label>
@@ -532,6 +555,96 @@ function render(d) {
     `<td class="muted">${esc(Object.keys(r.tools||{})[0]||'—')}</td></tr>`
   ).join('') || '<tr><td colspan="4" class="muted">пока пусто</td></tr>';
 }
+
+// ────────── CLI BURN (Activity Monitor style) ──────────
+function burnColor(load) {
+  if (load >= 150) return 'var(--danger)';
+  if (load >= 80)  return 'var(--warn)';
+  return 'var(--ok)';
+}
+function burnEmoji(load) {
+  if (load >= 150) return '🔴';
+  if (load >= 80)  return '🟠';
+  return '🟢';
+}
+function sparklineSVG(data, color) {
+  if (!data || !data.length) return '';
+  // Clamp max for visual purposes (otherwise overload spike дробит остальное)
+  const dMax = Math.max(Math.max(...data), 100); // baseline 100% = sustainable
+  const w = 280, h = 50, n = data.length;
+  const step = w / (n - 1);
+  const points = data.map((v, i) => {
+    const x = (i * step).toFixed(1);
+    const y = (h - (v / dMax) * h).toFixed(1);
+    return `${x},${y}`;
+  }).join(' ');
+  // Линия 100% sustainable (визуальный baseline)
+  const sustainableY = (h - (100 / dMax) * h).toFixed(1);
+  return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="overflow:visible;">
+    <line x1="0" y1="${sustainableY}" x2="${w}" y2="${sustainableY}" stroke="var(--muted)" stroke-width="0.5" stroke-dasharray="3,3" />
+    <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.8" />
+  </svg>`;
+}
+function renderBurn(d) {
+  if (!d) return;
+  const claude = d.claude || {}, codex = d.codex || {};
+  const cards = document.getElementById('burn-cards');
+  if (!cards) return;
+  function card(title, sub, info) {
+    const load = info.load_pct || 0;
+    const color = burnColor(load);
+    const emoji = burnEmoji(load);
+    const spark = sparklineSVG(info.sparkline_60s, color);
+    return `<div style="background:var(--panel-2,#f6f8fa);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.3px;">${esc(title)}</div>
+          <div style="font-size:11px;color:var(--muted);">${esc(sub)}</div>
+        </div>
+        <div style="font-size:26px;font-weight:600;color:${color};font-variant-numeric:tabular-nums;">
+          ${emoji} ${load.toFixed(1)}%
+        </div>
+      </div>
+      <div style="margin-top:6px;">${spark}</div>
+      <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:2px;">
+        burn 15m: ${(info.burn_5m_pct_weekly||0).toFixed(3)}% weekly
+      </div>
+    </div>`;
+  }
+  cards.innerHTML =
+    card('Claude Max', '14%/day budget · sustainable', claude) +
+    card('Codex (ChatGPT Plus)', '14%/day budget · sustainable', codex);
+
+  const tbody = document.querySelector('#burn-procs tbody');
+  if (tbody) {
+    const procs = d.top_processes || [];
+    tbody.innerHTML = procs.map(p => {
+      const load = p.load_pct || 0;
+      const color = burnColor(load);
+      const emoji = burnEmoji(load);
+      const bucketTag = p.bucket === 'codex' ? '<span class="dot codex"></span>codex' :
+                       p.bucket === 'gemini' ? '<span class="dot gemini"></span>gemini' :
+                       p.bucket === 'api'   ? 'api $' :
+                       '<span class="dot haiku"></span>claude';
+      return `<tr>
+        <td><code style="font-size:11px;">${esc(p.service)}</code> · ${esc(p.purpose)}</td>
+        <td style="text-align:right" class="cost">${p.calls}</td>
+        <td style="text-align:right;font-size:11px;">${bucketTag}</td>
+        <td style="text-align:right;color:${color};font-weight:600;">${emoji} ${load.toFixed(1)}%</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="4" class="muted">тишина за 15 мин</td></tr>';
+  }
+}
+async function loadBurn() {
+  const bu = await loadBackend();
+  if (!bu) return;
+  try {
+    const r = await fetch(bu + '/api/realtime_burn', {cache:'no-store'});
+    renderBurn(await r.json());
+  } catch (e) { /* silent */ }
+}
+loadBurn();
+setInterval(loadBurn, 3000);
 
 // ────────── LIVE AI calls feed ──────────
 let _liveLastTs = '';
