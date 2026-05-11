@@ -567,22 +567,29 @@ function burnEmoji(load) {
   if (load >= 80)  return '🟠';
   return '🟢';
 }
-function sparklineSVG(data, color) {
-  if (!data || !data.length) return '';
-  // Clamp max for visual purposes (otherwise overload spike дробит остальное)
-  const dMax = Math.max(Math.max(...data), 100); // baseline 100% = sustainable
-  const w = 280, h = 50, n = data.length;
+function dualSparklineSVG(systemData, userData) {
+  // Activity Monitor style: filled area для System (red) и User (blue) поверх.
+  // Шкала фиксированная: 0 → max(всех значений, 200%) — чтобы overload spike виден.
+  const allValues = [...(systemData||[]), ...(userData||[])];
+  const dMax = Math.max(Math.max(...allValues, 100), 200);
+  const w = 280, h = 60, n = (systemData||[]).length || 60;
+  if (n < 2) return '<div style="height:60px;"></div>';
   const step = w / (n - 1);
-  const points = data.map((v, i) => {
-    const x = (i * step).toFixed(1);
-    const y = (h - (v / dMax) * h).toFixed(1);
-    return `${x},${y}`;
-  }).join(' ');
-  // Линия 100% sustainable (визуальный baseline)
-  const sustainableY = (h - (100 / dMax) * h).toFixed(1);
-  return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="overflow:visible;">
-    <line x1="0" y1="${sustainableY}" x2="${w}" y2="${sustainableY}" stroke="var(--muted)" stroke-width="0.5" stroke-dasharray="3,3" />
-    <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.8" />
+  function pathArea(data) {
+    const pts = data.map((v, i) => `${(i*step).toFixed(1)},${(h - (v/dMax)*h).toFixed(1)}`);
+    // Закрытый path для области под кривой
+    return `M0,${h} L${pts.join(' L')} L${w},${h} Z`;
+  }
+  function pathLine(data) {
+    return 'M ' + data.map((v, i) => `${(i*step).toFixed(1)},${(h - (v/dMax)*h).toFixed(1)}`).join(' L ');
+  }
+  const sustY = (h - (100/dMax)*h).toFixed(1);
+  return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="overflow:hidden;">
+    <line x1="0" y1="${sustY}" x2="${w}" y2="${sustY}" stroke="var(--muted)" stroke-width="0.5" stroke-dasharray="3,3" />
+    <path d="${pathArea(userData)}"   fill="rgba(0,122,255,0.18)" />
+    <path d="${pathArea(systemData)}" fill="rgba(255,59,48,0.20)" />
+    <path d="${pathLine(userData)}"   fill="none" stroke="#007aff" stroke-width="1.2" />
+    <path d="${pathLine(systemData)}" fill="none" stroke="#ff3b30" stroke-width="1.2" />
   </svg>`;
 }
 function renderBurn(d) {
@@ -590,30 +597,38 @@ function renderBurn(d) {
   const claude = d.claude || {}, codex = d.codex || {};
   const cards = document.getElementById('burn-cards');
   if (!cards) return;
-  function card(title, sub, info) {
-    const load = info.load_pct || 0;
-    const color = burnColor(load);
-    const emoji = burnEmoji(load);
-    const spark = sparklineSVG(info.sparkline_60s, color);
+  function card(title, sub, info, userNote) {
+    const sysP = info.system_pct || 0, userP = info.user_pct || 0, totalP = info.total_pct || 0;
+    const idleP = info.idle_pct || 0;
+    const totalColor = burnColor(totalP);
+    const totalEmoji = burnEmoji(totalP);
+    const spark = dualSparklineSVG(info.sparkline_system, info.sparkline_user);
     return `<div style="background:var(--panel-2,#f6f8fa);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
           <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.3px;">${esc(title)}</div>
           <div style="font-size:11px;color:var(--muted);">${esc(sub)}</div>
         </div>
-        <div style="font-size:26px;font-weight:600;color:${color};font-variant-numeric:tabular-nums;">
-          ${emoji} ${load.toFixed(1)}%
+        <div style="text-align:right;font-size:11px;font-variant-numeric:tabular-nums;line-height:1.6;">
+          <div><span style="color:#ff3b30;">System:</span> <strong>${sysP.toFixed(1)}%</strong></div>
+          <div><span style="color:#007aff;">User:</span> <strong>${userP.toFixed(1)}%</strong>${userNote ? ' <span class="muted" title="'+esc(userNote)+'">?</span>' : ''}</div>
+          <div><span class="muted">Idle:</span> <strong>${idleP.toFixed(1)}%</strong></div>
         </div>
       </div>
-      <div style="margin-top:6px;">${spark}</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+        <div style="flex:1;">${spark}</div>
+        <div style="font-size:22px;font-weight:600;color:${totalColor};font-variant-numeric:tabular-nums;">
+          ${totalEmoji} ${totalP.toFixed(0)}%
+        </div>
+      </div>
       <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:2px;">
-        burn 15m: ${(info.burn_5m_pct_weekly||0).toFixed(3)}% weekly
+        burn 15m: sys ${(info.burn_15m_system||0).toFixed(3)}% · user ${(info.burn_15m_user||0).toFixed(3)}% weekly
       </div>
     </div>`;
   }
   cards.innerHTML =
     card('Claude Max', '14%/day budget · sustainable', claude) +
-    card('Codex (ChatGPT Plus)', '14%/day budget · sustainable', codex);
+    card('Codex (ChatGPT Plus)', '14%/day budget · sustainable', codex, codex.user_note);
 
   const tbody = document.querySelector('#burn-procs tbody');
   if (tbody) {
