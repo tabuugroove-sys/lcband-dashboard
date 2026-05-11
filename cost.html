@@ -279,6 +279,28 @@ a:hover { text-decoration: underline; }
   </div>
 </div>
 
+<div class="card" id="routing-limits" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>🧭 Routing и недельные лимиты</span>
+    <span id="routing-status" class="routing-status">config: загрузка…</span>
+  </h2>
+  <div class="label" style="margin:-4px 0 8px 0;">
+    Здесь живут фейдеры Codex ↔ Claude и честный недельный баланс: синяя часть = приложение/код, оранжевая = CLI/фоновые процессы, белая черта = максимум к концу текущего расчётного дня.
+  </div>
+  <div class="routing-grid" id="cost-faders-grid"></div>
+  <div class="impact-grid" id="routing-impact">
+    <div class="impact-cell"><span class="lbl">Today % нед</span><span class="val" id="ri-today">—</span></div>
+    <div class="impact-cell"><span class="lbl">Projected 24h</span><span class="val" id="ri-projected">—</span></div>
+    <div class="impact-cell"><span class="lbl">vs baseline 7д</span><span class="val" id="ri-vsbase">—</span></div>
+    <div class="impact-cell"><span class="lbl">Calls → Codex</span><span class="val good" id="ri-redirected">—</span></div>
+    <div class="impact-cell"><span class="lbl">Saved % нед</span><span class="val good" id="ri-saved">—</span></div>
+    <div class="impact-cell"><span class="lbl">Δ скорости</span><span class="val" id="ri-speed">—</span></div>
+  </div>
+  <div class="limit-budget-grid" id="cost-limit-budget-grid">
+    <div class="limit-budget-card">Claude/Codex budget ledger loading…</div>
+  </div>
+</div>
+
 <div class="grid">
   <div class="card">
     <h2>Сегодня · ccusage</h2>
@@ -363,28 +385,6 @@ a:hover { text-decoration: underline; }
   <div class="label" style="margin-top:6px;">
     Эта метрика показывает воронку расхода: сколько AI-вызовов реально превратилось в отправленные сообщения.
     Низкий sent/presend означает, что дорогой review работает как фильтр мусора, а не как последний стоп-кран.
-  </div>
-</div>
-
-<div class="card" id="routing-limits" style="margin-bottom:18px;">
-  <h2 style="display:flex;justify-content:space-between;align-items:center;">
-    <span>🧭 Routing и недельные лимиты</span>
-    <span id="routing-status" class="routing-status">config: загрузка…</span>
-  </h2>
-  <div class="label" style="margin:-4px 0 8px 0;">
-    Здесь живут фейдеры Codex ↔ Claude и честный недельный баланс: синяя часть = приложение/код, оранжевая = CLI/фоновые процессы, белая черта = максимум к концу текущего расчётного дня.
-  </div>
-  <div class="routing-grid" id="cost-faders-grid"></div>
-  <div class="impact-grid" id="routing-impact">
-    <div class="impact-cell"><span class="lbl">Today % нед</span><span class="val" id="ri-today">—</span></div>
-    <div class="impact-cell"><span class="lbl">Projected 24h</span><span class="val" id="ri-projected">—</span></div>
-    <div class="impact-cell"><span class="lbl">vs baseline 7д</span><span class="val" id="ri-vsbase">—</span></div>
-    <div class="impact-cell"><span class="lbl">Calls → Codex</span><span class="val good" id="ri-redirected">—</span></div>
-    <div class="impact-cell"><span class="lbl">Saved % нед</span><span class="val good" id="ri-saved">—</span></div>
-    <div class="impact-cell"><span class="lbl">Δ скорости</span><span class="val" id="ri-speed">—</span></div>
-  </div>
-  <div class="limit-budget-grid" id="cost-limit-budget-grid">
-    <div class="limit-budget-card">Claude/Codex budget ledger loading…</div>
   </div>
 </div>
 
