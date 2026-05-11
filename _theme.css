@@ -9,6 +9,29 @@
  * её собственные правила перевесят — naturally.
  */
 
+/* CSS-variable overrides — для страниц с собственным :root { --bg/--card/--text }
+ * (pricing, contacts, broker, events, index). Переопределяем сами variables,
+ * чтобы любые `background: var(--bg)` rules автоматически стали светлыми.
+ */
+html[data-theme="light"] {
+  --bg:       #fafafa;
+  --card:     #ffffff;
+  --panel:    #ffffff;
+  --panel-2:  #f6f8fa;
+  --border:   #e5e5e7;
+  --text:     #1a1a1a;
+  --fg:       #1a1a1a;
+  --muted:    #656d76;
+  /* Цветные акценты — снижаем contrast для светлого фона */
+  --blue:     #0969da;
+  --green:    #1a7f37;
+  --orange:   #bc4c00;
+  --red:      #cf222e;
+  --purple:   #8250df;
+  --gold:     #9a6700;
+  --yellow:   #9a6700;
+}
+
 html[data-theme="light"] body {
   background: #fafafa !important;
   color: #1a1a1a !important;
