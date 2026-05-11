@@ -86,6 +86,7 @@ a:hover { text-decoration: underline; }
 </style>
   <link rel="stylesheet" href="_theme.css">
   <script src="_theme.js"></script>
+  <script src="_nav.js"></script>
 </head>
 <body>
 
@@ -168,6 +169,44 @@ a:hover { text-decoration: underline; }
     Code = interactive Claude Code/Codex CLI (твоя работа в редакторе) ·
     Background = programmatic вызовы из бизнес-кода (tg_responder, classifier, и т.д.).
     Bar становится 🟠 при 60%+, 🔴 при 85%+ от daily budget.
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <h2>AI → сообщения · КПД автоматики</h2>
+  <div class="grid" style="margin-bottom:8px;">
+    <div>
+      <div class="big" id="eff-sent-ai">—</div>
+      <div class="label">отправлено / все AI-вызовы</div>
+    </div>
+    <div>
+      <div class="big" id="eff-sent-presend">—</div>
+      <div class="label">отправлено / presend_review</div>
+    </div>
+    <div>
+      <div class="big" id="eff-sent-count">—</div>
+      <div class="label">сообщений отправлено сегодня</div>
+    </div>
+    <div>
+      <div class="big" id="eff-failed-count">—</div>
+      <div class="label">не доставлено / failed</div>
+    </div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Дата</th>
+      <th style="text-align:right">AI</th>
+      <th style="text-align:right">presend</th>
+      <th style="text-align:right">sent</th>
+      <th style="text-align:right">sent/AI</th>
+      <th style="text-align:right">sent/presend</th>
+      <th>Источники</th>
+    </tr></thead>
+    <tbody id="eff-days"></tbody>
+  </table>
+  <div class="label" style="margin-top:6px;">
+    Эта метрика показывает воронку расхода: сколько AI-вызовов реально превратилось в отправленные сообщения.
+    Низкий sent/presend означает, что дорогой review работает как фильтр мусора, а не как последний стоп-кран.
   </div>
 </div>
 
@@ -372,6 +411,37 @@ function render(d) {
       `</tr>`;
   }).join('');
   document.getElementById('budget-rows').innerHTML = rows;
+
+  // AI → sent messages efficiency
+  const eff = d.ai_message_efficiency || {};
+  const effToday = eff.today || {};
+  document.getElementById('eff-sent-ai').textContent =
+    (effToday.sent_per_ai_pct ?? 0).toFixed(1) + '%';
+  document.getElementById('eff-sent-presend').textContent =
+    (effToday.sent_per_presend_pct ?? 0).toFixed(1) + '%';
+  document.getElementById('eff-sent-count').textContent =
+    String(effToday.sent_messages ?? 0);
+  document.getElementById('eff-failed-count').textContent =
+    String(effToday.failed_messages ?? 0);
+  const effRows = (eff.days || []).slice().reverse().map(r => {
+    const src = Object.entries(r.sent_by_source || {})
+      .map(([k,v]) => esc(k)+': '+v)
+      .join(' · ') || '<span class="muted">—</span>';
+    const cls = (r.sent_per_presend_pct || 0) < 10 && (r.presend_review || 0) > 30
+      ? ' style="color:var(--danger);font-weight:600"'
+      : '';
+    return `<tr>` +
+      `<td>${esc(r.date || '')}</td>` +
+      `<td style="text-align:right" class="cost">${r.ai_calls || 0}</td>` +
+      `<td style="text-align:right" class="cost">${r.presend_review || 0}</td>` +
+      `<td style="text-align:right" class="cost">${r.sent_messages || 0}</td>` +
+      `<td style="text-align:right" class="cost">${(r.sent_per_ai_pct || 0).toFixed(1)}%</td>` +
+      `<td style="text-align:right" class="cost"${cls}>${(r.sent_per_presend_pct || 0).toFixed(1)}%</td>` +
+      `<td class="muted">${src}</td>` +
+      `</tr>`;
+  }).join('');
+  document.getElementById('eff-days').innerHTML =
+    effRows || '<tr><td colspan="7" class="muted">нет данных</td></tr>';
 
   // Purposes (esc(purpose) — может содержать любые символы)
   const ptbody = document.querySelector('#purposes tbody');
