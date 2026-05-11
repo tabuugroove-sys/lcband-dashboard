@@ -73,6 +73,116 @@ tr:last-child td { border-bottom: none; }
 .process-popover .sec-title { color: var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.35px; font-weight:700; margin-bottom:3px; }
 .process-popover .sec-body { font-size:12px; line-height:1.45; }
 .process-popover .pill { display:inline-block; border:1px solid var(--border); border-radius:999px; padding:1px 7px; margin:2px 4px 2px 0; font-size:11px; color:var(--muted); }
+.routing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+@media (max-width: 800px) { .routing-grid { grid-template-columns: 1fr; } }
+.fader-card {
+  background: var(--panel-2,#f6f8fa);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.fader-title { font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+.fader-stats { display:flex; justify-content:space-between; gap:10px; color:var(--muted); font-size:10px; margin-bottom:6px; }
+.fader-track { display:flex; align-items:center; gap:8px; }
+.fader-track .end-label { width:44px; text-align:center; font-size:10px; text-transform:uppercase; letter-spacing:.35px; }
+.fader-track .codex-side { color: var(--accent); }
+.fader-track .claude-side { color: var(--warn); }
+.fader-track input[type=range] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 4px;
+  background: linear-gradient(to right,
+    var(--accent) 0%,
+    var(--accent) var(--fader-val, 100%),
+    var(--warn) var(--fader-val, 100%),
+    var(--warn) 100%);
+  outline: none;
+  cursor: pointer;
+}
+.fader-track input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--fg);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.12);
+}
+.fader-readout { display:flex; justify-content:space-between; gap:8px; margin-top:6px; color:var(--muted); font-size:11px; }
+.fader-readout .codex-pct { color: var(--accent); font-weight:700; }
+.fader-readout .claude-pct { color: var(--warn); font-weight:700; text-align:right; }
+.impact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.impact-cell { background: var(--panel-2,#f6f8fa); border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
+.impact-cell .lbl { display:block; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.35px; }
+.impact-cell .val { display:block; font-size:15px; font-weight:700; margin-top:2px; }
+.impact-cell .good { color: var(--ok); }
+.impact-cell .warn { color: var(--warn); }
+.limit-budget-grid {
+  display:grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap:12px;
+  margin-top:12px;
+}
+@media (max-width: 900px) { .limit-budget-grid { grid-template-columns:1fr; } }
+.limit-budget-card {
+  background: var(--panel-2,#f6f8fa);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 13px 14px;
+}
+.limit-budget-card.stale { border-color: rgba(255,149,0,.45); background: rgba(255,149,0,.07); }
+.limit-budget-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:10px; }
+.limit-budget-title { font-size:14px; font-weight:800; }
+.limit-budget-sub { font-size:11px; color:var(--muted); text-align:right; line-height:1.35; }
+.limit-budget-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:11px; }
+.limit-budget-kpi { background: rgba(255,255,255,.6); border:1px solid rgba(0,0,0,.04); border-radius:7px; padding:7px 8px; }
+.limit-budget-kpi .k { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.35px; }
+.limit-budget-kpi .v { font-size:15px; font-weight:800; margin-top:2px; }
+.budget-row { margin-top:10px; }
+.budget-row-top { display:flex; justify-content:space-between; gap:10px; font-size:12px; margin-bottom:5px; }
+.budget-row-name { font-weight:650; }
+.budget-row-delta.good { color:var(--ok); }
+.budget-row-delta.warn { color:var(--danger); }
+.budget-meter {
+  position:relative;
+  height:18px;
+  border-radius:999px;
+  background:var(--border);
+  overflow:hidden;
+}
+.budget-meter-segment { position:absolute; top:0; bottom:0; transition:left .35s ease,width .35s ease; }
+.budget-meter-segment.app { left:0; background:linear-gradient(90deg,#1f6feb,#58a6ff); border-radius:999px 0 0 999px; }
+.budget-meter-segment.cli { background:linear-gradient(90deg,#f59e0b,#d97706); border-left:1px solid rgba(0,0,0,.18); }
+.budget-meter-segment.over { background:linear-gradient(90deg,#f59e0b,#ef4444); }
+.budget-marker {
+  position:absolute;
+  top:-2px;
+  bottom:-2px;
+  width:2px;
+  background:rgba(255,255,255,.94);
+  box-shadow:0 0 0 1px rgba(0,0,0,.35);
+  z-index:3;
+  border-radius:2px;
+}
+.budget-split-legend { display:flex; gap:12px; flex-wrap:wrap; color:var(--muted); font-size:11px; margin-top:7px; }
+.budget-split-legend .sq { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+.budget-split-legend .app-sq { background:#58a6ff; }
+.budget-split-legend .cli-sq { background:#f59e0b; }
+.budget-row-foot { display:flex; justify-content:space-between; gap:8px; color:var(--muted); font-size:10px; margin-top:4px; }
+.routing-status { margin-top:10px; color:var(--muted); font-size:11px; font-family:'SF Mono','Menlo','Consolas',monospace; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
        margin-right: 6px; vertical-align: middle; }
 .dot.opus { background: var(--opus); }
@@ -256,6 +366,28 @@ a:hover { text-decoration: underline; }
   </div>
 </div>
 
+<div class="card" id="routing-limits" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>🧭 Routing и недельные лимиты</span>
+    <span id="routing-status" class="routing-status">config: загрузка…</span>
+  </h2>
+  <div class="label" style="margin:-4px 0 8px 0;">
+    Здесь живут фейдеры Codex ↔ Claude и честный недельный баланс: синяя часть = приложение/код, оранжевая = CLI/фоновые процессы, белая черта = максимум к концу текущего расчётного дня.
+  </div>
+  <div class="routing-grid" id="cost-faders-grid"></div>
+  <div class="impact-grid" id="routing-impact">
+    <div class="impact-cell"><span class="lbl">Today % нед</span><span class="val" id="ri-today">—</span></div>
+    <div class="impact-cell"><span class="lbl">Projected 24h</span><span class="val" id="ri-projected">—</span></div>
+    <div class="impact-cell"><span class="lbl">vs baseline 7д</span><span class="val" id="ri-vsbase">—</span></div>
+    <div class="impact-cell"><span class="lbl">Calls → Codex</span><span class="val good" id="ri-redirected">—</span></div>
+    <div class="impact-cell"><span class="lbl">Saved % нед</span><span class="val good" id="ri-saved">—</span></div>
+    <div class="impact-cell"><span class="lbl">Δ скорости</span><span class="val" id="ri-speed">—</span></div>
+  </div>
+  <div class="limit-budget-grid" id="cost-limit-budget-grid">
+    <div class="limit-budget-card">Claude/Codex budget ledger loading…</div>
+  </div>
+</div>
+
 <div class="grid">
   <div class="card" style="grid-column: span 2;">
     <h2>Today · top purposes (programmatic AI)</h2>
@@ -373,6 +505,345 @@ function modelTag(name) {
   return esc(raw);
 }
 function barClass(pct) { if (pct>=85) return 'bar danger'; if (pct>=60) return 'bar warn'; return 'bar'; }
+
+const FADER_CATEGORIES = [
+  { key: 'client_generation', label: '1. Генерация ответов клиенту' },
+  { key: 'client_review',     label: '2. Ревью ответов клиентам' },
+  { key: 'funnel_review',     label: '3. Ревью шага воронки' },
+  { key: 'other_opus',        label: '4. Прочие Opus процессы' },
+];
+let _adminToken = localStorage.getItem('lcband_admin_token') || '';
+
+function ensureAdminToken(promptIfMissing = true) {
+  if (_adminToken) return _adminToken;
+  if (!promptIfMissing) return '';
+  const token = (window.prompt('Admin token (DASHBOARD_ADMIN_TOKEN из .env):') || '').trim();
+  if (token) {
+    localStorage.setItem('lcband_admin_token', token);
+    _adminToken = token;
+  }
+  return _adminToken;
+}
+
+function limitPct(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '—';
+  return n.toFixed(Math.abs(n % 1) > 0.01 ? 1 : 0) + '%';
+}
+
+function formatAge(seconds) {
+  const n = Number(seconds);
+  if (!Number.isFinite(n) || n < 0) return 'возраст неизвестен';
+  if (n < 90) return `${Math.round(n)}с назад`;
+  const minutes = Math.round(n / 60);
+  if (minutes < 90) return `${minutes}м назад`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}ч назад`;
+  return `${Math.round(hours / 24)}д назад`;
+}
+
+function clampPct(v) {
+  return Math.max(0, Math.min(100, Number(v) || 0));
+}
+
+function codexReasonLabel(reason) {
+  const r = String(reason || '');
+  const labels = {
+    old_gpt5_model_not_supported: 'старый gpt-5 (уже исправлено на gpt-5.5)',
+    model_not_supported: 'модель не поддержана',
+    quota_or_rate_limit: 'лимит/rate-limit',
+    codex_binary_not_found: 'codex binary not found',
+    json_parse_failed: 'невалидный JSON',
+  };
+  if (labels[r]) return labels[r];
+  if (r.startsWith('timeout_')) return `таймаут ${r.replace('timeout_', '')}`;
+  return r || 'unknown';
+}
+
+function legacyQuotaToCodexPct(quota, estimatedTotal) {
+  if (quota >= 9999) return 0;
+  if (estimatedTotal <= 0) return quota >= 100 ? 0 : 100;
+  const opusFrac = Math.min(1, quota / estimatedTotal);
+  return Math.round((1 - opusFrac) * 100);
+}
+
+function budgetDeltaText(row) {
+  const allowance = Number(row?.budget_by_now_pct ?? row?.display_allowance_pct ?? row?.today_allowance_pct ?? row?.daily_budget_pct ?? 0);
+  const used = Number(row?.used_pct || 0);
+  const delta = allowance - used;
+  if (delta < -0.1) return { text: `перерасход ${limitPct(Math.abs(delta))}`, cls: 'warn' };
+  if (delta > 0.1) return { text: `запас +${limitPct(delta)}`, cls: 'good' };
+  return { text: 'ровно по плану', cls: '' };
+}
+
+function applyCrossBucketBorrowing(rows) {
+  const total = Object.assign({}, rows.total || {});
+  const code = Object.assign({}, rows.code || {});
+  const background = Object.assign({}, rows.background || {});
+  const codeAllowance = Number(code.daily_budget_pct ?? code.today_allowance_pct ?? 0);
+  const bgAllowance = Number(background.daily_budget_pct ?? background.today_allowance_pct ?? 0);
+  const codeUsed = Number(code.used_pct || 0);
+  const bgUsed = Number(background.used_pct || 0);
+  const codeOver = Math.max(0, codeUsed - codeAllowance);
+  const borrowedFromBg = Math.min(bgAllowance, codeOver);
+
+  total.display_allowance_pct = Math.round(Number(total.budget_by_now_pct ?? total.today_allowance_pct ?? total.daily_budget_pct ?? 0) * 10) / 10;
+  code.display_allowance_pct = Math.round(codeAllowance * 10) / 10;
+  background.borrowed_by_code_pct = Math.round(borrowedFromBg * 10) / 10;
+  background.display_allowance_pct = Math.round(Math.max(bgUsed, bgAllowance - borrowedFromBg) * 10) / 10;
+  return { total, code, background };
+}
+
+function combinedUsageRowHtml(rows, data) {
+  const total = rows.total || {};
+  const app = rows.code || {};
+  const cli = rows.background || {};
+  const delta = budgetDeltaText(total);
+  const appUsed = Math.max(0, Number(app.used_pct || 0));
+  const cliUsed = Math.max(0, Number(cli.used_pct || 0));
+  const totalUsed = Math.max(0, Number(total.used_pct || data.weekly_used_pct || appUsed + cliUsed));
+  const appWidth = clampPct(appUsed);
+  const cliWidth = clampPct(Math.min(cliUsed, Math.max(0, 100 - appWidth)));
+  const marker = clampPct(total.budget_by_now_pct ?? total.display_allowance_pct ?? total.today_allowance_pct ?? total.daily_budget_pct);
+  const over = totalUsed > marker + 0.1 ? ' over' : '';
+  return `
+    <div class="budget-row">
+      <div class="budget-row-top">
+        <span class="budget-row-name">Usage weekly: факт ${limitPct(totalUsed)}</span>
+        <span class="budget-row-delta ${delta.cls}">${delta.text}</span>
+      </div>
+      <div class="budget-meter" title="App + CLI usage from weekly limit. Белая черта = максимум к концу расчётного дня">
+        <div class="budget-meter-segment app" style="width:${appWidth}%"></div>
+        <div class="budget-meter-segment cli${over}" style="left:${appWidth}%;width:${cliWidth}%"></div>
+        <div class="budget-marker" style="left:${marker}%"></div>
+      </div>
+      <div class="budget-split-legend">
+        <span><span class="sq app-sq"></span>Приложение <strong>${limitPct(appUsed)}</strong></span>
+        <span><span class="sq cli-sq"></span>CLI <strong>${limitPct(cliUsed)}</strong></span>
+        <span>Всего <strong>${limitPct(totalUsed)}</strong> от weekly limit</span>
+      </div>
+      <div class="budget-row-foot">
+        <span>макс. к концу дня: ${limitPct(total.budget_by_now_pct)}</span>
+        <span>база ${limitPct(total.daily_budget_pct)}/день · ${esc(data.next_budget_day_label || data.weekly_reset_label || 'reset —')}</span>
+      </div>
+    </div>`;
+}
+
+function renderLimitBudgetCard(provider, data) {
+  data = data || {};
+  const rows = applyCrossBucketBorrowing(data.rows || {});
+  const total = rows.total || {};
+  const icon = provider === 'claude' ? '🟣' : '🔵';
+  const title = provider === 'claude' ? 'Claude' : 'Codex';
+  const delta = budgetDeltaText(total);
+  const policy = data.policy || {};
+  const dailyTotal = Number(policy.daily_total_pct || (100 / 7));
+  const ageLabel = formatAge(data.age_seconds);
+  const isDerived = !!data.derived;
+  const isStale = !!data.stale && !isDerived;
+  const unavailable = !data.available
+    ? `<div class="alert warn" style="margin:8px 0 0 0;">official usage не свежий: last known ${limitPct(data.weekly_used_pct)} · ${ageLabel}</div>`
+    : '';
+  const factLabel = data.available ? (isDerived ? 'Effective' : 'Факт нед.') : 'Last known';
+  const sourceLabel = isDerived
+    ? `effective: official ${limitPct(data.official_weekly_used_pct)} + local ${limitPct(data.estimated_delta_pct)} · snapshot ${ageLabel}`
+    : data.available
+    ? (data.split_source || 'split source —')
+    : `stale ${ageLabel} · ${data.source || 'source —'}`;
+  return `
+    <div class="limit-budget-card${isStale ? ' stale' : ''}" data-provider="${provider}">
+      <div class="limit-budget-head">
+        <div>
+          <div class="limit-budget-title">${icon} ${title}</div>
+          <div class="muted" style="font-size:11px;margin-top:2px">${esc(sourceLabel)}</div>
+        </div>
+        <div class="limit-budget-sub">
+          ${data.available ? (isDerived ? 'effective' : 'неделя') : 'last known'} ${limitPct(data.weekly_used_pct)} · ${esc(data.weekly_reset_label || 'reset —')}<br>
+          день ${esc(data.budget_day_index || Math.ceil(Number(data.elapsed_days || 0)) || '—')}/7 · ${esc(data.next_budget_day_label || 'next day —')}
+        </div>
+      </div>
+      ${unavailable}
+      <div class="limit-budget-kpis">
+        <div class="limit-budget-kpi"><div class="k">План/день</div><div class="v">${limitPct(dailyTotal)}</div></div>
+        <div class="limit-budget-kpi"><div class="k">${factLabel}</div><div class="v">${limitPct(data.weekly_used_pct)}</div></div>
+        <div class="limit-budget-kpi"><div class="k">Баланс</div><div class="v ${delta.cls}">${delta.text.replace('перерасход ', '-').replace('запас +', '+')}</div></div>
+      </div>
+      ${combinedUsageRowHtml(rows, data)}
+    </div>`;
+}
+
+function renderLimitBudgets(stats) {
+  const grid = document.getElementById('cost-limit-budget-grid');
+  if (!grid) return;
+  const providers = (stats.limit_budget || {}).providers || {};
+  grid.innerHTML = ['claude', 'codex'].map(k => renderLimitBudgetCard(k, providers[k])).join('');
+}
+
+function buildFaderCards() {
+  const grid = document.getElementById('cost-faders-grid');
+  if (!grid || grid.children.length) return;
+  for (const cat of FADER_CATEGORIES) {
+    const div = document.createElement('div');
+    div.className = 'fader-card';
+    div.dataset.category = cat.key;
+    div.innerHTML = `
+      <div class="fader-title">${esc(cat.label)}</div>
+      <div class="fader-stats">
+        <span data-fld="used">used: —</span>
+        <span data-fld="quota">target: —</span>
+      </div>
+      <div class="fader-track">
+        <span class="end-label codex-side">Codex</span>
+        <input type="range" min="0" max="100" step="5" value="100" data-cat="${esc(cat.key)}" style="--fader-val:100%">
+        <span class="end-label claude-side">Claude</span>
+      </div>
+      <div class="fader-readout">
+        <span class="codex-pct" data-fld="codex-pct">100% Codex</span>
+        <span class="claude-pct" data-fld="opus-pct">0% Claude</span>
+      </div>`;
+    grid.appendChild(div);
+  }
+}
+
+async function postRuntimeConfig(updates) {
+  const token = ensureAdminToken(true);
+  if (!token) return false;
+  const bu = await loadBackend();
+  const res = await fetch(bu + '/api/runtime_config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Admin-Token': token },
+    body: JSON.stringify({ updates, updated_by: 'cost_page' }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 403) {
+      localStorage.removeItem('lcband_admin_token');
+      _adminToken = '';
+    }
+    throw new Error(data.error || ('HTTP ' + res.status));
+  }
+  return true;
+}
+
+function bindRoutingControls() {
+  const grid = document.getElementById('cost-faders-grid');
+  if (!grid || grid.dataset.boundRouting) return;
+  grid.dataset.boundRouting = '1';
+  let pendingTimer;
+  grid.addEventListener('input', e => {
+    if (e.target.tagName !== 'INPUT' || e.target.type !== 'range') return;
+    const card = e.target.closest('.fader-card');
+    if (!card) return;
+    const codexPct = +e.target.value;
+    card.querySelector('[data-fld="codex-pct"]').textContent = `${codexPct}% Codex`;
+    card.querySelector('[data-fld="opus-pct"]').textContent = `${100 - codexPct}% Claude`;
+    e.target.style.setProperty('--fader-val', codexPct + '%');
+  });
+  grid.addEventListener('change', e => {
+    if (e.target.tagName !== 'INPUT' || e.target.type !== 'range') return;
+    const cat = e.target.dataset.cat;
+    const sliderPct = +e.target.value;
+    clearTimeout(pendingTimer);
+    pendingTimer = setTimeout(async () => {
+      const status = document.getElementById('routing-status');
+      try {
+        status.textContent = 'config: сохраняю…';
+        const bu = await loadBackend();
+        const cur = await (await fetch(bu + '/api/runtime_config', { cache: 'no-store' })).json();
+        const weights = Object.assign({}, cur.category_codex_weight_pct || {});
+        weights[cat] = Math.max(0, Math.min(100, sliderPct));
+        const saved = await postRuntimeConfig({ category_codex_weight_pct: weights });
+        if (!saved) {
+          status.textContent = 'config: не сохранено — нужен admin token';
+          return;
+        }
+        status.textContent = 'config: сохранено, агенты подхватят за ~30с';
+        await loadRoutingControls();
+      } catch (err) {
+        status.textContent = 'config: ошибка — ' + err.message;
+      }
+    }, 400);
+  });
+}
+
+async function loadRoutingControls() {
+  const status = document.getElementById('routing-status');
+  if (!status) return;
+  const bu = await loadBackend();
+  try {
+    const [cfgRes, statsRes] = await Promise.all([
+      fetch(bu + '/api/runtime_config', { cache: 'no-store' }),
+      fetch(bu + '/api/category_routing_stats', { cache: 'no-store' }),
+    ]);
+    if (!cfgRes.ok || !statsRes.ok) throw new Error('HTTP ' + cfgRes.status + '/' + statsRes.status);
+    const cfg = await cfgRes.json();
+    const stats = await statsRes.json();
+    buildFaderCards();
+    bindRoutingControls();
+    renderLimitBudgets(stats);
+
+    const weights = cfg.category_codex_weight_pct || {};
+    const quotas = cfg.category_opus_quota || {};
+    const catsByKey = {};
+    for (const c of (stats.categories || [])) catsByKey[c.category] = c;
+    for (const cat of FADER_CATEGORIES) {
+      const card = document.querySelector(`.fader-card[data-category="${cat.key}"]`);
+      if (!card) continue;
+      const data = catsByKey[cat.key] || {};
+      const quota = quotas[cat.key] !== undefined ? Number(quotas[cat.key]) : 10000;
+      const configured = weights[cat.key] !== undefined
+        ? Number(weights[cat.key])
+        : (data.codex_weight_pct !== undefined ? Number(data.codex_weight_pct) : legacyQuotaToCodexPct(quota, Math.max(data.last_24h_calls || 0, 20)));
+      const codexWeight = Math.max(0, Math.min(100, Math.round(configured || 0)));
+      const slider = card.querySelector('input[type=range]');
+      if (document.activeElement !== slider) slider.value = codexWeight;
+      slider.style.setProperty('--fader-val', codexWeight + '%');
+
+      const last24h = data.last_24h_calls || 0;
+      card.querySelector('[data-fld="used"]').textContent = `today Claude: ${data.used_today || 0} · last 24h: ${last24h}`;
+      card.querySelector('[data-fld="quota"]').textContent =
+        `target: ${codexWeight}% Codex / ${100 - codexWeight}% Claude · 24ч план ${
+          data.target_codex_24h !== undefined ? Number(data.target_codex_24h).toFixed(1) : '—'
+        }/${data.target_claude_24h !== undefined ? Number(data.target_claude_24h).toFixed(1) : '—'}`;
+
+      const codexFails24 = data.last_24h_codex_fails || 0;
+      const cooldown24 = data.last_24h_codex_cooldown || 0;
+      let note = '';
+      let warn = false;
+      if (codexFails24 > 0) {
+        note = `⚠ Codex fail ${codexFails24} · ${codexReasonLabel(data.top_codex_fail_reason)}`;
+        warn = true;
+      } else if (cooldown24 > 0) {
+        note = `⏳ Codex cooldown ${cooldown24}`;
+      } else {
+        note = `${codexWeight}% Codex`;
+      }
+      const recentLine = (data.last_6h_calls || 0) > 0
+        ? ` · 6ч: ${data.codex_success_6h_pct || 0}% Codex (${data.last_6h_codex || 0}) · ${data.opus_fallback_6h_pct || 0}% Claude (${data.last_6h_opus || 0})`
+        : ' · 6ч: нет calls';
+      card.querySelector('[data-fld="codex-pct"]').textContent = note;
+      card.querySelector('[data-fld="codex-pct"]').style.color = warn ? 'var(--warn)' : 'var(--accent)';
+      card.querySelector('[data-fld="opus-pct"]').textContent =
+        last24h > 0
+          ? `24ч: ${data.codex_success_pct || 0}% Codex (${data.last_24h_codex || 0}) · ${data.opus_fallback_pct || 0}% Claude (${data.last_24h_opus || 0})${recentLine}`
+          : `24ч: нет calls${recentLine}`;
+    }
+
+    const totals = stats.totals || {};
+    const pct = v => (Number(v) || 0).toFixed(1) + '%';
+    document.getElementById('ri-today').textContent = pct(totals.today_pct_of_weekly);
+    document.getElementById('ri-projected').textContent = pct(totals.projected_24h_pct_of_weekly);
+    document.getElementById('ri-vsbase').textContent =
+      (Number(totals.pct_of_baseline || 0)).toFixed(0) + '% (avg ' + pct(totals.baseline_7d_avg_pct_of_weekly) + ' нед)';
+    document.getElementById('ri-redirected').textContent = totals.redirected_calls_total || 0;
+    document.getElementById('ri-saved').textContent = pct(totals.estimated_savings_pct_of_weekly);
+    document.getElementById('ri-speed').textContent =
+      (Number(totals.speed_delta_sec_total || 0) > 0 ? '+' : '') + Math.round(Number(totals.speed_delta_sec_total || 0)) + 'с';
+    status.textContent = 'config: live · ' + new Date().toLocaleTimeString('ru-RU').slice(0, 5);
+  } catch (err) {
+    status.textContent = 'config: backend offline — ' + err.message;
+  }
+}
 
 async function load() {
   const bu = await loadBackend();
@@ -881,6 +1352,8 @@ async function loadBurn() {
 }
 loadBurn();
 setInterval(loadBurn, 3000);
+loadRoutingControls();
+setInterval(loadRoutingControls, 30000);
 
 // ────────── LIVE AI calls feed ──────────
 let _liveLastTs = '';
