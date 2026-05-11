@@ -475,6 +475,30 @@ function fmtTok(v) {
   if (v >= 1e3) return (v/1e3).toFixed(1) + 'k';
   return String(v);
 }
+const DISPLAY_TZ = 'America/Sao_Paulo';
+const TIME_FMT_SP = new Intl.DateTimeFormat('ru-RU', {
+  timeZone: DISPLAY_TZ,
+  hour12: false,
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+function parseBackendTs(ts) {
+  if (!ts) return null;
+  if (ts instanceof Date) return ts;
+  if (typeof ts === 'number') return new Date(ts);
+  const raw = String(ts).trim().replace(' ', 'T');
+  // Backend sqlite timestamps are stored as Moscow wall-clock time without TZ.
+  // Treat offset-less values as MSK, then render everything in Sao Paulo.
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  const normalized = hasZone ? raw : raw + '+03:00';
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+function fmtTimeSP(ts) {
+  const date = parseBackendTs(ts) || new Date();
+  return TIME_FMT_SP.format(date);
+}
 function prettyModelName(name) {
   const raw = String(name || '').replace(/^cli[_-]/i, '').replace(/_/g, '-');
   const n = raw.toLowerCase();
@@ -1399,7 +1423,7 @@ async function loadLive() {
       _liveLastTs = j.newest_ts || _liveLastTs;
       const wasNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
       events.forEach(e => {
-        const t = (e.ts||'').slice(11,19);
+        const t = fmtTimeSP(e.ts);
         const dot = modelDot(e.service, e.kind);
         const color = modelColor(e.service, e.kind);
         const svc = shortService(e.service) || (e.kind === 'codex_cli_fail' ? 'codex_FAIL' : e.kind);
@@ -1419,7 +1443,7 @@ async function loadLive() {
       while (feed.children.length > 200) feed.removeChild(feed.firstChild);
       if (wasNearBottom) feed.scrollTop = feed.scrollHeight;
     }
-    document.getElementById('live-status').textContent = '🟢 last: ' + new Date().toLocaleTimeString('ru-RU').slice(0,8);
+    document.getElementById('live-status').textContent = '🟢 last SP: ' + fmtTimeSP(Date.now());
   } catch (e) {
     document.getElementById('live-status').textContent = '❌ ' + e.message;
   }
