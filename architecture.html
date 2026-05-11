@@ -382,10 +382,32 @@
     background: rgba(255,255,255,0.08);
     overflow: hidden;
   }
+  .budget-meter.combined {
+    height: 18px;
+    margin-top: 7px;
+  }
   .budget-meter-fill { height: 100%; width: 0%; border-radius: 999px; transition: width 0.35s ease; }
   .budget-meter-fill.code { background: linear-gradient(90deg,#1f6feb,#58a6ff); }
   .budget-meter-fill.background { background: linear-gradient(90deg,#f59e0b,#d97706); }
   .budget-meter-fill.over { background: linear-gradient(90deg,#f59e0b,#ef4444); }
+  .budget-meter-segment {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    transition: left 0.35s ease, width 0.35s ease;
+  }
+  .budget-meter-segment.app {
+    background: linear-gradient(90deg,#1f6feb,#58a6ff);
+    left: 0;
+    border-radius: 999px 0 0 999px;
+  }
+  .budget-meter-segment.cli {
+    background: linear-gradient(90deg,#f59e0b,#d97706);
+    border-left: 1px solid rgba(0,0,0,0.25);
+  }
+  .budget-meter-segment.over {
+    background: linear-gradient(90deg,#f59e0b,#ef4444);
+  }
   .budget-marker {
     position: absolute;
     top: -2px;
@@ -397,6 +419,11 @@
     border-radius: 2px;
   }
   .budget-row-foot { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 10px; margin-top: 4px; }
+  .budget-split-legend { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 11px; margin-top: 7px; }
+  .budget-split-legend .dot { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+  .budget-split-legend .app-dot { background:#58a6ff; }
+  .budget-split-legend .cli-dot { background:#f59e0b; }
+  .budget-split-legend strong { color: var(--fg); }
   .budget-policy { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); color: var(--muted); font-size: 11px; }
   .budget-policy input[type=range] { width: 100%; margin-top: 6px; }
   .budget-policy strong { color: var(--fg); }
@@ -505,9 +532,9 @@
 
     <!-- Legend -->
     <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
-      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#a855f7;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Код уже <span id="hb-used-label" style="color:var(--fg);font-weight:600">—</span></span>
-      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Фон/агенты <span id="hb-agents-label" style="color:#f59e0b;font-weight:600">—</span></span>
-      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Остаток на код <span id="hb-free-label" style="color:#22c55e;font-weight:600">—</span></span>
+      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#a855f7;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Приложение <span id="hb-used-label" style="color:var(--fg);font-weight:600">—</span></span>
+      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:2px;margin-right:5px;vertical-align:middle"></span>CLI <span id="hb-agents-label" style="color:#f59e0b;font-weight:600">—</span></span>
+      <span style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:5px;vertical-align:middle"></span>Остаток <span id="hb-free-label" style="color:#22c55e;font-weight:600">—</span></span>
     </div>
 
     <!-- Second bar: code-only remaining -->
@@ -2281,31 +2308,37 @@ sequenceDiagram
     return { text: 'ровно по плану', cls: '' };
   }
 
-  function _budgetRowHtml(kind, row) {
-    row = row || {};
-    const delta = _budgetDeltaText(row);
-    const used = _clampPct(row.used_pct);
-    // White marker = time-based weekly plan by this provider's own reset window.
-    // Allowance/carryover is still shown as text, but the marker must move with time.
-    const marker = _clampPct(row.budget_by_now_pct ?? row.display_allowance_pct ?? row.today_allowance_pct ?? row.daily_budget_pct);
-    const allowance = _clampPct(row.display_allowance_pct ?? row.today_allowance_pct ?? row.daily_budget_pct);
-    const over = row.status === 'over' ? ' over' : '';
-    const name = kind === 'code' ? 'Код' : 'Фоновые процессы';
-    const borrowed = Number(row.borrowed_by_code_pct || 0);
-    const borrowedText = borrowed > 0.1 ? ` · код забрал ${_limitPct(borrowed)}` : '';
+  function _combinedUsageRowHtml(rows, data) {
+    const total = rows.total || {};
+    const app = rows.code || {};
+    const cli = rows.background || {};
+    const delta = _budgetDeltaText(total);
+    const appUsed = Math.max(0, Number(app.used_pct || 0));
+    const cliUsed = Math.max(0, Number(cli.used_pct || 0));
+    const totalUsed = Math.max(0, Number(total.used_pct || data.weekly_used_pct || appUsed + cliUsed));
+    const appWidth = _clampPct(appUsed);
+    const cliWidth = _clampPct(Math.min(cliUsed, Math.max(0, 100 - appWidth)));
+    const marker = _clampPct(total.budget_by_now_pct ?? total.display_allowance_pct ?? total.today_allowance_pct ?? total.daily_budget_pct);
+    const over = totalUsed > marker + 0.1 ? ' over' : '';
     return `
       <div class="budget-row">
         <div class="budget-row-top">
-          <span class="budget-row-name">${name}: факт ${_limitPct(row.used_pct)}</span>
+          <span class="budget-row-name">Usage weekly: факт ${_limitPct(totalUsed)}</span>
           <span class="budget-row-delta ${delta.cls}">${delta.text}</span>
         </div>
-        <div class="budget-meter" title="Белая черта = сколько можно потратить сегодня с учетом запаса/перерасхода">
-          <div class="budget-meter-fill ${kind}${over}" style="width:${used}%"></div>
+        <div class="budget-meter combined" title="App + CLI usage from weekly limit. Белая черта = план к сейчас">
+          <div class="budget-meter-segment app" style="width:${appWidth}%"></div>
+          <div class="budget-meter-segment cli${over}" style="left:${appWidth}%;width:${cliWidth}%"></div>
           <div class="budget-marker" style="left:${marker}%"></div>
         </div>
+        <div class="budget-split-legend">
+          <span><span class="dot app-dot"></span>Приложение <strong>${_limitPct(appUsed)}</strong></span>
+          <span><span class="dot cli-dot"></span>CLI <strong>${_limitPct(cliUsed)}</strong></span>
+          <span>Всего <strong>${_limitPct(totalUsed)}</strong> от weekly limit</span>
+        </div>
         <div class="budget-row-foot">
-          <span>план к сейчас: ${_limitPct(row.budget_by_now_pct)}</span>
-          <span>белая черта: ${_limitPct(marker)} · allowance ${_limitPct(allowance)} · база ${_limitPct(row.daily_budget_pct)}/день${borrowedText}</span>
+          <span>план к сейчас: ${_limitPct(total.budget_by_now_pct)}</span>
+          <span>база ${_limitPct(total.daily_budget_pct)}/день · ${data.next_budget_day_label || data.weekly_reset_label || 'reset —'}</span>
         </div>
       </div>`;
   }
@@ -2371,12 +2404,11 @@ sequenceDiagram
           <div class="limit-budget-kpi"><div class="k">${factLabel}</div><div class="v">${_limitPct(data.weekly_used_pct)}</div></div>
           <div class="limit-budget-kpi"><div class="k">Баланс</div><div class="v ${totalDelta.cls}">${totalDelta.text.replace('перерасход ', '-').replace('запас +', '+')}</div></div>
         </div>
-        ${_budgetRowHtml('code', code)}
-        ${_budgetRowHtml('background', bg)}
+        ${_combinedUsageRowHtml(rows, data)}
         <div class="budget-policy">
           <div>
-            Split plan: <strong><span data-fld="code-day">${_limitPct(codeDaily)}</span> код</strong>
-            / <strong><span data-fld="bg-day">${_limitPct(bgDaily)}</span> фон</strong>
+            Split plan: <strong><span data-fld="code-day">${_limitPct(codeDaily)}</span> приложение</strong>
+            / <strong><span data-fld="bg-day">${_limitPct(bgDaily)}</span> CLI</strong>
             из ${_limitPct(dailyTotal)}/день
           </div>
           <input type="range" min="0" max="${dailyTotal}" step="0.5" value="${codeDaily}"
