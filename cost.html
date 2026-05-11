@@ -302,6 +302,9 @@ a:hover { text-decoration: underline; }
     <span style="font-size:11px;color:var(--muted);">load = real rate ÷ sustainable rate · refresh 3s</span>
   </h2>
   <div id="burn-cards" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:10px;"></div>
+  <div class="limit-budget-grid" id="cost-limit-budget-grid" style="margin:10px 0 14px 0;">
+    <div class="limit-budget-card">Claude/Codex budget ledger loading…</div>
+  </div>
   <table id="burn-procs" style="width:100%;">
     <thead><tr>
       <th>Process (service · purpose)</th>
@@ -322,11 +325,11 @@ a:hover { text-decoration: underline; }
 
 <div class="card" id="routing-limits" style="margin-bottom:18px;">
   <h2 style="display:flex;justify-content:space-between;align-items:center;">
-    <span>🧭 Routing и недельные лимиты</span>
+    <span>🧭 Routing фейдеры</span>
     <span id="routing-status" class="routing-status">config: загрузка…</span>
   </h2>
   <div class="label" style="margin:-4px 0 8px 0;">
-    Здесь живут фейдеры Codex ↔ Claude и честный недельный баланс: синяя часть = приложение/код, оранжевая = CLI/фоновые процессы, белая черта = максимум к концу текущего расчётного дня.
+    Здесь живут фейдеры Codex ↔ Claude. Weekly usage-полоски подняты выше: сразу после real-time burn графиков.
   </div>
   <div class="routing-grid" id="cost-faders-grid"></div>
   <div class="impact-grid" id="routing-impact">
@@ -336,9 +339,6 @@ a:hover { text-decoration: underline; }
     <div class="impact-cell"><span class="lbl">Calls → Codex</span><span class="val good" id="ri-redirected">—</span></div>
     <div class="impact-cell"><span class="lbl">Saved % нед</span><span class="val good" id="ri-saved">—</span></div>
     <div class="impact-cell"><span class="lbl">Δ скорости</span><span class="val" id="ri-speed">—</span></div>
-  </div>
-  <div class="limit-budget-grid" id="cost-limit-budget-grid">
-    <div class="limit-budget-card">Claude/Codex budget ledger loading…</div>
   </div>
 </div>
 
