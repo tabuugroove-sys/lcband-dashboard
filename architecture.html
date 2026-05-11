@@ -424,9 +424,6 @@
   .budget-split-legend .app-dot { background:#58a6ff; }
   .budget-split-legend .cli-dot { background:#f59e0b; }
   .budget-split-legend strong { color: var(--fg); }
-  .budget-policy { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); color: var(--muted); font-size: 11px; }
-  .budget-policy input[type=range] { width: 100%; margin-top: 6px; }
-  .budget-policy strong { color: var(--fg); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -2405,15 +2402,6 @@ sequenceDiagram
           <div class="limit-budget-kpi"><div class="k">Баланс</div><div class="v ${totalDelta.cls}">${totalDelta.text.replace('перерасход ', '-').replace('запас +', '+')}</div></div>
         </div>
         ${_combinedUsageRowHtml(rows, data)}
-        <div class="budget-policy">
-          <div>
-            Split plan: <strong><span data-fld="code-day">${_limitPct(codeDaily)}</span> приложение</strong>
-            / <strong><span data-fld="bg-day">${_limitPct(bgDaily)}</span> CLI</strong>
-            из ${_limitPct(dailyTotal)}/день
-          </div>
-          <input type="range" min="0" max="${dailyTotal}" step="0.5" value="${codeDaily}"
-                 data-provider="${key}" data-total="${dailyTotal}" class="budget-code-slider">
-        </div>
       </div>`;
   }
 
@@ -2808,38 +2796,6 @@ sequenceDiagram
       }, 400);
     });
 
-    document.getElementById('limit-budget-grid')?.addEventListener('input', e => {
-      if (!e.target.classList.contains('budget-code-slider')) return;
-      const total = Number(e.target.dataset.total || 14);
-      const code = Number(e.target.value || 0);
-      const bg = Math.max(0, total - code);
-      const card = e.target.closest('.limit-budget-card');
-      const codeEl = card?.querySelector('[data-fld="code-day"]');
-      const bgEl = card?.querySelector('[data-fld="bg-day"]');
-      if (codeEl) codeEl.textContent = _limitPct(code);
-      if (bgEl) bgEl.textContent = _limitPct(bg);
-    });
-
-    document.getElementById('limit-budget-grid')?.addEventListener('change', e => {
-      if (!e.target.classList.contains('budget-code-slider')) return;
-      const provider = e.target.dataset.provider;
-      if (!provider) return;
-      const total = Number(e.target.dataset.total || 14);
-      const code = Number(e.target.value || 0);
-      const bg = Math.max(0, total - code);
-      clearTimeout(pendingTimer);
-      pendingTimer = setTimeout(async () => {
-        const base = await getBackendUrl();
-        const cur = await (await fetch(`${base}/api/runtime_config`, { cache: 'no-store' })).json();
-        const policy = JSON.parse(JSON.stringify(cur.limit_budget_policy || {}));
-        policy[provider] = {
-          daily_total_pct: total,
-          code_daily_pct: code,
-          background_daily_pct: bg,
-        };
-        await postRuntimeConfig({ limit_budget_policy: policy });
-      }, 400);
-    });
   }
 
   bindRuntimeControls();
