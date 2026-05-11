@@ -567,6 +567,18 @@ function burnEmoji(load) {
   if (load >= 80)  return '🟠';
   return '🟢';
 }
+function etaLabel(loadPct) {
+  // 100% load = sustainable = недельный лимит исчерпан за 7 дней (168ч).
+  // ETA = 168h / (load/100). При load=600 → 28h.
+  if (!loadPct || loadPct <= 0) return 'запас вечен (idle)';
+  const hours = 168 / (loadPct / 100);
+  if (hours >= 168) return 'sustainable (≥ 7 дней)';
+  if (hours >= 48)  return `лимит закончится через ${(hours/24).toFixed(1)} дн`;
+  if (hours >= 1)   return `🔥 лимит за ${hours.toFixed(0)}ч (при таком темпе)`;
+  const mins = hours * 60;
+  return `🚨 лимит за ${mins.toFixed(0)} мин!`;
+}
+
 function dualSparklineSVG(systemData, userData) {
   // Activity Monitor style: filled area для System (red) и User (blue) поверх.
   // Шкала фиксированная: 0 → max(всех значений, 200%) — чтобы overload spike виден.
@@ -617,12 +629,15 @@ function renderBurn(d) {
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
         <div style="flex:1;">${spark}</div>
-        <div style="font-size:22px;font-weight:600;color:${totalColor};font-variant-numeric:tabular-nums;">
-          ${totalEmoji} ${totalP.toFixed(0)}%
+        <div style="text-align:right;">
+          <div style="font-size:22px;font-weight:600;color:${totalColor};font-variant-numeric:tabular-nums;">
+            ${totalEmoji} ${totalP.toFixed(0)}%
+          </div>
+          <div style="font-size:10px;color:${totalColor};margin-top:-2px;">${etaLabel(totalP)}</div>
         </div>
       </div>
       <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:2px;">
-        burn 15m: sys ${(info.burn_15m_system||0).toFixed(3)}% · user ${(info.burn_15m_user||0).toFixed(3)}% weekly
+        burn 15m: sys ${(info.burn_15m_system||0).toFixed(3)}% · user ${(info.burn_15m_user||0).toFixed(3)}% weekly · 100% load = sustainable (7 дней)
       </div>
     </div>`;
   }
