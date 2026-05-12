@@ -2264,6 +2264,64 @@ function OrdersSection({ orders }) {
   );
 }
 
+function RecentSentMessagesSection({ data }) {
+  const items = data?.items || [];
+  const fmtTime = (ts) => {
+    if (!ts) return '';
+    try {
+      return new Date(ts).toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch { return String(ts).slice(0, 16).replace('T', ' '); }
+  };
+  return (
+    <div id="recent-sent-section" className="section" style={{ marginTop: 14 }}>
+      <div className="section-title" style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap'}}>
+        Последние отправленные сообщения
+        <span style={{fontSize:12, color:'var(--muted)', fontWeight:500}}>· 48 часов · {data?.total ?? items.length}</span>
+      </div>
+      {!items.length ? (
+        <div className="empty">За последние 48 часов отправленных сообщений не найдено.</div>
+      ) : (
+        <div className="orders-list">
+          {items.map((m, i) => {
+            const username = (m.username || '').replace(/^@/, '');
+            const client = username
+              ? <a href={`https://t.me/${username}`} target="_blank" rel="noopener"
+                   style={{color:'var(--blue)',textDecoration:'none'}}>{m.client || '@' + username}</a>
+              : (m.client || '—');
+            const [badgeCls, badgeText] = orderBadge(m.status_label || m.source || 'sent');
+            return (
+              <div className="order-card" key={`${m.ts || i}-${m.client || ''}-${i}`}>
+                <div className="order-info">
+                  <div className="order-client">{client}</div>
+                  <div className="order-meta">
+                    {fmtTime(m.ts)}
+                    {m.channel && <span style={{marginLeft:8}}>{m.channel}</span>}
+                    {m.event_date && <span style={{marginLeft:8}}>📅 {m.event_date}</span>}
+                    {m.city && <span style={{marginLeft:8}}>📍 {m.city}</span>}
+                  </div>
+                  <div
+                    className="order-desc-preview"
+                    title={m.text || ''}
+                    style={{whiteSpace:'normal', lineHeight:1.35, maxHeight:46}}
+                  >
+                    💬 {m.text || '(текст не найден)'}
+                  </div>
+                </div>
+                <span className={`badge ${badgeCls}`}>{badgeText || 'sent'}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LeadFilterSection({ title, subtitle, leads }) {
   const normalized = (leads || [])
     .slice()
@@ -5342,6 +5400,7 @@ function App() {
   const [sessionLog, setSessionLog] = useState(null);
   const [activity24h, setActivity24h] = useState(null);
   const [dmDirectFunnel, setDmDirectFunnel] = useState(null);
+  const [recentSent, setRecentSent] = useState(null);
   const [todos,     setTodos]     = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [refreshing,setRefreshing]= useState(false);
@@ -5425,6 +5484,15 @@ function App() {
         setSessionLog(await r.json());
       }
     } catch { /* backend offline → session tab will show "not available" */ }
+
+    // ── Recent real outbound messages for the main overview block ──
+    try {
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      const r = await fetch(`${bu}/api/recent_sent_messages?hours=48&limit=30`, { cache: 'no-store' });
+      if (r.ok) {
+        setRecentSent(await r.json());
+      }
+    } catch { /* backend offline → block shows empty state */ }
 
     // ── Process activity over last 24h (counts per process + Browser Walk) ──
     try {
@@ -5692,7 +5760,7 @@ function App() {
                 <div className="section-title">Дополнительные воронки</div>
                 <DMDirectFunnelSection data={dmDirectFunnel} />
               </div>
-              <OrdersSection orders={data.orders} />
+              <RecentSentMessagesSection data={recentSent} />
               <ScanStatus scan={data.scan} />
               <FollowupsSection followups={data.followups} />
             </>
