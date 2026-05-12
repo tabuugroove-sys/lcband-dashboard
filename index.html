@@ -3380,12 +3380,22 @@ function AgentMatrixStatus() {
         const j = await r.json();
         if (cancelled) return;
         if (r.ok && typeof j.total === 'number') {
+          // failed = реальные ошибки последнего запуска.
+          // status=-15 (SIGTERM) у running daemon = норма (restart cycle, прошлая
+          // инстанция была завершена сигналом, новая успешно стартанула).
+          // status > 0 у любого = real error exit code.
+          // Считаем ТОЛЬКО positive exit codes — это исключает false positives
+          // от плановых launchctl stop / restart.
+          const failed = (j.items || []).filter(x => {
+            const s = parseInt(x.status, 10);
+            return Number.isFinite(s) && s > 0;
+          }).length;
           setStats({
             total: j.total,
             running: j.running || 0,
             waiting: j.waiting || 0,
             plist_only: j.plist_only || 0,
-            failed: (j.items || []).filter(x => x.status && parseInt(x.status, 10) < 0).length,
+            failed: failed,
           });
           setError(false);
         } else {
