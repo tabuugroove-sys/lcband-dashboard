@@ -2972,36 +2972,48 @@ function RestartAllButton() {
         display: block; font-size: 8px; opacity: 0.85; letter-spacing: 1px;
         margin-top: 4px; font-weight: 700;
       }
-      /* Knurled (ribbed) edge: радиальные риски по периметру кнопки */
+      /* Industrial-style restart button с domed top и knurled edge */
       .reset-button {
         position: relative; z-index: 1;
-        width: 100px; height: 100px; border-radius: 50%;
+        width: 108px; height: 108px; border-radius: 50%;
+        /* Купольный red — highlight в верхней части как реальный пластик */
         background:
-          radial-gradient(circle at 35% 30%, #ff6b6b 0%, #d62828 40%, #8a1010 75%, #4a0808 100%);
-        border: 3px solid #1a0303;
+          radial-gradient(circle at 40% 25%, #ff9b9b 0%, #ff4040 18%, #d92020 50%, #8c0c0c 85%, #4a0606 100%);
         cursor: pointer;
         animation: reset-pulse 1.8s ease-in-out infinite;
         display: flex; align-items: center; justify-content: center;
-        outline: none; padding: 0;
+        outline: none; padding: 0; border: none;
         transition: transform 0.12s;
+        box-shadow:
+          inset 0 -6px 12px rgba(0,0,0,0.45),
+          inset 0 4px 14px rgba(255,200,200,0.5),
+          0 0 24px rgba(255, 30, 30, 0.55);
       }
-      /* Рифлёный ободок — серия маленьких насечек по краю */
+      /* Knurled (зубчатый) ободок — более явные зубцы как на референсе */
       .reset-button::before {
-        content: ""; position: absolute; inset: -4px; border-radius: 50%;
+        content: ""; position: absolute; inset: -7px; border-radius: 50%;
         background:
           repeating-conic-gradient(
             from 0deg,
-            #2a0606 0deg 2deg,
-            #6b0e0e 2deg 4deg
+            #4a0606 0deg 4deg,
+            #8c1010 4deg 6deg,
+            #2a0303 6deg 9deg
           );
         z-index: -1;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.7), inset 0 -2px 6px rgba(0,0,0,0.5);
+      }
+      /* Тёмный rim между зубцами и куполом */
+      .reset-button::after {
+        content: ""; position: absolute; inset: -2px; border-radius: 50%;
+        border: 2px solid #1a0303;
+        pointer-events: none;
       }
       .reset-button:active { transform: scale(0.92); animation: none; }
       .reset-button:disabled { cursor: wait; animation: reset-shake 0.4s linear infinite; }
-      /* Круглые стрелки refresh — SVG inline */
+      /* SVG 3-arrow refresh — анимация при busy */
       .reset-button-icon {
-        width: 60px; height: 60px;
-        filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+        width: 72px; height: 72px;
+        filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6));
       }
       .reset-button.busy .reset-button-icon {
         animation: reset-spin 1s linear infinite;
@@ -3094,19 +3106,33 @@ function RestartAllButton() {
           title={armed ? 'НАЖМИ — перезапустит все агенты' : 'Сначала открой крышку'}
           style={{ opacity: armed ? 1 : 0.35 }}
         >
-          <svg className="reset-button-icon" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            {/* Верхняя дуга со стрелкой вправо */}
-            <path
-              d="M 32 10 A 22 22 0 0 1 54 32"
-              fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round"
-            />
-            <polygon points="54,32 47,28 47,36" fill="#fff" />
-            {/* Нижняя дуга со стрелкой влево */}
-            <path
-              d="M 32 54 A 22 22 0 0 1 10 32"
-              fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round"
-            />
-            <polygon points="10,32 17,28 17,36" fill="#fff" />
+          <svg className="reset-button-icon" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            {/*
+              3 curved arrows arranged at 120°, each spans ~80° of a circle r=26.
+              Pattern from reference: arrows rotate clockwise.
+              Geometry: centre (40,40), radius 26.
+              Arrow 1: top-left  → start angle 150°, end 230°
+              Arrow 2: top-right → start 270°, end 350°
+              Arrow 3: bottom    → start 30°, end 110°
+              Each arc ends with triangular arrowhead pointing in rotation dir.
+            */}
+            <defs>
+              <g id="reset-arrow">
+                {/* Curved arc with rounded end */}
+                <path
+                  d="M 13.99 53 A 26 26 0 0 1 26.05 19.5"
+                  fill="none" stroke="#fff" strokeWidth="7" strokeLinecap="round"
+                />
+                {/* Arrowhead — tangent at angle 30° from horizontal */}
+                <polygon
+                  points="26.05,19.5  21,12  33,13.5"
+                  fill="#fff"
+                />
+              </g>
+            </defs>
+            <use href="#reset-arrow" />
+            <use href="#reset-arrow" transform="rotate(120 40 40)" />
+            <use href="#reset-arrow" transform="rotate(240 40 40)" />
           </svg>
         </button>
         <div className={`reset-cover ${armed ? 'open' : ''}`} onClick={toggleArm}>
