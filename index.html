@@ -2977,9 +2977,8 @@ function RestartAllButton() {
         position: relative; z-index: 1;
         width: 118px; height: 118px; border-radius: 50%;
         background:
-          radial-gradient(circle at 50% 48%, rgba(129, 0, 19, 0.22) 0%, rgba(129, 0, 19, 0.18) 22%, transparent 44%),
-          radial-gradient(circle at 32% 24%, rgba(255, 194, 210, 0.18) 0%, transparent 22%),
-          radial-gradient(circle at 50% 52%, #b50022 0%, #bf0024 24%, #cb0029 50%, #c10025 68%, #99001d 100%);
+          radial-gradient(circle at 34% 24%, rgba(255, 218, 226, 0.16) 0%, transparent 18%),
+          linear-gradient(180deg, #cf1738 0%, #c80d31 52%, #ab0828 100%);
         cursor: pointer;
         animation: reset-pulse 1.8s ease-in-out infinite;
         display: flex; align-items: center; justify-content: center;
@@ -3017,7 +3016,7 @@ function RestartAllButton() {
       .reset-button:active { transform: scale(0.92); animation: none; }
       .reset-button:disabled { cursor: wait; animation: reset-shake 0.4s linear infinite; }
       .reset-button-icon {
-        width: 78px; height: 78px;
+        width: 92px; height: 92px;
         filter: drop-shadow(0 2px 2px rgba(109,0,20,0.35));
       }
       .reset-button.busy .reset-button-icon {
@@ -3118,11 +3117,11 @@ function RestartAllButton() {
             <defs>
               <g id="reset-arrow">
                 <path
-                  d="M 24 67 A 30 30 0 0 1 35 25"
-                  fill="none" stroke="#f5f7fb" strokeWidth="10" strokeLinecap="butt"
+                  d="M 18 72 A 38 38 0 0 1 33 19"
+                  fill="none" stroke="#f5f7fb" strokeWidth="9" strokeLinecap="round"
                 />
                 <polygon
-                  points="35,25 26,29 34,12"
+                  points="33,19 23,24 33,7"
                   fill="#f5f7fb"
                 />
               </g>
