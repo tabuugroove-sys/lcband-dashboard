@@ -3214,6 +3214,207 @@ function RestartAllButton() {
   );
 }
 
+/* ───────────────────────────────────────────────────────────────────
+ * AgentMatrixStatus — Matrix-стайл live статус launchd-агентов.
+ * Pulls /api/launch_agents каждые 10 сек, показывает RUNNING/WAITING/TOTAL
+ * в green terminal-стайл с CRT scanline и subtle character rain.
+ * ─────────────────────────────────────────────────────────────────── */
+function AgentMatrixStatus() {
+  const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+  const [stats, setStats] = React.useState(null);
+  const [error, setError] = React.useState(false);
+
+  React.useEffect(() => {
+    const css = `
+      @keyframes matrix-glow {
+        0%, 100% { text-shadow: 0 0 4px #00ff41, 0 0 8px rgba(0,255,65,0.4); }
+        50%      { text-shadow: 0 0 6px #00ff41, 0 0 14px rgba(0,255,65,0.7); }
+      }
+      @keyframes matrix-rain {
+        0% { transform: translateY(-100%); opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { transform: translateY(100%); opacity: 0; }
+      }
+      @keyframes matrix-flicker {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.92; }
+      }
+      .matrix-panel {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        padding: 6px 14px;
+        background: linear-gradient(180deg, #000 0%, #001a05 50%, #000 100%);
+        border: 1px solid #00ff41;
+        border-radius: 4px;
+        font-family: 'Courier New', 'Monaco', monospace;
+        font-size: 11px;
+        color: #00ff41;
+        letter-spacing: 1.5px;
+        font-weight: 700;
+        overflow: hidden;
+        box-shadow:
+          0 0 12px rgba(0, 255, 65, 0.35),
+          inset 0 0 18px rgba(0, 255, 65, 0.08);
+        animation: matrix-flicker 4s ease-in-out infinite;
+      }
+      /* CRT scanlines overlay */
+      .matrix-panel::before {
+        content: "";
+        position: absolute; inset: 0; z-index: 1;
+        background: repeating-linear-gradient(
+          0deg,
+          rgba(0, 255, 65, 0.04) 0px,
+          rgba(0, 255, 65, 0.04) 1px,
+          transparent 1px,
+          transparent 3px
+        );
+        pointer-events: none;
+      }
+      /* Subtle vertical glow gradient */
+      .matrix-panel::after {
+        content: "";
+        position: absolute; inset: 0; z-index: 1;
+        background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.6) 100%);
+        pointer-events: none;
+      }
+      .matrix-cell {
+        position: relative;
+        z-index: 2;
+        animation: matrix-glow 2.4s ease-in-out infinite;
+      }
+      .matrix-cell .label { color: #007a1f; font-size: 9px; margin-right: 4px; }
+      .matrix-cell .val { color: #00ff41; font-weight: 900; font-size: 13px; }
+      .matrix-cell.running .val { color: #00ff41; }
+      .matrix-cell.waiting .val { color: #88ff88; }
+      .matrix-cell.failed .val { color: #ff4040; text-shadow: 0 0 6px rgba(255,64,64,0.6); }
+      .matrix-cell.total .val { color: #00bb2f; }
+      .matrix-sep {
+        position: relative; z-index: 2;
+        color: #003a0f;
+        opacity: 0.7;
+      }
+      /* Falling chars rain в фоне (5 column drops) */
+      .matrix-rain-col {
+        position: absolute;
+        top: 0;
+        font-family: monospace;
+        font-size: 8px;
+        color: rgba(0, 255, 65, 0.4);
+        animation: matrix-rain 6s linear infinite;
+        pointer-events: none;
+        z-index: 0;
+        text-shadow: 0 0 4px rgba(0, 255, 65, 0.6);
+      }
+      .matrix-blink {
+        animation: matrix-flicker 1.2s infinite;
+        display: inline-block;
+        margin-left: 4px;
+      }
+      .matrix-err {
+        position: relative; z-index: 2;
+        color: #ff4040; font-size: 9px;
+      }
+    `;
+    if (!document.getElementById('matrix-status-style')) {
+      const s = document.createElement('style');
+      s.id = 'matrix-status-style';
+      s.textContent = css;
+      document.head.appendChild(s);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function fetchOnce() {
+      try {
+        const r = await fetch(`${backendUrl}/api/launch_agents`, {cache: 'no-store'});
+        const j = await r.json();
+        if (cancelled) return;
+        if (r.ok && typeof j.total === 'number') {
+          setStats({
+            total: j.total,
+            running: j.running || 0,
+            waiting: j.waiting || 0,
+            plist_only: j.plist_only || 0,
+            failed: (j.items || []).filter(x => x.status && parseInt(x.status, 10) < 0).length,
+          });
+          setError(false);
+        } else {
+          setError(true);
+        }
+      } catch (e) {
+        if (!cancelled) setError(true);
+      }
+    }
+    fetchOnce();
+    const t = setInterval(fetchOnce, 10000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [backendUrl]);
+
+  // Random char rain columns (mounted once)
+  const rainCols = React.useMemo(() => {
+    const chars = 'アイウエオカキクケコサシスセソタチツテトナニ01ヒフヘホマミムメモ$%#&*';
+    return [
+      { left: '8%',  delay: '0s',   chars: Array.from({length:6}, () => chars[Math.floor(Math.random()*chars.length)]).join('') },
+      { left: '28%', delay: '2.1s', chars: Array.from({length:5}, () => chars[Math.floor(Math.random()*chars.length)]).join('') },
+      { left: '52%', delay: '1.3s', chars: Array.from({length:7}, () => chars[Math.floor(Math.random()*chars.length)]).join('') },
+      { left: '74%', delay: '3.5s', chars: Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join('') },
+      { left: '92%', delay: '0.7s', chars: Array.from({length:6}, () => chars[Math.floor(Math.random()*chars.length)]).join('') },
+    ];
+  }, []);
+
+  if (error) {
+    return (
+      <div className="matrix-panel">
+        {rainCols.map((c, i) => (
+          <span key={i} className="matrix-rain-col" style={{left: c.left, animationDelay: c.delay}}>{c.chars}</span>
+        ))}
+        <span className="matrix-err">⚠ CONNECTION LOST</span>
+        <span className="matrix-blink">▮</span>
+      </div>
+    );
+  }
+  if (!stats) {
+    return (
+      <div className="matrix-panel">
+        <span className="matrix-cell"><span className="label">INIT</span><span className="val">...</span></span>
+        <span className="matrix-blink">▮</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="matrix-panel" title="Live launchd agent status — обновляется каждые 10с">
+      {rainCols.map((c, i) => (
+        <span key={i} className="matrix-rain-col" style={{left: c.left, animationDelay: c.delay}}>{c.chars}</span>
+      ))}
+      <span className="matrix-cell running">
+        <span className="label">RUN</span><span className="val">{stats.running}</span>
+      </span>
+      <span className="matrix-sep">│</span>
+      <span className="matrix-cell waiting">
+        <span className="label">WAIT</span><span className="val">{stats.waiting}</span>
+      </span>
+      {stats.failed > 0 && (
+        <>
+          <span className="matrix-sep">│</span>
+          <span className="matrix-cell failed">
+            <span className="label">FAIL</span><span className="val">{stats.failed}</span>
+          </span>
+        </>
+      )}
+      <span className="matrix-sep">│</span>
+      <span className="matrix-cell total">
+        <span className="label">Σ</span><span className="val">{stats.total}</span>
+      </span>
+      <span className="matrix-blink">▮</span>
+    </div>
+  );
+}
+
 function StatusSection({ status, activity24h, onProcessClick }) {
   const [bwExpanded, setBwExpanded] = React.useState(false);
   const [bwFeed, setBwFeed] = React.useState(null);
@@ -3314,6 +3515,7 @@ function StatusSection({ status, activity24h, onProcessClick }) {
       <div className="section-title" style={{display:'flex', alignItems:'center', gap:10}}>
         Статус процессов
         <RestartAllButton />
+        <AgentMatrixStatus />
         {act._ai_calls_24h?.count > 0 && (
           <span style={{
             marginLeft:'auto', fontSize:11, color:'var(--muted)', fontWeight:500,
