@@ -2264,8 +2264,7 @@ function OrdersSection({ orders }) {
   );
 }
 
-function RecentSentMessagesSection({ data }) {
-  const items = data?.items || [];
+function RecentSentMessageCard({ message: m, index }) {
   const fmtTime = (ts) => {
     if (!ts) return '';
     try {
@@ -2277,6 +2276,81 @@ function RecentSentMessagesSection({ data }) {
       });
     } catch { return String(ts).slice(0, 16).replace('T', ' '); }
   };
+  const username = (m.username || '').replace(/^@/, '');
+  const client = username
+    ? <a href={`https://t.me/${username}`} target="_blank" rel="noopener"
+         style={{color:'var(--blue)',textDecoration:'none'}}>{m.client || '@' + username}</a>
+    : (m.client || '—');
+  const [badgeCls, badgeText] = orderBadge(m.status_label || m.source || 'sent');
+  const hasDetails = !!(m.text || m.event_type || m.source);
+  const cardRef = React.useRef(null);
+  const [tipSide, setTipSide] = React.useState('right');
+  React.useLayoutEffect(() => {
+    if (!hasDetails) return;
+    const card = cardRef.current;
+    if (!card) return;
+    const compute = () => {
+      const r = card.getBoundingClientRect();
+      const TIP_W = 440, GAP = 8, MARGIN = 8;
+      if (window.innerWidth <= 900) { setTipSide('bottom'); return; }
+      if (window.innerWidth - r.right >= TIP_W + GAP + MARGIN) setTipSide('right');
+      else if (r.left >= TIP_W + GAP + MARGIN) setTipSide('left');
+      else setTipSide('bottom');
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    return () => window.removeEventListener('resize', compute);
+  }, [hasDetails]);
+
+  return (
+    <div
+      ref={cardRef}
+      className={`order-card order-card-hoverable order-tip-side-${tipSide}`}
+      key={`${m.ts || index}-${m.client || ''}-${index}`}
+    >
+      <div className="order-info">
+        <div className="order-client">{client}</div>
+        <div className="order-meta">
+          {fmtTime(m.ts)}
+          {m.channel && <span style={{marginLeft:8}}>{m.channel}</span>}
+          {m.event_date && <span style={{marginLeft:8}}>📅 {m.event_date}</span>}
+          {m.city && <span style={{marginLeft:8}}>📍 {m.city}</span>}
+        </div>
+        <div
+          className="order-desc-preview"
+          title={m.text || ''}
+          style={{whiteSpace:'normal', lineHeight:1.35, maxHeight:46}}
+        >
+          💬 {m.text || '(текст не найден)'}
+        </div>
+      </div>
+      <span className={`badge ${badgeCls}`}>{badgeText || 'sent'}</span>
+      {hasDetails && (
+        <div className="order-tip">
+          <div className="order-tip-label">Отправленное сообщение</div>
+          <div className="order-tip-body">{m.text || '(текст не найден)'}</div>
+          <div style={{marginTop:8, fontSize:10, color:'#94a3b8'}}>
+            {fmtTime(m.ts)}
+            {m.channel && ` · ${m.channel}`}
+            {m.status_label && ` · ${m.status_label}`}
+            {m.source && ` · ${m.source}`}
+          </div>
+          {(m.event_type || m.event_date || m.city || username) && (
+            <div style={{marginTop:6, fontSize:10, color:'#94a3b8'}}>
+              {username && `@${username}`}
+              {m.event_type && ` · ${m.event_type}`}
+              {m.event_date && ` · ${m.event_date}`}
+              {m.city && ` · ${m.city}`}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RecentSentMessagesSection({ data }) {
+  const items = data?.items || [];
   return (
     <div id="recent-sent-section" className="section" style={{ marginTop: 14 }}>
       <div className="section-title" style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap'}}>
@@ -2287,35 +2361,7 @@ function RecentSentMessagesSection({ data }) {
         <div className="empty">За последние 48 часов отправленных сообщений не найдено.</div>
       ) : (
         <div className="orders-list">
-          {items.map((m, i) => {
-            const username = (m.username || '').replace(/^@/, '');
-            const client = username
-              ? <a href={`https://t.me/${username}`} target="_blank" rel="noopener"
-                   style={{color:'var(--blue)',textDecoration:'none'}}>{m.client || '@' + username}</a>
-              : (m.client || '—');
-            const [badgeCls, badgeText] = orderBadge(m.status_label || m.source || 'sent');
-            return (
-              <div className="order-card" key={`${m.ts || i}-${m.client || ''}-${i}`}>
-                <div className="order-info">
-                  <div className="order-client">{client}</div>
-                  <div className="order-meta">
-                    {fmtTime(m.ts)}
-                    {m.channel && <span style={{marginLeft:8}}>{m.channel}</span>}
-                    {m.event_date && <span style={{marginLeft:8}}>📅 {m.event_date}</span>}
-                    {m.city && <span style={{marginLeft:8}}>📍 {m.city}</span>}
-                  </div>
-                  <div
-                    className="order-desc-preview"
-                    title={m.text || ''}
-                    style={{whiteSpace:'normal', lineHeight:1.35, maxHeight:46}}
-                  >
-                    💬 {m.text || '(текст не найден)'}
-                  </div>
-                </div>
-                <span className={`badge ${badgeCls}`}>{badgeText || 'sent'}</span>
-              </div>
-            );
-          })}
+          {items.map((m, i) => <RecentSentMessageCard key={`${m.ts || i}-${m.client || ''}-${i}`} message={m} index={i} />)}
         </div>
       )}
     </div>
