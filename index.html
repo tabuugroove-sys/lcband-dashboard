@@ -350,6 +350,10 @@
       border-radius: 10px; padding: 10px 14px;
       display: flex; align-items: center; gap: 10px;
     }
+    .process-tip-row > .order-tip {
+      top: calc(100% + 6px); right: 12px; left: auto;
+      width: 520px; max-width: calc(100vw - 80px);
+    }
     .dot {
       width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
     }
@@ -3566,6 +3570,68 @@ function StatusSection({ status, activity24h, onProcessClick }) {
     }
   }
 
+  const processState = (s) => {
+    const a = act[s.key] || {};
+    const val = String(s.val || '').toLowerCase();
+    const running = (s.key === 'proc_browser_walk' && a.status === 'running')
+      || val.includes('running')
+      || a.status === 'running';
+    const failed = val.includes('не работает')
+      || val.includes('error')
+      || val.includes('missing')
+      || val.includes('stale')
+      || val.includes('fail')
+      || val.includes('exit=1')
+      || val.includes('exit 1');
+    if (failed) return 'fail';
+    if (running) return 'run';
+    return 'wait';
+  };
+
+  const processRank = { fail: 0, run: 1, wait: 2 };
+  rows = rows
+    .map((row, idx) => ({ ...row, _origIndex: idx }))
+    .sort((a, b) => {
+      const ra = processRank[processState(a)] ?? 9;
+      const rb = processRank[processState(b)] ?? 9;
+      if (ra !== rb) return ra - rb;
+      return a._origIndex - b._origIndex;
+    });
+
+  const processHover = (s) => {
+    const a = act[s.key] || {};
+    const state = processState(s);
+    const info = PROCESS_RULES[s.key] || {};
+    const reason = [s.reason, a.error, a.reason].filter(Boolean).join(' · ');
+    const val = String(s.val || '').trim();
+    const nextRun = a.next_run_sec > 0 ? _fmtCountdown(a.next_run_sec) : '';
+    let why = '';
+    let normal = '';
+    if (state === 'fail') {
+      why = reason || val || 'State/log просрочен или прошлый запуск завершился ошибкой.';
+      normal = 'Нет. Это надо чинить или дождаться ближайшего tick только если причина явно transient/network.';
+    } else if (state === 'run') {
+      why = s.key === 'proc_browser_walk' && a.progress
+        ? `Сейчас выполняется: ${a.progress.scanned || 0}/${a.progress.total || 0}${a.progress.current ? ` · ${a.progress.current}` : ''}.`
+        : 'Процесс активен прямо сейчас.';
+      normal = 'Да, это нормальный running-state. Если рядом виден -15 у launchd, для running daemon это обычно прошлый SIGTERM после рестарта, не текущая ошибка.';
+    } else {
+      why = nextRun
+        ? `Ждёт следующий запуск launchd примерно через ${nextRun}.`
+        : 'Ждёт входящее событие, расписание или следующий idle-tick.';
+      normal = val.startsWith('ok')
+        ? 'Да. Для scheduled/KeepAlive процессов waiting/ok между запусками нормален.'
+        : 'Проверь, если ожидание длится дольше SLA или рядом есть stale/error.';
+    }
+    return {
+      state,
+      why,
+      normal,
+      impact: info.desc || 'Описание процесса не задано в PROCESS_RULES.',
+      interval: info.interval || '',
+    };
+  };
+
   return (
     <div className="section" style={{ marginTop: 14 }}>
       <div className="section-title" style={{display:'flex', alignItems:'center', gap:10}}>
@@ -3582,6 +3648,7 @@ function StatusSection({ status, activity24h, onProcessClick }) {
         {rows.map(s => {
           const hasRules = !!PROCESS_RULES[s.key];
           const a = act[s.key];
+          const hover = processHover(s);
           const is_bw = s.key === 'proc_browser_walk';
           const count_label = a && typeof a.count === 'number' && a.unit
             ? `${a.count} ${a.unit}${a.extra ? ' · ' + a.extra : ''}`
@@ -3592,7 +3659,7 @@ function StatusSection({ status, activity24h, onProcessClick }) {
           const effectiveVal = bwRunning ? 'running' : s.val;
           const effectiveDot = bwRunning ? 'warn' : dotClass(s.val);
           return (
-            <div key={s.key} className="status-row"
+            <div key={s.key} className="status-row order-card-hoverable process-tip-row"
               style={{flexWrap:'wrap', cursor: hasRules ? 'pointer' : 'default'}}
               onClick={() => hasRules && !is_bw && onProcessClick(s.key)}>
               <span className={`dot ${effectiveDot}`}
@@ -3718,6 +3785,17 @@ function StatusSection({ status, activity24h, onProcessClick }) {
               {s.action && (
                 <div style={{width:'100%',paddingLeft:20,marginTop:1,fontSize:11,color:'var(--blue)'}}>{s.action}</div>
               )}
+              <div className="order-tip">
+                <div className="order-tip-label">
+                  {hover.state === 'fail' ? 'Fail' : hover.state === 'run' ? 'Run' : 'Wait / ok'}
+                </div>
+                <div className="order-tip-body">
+                  <b>Почему сейчас так:</b> {hover.why}
+                  {'\n\n'}<b>На что влияет:</b> {hover.impact}
+                  {hover.interval && <>{'\n'}<b>Нормальный ритм:</b> {hover.interval}</>}
+                  {'\n\n'}<b>Нормально ли это:</b> {hover.normal}
+                </div>
+              </div>
               {/* 🔴 22.04: Morning Reconcile — inline top-5 пропущенных */}
               {s.key === 'proc_morning_reconcile' && Array.isArray(a?.missed_orders) && a.missed_orders.length > 0 && (
                 <div style={{width:'100%',paddingLeft:20,marginTop:6,fontSize:11}}>
