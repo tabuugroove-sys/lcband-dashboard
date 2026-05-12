@@ -78,8 +78,19 @@
       padding: 14px 16px env(safe-area-inset-top, 0);
       position: sticky; top: 0; z-index: 100;
     }
-    .header-row { display: flex; justify-content: space-between; align-items: center; }
-    .header-brand { display: flex; align-items: center; gap: 8px; }
+    .header-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .header-brand { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+    .header-nav {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-left: auto;
+      min-width: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding-bottom: 2px;
+    }
+    .header-nav::-webkit-scrollbar { display: none; }
     .header-note { font-size: 20px; }
     .header-title { font-size: 18px; font-weight: 700; color: var(--gold); letter-spacing: 0.3px; }
     .header-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
@@ -94,6 +105,34 @@
     .refresh-btn:disabled { opacity: .4; cursor: default; }
     .spin { display: inline-block; animation: spin .7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .theme-header-btn {
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+    .theme-header-btn:hover { filter: brightness(1.08); }
+    html[data-theme="light"] .header {
+      background: #ffffff;
+      border-bottom-color: #e5e5e7;
+      box-shadow: 0 8px 22px rgba(0,0,0,.04);
+    }
+    html[data-theme="light"] .header-title { color: var(--gold); }
+    html[data-theme="light"] .theme-header-btn {
+      background: #f6f8fa !important;
+      color: #1a1a1a !important;
+      border-color: #d0d7de !important;
+    }
+    /* На главной переключатель живёт в header, нижнюю floating-кнопку прячем. */
+    .lcb-theme-toggle { display: none !important; }
 
     /* ── Sections ── */
     .section { padding: 14px 14px 0; }
@@ -585,7 +624,6 @@
   </style>
   <link rel="stylesheet" href="_theme.css">
   <script src="_theme.js"></script>
-  <script src="_nav.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -1238,6 +1276,28 @@ function ActionButtons() {
         ❓ Команды
       </a>
     </div>
+  );
+}
+
+function ThemeHeaderButton() {
+  const current = () => document.documentElement.getAttribute('data-theme') || 'light';
+  const [theme, setTheme] = useState(current);
+  const toggle = () => {
+    const next = current() === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('lcb_theme', next); } catch {}
+    setTheme(next);
+  };
+  return (
+    <button
+      type="button"
+      className="theme-header-btn"
+      onClick={toggle}
+      title="Переключить тему"
+    >
+      <span>{theme === 'light' ? '🌙' : '☀️'}</span>
+      <span>{theme === 'light' ? 'Тёмная' : 'Светлая'}</span>
+    </button>
   );
 }
 
@@ -5295,7 +5355,7 @@ function App() {
               <UnreadBadge />
             </div>
           </div>
-          <nav style={{display:'flex', gap:8, alignItems:'center', marginLeft:'auto', flexWrap:'wrap'}}>
+          <nav className="header-nav">
             <a href="./events.html"
                style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
                        background:'rgba(63,185,80,0.15)', color:'#3fb950', border:'1px solid rgba(63,185,80,0.35)',
@@ -5338,6 +5398,14 @@ function App() {
                title="Contact Roles — классификация всех TG-контактов по ролям">
               <span>🎭</span><span>Contacts</span>
             </a>
+            <a href="./cost.html"
+               style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
+                       background:'rgba(255,159,10,0.15)', color:'#ff9f0a', border:'1px solid rgba(255,159,10,0.35)',
+                       display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
+               title="Расход AI и лимитов">
+              <span>💸</span><span>Расход</span>
+            </a>
+            <ThemeHeaderButton />
             <button
               className="refresh-btn"
               onClick={() => load(true)}
