@@ -3475,7 +3475,7 @@ function AgentMatrixStatus() {
   );
 }
 
-function StatusSection({ status, activity24h, onProcessClick }) {
+function StatusSection({ status, activity24h, sent24h, onProcessClick }) {
   const [bwExpanded, setBwExpanded] = React.useState(false);
   const [bwFeed, setBwFeed] = React.useState(null);
   // 🔴 23.04: универсальный expand для любого процесса (не только Browser Walk).
@@ -3534,6 +3534,11 @@ function StatusSection({ status, activity24h, onProcessClick }) {
 
   if (!status.length) return null;
   const act = activity24h || {};
+  const aiCalls24h = Number(act._ai_calls_24h?.count || 0);
+  const sentMessages24h = Number(sent24h?.total || 0);
+  const sentConversion24h = aiCalls24h > 0
+    ? Math.round((sentMessages24h / aiCalls24h) * 1000) / 10
+    : 0;
 
   // Browser Walk row — предпочитаем row из Google Sheet (sync_dashboard_data.py),
   // потому что он уже стоит в правильной позиции (после TG Monitor).
@@ -3638,10 +3643,17 @@ function StatusSection({ status, activity24h, onProcessClick }) {
         Статус процессов
         <RestartAllButton />
         <AgentMatrixStatus />
-        {act._ai_calls_24h?.count > 0 && (
+        {aiCalls24h > 0 && (
           <span style={{
             marginLeft:'auto', fontSize:11, color:'var(--muted)', fontWeight:500,
-          }}>🤖 {act._ai_calls_24h.count} AI-вызовов / 24ч</span>
+            display:'inline-flex', flexDirection:'column', alignItems:'flex-end', gap:2,
+            lineHeight:1.25,
+          }}>
+            <span>🤖 {aiCalls24h} AI-вызовов / 24ч</span>
+            <span title="Конверсия = реально отправленные сообщения за 24ч / AI-вызовы за 24ч">
+              📩 {sentMessages24h} сообщений · {sentConversion24h}% sent/AI
+            </span>
+          </span>
         )}
       </div>
       <div className="status-list">
@@ -5737,6 +5749,7 @@ function App() {
   const [activity24h, setActivity24h] = useState(null);
   const [dmDirectFunnel, setDmDirectFunnel] = useState(null);
   const [recentSent, setRecentSent] = useState(null);
+  const [recentSent24h, setRecentSent24h] = useState(null);
   const [todos,     setTodos]     = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [refreshing,setRefreshing]= useState(false);
@@ -5829,6 +5842,14 @@ function App() {
         setRecentSent(await r.json());
       }
     } catch { /* backend offline → block shows empty state */ }
+
+    try {
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      const r = await fetch(`${bu}/api/recent_sent_messages?hours=24&limit=1`, { cache: 'no-store' });
+      if (r.ok) {
+        setRecentSent24h(await r.json());
+      }
+    } catch { /* backend offline → sent/AI conversion stays zero */ }
 
     // ── Process activity over last 24h (counts per process + Browser Walk) ──
     try {
@@ -6075,7 +6096,12 @@ function App() {
 
           {activeTab === 'overview' && (
             <>
-              <StatusSection status={data.status} activity24h={activity24h} onProcessClick={setShowProcess} />
+              <StatusSection
+                status={data.status}
+                activity24h={activity24h}
+                sent24h={recentSent24h}
+                onProcessClick={setShowProcess}
+              />
               <ActionButtons />
               <KPISection kpi={data.kpi} setActiveTab={setActiveTab}
                           browserWalk={data.browserWalk || {leads:0, refusals:0, chats:0, ranAt:'', hours:48, items:[]}} />
