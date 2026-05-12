@@ -103,6 +103,92 @@
   .mindmap-card .diagram-note { color: var(--muted); font-size: 12px; margin: 0 0 16px; max-width: 800px; }
   .mindmap-card .mermaid { display: flex; justify-content: center; }
   .mindmap-card .mermaid svg { background: transparent; max-width: 100%; height: auto; overflow: visible; }
+  .coverage-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+    margin: 12px 0 14px;
+  }
+  .coverage-pill {
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    border-radius: 8px;
+    padding: 9px 10px;
+  }
+  .coverage-pill .label {
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .45px;
+  }
+  .coverage-pill .value {
+    margin-top: 3px;
+    font-size: 20px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .coverage-pill.good .value { color: var(--green); }
+  .coverage-pill.warn .value { color: var(--orange); }
+  .coverage-pill.bad .value { color: var(--red); }
+  .launch-agent-table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: auto;
+    max-height: 560px;
+  }
+  .launch-agent-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 980px;
+    font-size: 12px;
+  }
+  .launch-agent-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--panel);
+    color: var(--muted);
+    text-align: left;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .45px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .launch-agent-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .launch-agent-table tr:last-child td { border-bottom: 0; }
+  .launch-agent-table tr:hover { background: rgba(88,166,255,0.06); }
+  .agent-num { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
+  .agent-label { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; color: var(--text); }
+  .agent-sub { color: var(--muted); font-size: 10px; margin-top: 2px; }
+  .agent-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    font-weight: 700;
+    font-size: 11px;
+  }
+  .agent-status::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    box-shadow: 0 0 6px currentColor;
+  }
+  .agent-status.running { color: var(--green); }
+  .agent-status.waiting { color: var(--orange); }
+  .agent-status.plist_only,
+  .agent-status.missing { color: var(--red); }
+  .agent-status.restart_excluded { color: var(--blue); }
+  .agent-coverage-missing { color: var(--red); font-weight: 700; }
+  .agent-coverage-ok { color: var(--green); font-weight: 700; }
+  .agent-coverage-note { color: var(--muted); font-size: 10px; margin-top: 2px; }
   /* Usage badge — Binance-style notification pill on AI nodes */
   .usage-label rect { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4)); }
   .usage-label text { font-family: -apple-system, system-ui, sans-serif; }
@@ -695,6 +781,34 @@
   <!-- ────────── END COST WIDGET ────────── -->
 
   <div class="diagrams-col">
+  <section class="mindmap-card" id="launch-agents-coverage">
+    <h2>0. LaunchAgents coverage — все агенты live</h2>
+    <p class="diagram-note">Живой список берётся из <code>launchctl</code> через backend. Если появился новый <code>com.lcband.*</code> и он не описан в архитектуре, строка станет красной — так визуализация не будет врать после изменений.</p>
+    <div id="launch-agents-summary" class="coverage-summary">
+      <div class="coverage-pill"><div class="label">launchctl</div><div class="value">—</div></div>
+      <div class="coverage-pill"><div class="label">описано</div><div class="value">—</div></div>
+      <div class="coverage-pill"><div class="label">не описано</div><div class="value">—</div></div>
+      <div class="coverage-pill"><div class="label">запущено сейчас</div><div class="value">—</div></div>
+    </div>
+    <div class="launch-agent-table-wrap">
+      <table class="launch-agent-table">
+        <thead>
+          <tr>
+            <th style="width:42px">#</th>
+            <th>LaunchAgent</th>
+            <th>Блок архитектуры</th>
+            <th>Что делает</th>
+            <th>Live</th>
+            <th>Файл / script</th>
+          </tr>
+        </thead>
+        <tbody id="launch-agents-body">
+          <tr><td colspan="6" class="loading">загрузка launch agents…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="mindmap-card">
     <h2>1. Inbound classification — пост из чата → лид в DB</h2>
     <p class="diagram-note">Главный поток: monitor / walk читают event-чаты → pre-filter → batch AI → orders.db → пит­ч.</p>
@@ -927,6 +1041,60 @@ flowchart LR
   </section>
 
   <section class="mindmap-card">
+    <h2>5b. WhatsApp safe pipeline — Computer Use вместо Playwright</h2>
+    <p class="diagram-note">12.05.2026: Playwright/WA Web заблокирован (риск global sweep ban'а ~25-40%/год). Inbound через computer-use на native WhatsApp Desktop. Outbound — через очередь wa_cu_agent + Computer Use с явным approval. Daily backup защищает данные.</p>
+    <div class="mermaid">
+flowchart TD
+  classDef chan fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
+  classDef agent fill:#2d2a4a,stroke:#bc8cff,color:#e6edf3
+  classDef pre fill:#2a3a2a,stroke:#3fb950,color:#e6edf3
+  classDef ai fill:#3d2f1a,stroke:#f0883e,color:#e6edf3
+  classDef store fill:#2a2a2a,stroke:#8b949e,color:#e6edf3
+  classDef out fill:#3a1f3a,stroke:#bc8cff,color:#e6edf3
+  classDef alert fill:#3a1f1f,stroke:#f85149,color:#e6edf3
+  classDef legacy fill:#1a1a1a,stroke:#666,color:#666
+
+  WA["💬 WhatsApp Desktop<br/>native macOS app<br/>net.whatsapp.WhatsApp"]:::chan
+
+  LEGACY["wa-export Playwright/WA Web<br/>🚫 DISABLED 12.05.2026<br/>(ban risk 25-40%/год)"]:::legacy
+  WA -.x.- LEGACY
+
+  USER["🧑 «/wa-sync»<br/>(ручная команда оператора)"]:::chan
+  USER --> CLAUDE["Claude через mcp__computer-use__*<br/>• request_access (WhatsApp)<br/>• open_application<br/>• screenshot sidebar<br/>• [vision: найти unread badges]<br/>• click chat → screenshot → читать сообщения"]:::agent
+
+  WA --> CLAUDE
+
+  CLAUDE --> READER["wa_reader_cu.upsert_chat<br/>(dedupe по _key, append-only)"]:::pre
+  READER --> CACHE[("wa_cache/{slug}.jsonl<br/>совместим с wa_export_all формат")]:::store
+
+  CACHE --> WARESP["wa-responder — every 30min<br/>only in 09-22 SP window"]:::agent
+
+  WARESP --> GATES["Hard gates ДО AI:<br/>• last msg outbound → skip<br/>• payment_hard_regex → silent skip + alert<br/>• already_queued → skip<br/>• daily_cap 15 reached → skip"]:::pre
+
+  GATES --> DRAFT["Opus draft — WA-style system<br/>(короче TG, без markdown, утверждающий тон)<br/>verdicts: SKIP_BROKER / SKIP_NOT_CLIENT / текст"]:::ai
+  DRAFT --> PRESEND{"ai_review_before_send<br/>channel=WA<br/>verdict=ok?"}:::ai
+  PRESEND -->|"skip / adapt"| DROP[("draft dropped<br/>state.last_fp updated")]:::store
+  PRESEND -->|"ok"| QUEUE[("wa_computer_use_queue.json")]:::store
+
+  QUEUE --> SHOWUI["wa_cu_agent.py list / show<br/>оператор видит draft + recipient"]:::agent
+  SHOWUI --> APPROVE{"оператор approve?"}:::ai
+  APPROVE -->|"no"| CANCEL["wa_cu_agent.py mark-cancelled"]:::agent
+  APPROVE -->|"yes"| CUSEND["Claude через computer-use<br/>• open WhatsApp Desktop<br/>• search recipient (phone)<br/>• type человеко-подобно (50-150ms/char)<br/>• Send"]:::agent
+  CUSEND --> MARKSENT["wa_cu_agent.py mark-sent"]:::agent
+  MARKSENT --> SENT[("sent_proposals.json")]:::store
+  MARKSENT --> ACT2[("session_actions.jsonl")]:::store
+
+  GATES -.payment hard signal.-> URGENT["🚨 lcb_urgent alert<br/>(TODO: hook)"]:::alert
+
+  BACKUP["wa-backup — 04:10 SP daily<br/>snapshot всего что важно"]:::agent
+  CACHE --> BACKUP
+  ORDERS2[("orders.db")]:::store --> BACKUP
+  SENT --> BACKUP
+  BACKUP --> BACKUPDIR[("conversation_cache_backup/{YYYYMMDD-HHMMSS}/<br/>защита если номер уйдёт")]:::store
+    </div>
+  </section>
+
+  <section class="mindmap-card">
     <h2>8. Interactive Claude Code sessions — что не покрывает ai_usage.json</h2>
     <p class="diagram-note">session_usage_tracker.py сканит локальные транскрипты (~/.claude/projects/*.jsonl), оценивает токены через native message.usage (точно) с фолбэком на размер × pricing. Кэш 60с. Дополняет programmatic-вызовы из claude_cli.</p>
     <div class="mermaid">
@@ -1051,7 +1219,8 @@ sequenceDiagram
   // Theme — persist choice; apply on load before Mermaid initialises so
   // diagrams render with matching colors from the start.
   const SAVED_THEME = (() => {
-    try { return localStorage.getItem('lcb_arch_theme') || 'dark'; } catch { return 'dark'; }
+    try { return localStorage.getItem('lcb_theme') || document.documentElement.getAttribute('data-theme') || 'light'; }
+    catch { return document.documentElement.getAttribute('data-theme') || 'light'; }
   })();
   document.documentElement.setAttribute('data-theme', SAVED_THEME);
 
@@ -1095,7 +1264,7 @@ sequenceDiagram
     const cur = document.documentElement.getAttribute('data-theme') || 'dark';
     const next = cur === 'light' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', next);
-    try { localStorage.setItem('lcb_arch_theme', next); } catch {}
+    try { localStorage.setItem('lcb_theme', next); } catch {}
     updateThemeToggleLabel();
     // Re-render Mermaid diagrams with new theme by reloading. Easiest reliable
     // way — partial re-render of mermaid.run() needs raw source preserved which
@@ -1107,6 +1276,57 @@ sequenceDiagram
     if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
     if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
     return String(n);
+  };
+  const escHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+
+  const ARCH_AGENT_CATALOG = {
+    'com.lcband.agent-watchdog': { block: '4. Reconciliation & watchdog', node: 'WATCHDOG', what: 'Следит за launchd-агентами, перезапускает упавшие, шлёт alert.' },
+    'com.lcband.attention-auto-action': { block: '2/3. DM + AI review', node: 'AAA', what: 'Авто-действия по важным входящим сообщениям: urgent, musician review, presend gate.' },
+    'com.lcband.attention-classify-cache': { block: '2. DM responder', what: 'Поддерживает кэш классификации внимания/важности входящих переписок.' },
+    'com.lcband.auto-browser-walk': { block: '1. Inbound classification', node: 'WALK', what: 'Независимый browser/Telethon walk, чтобы ловить пропущенные TG лиды.' },
+    'com.lcband.bot-commander': { block: '2. Approval bot', node: 'BOT', what: 'Telegram approval/control bot: send/reject drafts, restart/check команды.' },
+    'com.lcband.broker-client-promo-agent': { block: 'Broker pipeline', what: 'Собирает промо подрядчиков, чистит прямые контакты, готовит approval для клиента.' },
+    'com.lcband.broker-quality-scorer': { block: 'Broker pipeline', what: 'Оценивает отклики подрядчиков по качеству и пригодности под запрос клиента.' },
+    'com.lcband.claude-usage-probe': { block: '5/8. Usage monitoring', what: 'Снимает snapshot лимитов Claude/CLI для cost/architecture страниц.' },
+    'com.lcband.conv-cache-sync': { block: '2. DM responder', what: 'Синхронизирует кэш TG переписок для контекста responder/review.' },
+    'com.lcband.daily-reconcile-walk': { block: '4. Reconciliation & watchdog', what: 'Суточная сверка walk/monitor/orders, ловит пропущенные заявки.' },
+    'com.lcband.daily-report': { block: '4. Reconciliation & watchdog', node: 'REPORT', what: 'Два раза в день отправляет TG-отчёт по лидам, follow-up, ошибкам и сервисам.' },
+    'com.lcband.dashboard-backend': { block: '5. Dashboard backend', node: 'BACKEND', what: 'Flask API для дашборда, архитектуры, чатов, restart/check endpoints.' },
+    'com.lcband.dashboard-sync': { block: '5. Dashboard backend', what: 'Агрегирует orders/session/actions/state в dashboard_data для главной страницы.' },
+    'com.lcband.drum-director-followup': { block: 'Follow-up / Drum show', what: 'Отдельные follow-up по drum/noize направлениям и их контексту.' },
+    'com.lcband.escalation-reminder': { block: 'Urgent / reminders', what: 'Напоминает о зависших срочных ветках, где промедление может потерять заказ.' },
+    'com.lcband.find-inbound-leads': { block: '1. Inbound classification', what: 'Ищет входящие лиды в кэше/экспортах и поднимает их в pipeline.' },
+    'com.lcband.funnel-autoheal': { block: '4. Reconciliation & watchdog', node: 'AUTOHEAL', what: 'Автолечение воронки: stale → follow-up, refusal → отмена, paid/past → концерт.' },
+    'com.lcband.funnel-folder-sync': { block: 'Funnel / Telegram folders', what: 'Синхронизирует папки TG с этапами воронки, чтобы не было мусора в Интерес/Переговоры.' },
+    'com.lcband.funnel-maintenance': { block: 'Funnel / maintenance', what: 'Плановые follow-up, переносы стадий, архив/отмена по правилам воронки.' },
+    'com.lcband.ig-conv-cache-sync': { block: 'IG pipeline', what: 'Синхронизирует Instagram conversation cache.' },
+    'com.lcband.ig-followup': { block: 'IG pipeline', what: 'Follow-up по Instagram лидам.' },
+    'com.lcband.ig-story-responder': { block: 'IG pipeline', what: 'Ответы/обработка входящих Instagram stories/messages.' },
+    'com.lcband.mariakon-dance-collect': { block: 'Special collectors', what: 'Собирает/ведёт отдельный танцевальный кейс Mariakon.' },
+    'com.lcband.monitor-walk-reconcile': { block: '4. Reconciliation & watchdog', node: 'WALK_REC', what: 'Часовая сверка monitor vs browser-walk vs orders.db.' },
+    'com.lcband.morning-reconciliation': { block: '4. Reconciliation & watchdog', node: 'MORNING', what: 'Утренняя глубокая сверка за 24ч: что monitor пропустил, а walk нашёл.' },
+    'com.lcband.payment-event-handler': { block: 'Events / payments', what: 'Реагирует на оплату/предоплату, создаёт или обновляет event-заказы.' },
+    'com.lcband.sheets-to-db-sync': { block: 'Storage / sync', what: 'Синхронизирует Google Sheets backup → orders.db, где это нужно.' },
+    'com.lcband.tg-contact-classifier': { block: 'TG hygiene / folders', what: 'Классифицирует TG контакты: организатор/подрядчик/музыкант/мусор.' },
+    'com.lcband.tg-followup': { block: 'Follow-up', node: 'FOLLOWUP', what: 'Плановые TG follow-up пинги по лидам.' },
+    'com.lcband.tg-full-export': { block: 'TG export / cache', what: 'Полный/инкрементальный экспорт TG диалогов в локальный кэш.' },
+    'com.lcband.tg-health-check': { block: 'Health checks', what: 'Проверяет состояние TG session/auth/floodwait и пишет health JSON.' },
+    'com.lcband.tg-monitor': { block: '1. Inbound classification', node: 'MON', what: 'Сканирует TG event-чаты, классифицирует посты, создаёт лиды.' },
+    'com.lcband.tg-responder': { block: '2. Outbound DM responder', node: 'TGRESP', what: 'Читает TG DM, генерит ответ, пропускает через presend review.' },
+    'com.lcband.tg-spambot-check': { block: '4. Reconciliation & watchdog', node: 'SPAMBOT', what: 'Проверяет @SpamBot/ограничения Telegram аккаунта.' },
+    'com.lcband.todo-reminder': { block: 'TODO / reminders', what: 'Напоминает про TODO и ручные задачи, которые нельзя потерять.' },
+    'com.lcband.tunnel-watcher': { block: '5. Dashboard backend', node: 'TUNNEL', what: 'Следит за Cloudflare tunnel, перезапускает и обновляет backend_url.json.' },
+    'com.lcband.vk-auto-pitch': { block: 'VK pipeline', what: 'Авто-питчи VK по валидным заявкам.' },
+    'com.lcband.vk-followup': { block: 'VK pipeline', what: 'Follow-up по VK лидам.' },
+    'com.lcband.vk-health-check': { block: 'VK pipeline', what: 'Проверяет VK токены/API health.' },
+    'com.lcband.vk-longpoll-listener': { block: 'VK pipeline', what: 'Longpoll listener для входящих VK событий/сообщений.' },
+    'com.lcband.vk-monitor': { block: '1. Inbound classification', node: 'VKMON', what: 'Сканирует VK группы, классифицирует заявки, создаёт лиды.' },
+    'com.lcband.vk-responder': { block: '2. Outbound DM responder', node: 'VKRESP', what: 'Ответы на входящие VK DM по контексту лида.' },
+    'com.lcband.wa-export': { block: 'WA secure pipeline', what: '🔴 LEGACY: Playwright WA Web экспорт. ОТКЛЮЧЁН с 12.05.2026 — заменён на /wa-sync через computer-use + WhatsApp Desktop.' },
+    'com.lcband.wa-responder': { block: 'WA secure pipeline', node: 'WARESP', what: 'Каждые 30 мин в окне 09-22 SP читает wa_cache/*.jsonl, через Opus генерит WA-стиль draft (короче TG), пропускает через presend_review (channel=WA), кладёт в wa_computer_use_queue.json. Никаких авто-send.' },
+    'com.lcband.wa-backup': { block: 'WA secure pipeline', node: 'WABACKUP', what: 'Ежедневно в 04:10 SP снимает snapshot wa_cache/, conversation_cache/, orders.db, sent_proposals.json в conversation_cache_backup/{ts}/. Защита данных если номер уйдёт.' },
   };
 
   async function getBackendUrl() {
@@ -1130,6 +1350,119 @@ sequenceDiagram
       } catch (_) {}
     }
     return candidates[candidates.length - 1];
+  }
+
+  function _shortFilePath(path) {
+    if (!path) return '—';
+    return String(path)
+      .replace('/Users/a1111/lcband/', './')
+      .replace('/Users/a1111/Library/LaunchAgents/', '~/Library/LaunchAgents/');
+  }
+
+  function _agentStatusText(agent) {
+    if (agent.restart_excluded) return 'исключён из restart-all';
+    if (agent.state === 'running') return `работает${agent.pid ? ' · pid ' + agent.pid : ''}`;
+    if (agent.state === 'waiting') return `ждёт${agent.status_raw != null ? ' · status ' + agent.status_raw : ''}`;
+    if (agent.state === 'plist_only') return 'plist есть, не загружен';
+    return 'нет в launchctl';
+  }
+
+  async function loadLaunchAgentsCoverage() {
+    const summaryEl = document.getElementById('launch-agents-summary');
+    const bodyEl = document.getElementById('launch-agents-body');
+    if (!summaryEl || !bodyEl) return;
+
+    const base = await getBackendUrl();
+    let data;
+    try {
+      const r = await fetch(`${base}/api/launch_agents`, { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      data = await r.json();
+    } catch (e) {
+      bodyEl.innerHTML = `<tr><td colspan="6"><div class="error">Backend offline или /api/launch_agents не отвечает: ${escHtml(e.message || e)}</div></td></tr>`;
+      return;
+    }
+
+    const items = (data.items || []).slice().sort((a, b) => a.label.localeCompare(b.label));
+    const liveLabels = new Set(items.map(a => a.label));
+    const describedLive = items.filter(a => ARCH_AGENT_CATALOG[a.label]).length;
+    const missingLive = items.length - describedLive;
+    const catalogOnly = Object.keys(ARCH_AGENT_CATALOG).filter(label => !liveLabels.has(label)).sort();
+    const coveredOk = missingLive === 0 && catalogOnly.length === 0;
+
+    summaryEl.innerHTML = `
+      <div class="coverage-pill"><div class="label">launchctl/plist</div><div class="value">${fmtN(items.length)}</div></div>
+      <div class="coverage-pill ${coveredOk ? 'good' : 'warn'}"><div class="label">описано live</div><div class="value">${fmtN(describedLive)}</div></div>
+      <div class="coverage-pill ${missingLive ? 'bad' : 'good'}"><div class="label">не описано</div><div class="value">${fmtN(missingLive)}</div></div>
+      <div class="coverage-pill"><div class="label">запущено сейчас</div><div class="value">${fmtN(data.running || 0)}</div></div>
+      <div class="coverage-pill ${catalogOnly.length ? 'warn' : 'good'}"><div class="label">лишнее в карте</div><div class="value">${fmtN(catalogOnly.length)}</div></div>
+    `;
+
+    const liveRows = items.map((a, idx) => {
+      const meta = ARCH_AGENT_CATALOG[a.label];
+      const statusClass = a.restart_excluded ? 'restart_excluded' : (a.state || 'missing');
+      const coverage = meta
+        ? `<span class="agent-coverage-ok">описан</span>${meta.node ? `<div class="agent-coverage-note">node: ${escHtml(meta.node)}</div>` : ''}`
+        : '<span class="agent-coverage-missing">не описан в architecture</span>';
+      const script = a.script || a.program || '';
+      const nodeAttr = meta?.node ? ` data-agent-node="${escHtml(meta.node)}"` : '';
+      const labelAttr = ` data-agent-label="${escHtml(a.label)}"`;
+      const rowTitle = meta?.node ? 'title="клик → показать узел на диаграмме"' : '';
+      return `
+        <tr${nodeAttr}${labelAttr} ${rowTitle}>
+          <td class="agent-num">${String(idx + 1).padStart(2, '0')}</td>
+          <td>
+            <div class="agent-label">${escHtml(a.label)}</div>
+            <div class="agent-sub">${coverage}</div>
+          </td>
+          <td>${escHtml(meta?.block || '—')}</td>
+          <td>${escHtml(meta?.what || 'Новый live-agent: нужно добавить описание в ARCH_AGENT_CATALOG.')}</td>
+          <td><span class="agent-status ${statusClass}">${escHtml(_agentStatusText(a))}</span></td>
+          <td>
+            <div class="agent-sub">${escHtml(_shortFilePath(a.plist_path))}</div>
+            <div class="agent-label" style="font-size:11px;font-weight:500">${escHtml(_shortFilePath(script))}</div>
+          </td>
+        </tr>
+      `;
+    });
+
+    const staleRows = catalogOnly.map(label => {
+      const meta = ARCH_AGENT_CATALOG[label];
+      return `
+        <tr>
+          <td class="agent-num">—</td>
+          <td>
+            <div class="agent-label">${escHtml(label)}</div>
+            <div class="agent-sub"><span class="agent-coverage-missing">описан, но сейчас нет в launchctl/plist</span></div>
+          </td>
+          <td>${escHtml(meta.block || '—')}</td>
+          <td>${escHtml(meta.what || '')}</td>
+          <td><span class="agent-status missing">устарело</span></td>
+          <td>—</td>
+        </tr>
+      `;
+    });
+
+    bodyEl.innerHTML = liveRows.concat(staleRows).join('') ||
+      '<tr><td colspan="6" class="loading">com.lcband.* агенты не найдены</td></tr>';
+
+    bodyEl.querySelectorAll('tr[data-agent-node]').forEach(row => {
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', () => {
+        const node = findNodeByMermaidId(row.dataset.agentNode);
+        const meta = ARCH_AGENT_CATALOG[row.dataset.agentLabel] || {};
+        if (node) {
+          highlightSvgNode(node);
+        }
+        document.getElementById('purpose-info').innerHTML = `
+          <h3 style="margin:0 0 8px;color:var(--blue)">${escHtml(row.dataset.agentLabel)}</h3>
+          <div style="margin-bottom:8px"><b>Блок:</b> ${escHtml(meta.block || '—')}</div>
+          <div style="margin-bottom:8px"><b>Что делает:</b> ${escHtml(meta.what || '—')}</div>
+          <div style="color:var(--muted);font-size:11px"><b>Mermaid node:</b> ${escHtml(meta.node || 'нет отдельного узла')}</div>
+        `;
+        openPopoverNear(node);
+      });
+    });
   }
 
   async function loadUsage() {
@@ -2231,7 +2564,8 @@ sequenceDiagram
     { key: 'client_generation', label: '1. Генерация ответов клиенту' },
     { key: 'client_review',     label: '2. Ревью ответов клиентам' },
     { key: 'funnel_review',     label: '3. Ревью шага воронки' },
-    { key: 'other_opus',        label: '4. Прочие Opus процессы' },
+    { key: 'broker',            label: '4. Broker pipeline (посредник)' },
+    { key: 'other_opus',        label: '5. Прочие Opus процессы' },
   ];
 
   function _buildFaderCards() {
@@ -2816,9 +3150,10 @@ sequenceDiagram
   setInterval(() => { loadCcusage(); loadRuntimeConfig(); }, 60000);
 
   loadUsage();
+  loadLaunchAgentsCoverage();
   loadInventory();
   loadSessionUsage();
-  setInterval(() => { loadUsage(); loadInventory(); loadSessionUsage(); }, 60000);
+  setInterval(() => { loadUsage(); loadLaunchAgentsCoverage(); loadInventory(); loadSessionUsage(); }, 60000);
 </script>
 
 </body>

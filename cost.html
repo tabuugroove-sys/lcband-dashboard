@@ -367,6 +367,16 @@ a:hover { text-decoration: underline; }
   <div class="label" style="margin:-4px 0 8px 0;">
     Здесь живут фейдеры Codex ↔ Claude. Weekly usage-полоски подняты выше: сразу после real-time burn графиков.
   </div>
+  <div id="codex-fallback-row" style="display:flex;align-items:center;gap:10px;margin:0 0 12px 0;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;flex-wrap:wrap;">
+    <span style="font-size:12px;color:var(--muted);">Если Codex (gpt-5.5) упал — Layer 2:</span>
+    <div id="codex-fallback-buttons" style="display:flex;gap:6px;">
+      <button class="codex-fb-btn" data-model="opus"   style="padding:6px 12px;border:1px solid #444;background:transparent;color:#ccc;border-radius:6px;cursor:pointer;font-size:12px;">CLI Opus</button>
+      <button class="codex-fb-btn" data-model="sonnet" style="padding:6px 12px;border:1px solid #444;background:transparent;color:#ccc;border-radius:6px;cursor:pointer;font-size:12px;">CLI Sonnet</button>
+      <button class="codex-fb-btn" data-model="haiku"  style="padding:6px 12px;border:1px solid #444;background:transparent;color:#ccc;border-radius:6px;cursor:pointer;font-size:12px;">CLI Haiku</button>
+    </div>
+    <span style="font-size:11px;color:var(--muted);margin-left:auto;">→ если и она упадёт, последняя защита: <b>API</b></span>
+    <span id="codex-fallback-status" style="font-size:11px;color:var(--muted);width:100%;">—</span>
+  </div>
   <div class="routing-grid" id="cost-faders-grid"></div>
   <div class="impact-grid" id="routing-impact">
     <div class="impact-cell"><span class="lbl">Today % нед</span><span class="val" id="ri-today">—</span></div>
@@ -611,7 +621,8 @@ const FADER_CATEGORIES = [
   { key: 'client_generation', label: '1. Генерация ответов клиенту' },
   { key: 'client_review',     label: '2. Ревью ответов клиентам' },
   { key: 'funnel_review',     label: '3. Ревью шага воронки' },
-  { key: 'other_opus',        label: '4. Прочие Opus процессы' },
+  { key: 'broker',            label: '4. Broker pipeline (посредник)' },
+  { key: 'other_opus',        label: '5. Прочие Opus процессы' },
 ];
 let _adminToken = localStorage.getItem('lcband_admin_token') || '';
 
@@ -867,6 +878,43 @@ function bindRoutingControls() {
   });
 }
 
+function renderCodexFallback(cfg) {
+  const current = String((cfg && cfg.codex_fallback_model) || 'opus').toLowerCase();
+  for (const btn of document.querySelectorAll('.codex-fb-btn')) {
+    const active = btn.dataset.model === current;
+    btn.style.background = active ? 'var(--accent, #3a82f7)' : 'transparent';
+    btn.style.color = active ? '#fff' : '#ccc';
+    btn.style.borderColor = active ? 'var(--accent, #3a82f7)' : '#444';
+    btn.style.fontWeight = active ? '600' : '400';
+  }
+  const status = document.getElementById('codex-fallback-status');
+  if (status) status.textContent = `текущая Layer 2: CLI ${current.charAt(0).toUpperCase() + current.slice(1)}`;
+}
+
+let _codexFbBound = false;
+function bindCodexFallbackButtons() {
+  if (_codexFbBound) return;
+  _codexFbBound = true;
+  for (const btn of document.querySelectorAll('.codex-fb-btn')) {
+    btn.addEventListener('click', async () => {
+      const model = btn.dataset.model;
+      const status = document.getElementById('codex-fallback-status');
+      try {
+        status.textContent = 'сохраняю…';
+        const saved = await postRuntimeConfig({ codex_fallback_model: model });
+        if (!saved) {
+          status.textContent = 'не сохранено — нужен admin token';
+          return;
+        }
+        status.textContent = `✓ Layer 2 = CLI ${model.charAt(0).toUpperCase() + model.slice(1)} (агенты подхватят ~30с)`;
+        await loadRoutingControls();
+      } catch (err) {
+        status.textContent = 'ошибка — ' + err.message;
+      }
+    });
+  }
+}
+
 async function loadRoutingControls() {
   const status = document.getElementById('routing-status');
   if (!status) return;
@@ -881,7 +929,9 @@ async function loadRoutingControls() {
     const stats = await statsRes.json();
     buildFaderCards();
     bindRoutingControls();
+    bindCodexFallbackButtons();
     renderLimitBudgets(stats);
+    renderCodexFallback(cfg);
 
     const weights = cfg.category_codex_weight_pct || {};
     const quotas = cfg.category_opus_quota || {};
