@@ -1906,6 +1906,23 @@ function vkChatId(item) {
   return '';
 }
 
+function tgChatUsername(item) {
+  if (!item) return '';
+  const parseField = (raw) => {
+    if (!raw) return '';
+    const s = String(raw).trim();
+    const m = s.match(/(?:https?:\/\/)?t\.me\/([A-Za-z0-9_]{3,32})/i);
+    if (m) return m[1];
+    if (/^@[A-Za-z0-9_]{3,32}$/.test(s)) return s.slice(1);
+    if (/^[A-Za-z0-9_]{3,32}$/.test(s)) return s;
+    return '';
+  };
+  const ch = String(item.channel || '').toUpperCase();
+  const username = parseField(item.username);
+  if (username && (ch === 'TG' || ch.startsWith('TG_'))) return username;
+  return parseField(item.contact);
+}
+
 // computePipeline(active, archived, branchSpec)
 // branchSpec is an array of branch descriptors: {key, label, icon, parent, leads, hint?}
 // These are appended as branch rows under the main 6 stages.
@@ -4893,9 +4910,10 @@ function PaidSection({ paid }) {
       <div className="orders-list">
         {paid.items.map((item, i) => {
           const vkId = vkChatId(item);
-          const canChat = (item.channel === 'TG' && !!item.username) || !!vkId;
+          const tgUser = tgChatUsername(item);
+          const canChat = !!tgUser || !!vkId;
           const chatChannel = vkId ? 'VK' : 'TG';
-          const chatUser = vkId || item.username;
+          const chatUser = vkId || tgUser;
           const openTarget = () => chatCtx?.openChat({
             user_id: null, username: chatUser, client: item.client, channel: chatChannel,
           });
