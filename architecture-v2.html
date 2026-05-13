@@ -212,6 +212,43 @@
     </p>
   </div>
 
+  <h2>3a. Router-as-contract</h2>
+  <div class="card">
+    <p>
+      <span class="accent">Ключевое уточнение:</span> v2 не переписывает агентов,
+      а вводит единый контракт между ними.
+    </p>
+    <p>Остаются как есть: <code>tg_realtime_monitor</code>, <code>tg_responder</code>,
+       <code>broker_*</code>, <code>payment_event_handler</code>,
+       <code>agent_watchdog</code>, <code>dashboard_backend</code>.
+       Меняется только центральная прослойка:</p>
+<pre>входящий пост/DM
+  → L1 structured triage   (ai_triage_v2.classify_v2)
+  → deterministic router   (ai_triage_v2.route_v2)
+  → owner/thread state     (thread_state.lock_thread)
+  → task для нужного агента (agent_tasks)</pre>
+
+    <h3>Поведенческое правило для каждого агента</h3>
+<pre>from thread_state import is_my_thread
+
+mine, reason = is_my_thread("lcb", thread_id)   # или "broker"
+if not mine:
+    return   # молча выходим, без Opus, без классификации</pre>
+
+    <p>После этого:</p>
+    <ul>
+      <li><code>tg_responder</code> не лезет в broker-заказы (<code>owner=broker</code> → выход).</li>
+      <li>Broker не пишет директору/подрядчику без sanitized brief —
+          берёт payload из <code>agent_tasks</code>, не из переписки клиента.</li>
+      <li><code>owner=both</code> → две задачи: LCB pitch клиенту + Broker по доп. подрядчикам.</li>
+      <li><code>owner=skip</code> → downstream не тратит Sonnet/Opus.</li>
+    </ul>
+    <p class="note">
+      Самая большая экономия v2 — не от новых агентов, а от того, что старые
+      перестанут принимать route-решения каждый по-своему.
+    </p>
+  </div>
+
   <h2>4. Thread ownership &amp; state</h2>
   <div class="card">
     <h3 style="margin-top:0">Правило</h3>
@@ -224,14 +261,19 @@
 
     <h3>DDL — новые таблицы в orders.db</h3>
 <pre>CREATE TABLE lead_threads (
-  thread_id      TEXT PRIMARY KEY,        -- "tg:@username" | "vk:peer_id"
-  channel        TEXT NOT NULL,           -- tg | vk
-  owner_agent    TEXT NOT NULL,           -- lcb | broker | both
-  status         TEXT NOT NULL,           -- active | hold | closed
-  first_seen_at  INTEGER NOT NULL,
-  last_inbound_at INTEGER,
-  l1_verdict_json TEXT,                   -- замороженный L1 первого касания
-  order_id       INTEGER REFERENCES orders(id)
+  thread_id              TEXT PRIMARY KEY,   -- "tg:@username" | "vk:peer_id"
+  channel                TEXT NOT NULL,      -- tg | vk
+  owner_agent            TEXT NOT NULL,      -- lcb | broker | both | skip | manual
+  status                 TEXT NOT NULL,      -- active | hold | closed
+  first_seen_at          INTEGER NOT NULL,
+  last_inbound_at        INTEGER,
+  l1_verdict_json        TEXT,               -- замороженный L1 первого касания
+  order_id               INTEGER REFERENCES orders(id),
+  route                  TEXT,               -- lcb_direct|broker_order|hybrid|drum_brief|skip|manual_review|lcb_lowcost_skip
+  route_reason           TEXT,
+  lcb_type               TEXT,               -- cover_band|drum_show|solo_musician|null
+  broker_categories_json TEXT,               -- ["host","dj","sound"]
+  route_locked_at        INTEGER             -- наличие = "не пере-роутить"
 );
 
 CREATE TABLE agent_tasks (
