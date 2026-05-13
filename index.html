@@ -3554,14 +3554,27 @@ function HeartbeatFlowViz({ beats = [] }) {
         0% { background-position: 0 0, 0 0; }
         100% { background-position: 46px 24px, -46px -24px; }
       }
+      .hb-stack {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 5px;
+        min-width: 430px;
+        max-width: 520px;
+      }
+      .hb-stack .matrix-panel {
+        width: 100%;
+        box-sizing: border-box;
+        justify-content: center;
+      }
       .hb-cyber {
         position: relative;
         display: inline-grid;
         grid-template-columns: auto 1fr;
         align-items: center;
         gap: 10px;
-        min-width: 430px;
-        max-width: 520px;
+        width: 100%;
+        box-sizing: border-box;
         padding: 7px 10px;
         border-radius: 8px;
         border: 1px solid rgba(34,211,238,.52);
@@ -3686,7 +3699,7 @@ function HeartbeatFlowViz({ beats = [] }) {
       .hb-lane.fail { color: #fca5a5; border-color: rgba(248,113,113,.42); }
       .hb-lane.fail .hb-lane-dot { background:#f43f5e; box-shadow:0 0 8px rgba(244,63,94,.95); }
       @media (max-width: 980px) {
-        .hb-cyber { min-width: 100%; max-width: 100%; }
+        .hb-stack { min-width: 100%; max-width: 100%; }
         .hb-pipeline { gap: 4px; }
         .hb-node { padding: 4px 5px; font-size: 8px; }
       }
@@ -3908,8 +3921,10 @@ function StatusSection({ status, activity24h, sent24h, onProcessClick }) {
     <div className="section" style={{ marginTop: 14 }}>
       <div className="section-title" style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap'}}>
         <RestartAllButton />
-        <HeartbeatFlowViz beats={heartbeatBeats} />
-        <AgentMatrixStatus />
+        <div className="hb-stack">
+          <HeartbeatFlowViz beats={heartbeatBeats} />
+          <AgentMatrixStatus />
+        </div>
         {aiCalls24h > 0 && (
           <span style={{
             marginLeft:'auto', fontSize:11, color:'var(--muted)', fontWeight:500,
