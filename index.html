@@ -4417,8 +4417,8 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
         <RestartAllButton />
         <div className="hb-stack">
           <AiEfficiencyTile backendUrl={backendUrl} />
-          <HeartbeatFlowViz beats={heartbeatBeats} />
           <AgentMatrixStatus />
+          <HeartbeatFlowViz beats={heartbeatBeats} />
         </div>
         <DeliveryEfficiencyCard
           aiCalls24h={aiCalls24h}
