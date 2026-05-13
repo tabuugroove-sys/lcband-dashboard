@@ -3337,6 +3337,7 @@ function RestartAllButton() {
   }
 
   return (
+  <>
     <div className="reset-housing" title="Hillary-Lavrov 2009 reset button. Tribute.">
       <div className="reset-label">⚠ EMERGENCY RESET / АВАРИЙНАЯ ПЕРЕЗАГРУЗКА ⚠</div>
       <div className="reset-stage">
@@ -3391,8 +3392,11 @@ function RestartAllButton() {
                     : `✅ ${result.ok}/${result.total} АГЕНТОВ ПЕРЕЗАПУЩЕНО`)
                 : ' '}
       </div>
+    </div>
 
-      {/* 13.05 — отдельные кнопки для исключённых из bulk reset агентов */}
+    {/* 13.05 — отдельные кнопки для исключённых из bulk reset агентов.
+        Render ВНЕ .reset-housing — иначе перекрывают красную кнопку. */}
+    <div style={{maxWidth: 540, margin: '12px auto 0'}}>
       <SingleAgentRestartButton
         endpoint="/api/restart_dashboard_backend"
         label="Перезагрузить dashboard-backend"
@@ -3408,6 +3412,7 @@ function RestartAllButton() {
         getOrPromptToken={getOrPromptToken}
       />
     </div>
+  </>
   );
 }
 

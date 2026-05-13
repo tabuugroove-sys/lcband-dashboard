@@ -1,6 +1,6 @@
 // Service Worker — network-first для app shell (HTML/JS/CSS).
 // До v29 был cache-first → пользователь не видел свежие деплои до hard-reload.
-const CACHE = 'lcb-v31-restart-buttons-pair';
+const CACHE = "lcb-v32-buttons-positioned";
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
