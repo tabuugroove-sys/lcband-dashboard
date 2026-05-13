@@ -959,7 +959,7 @@ const PROCESS_RULES = {
       'Обновляет event_planning.json без финансов и приватных сумм',
       'Отправляет только новые/изменившиеся факты, без повторения всего адреса, состава и старого тайминга',
       'Если есть новая схема подъезда — пересылает вложение следом',
-      'Дедуп: event_ops_state.json по source_msg_id — повторный запуск не дублирует отправку',
+      'Дедуп: event_ops_state.json по source_msg_id + semantic sent_facts — похожие повторы организатора не дублируют отправку',
       'Скрипты: event_ops_logistics_agent.py → event_ops_bot.py | log: /tmp/event_ops_logistics.log',
     ],
   },
