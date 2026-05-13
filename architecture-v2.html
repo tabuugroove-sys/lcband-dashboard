@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LC Band — Architecture v2 (proposal)</title>
+  <link rel="stylesheet" href="_theme.css">
+  <script src="_theme.js"></script>
+  <script src="_nav.js"></script>
+  <style>
+    :root {
+      --bg:     #0a0a12;
+      --card:   #13131f;
+      --card-2: #1a1a28;
+      --border: #23233a;
+      --gold:   #f5c518;
+      --text:   #e2e8f0;
+      --muted:  #94a3b8;
+      --ok:     #10b981;
+      --warn:   #f59e0b;
+      --bad:    #ef4444;
+      --info:   #60a5fa;
+      --purple: #bc8cff;
+    }
+    :root[data-theme="light"] {
+      --bg:     #fafbfc;
+      --card:   #ffffff;
+      --card-2: #f4f6fa;
+      --border: #d0d7de;
+      --gold:   #9a6700;
+      --text:   #1f2328;
+      --muted:  #59636e;
+      --ok:     #1a7f37;
+      --warn:   #bc4c00;
+      --bad:    #cf222e;
+      --info:   #0969da;
+      --purple: #8250df;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: var(--bg); color: var(--text); }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px; line-height: 1.55; padding: 20px;
+    }
+    .app { max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 26px; margin-bottom: 8px; color: var(--gold); }
+    h2 { font-size: 18px; margin: 28px 0 12px; color: var(--text);
+         border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+    h3 { font-size: 15px; margin: 18px 0 8px; color: var(--info); }
+    p  { margin: 8px 0; }
+    .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+    .pill {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: 600;
+      background: rgba(245,197,24,0.12); color: var(--gold);
+      border: 1px solid rgba(245,197,24,0.35);
+    }
+    .pill.warn { background: rgba(245,158,11,0.12); color: var(--warn);
+                 border-color: rgba(245,158,11,0.35); }
+    .pill.ok   { background: rgba(16,185,129,0.12); color: var(--ok);
+                 border-color: rgba(16,185,129,0.35); }
+
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px 18px; margin-bottom: 14px;
+    }
+    .card.sub { background: var(--card-2); }
+
+    pre {
+      background: var(--card-2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 14px; font-size: 12.5px;
+      overflow-x: auto; white-space: pre;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--text);
+    }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+           font-size: 12.5px; background: var(--card-2);
+           padding: 1px 5px; border-radius: 4px; }
+
+    ul, ol { margin: 6px 0 8px 22px; }
+    li { margin-bottom: 4px; }
+
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px; }
+    th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: 12px;
+         text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    .note { color: var(--muted); font-size: 12.5px; }
+    .accent { color: var(--gold); font-weight: 600; }
+    .ok-c   { color: var(--ok); }
+    .warn-c { color: var(--warn); }
+    .bad-c  { color: var(--bad); }
+    .info-c { color: var(--info); }
+    hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <h1>🧬 Architecture v2 — proposal</h1>
+  <div class="subtitle">
+    <span class="pill warn">DRAFT</span>
+    Параллельная архитектура классификации и маршрутизации лидов.
+    Старый <code>ai_classify_chain.py</code> остаётся в production до cutover.
+    Источник: обсуждение 13.05.2026.
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">TL;DR</h3>
+    <ul>
+      <li>Один L1 (Gemini Flash Lite) c богатой structured-schema решает <em>факты</em> о посте, не маршрут.</li>
+      <li>Маршрутизация — Python-роутер на (verdict, geo, budget, signals), не LLM.</li>
+      <li>L2 (GPT-5.5) — арбитр только для unsure / конфликтных кейсов.</li>
+      <li>Два domain-агента на Opus: <span class="accent">LCB Sales</span> и <span class="accent">Broker</span>. Тред принадлежит агенту с момента первого касания.</li>
+      <li>Approval-bot — только для платежей и составных бюджетов выше cap. Всё остальное — auto.</li>
+    </ul>
+  </div>
+
+  <h2>1. Полная схема</h2>
+  <div class="card">
+<pre>
+┌─ TG persistent (Telethon NewMessage — event chats + DMs)
+├─ VK posts (community wall API polling)            ─┐
+└─ VK DMs (Kate Mobile longpoll, persistent)         │
+                                                     ▼
+                                       ingest queue (orders.db / lead_threads)
+                                                     │
+                          ┌──────────────────────────┴───────────────────────────┐
+                          │ thread_id уже есть?                                  │
+                          │  YES → сразу owner-агенту (L1 не зовём)              │
+                          │  NO  → L1 cheap classifier (Gemini Flash Lite)       │
+                          └──────────────────────────┬───────────────────────────┘
+                                                     │
+                ┌────────────────────────────────────┼────────────────────────────────────┐
+                │ confident (≥ threshold)            │ unsure                             │ confident
+                ▼                                    ▼                                    ▼
+        Python router                       L2 arbiter (GPT-5.5)                  Python router
+        (verdict, geo, budget,                       │                            (route → trash + reason
+         signals → route)                            ▼                             + AI-sampling audit 1/wk)
+                │                            Python router
+                │                                    │
+       ┌────────┴────────┐                  ┌────────┴────────┐
+       ▼                 ▼                  ▼                 ▼
+ LCB Sales Agent   Broker Agent       LCB Sales Agent   Broker Agent
+   (Opus)            (Opus)             (Opus)            (Opus)
+       │                 │                  │                 │
+       └─────── outbound_governor (TG/VK rate limits, anti-ban) ──────┘
+                                  │
+                                  ▼
+                          approval bot
+                  (если payment OR multi-contractor budget &gt; cap)
+                                  │
+                                  ▼
+                              client / contractor
+</pre>
+  </div>
+
+  <h2>2. L1 contract — JSON schema</h2>
+  <div class="card">
+    <p class="note">L1 возвращает <em>факты</em>, а не решение. Роутер собирает <code>route</code> в коде.</p>
+<pre>{
+  "lcb_match": true,            // подходит ли под LC Band / drum / solo
+  "lcb_type": "cover_band" | "drum_show" | "solo_musician" | null,
+
+  "broker_match": true,         // есть ли тип подрядчика в нашем пуле
+  "broker_categories": ["host", "dj", "sound", "dance", "show", ...],
+
+  "event_signals": ["date", "city", "budget", "guests"],
+  "geo": "moscow" | "spb" | "regions" | "abroad" | "unknown",
+  "budget_hint": "low" | "normal" | "premium" | "unknown",
+
+  "lcb_confidence":    0.0..1.0,
+  "broker_confidence": 0.0..1.0,
+  "intent_confidence": 0.0..1.0,   // вообще ли это запрос на услугу
+
+  "is_refusal": false,             // hard refusal regex matched before L1
+  "is_musician_promo": false       // самопромо коллег — никогда не отвечать
+}</pre>
+    <p class="note">
+      Confidence — <strong>per-field</strong>, не глобальный. Эскалация в L2 — если
+      любой из релевантных <code>*_confidence</code> ниже порога (по умолчанию 0.7).
+    </p>
+  </div>
+
+  <h2>3. Router (deterministic, Python)</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Условие</th>
+          <th>Route</th>
+          <th>Исполнитель</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>is_refusal OR is_musician_promo</code></td><td>skip</td><td>—</td></tr>
+        <tr><td><code>intent_confidence &lt; 0.3</code></td><td>trash</td><td>weekly AI audit</td></tr>
+        <tr><td><code>lcb_match AND budget_hint != "low" AND geo ∈ moscow/spb/regions</code></td><td>lcb_direct</td><td>LCB Sales</td></tr>
+        <tr><td><code>lcb_match AND budget_hint = "low"</code></td><td>lcb_lowcost_skip</td><td>auto-decline (skill rules)</td></tr>
+        <tr><td><code>lcb_type = "drum_show" AND geo ∈ moscow/chelyabinsk/dubai</code></td><td>drum_brief</td><td>@vadimnoize first, then LCB Sales</td></tr>
+        <tr><td><code>broker_match AND NOT lcb_match</code></td><td>broker_order</td><td>Broker</td></tr>
+        <tr><td><code>lcb_match AND broker_match</code></td><td>hybrid</td><td>LCB Sales primary + Broker sub-task</td></tr>
+        <tr><td>иначе</td><td>manual_review</td><td>approval bot</td></tr>
+      </tbody>
+    </table>
+    <p class="note">
+      Правила в коде → A/B, изменение порогов без перевыкатки промпта,
+      полный аудит решений в <code>ai_timeline_v2.jsonl</code>.
+    </p>
+  </div>
+
+  <h2>4. Thread ownership &amp; state</h2>
+  <div class="card">
+    <h3 style="margin-top:0">Правило</h3>
+    <ul>
+      <li>Тред принадлежит агенту с момента первого касания (<code>owner_agent ∈ {lcb, broker, both}</code>).</li>
+      <li>Новые сообщения в существующем треде <strong>НЕ</strong> идут через L1 — сразу владельцу.</li>
+      <li>L1 включается только когда <code>thread_id</code> отсутствует в <code>lead_threads</code>.</li>
+      <li>Exception: явный новый intent внутри треда («а ещё нужен DJ») → owner делает handoff, не L1.</li>
+    </ul>
+
+    <h3>DDL — новые таблицы в orders.db</h3>
+<pre>CREATE TABLE lead_threads (
+  thread_id      TEXT PRIMARY KEY,        -- "tg:@username" | "vk:peer_id"
+  channel        TEXT NOT NULL,           -- tg | vk
+  owner_agent    TEXT NOT NULL,           -- lcb | broker | both
+  status         TEXT NOT NULL,           -- active | hold | closed
+  first_seen_at  INTEGER NOT NULL,
+  last_inbound_at INTEGER,
+  l1_verdict_json TEXT,                   -- замороженный L1 первого касания
+  order_id       INTEGER REFERENCES orders(id)
+);
+
+CREATE TABLE agent_tasks (
+  task_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  parent_thread_id TEXT REFERENCES lead_threads(thread_id),
+  from_agent     TEXT NOT NULL,           -- lcb | broker | router
+  to_agent       TEXT NOT NULL,
+  payload_json   TEXT NOT NULL,           -- {need, date, city, budget_cap, ...}
+  status         TEXT NOT NULL,           -- pending | in_progress | resolved | failed
+  resolution_json TEXT,                   -- {candidates, prices, ...}
+  requires_user_approval INTEGER DEFAULT 0,
+  created_at     INTEGER NOT NULL,
+  resolved_at    INTEGER
+);</pre>
+  </div>
+
+  <h2>5. Handoff протокол LCB ↔ Broker</h2>
+  <div class="card">
+    <p>Пример: клиент написал «нужна кавер-группа + DJ + ведущий на 14 июня в Москве, бюджет 500к».</p>
+    <ol>
+      <li>L1 → <code>lcb_match=true, broker_match=true, broker_categories=["dj","host"]</code>.</li>
+      <li>Router → <code>route=hybrid</code>, owner=lcb.</li>
+      <li>LCB Sales создаёт <code>agent_tasks {to: broker, need: ["dj","host"], date, city, budget_cap: 200000}</code>, свой draft в hold.</li>
+      <li>Broker берёт задачу, ищет в <code>broker_vendor_roster.json</code> 2-3 кандидата на каждую категорию, считает суммарный бюджет.</li>
+      <li>Если суммарно ≤ <code>budget_cap</code> → <code>status=resolved, requires_user_approval=0</code>. LCB Sales добавляет блок «доп. услуги» в draft, шлёт клиенту.</li>
+      <li>Если &gt; cap или конфликт цен → <code>requires_user_approval=1</code>, approval bot тебе. Решение → LCB Sales продолжает.</li>
+    </ol>
+    <p class="note">
+      Никаких прямых in-memory вызовов между Python-агентами. Только через DB —
+      переживает рестарт launchd, аудируется, есть метрика «сколько часов задача висит».
+    </p>
+  </div>
+
+  <h2>6. Outbound governor (shared rate-limiter)</h2>
+  <div class="card">
+    <p>Вытащить anti-ban из <code>tg_responder.py</code> и <code>vk_auto_responder.py</code> в общий <code>outbound_governor.py</code>.</p>
+    <table>
+      <thead>
+        <tr><th>Channel</th><th>Limit/day</th><th>Jitter</th><th>Cooldown trigger</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>TG (LCB account)</td><td>40</td><td>15–35s</td><td>PeerFlood → 24h</td></tr>
+        <tr><td>VK (Kate token)</td><td>20</td><td>30–60s</td><td>CAPTCHA → 6h + alert</td></tr>
+      </tbody>
+    </table>
+    <p class="note">
+      Broker и LCB Sales пишут в общую очередь — governor решает порядок и паузы.
+      Иначе LCB-агент выжжет TG-квоту на питчах, Broker про это не узнает, словит PeerFlood, бан.
+    </p>
+  </div>
+
+  <h2>7. Approval gates</h2>
+  <div class="card">
+    <h3 style="margin-top:0">Требуют твоего OK</h3>
+    <ul>
+      <li>Любое исходящее, касающееся <strong>оплаты / предоплаты / договора / реквизитов</strong>.</li>
+      <li>Составной запрос, где Broker подобрал вариант <strong>выше <code>budget_cap</code></strong>.</li>
+      <li>Конфликт цен между подрядчиками одной категории (нет однозначного выбора).</li>
+    </ul>
+    <h3>Auto-send (с pre-send AI review fail-safe)</h3>
+    <ul>
+      <li>Холодные питчи LCB Sales (правила те же, что сейчас: молчание ≥2 дня + <code>ai_review_before_send=ok</code>).</li>
+      <li>Broker outreach подрядчикам из roster (B2B, не клиенты).</li>
+      <li>Clarifier-вопросы клиенту, follow-up'ы по существующим правилам.</li>
+    </ul>
+  </div>
+
+  <h2>8. Trash audit</h2>
+  <div class="card">
+    <p>Trash — не «удалить и забыть». Все skip/trash логируются с <code>reason</code> в <code>trash.jsonl</code>.</p>
+    <p>Раз в неделю Gemini Flash Lite пробегает 100 случайных постов из trash с вопросом
+       «не лид ли это?». Флагнутые → тебе в bot одним батчем. Расход — копейки.
+       Это страховка от тихих регрессий L1, чтобы не терять деньги вслепую.</p>
+  </div>
+
+  <h2>9. Pool правды о подрядчиках</h2>
+  <div class="card">
+    <p>Уже существует:</p>
+    <ul>
+      <li><code>broker_vendor_roster.json</code> — структурированный реестр.</li>
+      <li><code>tg_contact_roles.json</code> — большая выгрузка ролей из всех переписок.</li>
+      <li><code>broker_unmatched_contractors.jsonl</code> — поток новых, нужно периодически мерджить в roster.</li>
+    </ul>
+    <p>Broker-агент читает из этих файлов, не галлюцинирует контакты.
+       <span class="warn-c">TODO до запуска Broker:</span> consolidate-скрипт
+       <code>tg_contact_roles.json</code> + <code>broker_unmatched</code> → <code>broker_vendor_roster.json</code>
+       с единым форматом полей (категория, цены, гео, контакты, история, рейтинг).</p>
+  </div>
+
+  <h2>10. Migration plan</h2>
+  <div class="card">
+    <ol>
+      <li><span class="pill">step 1</span> Создать <code>ai_triage_v2.py</code> + <code>router_v2.py</code> рядом со старым chain. Не трогать production.</li>
+      <li><span class="pill">step 2</span> Добавить таблицы <code>lead_threads</code>, <code>agent_tasks</code> миграцией в <code>orders.db</code>.</li>
+      <li><span class="pill">step 3</span> Shadow-run: v2 читает ту же ingest queue, пишет вердикты в <code>ai_timeline_v2.jsonl</code>. <strong>Ничего</strong> не коммитит в orders.db и не шлёт outbound. 7–14 дней.</li>
+      <li><span class="pill">step 4</span> Сравнить v1 vs v2 на agreement rate по категориям. Если ≥95% на критичных (lcb_direct, drum_show, refusal) — переходим к step 5.</li>
+      <li><span class="pill">step 5</span> Cutover по одному агенту. Первый — <code>attention_auto_action</code> в approval-bot режиме (человек видит каждый draft). Потом остальные.</li>
+      <li><span class="pill">step 6</span> Удалить <code>ai_classify_chain.py</code> после 2 недель стабильной работы v2.</li>
+    </ol>
+  </div>
+
+  <h2>11. Open questions / решено</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>#</th><th>Вопрос</th><th>Решение</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Гибридный запрос (LCB + broker)</td><td class="ok-c">L1 возвращает оба флага; LCB primary, Broker как sub-task внутри треда LCB.</td></tr>
+        <tr><td>2</td><td>State / память треда</td><td class="ok-c">Тред принадлежит агенту; L1 только на первое касание.</td></tr>
+        <tr><td>3</td><td>Handoff протокол</td><td class="ok-c">Через <code>agent_tasks</code> в orders.db, без прямых вызовов.</td></tr>
+        <tr><td>4</td><td>VK Kate anti-ban</td><td class="ok-c">Shared <code>outbound_governor.py</code>, единая квота на канал.</td></tr>
+        <tr><td>5</td><td>Trash audit</td><td class="ok-c">AI-sampling раз в неделю, без human-review.</td></tr>
+        <tr><td>6</td><td>Pool подрядчиков</td><td class="ok-c">Из <code>broker_vendor_roster.json</code> + <code>tg_contact_roles.json</code>.</td></tr>
+        <tr><td>7</td><td>Approval gates</td><td class="ok-c">Только платежи + составной бюджет &gt; cap.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr>
+  <p class="note">
+    Канонический документ: <code>~/lcband/ARCHITECTURE_V2.md</code> (этот же контент в markdown).
+    Эта страница — для просмотра и обсуждения. Любые правки сначала в .md, потом sync сюда.
+  </p>
+
+</div>
+</body>
+</html>
