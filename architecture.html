@@ -1289,6 +1289,7 @@ sequenceDiagram
     'com.lcband.auto-browser-walk': { block: '1. Inbound classification', node: 'WALK', what: 'Deprecated launchd: ручной browser/Telethon walk оставлен как fallback.' },
     'com.lcband.bot-commander': { block: '2. Approval bot', node: 'BOT', what: 'Telegram approval/control bot: send/reject drafts, restart/check команды.' },
     'com.lcband.broker-client-promo-agent': { block: 'Broker pipeline', what: 'Собирает промо подрядчиков, чистит прямые контакты, готовит approval для клиента.' },
+    'com.lcband.broker-contractor-followup': { block: 'Broker pipeline', what: 'Пингует внешних подрядчиков, когда они держат обещанный клиенту вариант. Перед каждым ping читает переписку; любой входящий ответ после создания кандидата останавливает шаблонные пинги, отказ переводит кандидата в declined.' },
     'com.lcband.broker-quality-scorer': { block: 'Broker pipeline', what: 'Оценивает отклики подрядчиков по качеству и пригодности под запрос клиента.' },
     'com.lcband.claude-usage-probe': { block: '5/8. Usage monitoring', what: 'Снимает snapshot лимитов Claude/CLI для cost/architecture страниц.' },
     'com.lcband.conv-cache-sync': { block: '2. DM responder', what: 'Синхронизирует кэш TG переписок для контекста responder/review.' },
