@@ -1080,7 +1080,7 @@ const PROCESS_RULES = {
   proc_tg_followup: {
     name: 'TG Follow-up',
     interval: 'Ежедневно в 10:09 MSK',
-    desc: 'Пушит старые лиды без ответа (тёплый re-engagement)',
+    desc: 'По расписанию отправляет follow-up только тем лидам, где пора писать после тишины; входящие ответы обрабатывает TG Ответчик',
     rules: [
       'Cooldown: 3 дня от последнего исходящего',
       '🔴 22.04: hard-regex pre-check через refusal_guard.scan_history_for_refusal (общий модуль с tg_responder) — инцидент @lisitsyna_law 20.04, регекс теперь единый в refusal_guard.py',
