@@ -3740,7 +3740,7 @@ function HeartbeatFlowViz({ beats = [] }) {
   );
 }
 
-function StatusSection({ status, activity24h, sent24h, onProcessClick }) {
+function StatusSection({ status, activity24h, sent24h, aiDelivery, onProcessClick }) {
   const [bwExpanded, setBwExpanded] = React.useState(false);
   const [bwFeed, setBwFeed] = React.useState(null);
   // 🔴 23.04: универсальный expand для любого процесса (не только Browser Walk).
@@ -3799,11 +3799,25 @@ function StatusSection({ status, activity24h, sent24h, onProcessClick }) {
 
   if (!status.length) return null;
   const act = activity24h || {};
-  const aiCalls24h = Number(act._ai_calls_24h?.count || 0);
-  const sentMessages24h = Number(sent24h?.total || 0);
+  const aiCalls24h = Number(aiDelivery?.ai_calls || act._ai_calls_24h?.count || 0);
+  const sentMessages24h = Number(aiDelivery?.sent_total || sent24h?.total || 0);
   const sentConversion24h = aiCalls24h > 0
     ? Math.round((sentMessages24h / aiCalls24h) * 1000) / 10
     : 0;
+  const deliveryOutcomes = aiDelivery?.outcomes || {};
+  const deliveryTitle = aiDelivery
+    ? [
+        `Факт TG out: ${aiDelivery.sent_total || 0}`,
+        `Текст: ${aiDelivery.sent_text || 0}`,
+        `Медиа: ${aiDelivery.sent_media || 0}`,
+        `Новые лиды ждут питча: ${deliveryOutcomes.new_leads_waiting_pitch || 0}`,
+        `Broker intake: ${deliveryOutcomes.broker_intake || 0}`,
+        `Broker skip: ${deliveryOutcomes.broker_skip || 0}`,
+        `AI skip: ${deliveryOutcomes.ai_skip || 0}`,
+        `Codex fail: ${deliveryOutcomes.codex_fail || 0}`,
+        ...(aiDelivery.sent_by_source || []).map(([src, n]) => `${src}: ${n}`),
+      ].join('\n')
+    : 'Конверсия = реально отправленные сообщения за 24ч / AI-вызовы за 24ч';
 
   // Browser Walk row — предпочитаем row из Google Sheet (sync_dashboard_data.py),
   // потому что он уже стоит в правильной позиции (после TG Monitor).
@@ -3932,9 +3946,14 @@ function StatusSection({ status, activity24h, sent24h, onProcessClick }) {
             lineHeight:1.25,
           }}>
             <span>🤖 {aiCalls24h} AI-вызовов / 24ч</span>
-            <span title="Конверсия = реально отправленные сообщения за 24ч / AI-вызовы за 24ч">
-              📩 {sentMessages24h} сообщений · {sentConversion24h}% sent/AI
+            <span title={deliveryTitle}>
+              📩 {sentMessages24h} TG out · {sentConversion24h}% sent/AI
             </span>
+            {aiDelivery && (
+              <span title={deliveryTitle} style={{fontSize:10, opacity:0.82}}>
+                wait {deliveryOutcomes.new_leads_waiting_pitch || 0} · broker {deliveryOutcomes.broker_intake || 0} · skip {(deliveryOutcomes.ai_skip || 0) + (deliveryOutcomes.broker_skip || 0)} · fail {deliveryOutcomes.codex_fail || 0}
+              </span>
+            )}
           </span>
         )}
       </div>
@@ -6030,6 +6049,7 @@ function App() {
   const [dbSnapshot, setDbSnapshot] = useState(null);
   const [sessionLog, setSessionLog] = useState(null);
   const [activity24h, setActivity24h] = useState(null);
+  const [aiDelivery, setAiDelivery] = useState(null);
   const [dmDirectFunnel, setDmDirectFunnel] = useState(null);
   const [recentSent, setRecentSent] = useState(null);
   const [recentSent24h, setRecentSent24h] = useState(null);
@@ -6133,6 +6153,14 @@ function App() {
         setRecentSent24h(await r.json());
       }
     } catch { /* backend offline → sent/AI conversion stays zero */ }
+
+    try {
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      const r = await fetch(`${bu}/api/ai_delivery_breakdown?hours=24`, { cache: 'no-store' });
+      if (r.ok) {
+        setAiDelivery(await r.json());
+      }
+    } catch { /* backend offline → fallback to recentSent24h */ }
 
     // ── Process activity over last 24h (counts per process + Browser Walk) ──
     try {
@@ -6383,6 +6411,7 @@ function App() {
                 status={data.status}
                 activity24h={activity24h}
                 sent24h={recentSent24h}
+                aiDelivery={aiDelivery}
                 onProcessClick={setShowProcess}
               />
               <ActionButtons />
