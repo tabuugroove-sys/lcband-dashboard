@@ -1332,6 +1332,11 @@ function ActionButtons() {
          style={{background: 'rgba(188, 140, 255, 0.15)', color: '#bc8cff', borderColor: 'rgba(188, 140, 255, 0.3)'}}>
         🧠 Архитектура & AI
       </a>
+      <a href="./ai-routing.html"
+         className="action-btn"
+         style={{background: 'rgba(210, 153, 34, 0.15)', color: '#d29922', borderColor: 'rgba(210, 153, 34, 0.3)'}}>
+        AI Routing
+      </a>
       <a href="./contacts.html"
          className="action-btn"
          style={{background: 'rgba(88, 166, 255, 0.15)', color: '#58a6ff', borderColor: 'rgba(88, 166, 255, 0.3)'}}>
@@ -4411,12 +4416,12 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
       <div className="section-title" style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap'}}>
         <RestartAllButton />
         <div className="hb-stack">
+          <AiEfficiencyTile backendUrl={backendUrl} />
           <HeartbeatFlowViz beats={heartbeatBeats} />
           <AgentMatrixStatus />
         </div>
         <DeliveryEfficiencyCard
           aiCalls24h={aiCalls24h}
-          <AiEfficiencyTile backendUrl={backendUrl} />
           sentMessages24h={sentMessages24h}
           sentConversion24h={sentConversion24h}
           aiDelivery={aiDelivery}
@@ -6811,6 +6816,13 @@ function App() {
                        display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
                title="Архитектура проекта + AI usage breakdown">
               <span>🧠</span><span>Архитектура</span>
+            </a>
+            <a href="./ai-routing.html"
+               style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
+                       background:'rgba(210,153,34,0.15)', color:'#d29922', border:'1px solid rgba(210,153,34,0.35)',
+                       display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
+               title="AI routing — целевая схема client / broker / trash и текущая реализация">
+              <span>AI</span><span>Routing</span>
             </a>
             <a href="./broker.html"
                style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',

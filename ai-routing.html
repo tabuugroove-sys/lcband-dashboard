@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LC Band — AI Routing</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1f262e;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --blue: #58a6ff;
+    --green: #3fb950;
+    --orange: #f0883e;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --gold: #d29922;
+  }
+  html[data-theme="light"] {
+    --bg: #ffffff;
+    --panel: #f6f8fa;
+    --panel-2: #eef1f5;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --muted: #59636e;
+    --blue: #0969da;
+    --green: #1a7f37;
+    --orange: #bc4c00;
+    --red: #cf222e;
+    --purple: #8250df;
+    --gold: #9a6700;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  .page {
+    max-width: 1440px;
+    margin: 0 auto;
+  }
+  .hero {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 18px 0 22px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+  }
+  h1 {
+    margin: 0 0 6px;
+    font-size: 26px;
+    letter-spacing: 0;
+  }
+  .lead {
+    margin: 0;
+    max-width: 820px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .stamp {
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    overflow: auto;
+  }
+  .section-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  h2 {
+    margin: 0 0 5px;
+    font-size: 16px;
+  }
+  .section-note {
+    margin: 0;
+    color: var(--muted);
+    max-width: 900px;
+    font-size: 13px;
+  }
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    border-radius: 999px;
+    padding: 5px 10px;
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .tag.target { color: var(--green); border-color: rgba(63,185,80,.45); }
+  .tag.current { color: var(--orange); border-color: rgba(240,136,62,.45); }
+  .mermaid-wrap {
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    border-radius: 8px;
+    padding: 16px;
+    overflow: auto;
+  }
+  .mermaid {
+    min-width: 980px;
+    display: flex;
+    justify-content: center;
+  }
+  .mermaid svg {
+    max-width: 100%;
+    height: auto;
+  }
+  .compare {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .fact {
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 112px;
+  }
+  .fact strong {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 13px;
+  }
+  .fact p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .fact.good { border-color: rgba(63,185,80,.35); }
+  .fact.warn { border-color: rgba(240,136,62,.35); }
+  .fact.bad { border-color: rgba(248,81,73,.35); }
+  code {
+    background: rgba(139,148,158,.16);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+  }
+  @media (max-width: 900px) {
+    body { padding: 14px; }
+    .hero { display: block; }
+    .stamp { margin-top: 10px; white-space: normal; }
+    .section-header { display: block; }
+    .tag { margin-top: 10px; }
+    .compare { grid-template-columns: 1fr; }
+    .mermaid { min-width: 880px; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<link rel="stylesheet" href="_theme.css">
+<script src="_theme.js"></script>
+<script src="_nav.js"></script>
+</head>
+<body>
+<div class="page">
+  <header class="hero">
+    <div>
+      <h1>AI routing: целевая схема и текущая реальность</h1>
+      <p class="lead">Страница фиксирует целевую архитектуру: постоянные TG/VK входы сначала проходят дешёвую классификацию, и только подтверждённые клиентские ветки доходят до дорогих моделей генерации.</p>
+    </div>
+    <div class="stamp">Snapshot: 13.05.2026 · static dashboard page</div>
+  </header>
+
+  <main class="grid">
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>1. Как должно быть</h2>
+          <p class="section-note">Один общий intake-router принимает TG/VK события, дешёвый AI решает роль сообщения, дальше поток расходится в Sales LCB, Broker или мусор. Opus/Sonnet высокого уровня работают только после маршрутизации.</p>
+        </div>
+        <span class="tag target">target architecture</span>
+      </div>
+      <div class="mermaid-wrap">
+        <div class="mermaid">
+flowchart TD
+  classDef source fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
+  classDef listener fill:#20362d,stroke:#3fb950,color:#e6edf3
+  classDef cheap fill:#3d2f1a,stroke:#d29922,color:#e6edf3
+  classDef agent fill:#2d2a4a,stroke:#bc8cff,color:#e6edf3
+  classDef store fill:#2a2a2a,stroke:#8b949e,color:#e6edf3
+  classDef trash fill:#3a1f1f,stroke:#f85149,color:#e6edf3
+
+  TGPOSTS["TG event chats<br/>persistent push triggers"]:::source
+  TGDM["TG private DM<br/>persistent push triggers"]:::source
+  VKDM["VK incoming DM<br/>API / Kate Mobile contour"]:::source
+  VKGROUPS["VK group posts<br/>main VK API"]:::source
+
+  TGPOSTS --> TGL["TG realtime listeners<br/>tg_realtime_monitor + tg_dm_realtime_listener"]:::listener
+  TGDM --> TGL
+  VKDM --> VKL["VK listeners<br/>longpoll / DM API"]:::listener
+  VKGROUPS --> VKL
+
+  TGL --> INBOX["Unified inbound event envelope<br/>platform, peer, text, source, history pointer"]:::store
+  VKL --> INBOX
+
+  INBOX --> L1["Cheap AI gate<br/>Gemini L1"]:::cheap
+  L1 --> L2["Sonnet L2 only if unsure<br/>client / broker / trash"]:::cheap
+
+  L2 --> ROUTER{"Canonical route"}
+  ROUTER -->|"LCB client"| SALES["Sales LCB agent<br/>LC Band / Noize Drum sales"]:::agent
+  ROUTER -->|"broker request"| BROKER["Broker agent<br/>contractor matching + margin gates"]:::agent
+  ROUTER -->|"spam / vacancy / non-event / vendor promo"| DROP["Trash<br/>state updated, no Opus, no outbound"]:::trash
+
+  SALES --> TOP1["Top AI generation/review<br/>Opus/Sonnet with full context"]:::agent
+  BROKER --> TOP2["Top AI broker reasoning<br/>Opus/Sonnet + presend review"]:::agent
+
+  TOP1 --> SEND1["Send / approval bot<br/>anti-ban + ai_review_before_send"]:::store
+  TOP2 --> SEND2["Relay / approval bot<br/>4 broker gates"]:::store
+  SEND1 --> DB[("orders.db + session_actions")]:::store
+  SEND2 --> DB
+        </div>
+      </div>
+      <div class="compare">
+        <div class="fact good">
+          <strong>Единый вход</strong>
+          <p>TG posts, TG DM, VK DM и VK group posts нормализуются в один event-envelope до бизнес-логики.</p>
+        </div>
+        <div class="fact good">
+          <strong>Дешёвый gate до генерации</strong>
+          <p><code>Gemini/Sonnet</code> решают client/broker/trash. <code>Opus</code> не видит мусор.</p>
+        </div>
+        <div class="fact good">
+          <strong>Дальше работают агенты</strong>
+          <p>Sales LCB и Broker получают только свои сообщения и уже там применяют дорогие модели и presend rules.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>2. Как сейчас работает</h2>
+          <p class="section-note">Сейчас intake-классификация и responder-контур живут раздельно. Поэтому часть сообщений проходит дешёвый classifier для monitor/reconciliation, но <code>tg_responder</code> может отдельно дойти до <code>tg_responder_cli</code>.</p>
+        </div>
+        <span class="tag current">current implementation</span>
+      </div>
+      <div class="mermaid-wrap">
+        <div class="mermaid">
+flowchart TD
+  classDef source fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
+  classDef listener fill:#20362d,stroke:#3fb950,color:#e6edf3
+  classDef cheap fill:#3d2f1a,stroke:#d29922,color:#e6edf3
+  classDef agent fill:#2d2a4a,stroke:#bc8cff,color:#e6edf3
+  classDef store fill:#2a2a2a,stroke:#8b949e,color:#e6edf3
+  classDef risk fill:#3a1f1f,stroke:#f85149,color:#e6edf3
+
+  TGPOSTS2["TG event-chat posts"]:::source
+  VKPOSTS2["VK group posts"]:::source
+  TGDM2["TG private DM / known contacts"]:::source
+  VKDM2["VK DM"]:::source
+
+  TGPOSTS2 --> TGMON["tg_realtime_monitor<br/>triggers telegram_monitor.scan_cycle"]:::listener
+  VKPOSTS2 --> VKMON["vk_monitor<br/>group ingest contour"]:::listener
+  TGMON --> INGEST["ai_classify_chain.classify_ingest_post<br/>Gemini L1 -> Sonnet L2 -> Opus L3 if needed"]:::cheap
+  VKMON --> INGEST
+  INGEST --> ORDERS["orders.db / broker_orders / skip"]:::store
+
+  TGDM2 --> TGRTL["tg_dm_realtime_listener<br/>spawns tg_responder.py"]:::listener
+  TGRTL --> TGRESP["tg_responder.py<br/>own gates and own classifier"]:::agent
+  TGRESP --> LOCAL["local hard gates<br/>whitelist, payment, urgent, broker, skip_until_human"]:::agent
+  LOCAL --> DETAILED{"is_detailed_query?"}
+  DETAILED -->|"yes"| DIRECTOPUS["generate_detailed_ai_response<br/>Opus before shared client/not-client gate"]:::risk
+  DETAILED -->|"no"| DMCLASS["classify_with_context<br/>Opus-first DM category"]:::risk
+  DMCLASS --> DMGEN["generate_contextual_response<br/>tg_responder_cli"]:::risk
+  DIRECTOPUS --> SAFE["safe_send / approval / error"]:::store
+  DMGEN --> SAFE
+
+  VKDM2 --> VKLP["vk_longpoll_listener"]:::listener
+  VKLP --> VKRESP["vk_auto_responder.py<br/>separate responder contour"]:::agent
+
+  INGEST -. "verdict is not a mandatory gate for responder" .-> TGRESP
+        </div>
+      </div>
+      <div class="compare">
+        <div class="fact warn">
+          <strong>Два контура вместо одного</strong>
+          <p><code>ingest_post_classify</code> полезен для monitor/intake, но не является обязательным gate перед <code>tg_responder_cli</code>.</p>
+        </div>
+        <div class="fact bad">
+          <strong>Мусор может дойти до Opus</strong>
+          <p>Длинный spam/non-event текст может попасть в <code>is_detailed_query</code> и уйти в дорогую генерацию.</p>
+        </div>
+        <div class="fact warn">
+          <strong>VK и TG responders раздельные</strong>
+          <p>Посты, DM и broker-flow не сходятся в один canonical route до Sales/Broker/Trash.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>3. Gap для следующего фикса</h2>
+          <p class="section-note">Нужен не ещё один prompt, а общий routing contract: любой inbound перед Sales/Broker generation получает verdict дешёвого classifier и только потом допускается до дорогой модели.</p>
+        </div>
+        <span class="tag">implementation gap</span>
+      </div>
+      <div class="compare">
+        <div class="fact">
+          <strong>Новый contract</strong>
+          <p><code>client_lcb</code>, <code>broker_request</code>, <code>trash</code>, <code>vendor_ops</code>, <code>human_review</code> как общий verdict для TG/VK.</p>
+        </div>
+        <div class="fact">
+          <strong>Hard gate в responders</strong>
+          <p><code>tg_responder</code> и <code>vk_auto_responder</code> должны уважать trash/non-event до <code>generate_*_response</code>.</p>
+        </div>
+        <div class="fact">
+          <strong>Один audit trail</strong>
+          <p>Каждый route пишет <code>purpose</code>, verdict, confidence и финальное действие в <code>ai_timeline</code>/<code>session_actions</code>.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  const savedTheme = (() => {
+    try { return localStorage.getItem('lcb_theme') || 'dark'; } catch { return 'dark'; }
+  })();
+  document.documentElement.setAttribute('data-theme', savedTheme);
+
+  function mermaidThemeVars(theme) {
+    if (theme === 'light') return {
+      background: 'transparent',
+      primaryColor: '#eef1f5',
+      primaryBorderColor: '#d0d7de',
+      primaryTextColor: '#1f2328',
+      lineColor: '#0969da',
+      mainBkg: '#eef1f5',
+      secondaryColor: '#f6f8fa',
+      tertiaryColor: '#ffffff',
+    };
+    return {
+      background: 'transparent',
+      primaryColor: '#1f262e',
+      primaryBorderColor: '#30363d',
+      primaryTextColor: '#e6edf3',
+      lineColor: '#58a6ff',
+      mainBkg: '#1f262e',
+    };
+  }
+
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: savedTheme === 'light' ? 'default' : 'dark',
+    themeVariables: mermaidThemeVars(savedTheme),
+    securityLevel: 'loose',
+  });
+</script>
+</body>
+</html>
