@@ -3811,6 +3811,7 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, onProcessClic
         `Текст: ${aiDelivery.sent_text || 0}`,
         `Медиа: ${aiDelivery.sent_media || 0}`,
         `Новые лиды ждут питча: ${deliveryOutcomes.new_leads_waiting_pitch || 0}`,
+        `Изменения шага: ${deliveryOutcomes.stage_changes || 0}`,
         `Broker intake: ${deliveryOutcomes.broker_intake || 0}`,
         `Broker skip: ${deliveryOutcomes.broker_skip || 0}`,
         `AI skip: ${deliveryOutcomes.ai_skip || 0}`,
@@ -3951,7 +3952,7 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, onProcessClic
             </span>
             {aiDelivery && (
               <span title={deliveryTitle} style={{fontSize:10, opacity:0.82}}>
-                wait {deliveryOutcomes.new_leads_waiting_pitch || 0} · broker {deliveryOutcomes.broker_intake || 0} · skip {(deliveryOutcomes.ai_skip || 0) + (deliveryOutcomes.broker_skip || 0)} · fail {deliveryOutcomes.codex_fail || 0}
+                stage {deliveryOutcomes.stage_changes || 0} · wait {deliveryOutcomes.new_leads_waiting_pitch || 0} · broker {deliveryOutcomes.broker_intake || 0} · skip {(deliveryOutcomes.ai_skip || 0) + (deliveryOutcomes.broker_skip || 0)} · fail {deliveryOutcomes.codex_fail || 0}
               </span>
             )}
           </span>
