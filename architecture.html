@@ -824,8 +824,8 @@ flowchart TD
   TGCHATS["📨 17 TG event-chats"]:::chan
   VKGROUPS["📨 VK groups"]:::chan
 
-  TGCHATS --> MON["tg-monitor — every 10min<br/>Telethon API"]:::agent
-  TGCHATS --> WALK["browser-walk — hourly<br/>Telethon, separate session"]:::agent
+  TGCHATS --> MON["tg-realtime-monitor<br/>Telethon NewMessage + heartbeat"]:::agent
+  TGCHATS -.manual audit.-> WALK["browser-walk — on demand<br/>Telethon, separate session"]:::agent
   VKGROUPS --> VKMON["vk-monitor — every 10min"]:::agent
 
   MON --> PRE["Pre-filter — NO AI<br/>• is_skip_author musicians folder<br/>• dup-check msg_id seen<br/>• refusal hard-regex safety<br/>• length less than 20 chars"]:::pre
@@ -852,7 +852,7 @@ flowchart TD
 
   <section class="mindmap-card">
     <h2>2. Outbound DM responder — клиент пишет в ЛС → ответ</h2>
-    <p class="diagram-note">tg-responder каждые 2 мин читает inbound DM, через Opus генерит ответ, ai_review гейтит, send_proposal отправляет или ставит в approval-bot.</p>
+    <p class="diagram-note">tg-dm-realtime-listener ловит private DM сразу и запускает tg-responder; сам tg-responder остаётся владельцем Opus-ответа, ai_review, anti-ban и approval-bot.</p>
     <div class="mermaid">
 flowchart TD
   classDef chan fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
@@ -864,8 +864,10 @@ flowchart TD
   DM["💬 Inbound TG DM"]:::chan
   VKDM["💬 Inbound VK DM"]:::chan
 
-  DM --> TGRESP["tg-responder — every 2min<br/>jitter 15-35s, 8/run, 40/day"]:::agent
-  VKDM --> VKRESP["vk-responder — every 30min"]:::agent
+  DM --> TGDMRT["tg-dm-realtime-listener<br/>private NewMessage trigger"]:::agent
+  TGDMRT --> TGRESP["tg-responder<br/>triggered + 5min safety"]:::agent
+  VKDM --> VKLP["vk-longpoll-listener<br/>VK longpoll trigger"]:::agent
+  VKLP --> VKRESP["vk-responder<br/>triggered + schedule safety"]:::agent
 
   TGRESP --> CTX["Load context: orders_db.find_by_username<br/>+ last 15 msgs Telethon"]:::store
   VKRESP --> CTX
@@ -904,7 +906,7 @@ flowchart LR
   CLI["claude_cli.call_opus*<br/>Layer 2 — sonnet/opus (Max subscription)<br/>+ Gemini Layer 3 + API Layer 4"]:::cli
   CODEX -.fail/quota.-> CLI
 
-  MON["tg-monitor"]:::agent --> P1["classify_batch"]:::ai
+  MON["tg-realtime-monitor"]:::agent --> P1["classify_batch"]:::ai
   WALK["browser-walk"]:::agent --> P1
   VKMON["vk-monitor"]:::agent --> P1
   P1 -.fallback.-> P2["classify"]:::ai
@@ -976,7 +978,6 @@ flowchart TD
   PLISTS[("launchd plists")]:::store
 
   MORNING["morning-reconciliation<br/>02:03 local = 05:03 MSK<br/>diff monitor vs walk for 24h"]:::agent
-  WALK_REC["monitor-walk-reconcile<br/>hourly<br/>DB vs walk output"]:::agent
   AUTOHEAL["funnel_autoheal<br/>02:15 = 05:15 MSK<br/>stale Написал/Переговоры → Follow-up<br/>refusal → archived<br/>paid+event passed → Концерт"]:::agent
   REPORT["daily-report<br/>23:00 local = 05:00 MSK<br/>business summary to TG bot"]:::agent
   WATCHDOG["agent-watchdog<br/>every 30min<br/>restart fallen agents"]:::agent
@@ -1285,13 +1286,12 @@ sequenceDiagram
     'com.lcband.agent-watchdog': { block: '4. Reconciliation & watchdog', node: 'WATCHDOG', what: 'Следит за launchd-агентами, перезапускает упавшие, шлёт alert.' },
     'com.lcband.attention-auto-action': { block: '2/3. DM + AI review', node: 'AAA', what: 'Авто-действия по важным входящим сообщениям: urgent, musician review, presend gate.' },
     'com.lcband.attention-classify-cache': { block: '2. DM responder', what: 'Поддерживает кэш классификации внимания/важности входящих переписок.' },
-    'com.lcband.auto-browser-walk': { block: '1. Inbound classification', node: 'WALK', what: 'Независимый browser/Telethon walk, чтобы ловить пропущенные TG лиды.' },
+    'com.lcband.auto-browser-walk': { block: '1. Inbound classification', node: 'WALK', what: 'Deprecated launchd: ручной browser/Telethon walk оставлен как fallback.' },
     'com.lcband.bot-commander': { block: '2. Approval bot', node: 'BOT', what: 'Telegram approval/control bot: send/reject drafts, restart/check команды.' },
     'com.lcband.broker-client-promo-agent': { block: 'Broker pipeline', what: 'Собирает промо подрядчиков, чистит прямые контакты, готовит approval для клиента.' },
     'com.lcband.broker-quality-scorer': { block: 'Broker pipeline', what: 'Оценивает отклики подрядчиков по качеству и пригодности под запрос клиента.' },
     'com.lcband.claude-usage-probe': { block: '5/8. Usage monitoring', what: 'Снимает snapshot лимитов Claude/CLI для cost/architecture страниц.' },
     'com.lcband.conv-cache-sync': { block: '2. DM responder', what: 'Синхронизирует кэш TG переписок для контекста responder/review.' },
-    'com.lcband.daily-reconcile-walk': { block: '4. Reconciliation & watchdog', what: 'Суточная сверка walk/monitor/orders, ловит пропущенные заявки.' },
     'com.lcband.daily-report': { block: '4. Reconciliation & watchdog', node: 'REPORT', what: 'Два раза в день отправляет TG-отчёт по лидам, follow-up, ошибкам и сервисам.' },
     'com.lcband.dashboard-backend': { block: '5. Dashboard backend', node: 'BACKEND', what: 'Flask API для дашборда, архитектуры, чатов, restart/check endpoints.' },
     'com.lcband.dashboard-sync': { block: '5. Dashboard backend', what: 'Агрегирует orders/session/actions/state в dashboard_data для главной страницы.' },
@@ -1305,15 +1305,15 @@ sequenceDiagram
     'com.lcband.ig-followup': { block: 'IG pipeline', what: 'Follow-up по Instagram лидам.' },
     'com.lcband.ig-story-responder': { block: 'IG pipeline', what: 'Ответы/обработка входящих Instagram stories/messages.' },
     'com.lcband.mariakon-dance-collect': { block: 'Special collectors', what: 'Собирает/ведёт отдельный танцевальный кейс Mariakon.' },
-    'com.lcband.monitor-walk-reconcile': { block: '4. Reconciliation & watchdog', node: 'WALK_REC', what: 'Часовая сверка monitor vs browser-walk vs orders.db.' },
     'com.lcband.morning-reconciliation': { block: '4. Reconciliation & watchdog', node: 'MORNING', what: 'Утренняя глубокая сверка за 24ч: что monitor пропустил, а walk нашёл.' },
-    'com.lcband.payment-event-handler': { block: 'Events / payments', what: 'Реагирует на оплату/предоплату, создаёт или обновляет event-заказы.' },
+    'com.lcband.payment-event-handler': { block: 'Events / payments', what: 'Постоянный Telethon listener для оплат, promise reminders, Кирилла и drum-событий.' },
     'com.lcband.sheets-to-db-sync': { block: 'Storage / sync', what: 'Синхронизирует Google Sheets backup → orders.db, где это нужно.' },
     'com.lcband.tg-contact-classifier': { block: 'TG hygiene / folders', what: 'Классифицирует TG контакты: организатор/подрядчик/музыкант/мусор.' },
     'com.lcband.tg-followup': { block: 'Follow-up', node: 'FOLLOWUP', what: 'Плановые TG follow-up пинги по лидам.' },
     'com.lcband.tg-full-export': { block: 'TG export / cache', what: 'Полный/инкрементальный экспорт TG диалогов в локальный кэш.' },
     'com.lcband.tg-health-check': { block: 'Health checks', what: 'Проверяет состояние TG session/auth/floodwait и пишет health JSON.' },
-    'com.lcband.tg-monitor': { block: '1. Inbound classification', node: 'MON', what: 'Сканирует TG event-чаты, классифицирует посты, создаёт лиды.' },
+    'com.lcband.tg-dm-realtime-listener': { block: '2. Outbound DM responder', node: 'TGDMRT', what: 'Постоянно слушает private TG DM и debounce-запускает tg_responder.py.' },
+    'com.lcband.tg-realtime-monitor': { block: '1. Inbound classification', node: 'MON', what: 'Постоянно слушает TG event-чаты, запускает cursor scan на каждый новый пост.' },
     'com.lcband.tg-responder': { block: '2. Outbound DM responder', node: 'TGRESP', what: 'Читает TG DM, генерит ответ, пропускает через presend review.' },
     'com.lcband.tg-spambot-check': { block: '4. Reconciliation & watchdog', node: 'SPAMBOT', what: 'Проверяет @SpamBot/ограничения Telegram аккаунта.' },
     'com.lcband.todo-reminder': { block: 'TODO / reminders', what: 'Напоминает про TODO и ручные задачи, которые нельзя потерять.' },
@@ -1919,14 +1919,16 @@ sequenceDiagram
 
     TGCHATS: { role: '17 TG event-чатов', what: 'Источник лидов из event-индустрии. Список см. telegram_monitor.CHATS.', why: '~80% лидов LCB приходят отсюда.', where: 'telegram_monitor.CHATS' },
     VKGROUPS: { role: '8 VK групп', what: 'Источник лидов VK. Список см. vk_monitor.VK_GROUPS.', why: '~15% лидов LCB.', where: 'vk_monitor.VK_GROUPS' },
-    DM: { role: 'Inbound TG DM', what: 'Прямые сообщения клиентов в @Luxurycover_ru.', why: 'Hottest lead source — прямой контакт.', where: 'tg_responder.py читает inbox' },
-    VKDM: { role: 'Inbound VK DM', what: 'Прямые сообщения в группу LCB.', why: '—', where: 'vk_responder.py' },
+    DM: { role: 'Inbound TG DM', what: 'Прямые сообщения клиентов в @Luxurycover_ru.', why: 'Hottest lead source — прямой контакт.', where: 'tg_dm_realtime_listener.py triggers tg_responder.py' },
+    VKDM: { role: 'Inbound VK DM', what: 'Прямые сообщения в группу LCB.', why: '—', where: 'vk_longpoll_listener.py triggers vk_auto_responder.py' },
 
-    MON: { role: 'tg-monitor — every 10min', what: 'Сканит 17 чатов через Telethon API, складирует кандидатов, отдаёт в classify_batch.', why: 'Primary lead source. PeerFlood-safe pacing.', where: 'telegram_monitor.py + launchd com.lcband.tg-monitor' },
-    WALK: { role: 'browser-walk — hourly', what: 'То же что monitor, но через отдельную копию TG session, для morning_reconciliation diff.', why: 'Independent failure mode — если monitor пропустил, walk поймает за час.', where: 'browser_walk_telethon.py' },
+    MON: { role: 'tg-realtime-monitor — persistent', what: 'Слушает NewMessage по TG event-чатам и запускает telegram_monitor.scan_cycle сразу; heartbeat каждые 120s закрывает reconnect gaps.', why: 'Primary lead source без 10-минутной задержки.', where: 'tg_realtime_monitor.py + telegram_monitor.py + launchd com.lcband.tg-realtime-monitor' },
+    WALK: { role: 'browser-walk — manual fallback', what: 'Ручной глубокий обход через отдельную копию TG session.', why: 'On-demand audit, не постоянный слой.', where: 'browser_walk_telethon.py' },
     VKMON: { role: 'vk-monitor — every 10min', what: 'VK API + classify_batch flow.', why: '—', where: 'vk_monitor.py' },
-    TGRESP: { role: 'tg-responder — every 2min', what: 'Читает inbound DM, генерит ответ через Opus, шлёт через ai_review гейт. Anti-ban: 8/run, 40/day, jitter 15-35s.', why: 'Memory feedback_tg_anti_ban — main account защита от PeerFlood.', where: 'tg_responder.py' },
-    VKRESP: { role: 'vk-responder — every 30min', what: 'То же для VK DM.', why: '—', where: 'vk_responder.py' },
+    TGDMRT: { role: 'tg-dm-realtime-listener — persistent', what: 'Слушает private NewMessage и запускает tg_responder.py сразу, с debounce и pending rerun.', why: 'Убирает задержку schedule без дублирования бизнес-логики.', where: 'tg_dm_realtime_listener.py + launchd com.lcband.tg-dm-realtime-listener' },
+    TGRESP: { role: 'tg-responder — triggered + safety', what: 'Читает inbound DM, генерит ответ через Opus, шлёт через ai_review гейт. Anti-ban: 8/run, 40/day, jitter 15-35s.', why: 'Memory feedback_tg_anti_ban — main account защита от PeerFlood.', where: 'tg_responder.py' },
+    VKLP: { role: 'vk-longpoll-listener — persistent', what: 'Держит VK longpoll и запускает vk_auto_responder.py на входящий DM.', why: 'Realtime VK without polling delay.', where: 'vk_longpoll_listener.py' },
+    VKRESP: { role: 'vk-responder — triggered + schedule safety', what: 'То же для VK DM.', why: '—', where: 'vk_responder.py / vk_auto_responder.py' },
 
     CLI: { role: 'claude_cli.call_opus* — единая точка AI', what: 'Все AI-вызовы LCB идут через эту функцию: subprocess claude CLI первым слоем, API fallback вторым (memory feedback_cli_first_api_fallback).', why: 'Max plan закрывает токены подпиской. CLI должен покрывать 99% вызовов.', where: 'claude_cli.py' },
 
@@ -1935,7 +1937,6 @@ sequenceDiagram
     ACT: { role: 'session_actions.jsonl — audit log', what: 'Каждый action бота: handle_lead, sent_pitch, follow_up. Виден на дашборде вкладка Таймлайн.', why: 'Memory feedback_session_actions_log — обязательный лог.', where: '—' },
 
     MORNING: { role: 'morning-reconciliation — 02:03 SP / 05:03 MSK', what: 'Diff monitor (orders.db) vs walk (browser_walk_result.json) за 24ч. Если walk нашёл лид которого нет в DB → alert.', why: 'Catch-up safety net.', where: 'morning_reconciliation.py' },
-    WALK_REC: { role: 'monitor-walk-reconcile — hourly', what: 'То же но каждый час, без alert.', why: '—', where: '—' },
     AUTOHEAL: { role: 'funnel_autoheal — 02:15 SP / 05:15 MSK', what: '4 правила: stale Написал/Переговоры >3д → Follow-up; refusal → archived; paid+event прошёл → Концерт.', why: 'Без этого статусы зависают. Идемпотентно — можно гонять часто.', where: 'funnel_autoheal.py' },
     REPORT: { role: 'daily-report — 23:00 SP / 05:00 MSK', what: 'Бизнес-сводка в TG бот: новые валидные лиды, кому написали, follow-up due, в переговорах, DM funnel.', why: 'Утренний обзор за чашкой кофе.', where: 'daily_report.py' },
     WATCHDOG: { role: 'agent-watchdog — every 30min', what: 'Проверяет что все launchd-агенты живы. Если упали — restart + TG alert.', why: 'Самовосстановление без human ops.', where: 'agent_watchdog.py' },

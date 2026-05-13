@@ -968,8 +968,8 @@ const PROCESS_RULES = {
   },
   proc_vk_responder: {
     name: 'VK Ответчик',
-    interval: 'Постоянно (KeepAlive daemon)',
-    desc: 'Висит на event-loop VK API, реагирует на входящие в DM в реальном времени',
+    interval: 'По триггеру VK Longpoll + safety schedule',
+    desc: 'Обрабатывает VK DM после realtime-триггера или safety-запуска',
     rules: [
       'AI-решение по каждому диалогу: already_replied / category / should_reply / text (через Claude CLI Opus)',
       'Автоответ по категориям LC Band (organizer_wants_info, price_objection, unclear, etc.)',
@@ -981,11 +981,26 @@ const PROCESS_RULES = {
       'Перезапускается автоматически при падении (KeepAlive)',
     ],
   },
-  proc_tg_monitor: {
-    name: 'TG Монитор',
-    interval: 'Каждые 5 мин (минуты 0, 5, 10, ..., 55)',
-    desc: 'Telethon-скан 17 event-чатов на новые посты — основной входящий поток',
+  proc_vk_longpoll: {
+    name: 'VK Longpoll Trigger',
+    interval: 'Постоянно (KeepAlive daemon)',
+    desc: 'Держит VK longpoll открытым и при входящем DM запускает vk_auto_responder',
     rules: [
+      'messages.getLongPollServer + a_check wait=25s',
+      'На code=4 incoming DM: debounce 30s → vk_auto_responder.py',
+      'Если responder уже работает — ставит pending_rerun и запускает ещё раз после завершения',
+      'Heartbeat state: vk_longpoll_listener_state.json; watchdog рестартит при stale >3 мин',
+      'Скрипт: vk_longpoll_listener.py | log: vk_longpoll.log',
+    ],
+  },
+  proc_tg_monitor: {
+    name: 'TG Realtime Monitor',
+    interval: 'Постоянно: Telethon NewMessage + heartbeat 120s',
+    desc: 'Держит Telethon подключение к event-чатам, ловит новые посты сразу и запускает cursor scan существующего pipeline',
+    rules: [
+      'Persistent listener: events.NewMessage по всем event-чатам из telegram_monitor.CHATS',
+      'Новый пост → debounce 3s → telegram_monitor.scan_cycle по msg_id-курсорам',
+      'Heartbeat scan каждые 120s ловит reconnect gaps и любые пропущенные socket events',
       'Только дельта: msg_id-курсор per chat (iter_messages min_id=N), до 5000 новых за цикл',
       '🔴 22.04 SIMPLIFIED: classifier — один CLI Opus с 3-retry exp-backoff (3s/6s/12s)',
       'Regex hit → CLI Opus классификация (fallback на regex если все retries упали)',
@@ -1000,9 +1015,36 @@ const PROCESS_RULES = {
       '🔴 22.04: _PRESEND_SYSTEM знает ОБА бренда — LCB (поп/рок/джаз cover) и Noize Drum (drum-show, LED-барабаны, этно, перкуссия). Drum-запросы НЕ skip\'аются критериями LCB (инцидент LINA_SOUL 21.04)',
       'AI-review НЕ skip на: зарубежный контракт (adapt→опросник), native-speaker (adapt→fork), комплекс (adapt→upsell со светом/DJ/звуком), drum-show (adapt→Noize Drum)',
       'Post-send: status Новый→Написал + добавление в TG-папку «Отправлен» 📤',
-      'Акк @Luxurycover_ru, session_lock /tmp/lcband_tg_session.lock с responder/followup',
+      'Акк @Luxurycover_ru, отдельная session-copy tg_session_monitor; responder/followup используют свои копии',
       'Error path: курсор НЕ advance-ится — следующий цикл перечитает с прошлого успеха',
+      'Скрипт: tg_realtime_monitor.py; бизнес-логика остаётся в telegram_monitor.py',
       '🗑 Deprecated 22.04: Haiku API ($$), hybrid Sonnet+Haiku+arbiter (3× compute)',
+    ],
+  },
+  proc_tg_dm_realtime: {
+    name: 'TG DM Realtime Trigger',
+    interval: 'Постоянно (KeepAlive daemon)',
+    desc: 'Держит отдельную Telethon session-copy и при входящем private DM запускает tg_responder.py',
+    rules: [
+      'Persistent listener: events.NewMessage(incoming=True) только для private DM',
+      'Новый DM → debounce/cooldown 20s → tg_responder.py',
+      'tg_responder.py остаётся единственным владельцем anti-ban, approval, payment/vendor guards',
+      'Если responder уже работает — pending_rerun после завершения',
+      'Startup catch-up запускает tg_responder один раз после подключения',
+      'Heartbeat state: tg_dm_realtime_listener_state.json; watchdog рестартит при stale >3 мин',
+      'Скрипт: tg_dm_realtime_listener.py | log: /tmp/tg_dm_realtime_listener.log',
+    ],
+  },
+  proc_payment_handler: {
+    name: 'Payment Event Handler',
+    interval: 'Постоянно (KeepAlive daemon)',
+    desc: 'Telethon listener для оплат, обещаний, Кирилла и drum-director событий',
+    rules: [
+      'Слушает private incoming/outgoing через отдельную tg_session_payments',
+      'Catch-up replay при старте по per-peer cursor закрывает downtime gaps',
+      'Payment/promise/drum logic остаётся здесь, общий tg_responder это не дублирует',
+      'Heartbeat state: payment_event_handler_heartbeat.json; watchdog рестартит при stale >3 мин',
+      'Скрипт: payment_event_handler.py | log: /tmp/payment_event_handler.log',
     ],
   },
   proc_vk_monitor: {
@@ -1018,9 +1060,10 @@ const PROCESS_RULES = {
   },
   proc_tg_responder: {
     name: 'TG Ответчик',
-    interval: 'Постоянно (KeepAlive daemon)',
-    desc: 'Висит на Telethon event-loop, реагирует на входящие в DM лидов в реальном времени',
+    interval: 'Realtime-триггер + safety каждые 5 мин',
+    desc: 'Сканирует DM и отвечает; realtime-вход запускается через TG DM Realtime Trigger',
     rules: [
+      'Не является постоянным listener: запускается новым tg_dm_realtime_listener.py или schedule fallback',
       'Классифицирует входящие через regex (classify_reply) + AI (classify_with_context для too_short/ambiguous)',
       '🔴 22.04: hard-regex refusal_guard (общий модуль с tg_followup) вызывается ПОСЛЕ classify_reply — override категории на decline если ловит отказные фразы («уже выбрали», «отбой», «передумали» — инцидент @lisitsyna_law 20.04)',
       '🔴 22.04: ТЕКСТ ответа пишет Claude Opus по категории-hint (удалены hardcoded шаблоны)',
@@ -1080,17 +1123,15 @@ const PROCESS_RULES = {
     ],
   },
   proc_gap_detector: {
-    name: 'Gap Detector (3ч)',
-    interval: 'Каждые 3 часа (180 мин)',
-    desc: 'Лёгкая проверка свежих 3ч окна на пропуски: walk-coverage + monitor-coverage + Opus auto-recovery',
+    name: 'Gap Detector (retired)',
+    interval: 'Отключён после перехода TG на realtime monitor',
+    desc: 'Старый 3h safety net заменён постоянным NewMessage listener + daily morning reconciliation',
     rules: [
-      'Окно 3ч rolling (now-3h → now), все 17 event-чатов',
-      'Сравнивает посты vs monitor (orders.db) vs walk (browser_walk_result.json per_chat_post_counts)',
-      'Слепые посты (не пойманы ни monitor ни walk) с regex-match → Opus CLI classify',
-      'Если Opus решил music_band|drum_show|solo_musician|abstract → record_tg_order АВТО → попадает в pipeline для first pitch',
-      'НЕТ «глянь сам» — Opus решает, post-fact лог Михаилу через TG-alert если recovered ≥1',
-      'Walk health-check: alert если browser_walk_result.json старее 90 минут',
-      'Результат: gap_detector_result.json (per_chat + recovered_orders)',
+      'Не загружен в launchd и не должен алертить по stale state',
+      'Свежие посты ловит tg_realtime_monitor.py через events.NewMessage',
+      'Reconnect gaps закрывает heartbeat cursor scan каждые 120s',
+      'Суточный post-by-post аудит остаётся в morning_reconciliation.py',
+      'Файл gap_detector.py сохранён как исторический fallback, не production agent',
     ],
   },
   proc_dashboard_sync: {
@@ -1128,11 +1169,10 @@ const PROCESS_RULES = {
   },
   proc_browser_walk: {
     name: 'Browser Walk',
-    interval: 'Каждый час в :00 SP time (launchd auto_browser_walk.sh, window=1ч)',
-    desc: 'Auto: Claude CLI (Opus 4.7) + Chrome MCP проходит 17 event-чатов глазами — ловит картинки, нестандартные формулировки, креативы которые Telethon-monitor не видит',
+    interval: 'Manual / on-demand через dashboard или /browser-walk',
+    desc: 'Ручной глубокий обход event-чатов; hourly launchd-agent снят после перехода TG на realtime listener',
     rules: [
-      'launchd plist com.lcband.auto-browser-walk — StartCalendarInterval Minute=0',
-      'wrapper auto_browser_walk.sh → lock + sanity + claude CLI вызов',
+      'launchd auto-browser-walk отключён; ручной wrapper auto_browser_walk.sh оставлен как fallback',
       'claude --model opus --dangerously-skip-permissions -p "..." + skill tg-leads-lcb',
       'Chrome MCP: открывает web.telegram.org → screenshot + scroll + classify',
       'Для каждого поста: walk_event(kept|filtered|dup) — live тикер на дашборде',
@@ -3492,6 +3532,201 @@ function AgentMatrixStatus() {
   );
 }
 
+/* ───────────────────────────────────────────────────────────────────
+ * HeartbeatFlowViz — cyberpunk-схема heartbeat watchdog loop.
+ * Ставится слева от Matrix-счётчика процессов: показывает не просто count,
+ * а сам механизм daemon → state file → watchdog → kickstart/alert.
+ * ─────────────────────────────────────────────────────────────────── */
+function HeartbeatFlowViz({ beats = [] }) {
+  React.useEffect(() => {
+    const css = `
+      @keyframes hb-neon-pulse {
+        0%, 100% { filter: drop-shadow(0 0 3px rgba(34,211,238,.75)); opacity: .92; }
+        50% { filter: drop-shadow(0 0 12px rgba(244,114,182,.95)); opacity: 1; }
+      }
+      @keyframes hb-flow {
+        0% { transform: translateX(-18px); opacity: 0; }
+        14% { opacity: 1; }
+        86% { opacity: 1; }
+        100% { transform: translateX(188px); opacity: 0; }
+      }
+      @keyframes hb-grid-shift {
+        0% { background-position: 0 0, 0 0; }
+        100% { background-position: 46px 24px, -46px -24px; }
+      }
+      .hb-cyber {
+        position: relative;
+        display: inline-grid;
+        grid-template-columns: auto 1fr;
+        align-items: center;
+        gap: 10px;
+        min-width: 430px;
+        max-width: 520px;
+        padding: 7px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(34,211,238,.52);
+        background:
+          linear-gradient(135deg, rgba(8,13,30,.96), rgba(24,10,35,.94)),
+          repeating-linear-gradient(90deg, rgba(34,211,238,.08) 0 1px, transparent 1px 23px),
+          repeating-linear-gradient(0deg, rgba(244,114,182,.06) 0 1px, transparent 1px 12px);
+        box-shadow:
+          0 0 22px rgba(34,211,238,.16),
+          inset 0 0 18px rgba(244,114,182,.08);
+        overflow: hidden;
+        isolation: isolate;
+      }
+      .hb-cyber::before {
+        content: "";
+        position: absolute; inset: 0;
+        background:
+          linear-gradient(90deg, transparent, rgba(34,211,238,.08), transparent),
+          radial-gradient(circle at 78% 35%, rgba(244,114,182,.24), transparent 34%);
+        animation: hb-grid-shift 8s linear infinite;
+        z-index: -1;
+      }
+      .hb-core {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-family: 'Courier New', 'Monaco', monospace;
+        font-size: 9px;
+        letter-spacing: 1.4px;
+        color: #67e8f9;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .hb-core-dot {
+        width: 9px; height: 9px;
+        border-radius: 999px;
+        background: #22d3ee;
+        box-shadow: 0 0 8px #22d3ee, 0 0 18px rgba(244,114,182,.7);
+        animation: hb-neon-pulse 1.15s ease-in-out infinite;
+      }
+      .hb-pipeline {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+      }
+      .hb-node {
+        position: relative;
+        z-index: 2;
+        padding: 4px 7px;
+        border: 1px solid rgba(103,232,249,.4);
+        border-radius: 5px;
+        background: rgba(2,6,23,.72);
+        color: #cffafe;
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: .7px;
+        white-space: nowrap;
+        box-shadow: inset 0 0 10px rgba(34,211,238,.08);
+      }
+      .hb-node.hot {
+        border-color: rgba(244,114,182,.7);
+        color: #fbcfe8;
+      }
+      .hb-line {
+        position: relative;
+        flex: 1 1 24px;
+        height: 1px;
+        min-width: 18px;
+        background: linear-gradient(90deg, rgba(34,211,238,.22), rgba(244,114,182,.82), rgba(34,211,238,.22));
+        box-shadow: 0 0 9px rgba(34,211,238,.45);
+        overflow: hidden;
+      }
+      .hb-line::after {
+        content: "";
+        position: absolute;
+        top: -3px; left: 0;
+        width: 18px; height: 7px;
+        border-radius: 999px;
+        background: #f472b6;
+        box-shadow: 0 0 10px #f472b6, 0 0 18px rgba(34,211,238,.9);
+        animation: hb-flow 1.9s linear infinite;
+      }
+      .hb-lanes {
+        grid-column: 1 / -1;
+        display: flex;
+        gap: 6px;
+        margin-top: 2px;
+        min-width: 0;
+        overflow: hidden;
+      }
+      .hb-lane {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: rgba(15,23,42,.72);
+        border: 1px solid rgba(148,163,184,.22);
+        color: #94a3b8;
+        font-family: 'Courier New', 'Monaco', monospace;
+        font-size: 8px;
+        letter-spacing: .45px;
+      }
+      .hb-lane span:last-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .hb-lane-dot {
+        width: 6px; height: 6px;
+        border-radius: 999px;
+        background: #64748b;
+        flex: 0 0 auto;
+      }
+      .hb-lane.run { color: #86efac; border-color: rgba(34,197,94,.32); }
+      .hb-lane.run .hb-lane-dot { background:#22c55e; box-shadow:0 0 8px rgba(34,197,94,.9); }
+      .hb-lane.wait { color: #67e8f9; border-color: rgba(34,211,238,.28); }
+      .hb-lane.wait .hb-lane-dot { background:#22d3ee; box-shadow:0 0 8px rgba(34,211,238,.75); }
+      .hb-lane.fail { color: #fca5a5; border-color: rgba(248,113,113,.42); }
+      .hb-lane.fail .hb-lane-dot { background:#f43f5e; box-shadow:0 0 8px rgba(244,63,94,.95); }
+      @media (max-width: 980px) {
+        .hb-cyber { min-width: 100%; max-width: 100%; }
+        .hb-pipeline { gap: 4px; }
+        .hb-node { padding: 4px 5px; font-size: 8px; }
+      }
+    `;
+    if (!document.getElementById('heartbeat-flow-style')) {
+      const s = document.createElement('style');
+      s.id = 'heartbeat-flow-style';
+      s.textContent = css;
+      document.head.appendChild(s);
+    }
+  }, []);
+
+  const visibleBeats = (beats || []).slice(0, 5);
+  return (
+    <div className="hb-cyber" title="Heartbeat loop: daemon пишет state, watchdog проверяет age, stale → kickstart + alert">
+      <div className="hb-core">
+        <span className="hb-core-dot" />
+        <span>heartbeat bus</span>
+      </div>
+      <div className="hb-pipeline">
+        <span className="hb-node">daemon</span>
+        <span className="hb-line" />
+        <span className="hb-node">state</span>
+        <span className="hb-line" />
+        <span className="hb-node hot">watchdog</span>
+        <span className="hb-line" />
+        <span className="hb-node">kickstart</span>
+      </div>
+      <div className="hb-lanes">
+        {visibleBeats.map(b => (
+          <span key={b.key} className={`hb-lane ${b.state}`}>
+            <span className="hb-lane-dot" />
+            <span>{b.short}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function StatusSection({ status, activity24h, sent24h, onProcessClick }) {
   const [bwExpanded, setBwExpanded] = React.useState(false);
   const [bwFeed, setBwFeed] = React.useState(null);
@@ -3620,6 +3855,21 @@ function StatusSection({ status, activity24h, sent24h, onProcessClick }) {
       return a._origIndex - b._origIndex;
     });
 
+  const heartbeatLabels = {
+    proc_tg_monitor: 'tg chats',
+    proc_tg_dm_realtime: 'tg dm',
+    proc_payment_handler: 'payment',
+    proc_vk_longpoll: 'vk lp',
+    proc_bot_commander: 'bot',
+  };
+  const heartbeatBeats = Object.keys(heartbeatLabels)
+    .map(key => {
+      const row = rows.find(s => s.key === key);
+      if (!row) return null;
+      return { key, short: heartbeatLabels[key], state: processState(row) };
+    })
+    .filter(Boolean);
+
   const processHover = (s) => {
     const a = act[s.key] || {};
     const state = processState(s);
@@ -3656,9 +3906,10 @@ function StatusSection({ status, activity24h, sent24h, onProcessClick }) {
 
   return (
     <div className="section" style={{ marginTop: 14 }}>
-      <div className="section-title" style={{display:'flex', alignItems:'center', gap:10}}>
+      <div className="section-title" style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap'}}>
         Статус процессов
         <RestartAllButton />
+        <HeartbeatFlowViz beats={heartbeatBeats} />
         <AgentMatrixStatus />
         {aiCalls24h > 0 && (
           <span style={{
