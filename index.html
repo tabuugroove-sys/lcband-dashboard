@@ -3391,6 +3391,131 @@ function RestartAllButton() {
                     : `✅ ${result.ok}/${result.total} АГЕНТОВ ПЕРЕЗАПУЩЕНО`)
                 : ' '}
       </div>
+
+      {/* 13.05 — отдельные кнопки для исключённых из bulk reset агентов */}
+      <SingleAgentRestartButton
+        endpoint="/api/restart_dashboard_backend"
+        label="Перезагрузить dashboard-backend"
+        why="Исключён из общей кнопки: backend сам себе обрабатывает HTTP-запрос, нельзя себя убить посредине ответа. Здесь — delayed self-kick через nohup, response улетает первым."
+        backendUrl={backendUrl}
+        getOrPromptToken={getOrPromptToken}
+      />
+      <SingleAgentRestartButton
+        endpoint="/api/restart_wa_export"
+        label="Перезагрузить wa-export"
+        why="Исключён из общей кнопки: WA Web использует linked-device session (QR). Частые рестарты могут привести к флагам аккаунта / разлогину. Жми только когда уверен что WA нужен — откроется видимый Chrome."
+        backendUrl={backendUrl}
+        getOrPromptToken={getOrPromptToken}
+      />
+    </div>
+  );
+}
+
+
+function SingleAgentRestartButton({endpoint, label, why, backendUrl, getOrPromptToken}) {
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState(null);
+
+  async function _probeBackend(url, timeoutMs = 4000) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const r = await fetch(`${url}/api/health`, {signal: ctrl.signal, mode: 'cors'});
+      clearTimeout(t);
+      if (!r.ok) return {ok: false, reason: `HTTP ${r.status}`};
+      const j = await r.json();
+      return {ok: !!j.ok, reason: 'live'};
+    } catch (e) {
+      clearTimeout(t);
+      return {ok: false, reason: String(e.message || e).slice(0, 120)};
+    }
+  }
+
+  async function _resolveBackend() {
+    const candidates = [
+      {url: backendUrl, label: 'cloudflare tunnel'},
+      {url: 'http://127.0.0.1:8878', label: 'localhost (только на ноуте)'},
+    ];
+    for (const c of candidates) {
+      if (!c.url) continue;
+      const probe = await _probeBackend(c.url);
+      if (probe.ok) return c;
+    }
+    return null;
+  }
+
+  async function fire() {
+    if (busy) return;
+    if (!window.confirm(`${label}?\n\n${why}`)) return;
+    const token = await getOrPromptToken();
+    if (!token) return;
+    setBusy(true);
+    setMsg(null);
+    const pick = await _resolveBackend();
+    if (!pick) {
+      alert('❌ Backend недоступен (ни tunnel ни localhost)');
+      setBusy(false);
+      return;
+    }
+    try {
+      const r = await fetch(`${pick.url}${endpoint}`, {
+        method:  'POST',
+        headers: {'Content-Type':'application/json', 'X-Admin-Token': token},
+        body:    JSON.stringify({}),
+      });
+      const j = await r.json();
+      if (r.status === 403) {
+        localStorage.removeItem('lcband_admin_token');
+        alert('❌ Неверный токен — удалён');
+      } else if (!r.ok) {
+        alert(`Ошибка: ${j.error || r.status}`);
+      } else {
+        setMsg({ok: !!j.ok, text: j.msg || (j.ok ? 'OK' : 'fail')});
+        setTimeout(() => setMsg(null), 15000);
+      }
+    } catch (e) {
+      // Self-restart endpoint может оборвать connection до response — это OK
+      if (endpoint.includes('dashboard_backend')) {
+        setMsg({ok: true, text: 'kickstart launched (connection broken — expected)'});
+        setTimeout(() => setMsg(null), 15000);
+      } else {
+        alert('Network error: ' + String(e).slice(0, 200));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{
+      marginTop: 12, padding: '8px 12px',
+      background: 'rgba(0,0,0,0.3)', borderRadius: 6,
+      fontSize: 11, lineHeight: 1.4,
+    }}>
+      <button
+        onClick={fire}
+        disabled={busy}
+        title={why}
+        style={{
+          background: busy ? '#666' : '#2a3340',
+          color: '#cde', border: '1px solid #4a5468',
+          padding: '6px 14px', borderRadius: 4, cursor: busy ? 'wait' : 'pointer',
+          fontSize: 11, fontFamily: 'inherit', fontWeight: 600,
+        }}
+      >
+        {busy ? '⏳' : '⟳'} {label}
+      </button>
+      {msg && (
+        <span style={{
+          marginLeft: 12,
+          color: msg.ok ? '#34d399' : '#fbbf24',
+        }}>
+          {msg.ok ? '✓' : '⚠'} {msg.text}
+        </span>
+      )}
+      <div style={{marginTop: 6, color: 'rgba(255,255,255,0.5)', fontSize: 10}}>
+        {why.split('.')[0]}.
+      </div>
     </div>
   );
 }
