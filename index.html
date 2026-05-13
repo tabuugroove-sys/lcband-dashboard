@@ -3224,29 +3224,32 @@ function RestartAllButton() {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 10px;
-      }
-      .reset-secondary-actions {
-        width: 260px;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
         gap: 8px;
       }
-      .single-agent-restart {
-        min-width: 0;
-        padding: 8px 10px;
-        background: linear-gradient(180deg, rgba(18,24,38,0.95), rgba(7,10,18,0.95));
-        border: 1px solid rgba(96,165,250,0.22);
-        border-radius: 8px;
+      .reset-secondary-actions {
+        width: min(260px, calc(100vw - 48px));
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        padding: 5px 6px;
+        border: 1px solid rgba(96,165,250,0.18);
+        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(15,23,42,0.74), rgba(2,6,23,0.66));
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      }
+      .single-agent-restart {
+        flex: 1 1 0;
+        min-width: 0;
+        position: relative;
       }
       .single-agent-restart button {
         width: 100%;
-        background: #202a38;
+        height: 30px;
+        background: rgba(32,42,56,0.95);
         color: #c7d7ea;
         border: 1px solid #46566e;
-        padding: 6px 8px;
-        border-radius: 6px;
+        padding: 0 10px;
+        border-radius: 8px;
         cursor: pointer;
         font-size: 10px;
         font-family: inherit;
@@ -3261,16 +3264,17 @@ function RestartAllButton() {
         opacity: 0.65;
       }
       .single-agent-restart .why {
-        margin-top: 5px;
-        color: rgba(255,255,255,0.44);
-        font-size: 8px;
-        line-height: 1.3;
-        letter-spacing: 1.1px;
-        text-transform: uppercase;
+        display: none;
       }
       .single-agent-restart .msg {
-        display: block;
-        margin-top: 5px;
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 34px;
+        z-index: 2;
+        padding: 4px 6px;
+        border-radius: 6px;
+        background: rgba(2,6,23,0.92);
         font-size: 9px;
         line-height: 1.25;
       }
@@ -3353,7 +3357,7 @@ function RestartAllButton() {
         color: #94a3b8;
       }
       @media (max-width: 860px) {
-        .reset-secondary-actions { grid-template-columns: 1fr; }
+        .reset-secondary-actions { width: min(320px, calc(100vw - 32px)); }
         .delivery-card { width: 100%; margin-left: 0; }
       }
     `;
@@ -3533,7 +3537,7 @@ function RestartAllButton() {
       <div className="reset-secondary-actions">
         <SingleAgentRestartButton
           endpoint="/api/restart_dashboard_backend"
-          label="dashboard-backend"
+          label="backend"
           why="Backend сам обрабатывает HTTP-ответ, поэтому рестартуется отдельной delayed-командой."
           backendUrl={backendUrl}
           getOrPromptToken={getOrPromptToken}
