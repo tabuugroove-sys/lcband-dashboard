@@ -3699,6 +3699,97 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
 }
 
 /* ───────────────────────────────────────────────────────────────────
+ * AiEfficiencyTile — live picture of AI burn vs actual outbound.
+ * Reads /api/ai_efficiency every 60s. Shows calls/outbound + top
+ * expensive purposes + escalation rate for chained classifiers.
+ * ─────────────────────────────────────────────────────────────────── */
+
+function AiEfficiencyTile({backendUrl}) {
+  const [data, setData] = React.useState(null);
+  const [err, setErr] = React.useState(null);
+
+  React.useEffect(() => {
+    let alive = true;
+    async function load() {
+      try {
+        const r = await fetch(`${backendUrl}/api/ai_efficiency?hours=6`);
+        const j = await r.json();
+        if (alive) { setData(j); setErr(null); }
+      } catch (e) {
+        if (alive) setErr(String(e.message || e).slice(0, 80));
+      }
+    }
+    load();
+    const t = setInterval(load, 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, [backendUrl]);
+
+  if (err) return <div style={tileStyle}>ai-eff: {err}</div>;
+  if (!data) return <div style={tileStyle}>ai-eff: loading…</div>;
+
+  const cpo = data.calls_per_outbound;
+  const tpo = data.tokens_per_outbound;
+  const cpoColor = cpo == null ? '#888' : cpo > 80 ? '#ef4444' : cpo > 50 ? '#f59e0b' : '#34d399';
+  const fmt = n => n == null ? '—' : n >= 1000 ? (n/1000).toFixed(0) + 'K' : Math.round(n);
+
+  return (
+    <div style={tileStyle} title="AI calls / actual outbound. Click for details.">
+      <div style={{fontSize: 10, color: '#94a3b8', letterSpacing: 0.5, marginBottom: 4}}>
+        AI EFFICIENCY · {data.window_hours}h
+      </div>
+      <div style={{display: 'flex', gap: 12, alignItems: 'baseline'}}>
+        <div>
+          <div style={{fontSize: 26, fontWeight: 700, color: cpoColor, lineHeight: 1}}>
+            {cpo == null ? '—' : cpo.toFixed(0)}
+          </div>
+          <div style={{fontSize: 9, color: '#94a3b8'}}>calls/outbound</div>
+        </div>
+        <div>
+          <div style={{fontSize: 16, color: '#cde'}}>{fmt(tpo)}</div>
+          <div style={{fontSize: 9, color: '#94a3b8'}}>tokens/outbound</div>
+        </div>
+        <div>
+          <div style={{fontSize: 14, color: '#cde'}}>
+            {data.outbound_count} <span style={{fontSize: 10, color: '#94a3b8'}}>sent</span>
+          </div>
+          <div style={{fontSize: 14, color: '#cde'}}>
+            {data.total_calls} <span style={{fontSize: 10, color: '#94a3b8'}}>calls</span>
+          </div>
+        </div>
+      </div>
+      <div style={{marginTop: 8, fontSize: 10, color: '#94a3b8'}}>
+        Top burn (tokens):
+      </div>
+      <div style={{fontSize: 10, fontFamily: 'monospace', lineHeight: 1.4}}>
+        {(data.top_purposes || []).slice(0, 4).map(p => {
+          const escFlag = p.escalation_pct > 80 ? ' 🔴' : p.escalation_pct > 50 ? ' 🟡' : '';
+          return (
+            <div key={p.purpose} style={{display: 'flex', justifyContent: 'space-between', gap: 8}}>
+              <span style={{color: '#cde', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200}}>
+                {p.purpose}
+              </span>
+              <span style={{color: '#94a3b8'}}>
+                {p.calls}× {fmt(p.tokens_in)}t {p.l1 > 0 ? `esc:${p.escalation_pct}%` : ''}{escFlag}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const tileStyle = {
+  background: 'rgba(20, 25, 35, 0.6)',
+  border: '1px solid rgba(255, 255, 255, 0.08)',
+  borderRadius: 8,
+  padding: '10px 14px',
+  minWidth: 280,
+  fontSize: 12,
+};
+
+
+/* ───────────────────────────────────────────────────────────────────
  * AgentMatrixStatus — Matrix-стайл live статус launchd-агентов.
  * Pulls /api/launch_agents каждые 10 сек, показывает RUNNING/WAITING/TOTAL
  * в green terminal-стайл с CRT scanline и subtle character rain.
@@ -4326,6 +4417,7 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
           deliveryOutcomes={deliveryOutcomes}
           deliveryTitle={deliveryTitle}
         />
+        <AiEfficiencyTile backendUrl={backendUrl} />
       </div>
       <div className="status-list">
         {rows.map(s => {
