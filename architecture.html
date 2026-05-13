@@ -824,7 +824,8 @@ flowchart TD
   TGCHATS["📨 17 TG event-chats"]:::chan
   VKGROUPS["📨 VK groups"]:::chan
 
-  TGCHATS --> MON["tg-realtime-monitor<br/>Telethon NewMessage + heartbeat"]:::agent
+  TGCHATS --> GATEWAY["realtime-gateway<br/>single launchd supervisor"]:::agent
+  GATEWAY --> MON["tg-realtime-monitor component<br/>Telethon NewMessage + heartbeat"]:::agent
   TGCHATS -.manual audit.-> WALK["browser-walk — on demand<br/>Telethon, separate session"]:::agent
   VKGROUPS --> VKMON["vk-monitor — every 10min"]:::agent
 
@@ -852,7 +853,7 @@ flowchart TD
 
   <section class="mindmap-card">
     <h2>2. Outbound DM responder — клиент пишет в ЛС → ответ</h2>
-    <p class="diagram-note">tg-dm-realtime-listener ловит private DM сразу и запускает tg-responder; сам tg-responder остаётся владельцем Opus-ответа, ai_review, anti-ban и approval-bot.</p>
+    <p class="diagram-note">realtime-gateway держит TG/VK/payment listener-компоненты; tg-dm-realtime-listener ловит private DM сразу и запускает tg-responder. Сам tg-responder остаётся владельцем Opus-ответа, ai_review, anti-ban и approval-bot.</p>
     <div class="mermaid">
 flowchart TD
   classDef chan fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
@@ -864,9 +865,11 @@ flowchart TD
   DM["💬 Inbound TG DM"]:::chan
   VKDM["💬 Inbound VK DM"]:::chan
 
-  DM --> TGDMRT["tg-dm-realtime-listener<br/>private NewMessage trigger"]:::agent
+  DM --> GATEWAY2["realtime-gateway<br/>single launchd supervisor"]:::agent
+  GATEWAY2 --> TGDMRT["tg-dm-realtime-listener component<br/>private NewMessage trigger"]:::agent
   TGDMRT --> TGRESP["tg-responder<br/>triggered + 5min safety"]:::agent
-  VKDM --> VKLP["vk-longpoll-listener<br/>VK longpoll trigger"]:::agent
+  VKDM --> GATEWAY2
+  GATEWAY2 --> VKLP["vk-longpoll-listener component<br/>VK longpoll trigger"]:::agent
   VKLP --> VKRESP["vk-responder<br/>triggered + schedule safety"]:::agent
 
   TGRESP --> CTX["Load context: orders_db.find_by_username<br/>+ last 15 msgs Telethon"]:::store
@@ -1308,14 +1311,12 @@ sequenceDiagram
     'com.lcband.ig-story-responder': { block: 'IG pipeline', what: 'Ответы/обработка входящих Instagram stories/messages.' },
     'com.lcband.mariakon-dance-collect': { block: 'Special collectors', what: 'Собирает/ведёт отдельный танцевальный кейс Mariakon.' },
     'com.lcband.morning-reconciliation': { block: '4. Reconciliation & watchdog', node: 'MORNING', what: 'Утренняя глубокая сверка за 24ч: что monitor пропустил, а walk нашёл.' },
-    'com.lcband.payment-event-handler': { block: 'Events / payments', what: 'Постоянный Telethon listener для оплат, promise reminders, Кирилла и drum-событий.' },
+    'com.lcband.realtime-gateway': { block: 'Realtime ingress', node: 'GATEWAY', what: 'Единый launchd supervisor для TG event, TG DM, payment и VK longpoll компонентов.' },
     'com.lcband.sheets-to-db-sync': { block: 'Storage / sync', what: 'Синхронизирует Google Sheets backup → orders.db, где это нужно.' },
     'com.lcband.tg-contact-classifier': { block: 'TG hygiene / folders', what: 'Классифицирует TG контакты: организатор/подрядчик/музыкант/мусор.' },
     'com.lcband.tg-followup': { block: 'Follow-up', node: 'FOLLOWUP', what: 'Плановые TG follow-up пинги по лидам.' },
     'com.lcband.tg-full-export': { block: 'TG export / cache', what: 'Полный/инкрементальный экспорт TG диалогов в локальный кэш.' },
     'com.lcband.tg-health-check': { block: 'Health checks', what: 'Проверяет состояние TG session/auth/floodwait и пишет health JSON.' },
-    'com.lcband.tg-dm-realtime-listener': { block: '2. Outbound DM responder', node: 'TGDMRT', what: 'Постоянно слушает private TG DM и debounce-запускает tg_responder.py.' },
-    'com.lcband.tg-realtime-monitor': { block: '1. Inbound classification', node: 'MON', what: 'Постоянно слушает TG event-чаты, запускает cursor scan на каждый новый пост.' },
     'com.lcband.tg-responder': { block: '2. Outbound DM responder', node: 'TGRESP', what: 'Читает TG DM, генерит ответ, пропускает через presend review.' },
     'com.lcband.tg-spambot-check': { block: '4. Reconciliation & watchdog', node: 'SPAMBOT', what: 'Проверяет @SpamBot/ограничения Telegram аккаунта.' },
     'com.lcband.todo-reminder': { block: 'TODO / reminders', what: 'Напоминает про TODO и ручные задачи, которые нельзя потерять.' },
@@ -1323,7 +1324,6 @@ sequenceDiagram
     'com.lcband.vk-auto-pitch': { block: 'VK pipeline', what: 'Авто-питчи VK по валидным заявкам.' },
     'com.lcband.vk-followup': { block: 'VK pipeline', what: 'Follow-up по VK лидам.' },
     'com.lcband.vk-health-check': { block: 'VK pipeline', what: 'Проверяет VK токены/API health.' },
-    'com.lcband.vk-longpoll-listener': { block: 'VK pipeline', what: 'Longpoll listener для входящих VK событий/сообщений.' },
     'com.lcband.vk-monitor': { block: '1. Inbound classification', node: 'VKMON', what: 'Сканирует VK группы, классифицирует заявки, создаёт лиды.' },
     'com.lcband.vk-responder': { block: '2. Outbound DM responder', node: 'VKRESP', what: 'Ответы на входящие VK DM по контексту лида.' },
     'com.lcband.wa-export': { block: 'WA secure pipeline', what: '🔴 LEGACY: Playwright WA Web экспорт. ОТКЛЮЧЁН с 12.05.2026 — заменён на /wa-sync через computer-use + WhatsApp Desktop.' },
@@ -1921,15 +1921,17 @@ sequenceDiagram
 
     TGCHATS: { role: '17 TG event-чатов', what: 'Источник лидов из event-индустрии. Список см. telegram_monitor.CHATS.', why: '~80% лидов LCB приходят отсюда.', where: 'telegram_monitor.CHATS' },
     VKGROUPS: { role: '8 VK групп', what: 'Источник лидов VK. Список см. vk_monitor.VK_GROUPS.', why: '~15% лидов LCB.', where: 'vk_monitor.VK_GROUPS' },
-    DM: { role: 'Inbound TG DM', what: 'Прямые сообщения клиентов в @Luxurycover_ru.', why: 'Hottest lead source — прямой контакт.', where: 'tg_dm_realtime_listener.py triggers tg_responder.py' },
-    VKDM: { role: 'Inbound VK DM', what: 'Прямые сообщения в группу LCB.', why: '—', where: 'vk_longpoll_listener.py triggers vk_auto_responder.py' },
+    DM: { role: 'Inbound TG DM', what: 'Прямые сообщения клиентов в @Luxurycover_ru.', why: 'Hottest lead source — прямой контакт.', where: 'realtime_gateway.py supervises tg_dm_realtime_listener.py → tg_responder.py' },
+    VKDM: { role: 'Inbound VK DM', what: 'Прямые сообщения в группу LCB.', why: '—', where: 'realtime_gateway.py supervises vk_longpoll_listener.py → vk_auto_responder.py' },
 
-    MON: { role: 'tg-realtime-monitor — persistent', what: 'Слушает NewMessage по TG event-чатам и запускает telegram_monitor.scan_cycle сразу; heartbeat каждые 120s закрывает reconnect gaps.', why: 'Primary lead source без 10-минутной задержки.', where: 'tg_realtime_monitor.py + telegram_monitor.py + launchd com.lcband.tg-realtime-monitor' },
+    GATEWAY: { role: 'realtime-gateway — persistent supervisor', what: 'Единый launchd-владелец realtime ingress: TG event, TG DM, payment, VK longpoll. Пишет общий heartbeat и рестартит child-компоненты.', why: 'Меньше launchd-мусора без смешивания бизнес-логики.', where: 'realtime_gateway.py + launchd com.lcband.realtime-gateway' },
+    GATEWAY2: { role: 'realtime-gateway — persistent supervisor', what: 'Тот же gateway управляет TG DM и VK longpoll компонентами.', why: 'Один входной шлюз, отдельные обработчики.', where: 'realtime_gateway.py' },
+    MON: { role: 'tg-realtime-monitor — component', what: 'Слушает NewMessage по TG event-чатам и запускает telegram_monitor.scan_cycle сразу; heartbeat каждые 120s закрывает reconnect gaps.', why: 'Primary lead source без 10-минутной задержки.', where: 'tg_realtime_monitor.py + telegram_monitor.py + supervised by realtime_gateway.py' },
     WALK: { role: 'browser-walk — manual fallback', what: 'Ручной глубокий обход через отдельную копию TG session.', why: 'On-demand audit, не постоянный слой.', where: 'browser_walk_telethon.py' },
     VKMON: { role: 'vk-monitor — every 10min', what: 'VK API + classify_batch flow.', why: '—', where: 'vk_monitor.py' },
-    TGDMRT: { role: 'tg-dm-realtime-listener — persistent', what: 'Слушает private NewMessage и запускает tg_responder.py сразу, с debounce и pending rerun.', why: 'Убирает задержку schedule без дублирования бизнес-логики.', where: 'tg_dm_realtime_listener.py + launchd com.lcband.tg-dm-realtime-listener' },
+    TGDMRT: { role: 'tg-dm-realtime-listener — component', what: 'Слушает private NewMessage и запускает tg_responder.py сразу, с debounce и pending rerun.', why: 'Убирает задержку schedule без дублирования бизнес-логики.', where: 'tg_dm_realtime_listener.py + supervised by realtime_gateway.py' },
     TGRESP: { role: 'tg-responder — triggered + safety', what: 'Читает inbound DM, генерит ответ через Opus, шлёт через ai_review гейт. Anti-ban: 8/run, 40/day, jitter 15-35s.', why: 'Memory feedback_tg_anti_ban — main account защита от PeerFlood.', where: 'tg_responder.py' },
-    VKLP: { role: 'vk-longpoll-listener — persistent', what: 'Держит VK longpoll и запускает vk_auto_responder.py на входящий DM.', why: 'Realtime VK without polling delay.', where: 'vk_longpoll_listener.py' },
+    VKLP: { role: 'vk-longpoll-listener — component', what: 'Держит VK longpoll и запускает vk_auto_responder.py на входящий DM.', why: 'Realtime VK without polling delay.', where: 'vk_longpoll_listener.py + supervised by realtime_gateway.py' },
     VKRESP: { role: 'vk-responder — triggered + schedule safety', what: 'То же для VK DM.', why: '—', where: 'vk_responder.py / vk_auto_responder.py' },
 
     CLI: { role: 'claude_cli.call_opus* — единая точка AI', what: 'Все AI-вызовы LCB идут через эту функцию: subprocess claude CLI первым слоем, API fallback вторым (memory feedback_cli_first_api_fallback).', why: 'Max plan закрывает токены подпиской. CLI должен покрывать 99% вызовов.', where: 'claude_cli.py' },
