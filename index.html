@@ -1877,9 +1877,9 @@ function isDrumLead(o) {
   // Opus решает с полным контекстом — надёжнее regex. Regex остаётся как fallback если
   // AI ещё не классифицировал (новый лид, cold start).
   const brand = (o.funnel_brand || '').toLowerCase();
-  if (isSoloShowLead(o)) return true;
   if (brand === 'drum') return true;
   if (brand === 'lcb')  return false;
+  if (isSoloShowLead(o)) return true;
 
   // Fallback: regex-based routing (для лидов где AI ещё не прошёл).
   if (/бриф\s*вадим/i.test(o.status || '')) return true;
