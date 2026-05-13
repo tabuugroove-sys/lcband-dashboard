@@ -3244,6 +3244,41 @@ function RestartAllButton() {
     setArmed(a => !a);
   }
 
+  // 13.05.2026 Codex review: admin-safe кнопка. Перед /api/restart_agents
+  // делаем health probe через текущий tunnel URL И localhost fallback.
+  // Если оба недоступны — показываем понятную ошибку (tunnel протух vs
+  // tunnel запускается vs backend dead).
+  async function _probeBackend(url, timeoutMs = 4000) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const r = await fetch(`${url}/api/health`, {signal: ctrl.signal, mode: 'cors'});
+      clearTimeout(t);
+      if (!r.ok) return {ok: false, reason: `HTTP ${r.status}`};
+      const j = await r.json();
+      return {ok: !!j.ok, reason: 'live'};
+    } catch (e) {
+      clearTimeout(t);
+      return {ok: false, reason: String(e.message || e).slice(0, 120)};
+    }
+  }
+
+  async function _resolveBackend() {
+    // Try cloudflare tunnel URL first (from backend_url.json), then localhost
+    const candidates = [
+      {url: backendUrl, label: 'cloudflare tunnel'},
+      {url: 'http://127.0.0.1:8878', label: 'localhost (только на ноуте)'},
+    ];
+    const tried = [];
+    for (const c of candidates) {
+      if (!c.url) continue;
+      const probe = await _probeBackend(c.url);
+      tried.push({...c, ...probe});
+      if (probe.ok) return {pick: c, tried};
+    }
+    return {pick: null, tried};
+  }
+
   async function detonate() {
     if (busy || !armed) return;
     if (!window.confirm('🚨 ПЕРЕЗАГРУЗИТЬ ВСЕ launchd-АГЕНТЫ?\n\n47 из 49 будут stop/start.\nDashboard-backend и wa-export исключены.')) return;
@@ -3251,8 +3286,27 @@ function RestartAllButton() {
     if (!token) return;
     setBusy(true);
     setResult(null);
+
+    // Pre-flight: убедиться что backend доступен прежде чем спрашивать рестарт
+    const resolved = await _resolveBackend();
+    if (!resolved.pick) {
+      const summary = resolved.tried.map(t => `• ${t.label} (${t.url}): ${t.reason}`).join('\n');
+      alert(
+        '❌ Backend недоступен ни по одному пути.\n\n' +
+        summary +
+        '\n\nВозможные причины:\n' +
+        '• Cloudflare tunnel протух — tunnel-watcher поднимает новый ' +
+        '(жди 1-3 мин, в браузере жми Cmd+Shift+R)\n' +
+        '• macOS DNS cache держит negative — sudo dscacheutil -flushcache\n' +
+        '• Backend на ноуте умер — launchctl list | grep dashboard-backend'
+      );
+      setBusy(false);
+      return;
+    }
+
+    const targetUrl = resolved.pick.url;
     try {
-      const r = await fetch(`${backendUrl}/api/restart_agents`, {
+      const r = await fetch(`${targetUrl}/api/restart_agents`, {
         method:  'POST',
         headers: {'Content-Type':'application/json', 'X-Admin-Token': token},
         body:    JSON.stringify({}),
@@ -3266,11 +3320,17 @@ function RestartAllButton() {
       } else if (!r.ok) {
         alert(`Ошибка: ${j.error || r.status}`);
       } else {
-        setResult({ok: j.ok, failed: j.failed, total: j.total, results: j.results});
+        setResult({
+          ok: j.ok, failed: j.failed, total: j.total, results: j.results,
+          via: resolved.pick.label,
+        });
         setTimeout(() => { setResult(null); setArmed(false); }, 20000);
       }
     } catch (e) {
-      alert('Network error: ' + String(e).slice(0, 200));
+      alert(
+        `Backend probe прошёл (${resolved.pick.label}), но POST упал:\n` +
+        String(e).slice(0, 200)
+      );
     } finally {
       setBusy(false);
     }
