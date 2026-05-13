@@ -13,7 +13,7 @@
     { href: 'pricing.html',         emoji: '💰', label: 'Pricing',    color: 'pricing' },
     { href: 'architecture.html',    emoji: '🧠', label: 'Архитектура', color: 'arch' },
     { href: 'architecture-v2.html', emoji: '🧬', label: 'Arch v2',    color: 'archv2' },
-    { href: 'ai-routing.html',      emoji: 'AI', label: 'Routing',    color: 'routing' },
+    { href: 'ai-routing.html',      emoji: '📍', label: 'As-is',      color: 'routing' },
     { href: 'broker.html',          emoji: '🤝', label: 'Broker',     color: 'broker' },
     { href: 'dm-direct-funnel.html', emoji: '📨', label: 'DM funnel',  color: 'funnel' },
     { href: 'cost.html',            emoji: '💸', label: 'Расход',     color: 'cost' },

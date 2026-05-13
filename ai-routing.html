@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LC Band — AI Routing</title>
+<title>LC Band — Текущий pipeline (as-is)</title>
 <style>
   :root {
     --bg: #0d1117;
@@ -183,8 +183,8 @@
 <div class="page">
   <header class="hero">
     <div>
-      <h1>AI routing: целевая схема и текущая реальность</h1>
-      <p class="lead">Страница фиксирует целевую архитектуру: постоянные TG/VK входы сначала проходят дешёвую классификацию, и только подтверждённые клиентские ветки доходят до дорогих моделей генерации.</p>
+      <h1>Текущий pipeline (as-is)</h1>
+      <p class="lead">Диагностический snapshot того, как production работает прямо сейчас. Целевая схема, к которой мы идём, живёт на отдельной странице → <a href="architecture-v2.html" style="color:var(--blue)">🧬 Arch v2</a>.</p>
     </div>
     <div class="stamp">Snapshot: 13.05.2026 · static dashboard page</div>
   </header>
@@ -193,72 +193,8 @@
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>1. Как должно быть</h2>
-          <p class="section-note">Один общий intake-router принимает TG/VK события, дешёвый AI решает роль сообщения, дальше поток расходится в Sales LCB, Broker или мусор. Opus/Sonnet высокого уровня работают только после маршрутизации.</p>
-        </div>
-        <span class="tag target">target architecture</span>
-      </div>
-      <div class="mermaid-wrap">
-        <div class="mermaid">
-flowchart TD
-  classDef source fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
-  classDef listener fill:#20362d,stroke:#3fb950,color:#e6edf3
-  classDef cheap fill:#3d2f1a,stroke:#d29922,color:#e6edf3
-  classDef agent fill:#2d2a4a,stroke:#bc8cff,color:#e6edf3
-  classDef store fill:#2a2a2a,stroke:#8b949e,color:#e6edf3
-  classDef trash fill:#3a1f1f,stroke:#f85149,color:#e6edf3
-
-  TGPOSTS["TG event chats<br/>persistent push triggers"]:::source
-  TGDM["TG private DM<br/>persistent push triggers"]:::source
-  VKDM["VK incoming DM<br/>API / Kate Mobile contour"]:::source
-  VKGROUPS["VK group posts<br/>main VK API"]:::source
-
-  TGPOSTS --> TGL["TG realtime listeners<br/>tg_realtime_monitor + tg_dm_realtime_listener"]:::listener
-  TGDM --> TGL
-  VKDM --> VKL["VK listeners<br/>longpoll / DM API"]:::listener
-  VKGROUPS --> VKL
-
-  TGL --> INBOX["Unified inbound event envelope<br/>platform, peer, text, source, history pointer"]:::store
-  VKL --> INBOX
-
-  INBOX --> L1["Cheap AI gate<br/>Gemini L1"]:::cheap
-  L1 --> L2["Sonnet L2 only if unsure<br/>client / broker / trash"]:::cheap
-
-  L2 --> ROUTER{"Canonical route"}
-  ROUTER -->|"LCB client"| SALES["Sales LCB agent<br/>LC Band / Noize Drum sales"]:::agent
-  ROUTER -->|"broker request"| BROKER["Broker agent<br/>contractor matching + margin gates"]:::agent
-  ROUTER -->|"spam / vacancy / non-event / vendor promo"| DROP["Trash<br/>state updated, no Opus, no outbound"]:::trash
-
-  SALES --> TOP1["Top AI generation/review<br/>Opus/Sonnet with full context"]:::agent
-  BROKER --> TOP2["Top AI broker reasoning<br/>Opus/Sonnet + presend review"]:::agent
-
-  TOP1 --> SEND1["Send / approval bot<br/>anti-ban + ai_review_before_send"]:::store
-  TOP2 --> SEND2["Relay / approval bot<br/>4 broker gates"]:::store
-  SEND1 --> DB[("orders.db + session_actions")]:::store
-  SEND2 --> DB
-        </div>
-      </div>
-      <div class="compare">
-        <div class="fact good">
-          <strong>Единый вход</strong>
-          <p>TG posts, TG DM, VK DM и VK group posts нормализуются в один event-envelope до бизнес-логики.</p>
-        </div>
-        <div class="fact good">
-          <strong>Дешёвый gate до генерации</strong>
-          <p><code>Gemini/Sonnet</code> решают client/broker/trash. <code>Opus</code> не видит мусор.</p>
-        </div>
-        <div class="fact good">
-          <strong>Дальше работают агенты</strong>
-          <p>Sales LCB и Broker получают только свои сообщения и уже там применяют дорогие модели и presend rules.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>2. Как сейчас работает</h2>
-          <p class="section-note">Сейчас intake-классификация и responder-контур живут раздельно. Поэтому часть сообщений проходит дешёвый classifier для monitor/reconciliation, но <code>tg_responder</code> может отдельно дойти до <code>tg_responder_cli</code>.</p>
+          <h2>Как сейчас работает</h2>
+          <p class="section-note">Intake-классификация и responder-контур живут раздельно. Часть сообщений проходит дешёвый classifier для monitor/reconciliation, но <code>tg_responder</code> может отдельно дойти до <code>tg_responder_cli</code> без единого route-решения.</p>
         </div>
         <span class="tag current">current implementation</span>
       </div>
@@ -318,23 +254,15 @@ flowchart TD
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>3. Gap для следующего фикса</h2>
-          <p class="section-note">Нужен не ещё один prompt, а общий routing contract: любой inbound перед Sales/Broker generation получает verdict дешёвого classifier и только потом допускается до дорогой модели.</p>
+          <h2>Куда движемся</h2>
+          <p class="section-note">Целевая схема, JSON-контракт L1, deterministic router, lead_threads и handoff между агентами — на отдельной странице.</p>
         </div>
-        <span class="tag">implementation gap</span>
+        <span class="tag">→ next</span>
       </div>
       <div class="compare">
         <div class="fact">
-          <strong>Новый contract</strong>
-          <p><code>client_lcb</code>, <code>broker_request</code>, <code>trash</code>, <code>vendor_ops</code>, <code>human_review</code> как общий verdict для TG/VK.</p>
-        </div>
-        <div class="fact">
-          <strong>Hard gate в responders</strong>
-          <p><code>tg_responder</code> и <code>vk_auto_responder</code> должны уважать trash/non-event до <code>generate_*_response</code>.</p>
-        </div>
-        <div class="fact">
-          <strong>Один audit trail</strong>
-          <p>Каждый route пишет <code>purpose</code>, verdict, confidence и финальное действие в <code>ai_timeline</code>/<code>session_actions</code>.</p>
+          <strong>🧬 Arch v2</strong>
+          <p>Полный design: <a href="architecture-v2.html" style="color:var(--blue)">architecture-v2.html</a> — L1 facts schema, router-as-contract, migration plan.</p>
         </div>
       </div>
     </section>
