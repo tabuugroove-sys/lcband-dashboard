@@ -1056,6 +1056,7 @@ flowchart TD
   classDef store fill:#2a2a2a,stroke:#8b949e,color:#e6edf3
   classDef out fill:#3a1f3a,stroke:#bc8cff,color:#e6edf3
   classDef alert fill:#3a1f1f,stroke:#f85149,color:#e6edf3
+  classDef approval fill:#3d2f1a,stroke:#f0883e,color:#e6edf3
   classDef legacy fill:#1a1a1a,stroke:#666,color:#666
 
   WA["💬 WhatsApp Desktop<br/>native macOS app<br/>net.whatsapp.WhatsApp"]:::chan
@@ -1088,7 +1089,8 @@ flowchart TD
   MARKSENT --> SENT[("sent_proposals.json")]:::store
   MARKSENT --> ACT2[("session_actions.jsonl")]:::store
 
-  GATES -.payment hard signal.-> URGENT["🚨 lcb_urgent alert<br/>(TODO: hook)"]:::alert
+  GATES -.explicit client call/manual decision only.-> URGENT["🚨 lcb_urgent alert<br/>active orders only"]:::alert
+  GATES -.payment words.-> PAYOPS["payment/manual approval<br/>no urgent wake-up"]:::approval
 
   BACKUP["wa-backup — 04:10 SP daily<br/>snapshot всего что важно"]:::agent
   CACHE --> BACKUP
