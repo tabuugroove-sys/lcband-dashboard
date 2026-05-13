@@ -3788,7 +3788,9 @@ const tileStyle = {
   border: '1px solid rgba(255, 255, 255, 0.08)',
   borderRadius: 8,
   padding: '10px 14px',
-  minWidth: 280,
+  width: '100%',
+  minWidth: 0,
+  boxSizing: 'border-box',
   fontSize: 12,
 };
 
@@ -4414,6 +4416,7 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
         </div>
         <DeliveryEfficiencyCard
           aiCalls24h={aiCalls24h}
+          <AiEfficiencyTile backendUrl={backendUrl} />
           sentMessages24h={sentMessages24h}
           sentConversion24h={sentConversion24h}
           aiDelivery={aiDelivery}
@@ -4421,7 +4424,6 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
           deliveryOutcomes={deliveryOutcomes}
           deliveryTitle={deliveryTitle}
         />
-        <AiEfficiencyTile backendUrl={backendUrl} />
       </div>
       <div className="status-list">
         {rows.map(s => {
