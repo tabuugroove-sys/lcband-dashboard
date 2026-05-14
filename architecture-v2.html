@@ -116,7 +116,7 @@
       <li>L2 (GPT-5.5) — арбитр только для unsure / конфликтных кейсов.</li>
       <li>Два domain-агента на Opus: <span class="accent">LCB Sales</span> и <span class="accent">Broker</span>. Тред принадлежит агенту с момента первого касания.</li>
       <li>Approval-bot — только для платежей и составных бюджетов выше cap. Всё остальное — auto.</li>
-      <li><strong>Все исходящие</strong> (любой агент, любой канал) проходят через единый <code>outbound_gate</code>: sanitize → ai_review → governor → channel. См. §5a.</li>
+      <li><strong>Все исходящие</strong> (любой агент, любой канал) проходят через единый <code>outbound_policy</code>: sanitize → ai_review → governor → channel. См. §5a.</li>
     </ul>
   </div>
 
@@ -151,7 +151,7 @@
        └─────── outbound_governor (TG/VK rate limits, anti-ban) ──────┘
                                   │
                                   ▼
-                       outbound_gate (§5a):
+                       outbound_policy (§5a):
                        sanitize → ai_review → governor → channel
                                   │
                           ┌───────┴────────┐
@@ -320,7 +320,7 @@ CREATE TABLE agent_tasks (
       <span class="accent">Параллель к router-as-contract на входе:</span>
       на выходе один общий chokepoint. ЛЮБОЕ исходящее сообщение в любой
       канал (TG event/DM, VK community/DM, IG DM, approval-bot draft)
-      проходит через <code>outbound_gate()</code>. Никаких прямых
+      проходит через <code>outbound_policy()</code>. Никаких прямых
       <code>send_message()</code> в коде агентов.
     </p>
     <p class="note">
@@ -337,18 +337,18 @@ CREATE TABLE agent_tasks (
        ▼ compose draft (Opus, никогда не hardcoded)
        │
        ▼
-┌──── outbound_gate(draft, recipient_type, channel) ────────────────┐
+┌──── outbound_policy(draft, recipient_type, channel) ────────────────┐
 │ 1. sanitize_for_recipient(text, recipient_type)                   │
 │    • contractor → cut client @handles, phones, profile URLs,      │
 │      source chat name                                             │
-│    • lcb_band   → minimal (мы внутри)                             │
+│    • lcb_internal   → minimal (мы внутри)                             │
 │    • client     → no-op (логируем длину, ссылки, цифры)           │
 │                                                                   │
 │ 2. ai_review(draft, profile)                                      │
 │    • profile=client    → текущие правила (бэклайн, цены, видео)   │
 │    • profile=contractor→ feedback_vadimnoize_brief — domain only, │
 │      без client identifiers, бинарный CTA                         │
-│    • profile=lcb_band  → таймтаблица/состав/контракты             │
+│    • profile=lcb_internal  → таймтаблица/состав/контракты             │
 │    • decision ∈ {ok, adapt, skip, escalate_to_opus}               │
 │                                                                   │
 │ 3. outbound_governor.acquire(channel)                             │
@@ -374,29 +374,31 @@ CREATE TABLE agent_tasks (
       </thead>
       <tbody>
         <tr>
-          <td><code>lcb_band</code></td>
-          <td>Своя группа LCB — Ira, Stas, LAZ, Teddy, саксофонисты, чат-вокалисты</td>
-          <td>минимум (мы внутри)</td>
-          <td>внутренний — таймтаблица, состав, контракты</td>
+          <td><code>lcb_internal</code></td>
+          <td>Свои: Вадим, Ира, Стас, LAZ, Лео, чат-вокалисты, band-чат события</td>
+          <td>минимум</td>
+          <td>рабочий контекст, без лишней воды; бюджет/контакты только если этому чату реально разрешено</td>
         </tr>
         <tr>
           <td><code>contractor</code></td>
-          <td>Внешние подрядчики — @vadimnoize (drum), ведущие, DJ, звук, танцы, фото/видео</td>
-          <td><strong>режем client @handles, телефоны, profile URLs, имя source-чата</strong></td>
-          <td><code>feedback_vadimnoize_brief</code> — только domain-контекст, бинарный CTA</td>
+          <td>Внешние подрядчики/музыканты — host, DJ, звук, танцы, фото/видео, разовые «коллеги»</td>
+          <td><strong>режем client @handles, телефоны, profile URLs, имя source-чата, бюджет клиента</strong></td>
+          <td>можно просить видео/цену/условия; нельзя сливать клиента, источник, бюджет клиента</td>
         </tr>
         <tr>
           <td><code>client</code></td>
           <td>Клиенты/организаторы — DM-лиды, event-чаты, VK community, IG</td>
           <td>no-op (логируем длину, ссылки, цифры)</td>
-          <td>текущие правила (бэклайн, цены, видео-верификация)</td>
+          <td>полный <code>ai_review_before_send</code>: цены, факты, тон, no contractor contacts</td>
         </tr>
       </tbody>
     </table>
     <p class="note">
-      «Директор» (Вадим) — это <strong>конкретный contractor</strong>, не отдельный type.
-      Sanitize/review один на всех подрядчиков: правило едино — подрядчик не должен
-      видеть кто клиент и откуда лид.
+      <strong>Вадим — это <code>lcb_internal</code>, не <code>contractor</code>.</strong>
+      Он директор Noize Drum, наш постоянный партнёр — рабочий контекст ему передавать
+      можно (формат события, дата, длительность, наш предложенный клиенту бюджет).
+      Чужие подрядчики/музыканты, с которыми broker ведёт разовые сделки → <code>contractor</code>.
+      Граница простая: «свой» = тот, кому мы доверяем видеть нашу экономику конкретной заявки.
     </p>
     <p class="note">
       Approval-bot — это <strong>delivery mode</strong>, не получатель. Draft, который
@@ -406,15 +408,48 @@ CREATE TABLE agent_tasks (
       повторного review (кэш по hash).
     </p>
 
+    <h3>Контракт вызова — один gateway</h3>
+<pre>from outbound_policy import send_outbound
+
+await send_outbound(
+    channel="tg",                    # tg | vk | ig
+    recipient_role="lcb_internal",   # ОБЯЗАТЕЛЬНО — client | contractor | lcb_internal
+    purpose="drum_city_ask_status",  # audit-tag в session_actions
+    recipient="@vadimnoize",
+    text=draft,
+    context=context,
+)</pre>
+    <p class="note">
+      Policy выбирается <strong>только по <code>recipient_role</code></strong> — никакой
+      эвристики по тексту (<code>if "drum" in text…</code>), никакого регекса по username.
+      Если роль не передана → <code>RoleRequiredError</code>, gateway не отправляет.
+      <strong>Fail-closed.</strong>
+    </p>
+
+    <h3>Известные дыры в текущем коде</h3>
+    <ul>
+      <li><code>contractor_relay_agent.py:168</code> — <code>tg_client.send_message(vadim_entity, text)</code> мимо ai_review и governor'а.</li>
+      <li><code>send_pending_approval.py:348</code> — буквально печатает <code>"AI-review skipped: contractor-side broker message"</code>. Не «review не пропустил», а <strong>обход вручную</strong>.</li>
+      <li><code>broker_contractor_followup_agent.py:267</code> — то же, прямой <code>send_message</code> подрядчику.</li>
+    </ul>
+    <p class="note">
+      Все эти call-site'ы переключаются на <code>send_outbound(...)</code>. Старые
+      «специальные» байпассы удаляются — gateway либо пропускает, либо нет, исключений
+      «для подрядчиков скипнем» больше не бывает.
+    </p>
+
     <h3>Правила</h3>
     <ul>
       <li><strong>Запрет прямых <code>send_message</code> в бизнес-коде.</strong>
-          CI-lint: <code>grep send_message</code> вне <code>outbound_gate.py</code>
+          CI-lint: <code>grep send_message</code> вне <code>outbound_policy.py</code>
           и <code>channel_adapters/*</code> → fail.</li>
-      <li><strong><code>recipient_type</code> обязательный.</strong>
-          Только <code>lcb_band | contractor | client</code>. Любой новый «специальный»
+      <li><strong><code>recipient_role</code> обязательный, без угадывания.</strong>
+          Только <code>client | contractor | lcb_internal</code>. Любой новый «специальный»
           получатель сначала укладывается в одну из трёх категорий — не добавляется
-          новый type.</li>
+          новый role.</li>
+      <li><strong>Hardcoded outbound запрещён.</strong> Текст либо approved
+          через approval-bot, либо сгенерён Opus и проверен ai_review здесь же. Никаких
+          f-string шаблонов в коде агентов.</li>
       <li><strong>Sanitize deterministic ДО ai_review.</strong> Defense in depth —
           даже если Opus сольёт <code>@username</code>, regex уберёт.</li>
       <li><strong>ai_review — вторая линия.</strong> Ловит семантику, которую
@@ -426,7 +461,7 @@ CREATE TABLE agent_tasks (
 
     <h3>Cutover</h3>
     <ol>
-      <li>Написать <code>outbound_gate.py</code> + <code>sanitize.py</code> +
+      <li>Написать <code>outbound_policy.py</code> + <code>sanitize.py</code> +
           contractor profile в <code>ai_review</code>.</li>
       <li>Переключить <code>contractor_relay_agent</code> и
           <code>broker_contractor_followup_agent</code> (самые горящие —
