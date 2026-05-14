@@ -116,6 +116,7 @@
       <li>L2 (GPT-5.5) — арбитр только для unsure / конфликтных кейсов.</li>
       <li>Два domain-агента на Opus: <span class="accent">LCB Sales</span> и <span class="accent">Broker</span>. Тред принадлежит агенту с момента первого касания.</li>
       <li>Approval-bot — только для платежей и составных бюджетов выше cap. Всё остальное — auto.</li>
+      <li><strong>Все исходящие</strong> (любой агент, любой канал) проходят через единый <code>outbound_gate</code>: sanitize → ai_review → governor → channel. См. §5a.</li>
     </ul>
   </div>
 
@@ -150,11 +151,17 @@
        └─────── outbound_governor (TG/VK rate limits, anti-ban) ──────┘
                                   │
                                   ▼
-                          approval bot
-                  (если payment OR multi-contractor budget &gt; cap)
+                       outbound_gate (§5a):
+                       sanitize → ai_review → governor → channel
                                   │
-                                  ▼
-                              client / contractor
+                          ┌───────┴────────┐
+                          ▼                ▼
+                    approval bot     direct send
+            (payment OR budget&gt;cap) (auto, всё остальное)
+                          │                │
+                          └────────┬───────┘
+                                   ▼
+                          client / contractor
 </pre>
   </div>
 
@@ -305,6 +312,84 @@ CREATE TABLE agent_tasks (
       Никаких прямых in-memory вызовов между Python-агентами. Только через DB —
       переживает рестарт launchd, аудируется, есть метрика «сколько часов задача висит».
     </p>
+  </div>
+
+  <h2>5a. Universal outbound gate — все исходящие через AI review</h2>
+  <div class="card">
+    <p>
+      <span class="accent">Параллель к router-as-contract на входе:</span>
+      на выходе один общий chokepoint. ЛЮБОЕ исходящее сообщение в любой
+      канал (TG event/DM, VK community/DM, IG DM, approval-bot draft)
+      проходит через <code>outbound_gate()</code>. Никаких прямых
+      <code>send_message()</code> в коде агентов.
+    </p>
+    <p class="note">
+      Сейчас <code>ai_review_before_send</code> гейтит только client-facing
+      (<code>tg_responder</code>, <code>telegram_monitor</code>).
+      <code>contractor_relay_agent</code>, <code>broker_contractor_followup_agent</code>,
+      drum-brief к Вадиму, VK-ответы — обходят review и governor. Поэтому
+      проходят hardcoded templates и потенциальные утечки
+      <code>t.me/{client}</code> подрядчикам.
+    </p>
+
+<pre>[любой агент: LCB Sales / Broker / Director-brief / Followup / Approval]
+       │
+       ▼ compose draft (Opus, никогда не hardcoded)
+       │
+       ▼
+┌──── outbound_gate(draft, recipient_type, channel) ────────────────┐
+│ 1. sanitize_for_recipient(text, recipient_type)                   │
+│    • contractor/director → cut client @handles, phones,           │
+│      profile URLs, source chat                                    │
+│    • client              → no-op (логируем длину, ссылки, цифры)  │
+│                                                                   │
+│ 2. ai_review(draft, profile)                                      │
+│    • profile=client     → текущие правила (бэклайн, цены, видео)  │
+│    • profile=contractor → feedback_vadimnoize_brief — domain only,│
+│      без client identifiers, бинарный CTA                         │
+│    • decision ∈ {ok, adapt, skip, escalate_to_opus}               │
+│                                                                   │
+│ 3. outbound_governor.acquire(channel)                             │
+│    • TG/VK/IG лимиты, jitter, PeerFlood/CAPTCHA cooldown          │
+│                                                                   │
+│ 4. channel_adapter.send(channel, recipient, final_text)           │
+│                                                                   │
+│ 5. log → session_actions + orders.db history + ai_timeline        │
+└───────────────────────────────────────────────────────────────────┘
+       │
+       ▼ delivered or approval-bot draft</pre>
+
+    <h3>Правила</h3>
+    <ul>
+      <li><strong>Запрет прямых <code>send_message</code> в бизнес-коде.</strong>
+          CI-lint: <code>grep send_message</code> вне <code>outbound_gate.py</code>
+          и <code>channel_adapters/*</code> → fail.</li>
+      <li><strong><code>recipient_type</code> обязательный.</strong>
+          <code>client | contractor | director | self_approval</code>. Влияет
+          на sanitize и ai_review профиль.</li>
+      <li><strong>Sanitize deterministic ДО ai_review.</strong> Defense in depth —
+          даже если Opus сольёт <code>@username</code>, regex уберёт.</li>
+      <li><strong>ai_review — вторая линия.</strong> Ловит семантику, которую
+          regex не возьмёт («Вадим, клиент Иван 38 лет на дочкину свадьбу» —
+          sanitize пропустит, review должен сфлагнуть лишние детали).</li>
+      <li><strong>Fail-safe = skip.</strong> Любая ошибка (Sonnet timeout,
+          sanitize crash) → НЕ слать. Тишина &gt; утечка.</li>
+      <li><strong>Approval-bot тоже recipient.</strong> Drafts в bot Михаилу
+          ТОЖЕ проходят gate — он видит уже sanitized текст.</li>
+    </ul>
+
+    <h3>Cutover</h3>
+    <ol>
+      <li>Написать <code>outbound_gate.py</code> + <code>sanitize.py</code> +
+          contractor profile в <code>ai_review</code>.</li>
+      <li>Переключить <code>contractor_relay_agent</code> и
+          <code>broker_contractor_followup_agent</code> (самые горящие —
+          сейчас bypass).</li>
+      <li><code>tg_responder</code> и <code>telegram_monitor</code> — обернуть
+          существующий <code>ai_review_before_send</code> в общий gate.</li>
+      <li>VK responder, IG responder.</li>
+      <li>CI-guard: <code>send_message</code> вне gate/adapters = fail build.</li>
+    </ol>
   </div>
 
   <h2>6. Outbound governor (shared rate-limiter)</h2>
