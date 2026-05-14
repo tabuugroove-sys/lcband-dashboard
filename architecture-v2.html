@@ -541,6 +541,115 @@ await send_outbound(
     </ol>
   </div>
 
+  <h2>10a. A/B canary procedure — честное сравнение v1 vs v2</h2>
+  <div class="card">
+    <p>
+      Shadow-run из §10 step 3 даёт картину «что v2 решил бы», но не «какая
+      реальная конверсия у v2». Для второго нужен canary — малая доля
+      реального трафика, которую v2 ведёт от начала и до отправки. Отправляет
+      <strong>всегда только один pipeline</strong> на один лид, иначе дубли
+      и бан-риск.
+    </p>
+
+    <h3>Пять правил, без которых canary не работает</h3>
+
+    <ol>
+      <li>
+        <strong>Ключ хэширования — <code>thread_id</code>, не <code>order_id</code>.</strong>
+        Order появляется не на первом касании; thread_id (из
+        <code>thread_state.make_thread_id(channel, peer)</code>) стабилен с
+        момента первого touch. Один лид всю жизнь в одном pipeline.
+<pre>def choose_pipeline(thread_id: str, pct: int) -> str:
+    h = int(hashlib.sha1(thread_id.encode()).hexdigest(), 16) % 100
+    return "v2" if h &lt; pct else "v1"</pre>
+      </li>
+
+      <li>
+        <strong>Не процент от трафика — per-purpose whitelist.</strong>
+        10% случайно даёт 10% payment-сообщений тоже. Это плохо. Конфиг:
+<pre>{
+  "pipeline_v2_canary": {
+    "ingest_post_classify":    10,
+    "cold_outreach_first":      5,
+    "payment_intent_classify":  0,
+    "outbound_promise":         0,
+    "refusal_handling":         0
+  }
+}</pre>
+        <code>payment_*</code> / <code>refusal</code> / <code>urgent</code>
+        остаются на v1 пока каждый purpose явно не прокляйнен.
+      </li>
+
+      <li>
+        <strong><code>pipeline_version</code> через contextvars, не через аргументы.</strong>
+        Прокидывать тег через каждый AI/send вызов = десятки правок, легко
+        забыть. Лучше один contextvar, который router устанавливает раз, а
+        все logger'ы читают.
+<pre>import contextvars
+PIPELINE_VERSION = contextvars.ContextVar("pipeline_version", default="v1")
+
+# в ai_usage_tracker / message_event_log / session_actions:
+entry["pipeline_version"] = PIPELINE_VERSION.get()</pre>
+      </li>
+
+      <li>
+        <strong>Circuit breaker — обязателен с первого дня.</strong>
+        Watchdog читает <code>ai_timeline.jsonl</code> каждую минуту,
+        считает v2 error/skip rate за 15 минут. Threshold пробит →
+        автоматически пишет нули в <code>runtime_config.pipeline_v2_canary</code>
+        и алертит в commander-bot. Иначе бажный v2 8 часов до утра тихо
+        теряет лиды.
+      </li>
+
+      <li>
+        <strong>Дашборд-тайл ДО canary, не после.</strong>
+        Метрики «v1 vs v2: AI calls/sent, tokens/sent, skip rate, stage
+        changes» должны быть живые ещё на shadow-фазе. Иначе флипнул 5%
+        и сидишь без чисел первые часы. Тайл строится параллельно с
+        shadow-прогоном.
+      </li>
+    </ol>
+
+    <h3>Чего НЕ делать</h3>
+    <ul>
+      <li>
+        <strong>Не переиспользовать <code>LCBAND_L1_SHADOW_MODE</code>.</strong>
+        Тот флаг — про L1 commit внутри ai_classify_chain. Pipeline canary —
+        другой уровень. Отдельный config-ключ, иначе путаница «что shadow,
+        что canary».
+      </li>
+      <li>
+        <strong>Не включать canary до закрытия bypass'ов из §5a.</strong>
+        v2 шлёт через outbound_policy, v1 шлёт мимо — сравнение
+        некорректное, мы измеряем не pipeline'ы, а наличие gate. Сначала
+        close bypasses (contractor_relay, send_pending_approval,
+        broker_followup), потом canary.
+      </li>
+      <li>
+        <strong>Не ставить canary &gt; 20% пока хотя бы 7 дней не прошло
+        без circuit-breaker срабатываний.</strong>
+      </li>
+    </ul>
+
+    <h3>Порядок шагов (после §10 step 1-2)</h3>
+    <ol>
+      <li><span class="pill">A</span> Закрыть bypass'ы из §5a (<code>outbound_policy</code>, sanitize, 3 роли).</li>
+      <li><span class="pill">B</span> Добавить <code>PIPELINE_VERSION</code> contextvar + read в logger'ах.</li>
+      <li><span class="pill">C</span> Дашборд-тайл <code>pipeline-ab</code> (живой на shadow).</li>
+      <li><span class="pill">D</span> Shadow 24-48ч на whitelist purposes (v2 решает, ничего не шлёт).</li>
+      <li><span class="pill">E</span> Circuit-breaker watchdog (читает таймлайн, пишет config, алертит).</li>
+      <li><span class="pill">F</span> Canary 5% на <code>ingest_post_classify</code> + <code>cold_outreach_first</code>.</li>
+      <li><span class="pill">G</span> Через 7 чистых дней → 10% → 20%.</li>
+      <li><span class="pill">H</span> Cutover каждого purpose отдельно (не «v2 в 100%», а «ingest_post_classify в v2», «outbound_promise в v2»...).</li>
+    </ol>
+
+    <p class="note">
+      Ключевой принцип: <strong>отправляет всегда только один pipeline</strong>
+      на один лид. Никаких dual-send. Никаких race condition между v1 и v2
+      на одном thread_id.
+    </p>
+  </div>
+
   <h2>11. Open questions / решено</h2>
   <div class="card">
     <table>
