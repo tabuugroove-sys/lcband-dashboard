@@ -339,14 +339,16 @@ CREATE TABLE agent_tasks (
        ▼
 ┌──── outbound_gate(draft, recipient_type, channel) ────────────────┐
 │ 1. sanitize_for_recipient(text, recipient_type)                   │
-│    • contractor/director → cut client @handles, phones,           │
-│      profile URLs, source chat                                    │
-│    • client              → no-op (логируем длину, ссылки, цифры)  │
+│    • contractor → cut client @handles, phones, profile URLs,      │
+│      source chat name                                             │
+│    • lcb_band   → minimal (мы внутри)                             │
+│    • client     → no-op (логируем длину, ссылки, цифры)           │
 │                                                                   │
 │ 2. ai_review(draft, profile)                                      │
-│    • profile=client     → текущие правила (бэклайн, цены, видео)  │
-│    • profile=contractor → feedback_vadimnoize_brief — domain only,│
+│    • profile=client    → текущие правила (бэклайн, цены, видео)   │
+│    • profile=contractor→ feedback_vadimnoize_brief — domain only, │
 │      без client identifiers, бинарный CTA                         │
+│    • profile=lcb_band  → таймтаблица/состав/контракты             │
 │    • decision ∈ {ok, adapt, skip, escalate_to_opus}               │
 │                                                                   │
 │ 3. outbound_governor.acquire(channel)                             │
@@ -359,14 +361,60 @@ CREATE TABLE agent_tasks (
        │
        ▼ delivered or approval-bot draft</pre>
 
+    <h3>Три категории получателей</h3>
+    <p>В v2 ровно <strong>три типа адресатов</strong>, всё остальное либо подвид, либо канал доставки:</p>
+    <table>
+      <thead>
+        <tr>
+          <th><code>recipient_type</code></th>
+          <th>Кто</th>
+          <th>Sanitize</th>
+          <th>Review profile</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>lcb_band</code></td>
+          <td>Своя группа LCB — Ira, Stas, LAZ, Teddy, саксофонисты, чат-вокалисты</td>
+          <td>минимум (мы внутри)</td>
+          <td>внутренний — таймтаблица, состав, контракты</td>
+        </tr>
+        <tr>
+          <td><code>contractor</code></td>
+          <td>Внешние подрядчики — @vadimnoize (drum), ведущие, DJ, звук, танцы, фото/видео</td>
+          <td><strong>режем client @handles, телефоны, profile URLs, имя source-чата</strong></td>
+          <td><code>feedback_vadimnoize_brief</code> — только domain-контекст, бинарный CTA</td>
+        </tr>
+        <tr>
+          <td><code>client</code></td>
+          <td>Клиенты/организаторы — DM-лиды, event-чаты, VK community, IG</td>
+          <td>no-op (логируем длину, ссылки, цифры)</td>
+          <td>текущие правила (бэклайн, цены, видео-верификация)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note">
+      «Директор» (Вадим) — это <strong>конкретный contractor</strong>, не отдельный type.
+      Sanitize/review один на всех подрядчиков: правило едино — подрядчик не должен
+      видеть кто клиент и откуда лид.
+    </p>
+    <p class="note">
+      Approval-bot — это <strong>delivery mode</strong>, не получатель. Draft, который
+      уходит Михаилу в bot, <em>относится</em> к одному из трёх типов (например draft
+      питча клиенту) и проходит gate ПОД этим типом. Михаил видит уже sanitized +
+      reviewed текст. После approval тот же draft уходит реальному получателю без
+      повторного review (кэш по hash).
+    </p>
+
     <h3>Правила</h3>
     <ul>
       <li><strong>Запрет прямых <code>send_message</code> в бизнес-коде.</strong>
           CI-lint: <code>grep send_message</code> вне <code>outbound_gate.py</code>
           и <code>channel_adapters/*</code> → fail.</li>
       <li><strong><code>recipient_type</code> обязательный.</strong>
-          <code>client | contractor | director | self_approval</code>. Влияет
-          на sanitize и ai_review профиль.</li>
+          Только <code>lcb_band | contractor | client</code>. Любой новый «специальный»
+          получатель сначала укладывается в одну из трёх категорий — не добавляется
+          новый type.</li>
       <li><strong>Sanitize deterministic ДО ai_review.</strong> Defense in depth —
           даже если Opus сольёт <code>@username</code>, regex уберёт.</li>
       <li><strong>ai_review — вторая линия.</strong> Ловит семантику, которую
@@ -374,8 +422,6 @@ CREATE TABLE agent_tasks (
           sanitize пропустит, review должен сфлагнуть лишние детали).</li>
       <li><strong>Fail-safe = skip.</strong> Любая ошибка (Sonnet timeout,
           sanitize crash) → НЕ слать. Тишина &gt; утечка.</li>
-      <li><strong>Approval-bot тоже recipient.</strong> Drafts в bot Михаилу
-          ТОЖЕ проходят gate — он видит уже sanitized текст.</li>
     </ul>
 
     <h3>Cutover</h3>
