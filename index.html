@@ -3708,6 +3708,7 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
   const headlinePct = bundle ? bundle.sent_per_ai_pct : sentConversion24h;
   const headlineCalls = bundle ? bundle.ai_calls : aiCalls24h;
   const headlineSent = bundle ? bundle.sent_total : sentMessages24h;
+  const truncated = !!(bundle && bundle.truncated);
   // Axis labels: show 4-5 tick marks, formatted relative to range
   const totalHours = bundle ? bundle.hours : 24;
   const tickCount = Math.min(5, trend.length);
@@ -3737,6 +3738,9 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
         <div className="delivery-counts">
           <span>🤖 {headlineCalls}</span>
           <span>📩 {headlineSent}</span>
+          {truncated && (
+            <span title="Логи длиннее окна чтения — старые bucket'ы могут недосчитывать" style={{color:'#fbbf24'}}>⚠ trunc</span>
+          )}
         </div>
       </div>
       {onAiTrendRangeChange && (
