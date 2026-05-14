@@ -3346,6 +3346,35 @@ function RestartAllButton() {
         height: 58px;
         margin-top: 10px;
       }
+      .delivery-range-tabs {
+        display: flex;
+        gap: 4px;
+        margin-top: 10px;
+        padding: 3px;
+        background: rgba(15, 23, 42, 0.55);
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        border-radius: 999px;
+      }
+      .delivery-range-tab {
+        flex: 1;
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        padding: 5px 6px;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+      }
+      .delivery-range-tab:hover { color: #e2e8f0; }
+      .delivery-range-tab.is-active {
+        background: linear-gradient(90deg, rgba(56,189,248,0.22), rgba(34,197,94,0.22));
+        color: #e2e8f0;
+        box-shadow: inset 0 0 0 1px rgba(96,165,250,0.45);
+      }
       .delivery-axis,
       .delivery-outcomes {
         display: flex;
@@ -3649,8 +3678,15 @@ function SingleAgentRestartButton({endpoint, label, why, backendUrl, getOrPrompt
   );
 }
 
-function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h, aiDelivery, aiDeliveryTrend, deliveryOutcomes = {}, deliveryTitle}) {
+function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h, aiDelivery, aiDeliveryTrend, aiTrendRange = 'day', onAiTrendRangeChange, deliveryOutcomes = {}, deliveryTitle}) {
   if (!aiCalls24h) return null;
+  const RANGE_TABS = [
+    {key: 'day',   label: 'день'},
+    {key: 'week',  label: 'неделя'},
+    {key: 'month', label: 'месяц'},
+    {key: '3m',    label: '3 мес'},
+  ];
+  const fmtHours = h => h < 24 ? `${h}h` : h < 48 ? '1d' : h < 168 ? `${Math.round(h/24)}d` : h < 720 ? `${Math.round(h/168)}w` : `${Math.round(h/720)}m`;
   const trend = (Array.isArray(aiDeliveryTrend) && aiDeliveryTrend.length ? aiDeliveryTrend : [
     {hours: 24, sent_per_ai_pct: sentConversion24h, sent_total: sentMessages24h, ai_calls: aiCalls24h},
   ]).map(p => ({
@@ -3680,6 +3716,22 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
           <span>📩 {sentMessages24h}</span>
         </div>
       </div>
+      {onAiTrendRangeChange && (
+        <div className="delivery-range-tabs" role="tablist" aria-label="Период графика">
+          {RANGE_TABS.map(t => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={aiTrendRange === t.key}
+              className={`delivery-range-tab${aiTrendRange === t.key ? ' is-active' : ''}`}
+              onClick={() => onAiTrendRangeChange(t.key)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="delivery-meter">
         <span style={{width: `${outPct}%`}} />
       </div>
@@ -3693,7 +3745,7 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
         })}
       </svg>
       <div className="delivery-axis">
-        {trend.map(p => <span key={p.hours}>{p.hours}h</span>)}
+        {trend.map(p => <span key={p.hours}>{fmtHours(p.hours)}</span>)}
       </div>
       {aiDelivery && (
         <div className="delivery-outcomes">
@@ -4219,7 +4271,7 @@ function HeartbeatFlowViz({ beats = [] }) {
   );
 }
 
-function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTrend, onProcessClick }) {
+function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTrend, aiTrendRange, onAiTrendRangeChange, onProcessClick }) {
   const [bwExpanded, setBwExpanded] = React.useState(false);
   const [bwFeed, setBwFeed] = React.useState(null);
   // 🔴 23.04: универсальный expand для любого процесса (не только Browser Walk).
@@ -4426,6 +4478,8 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
           sentConversion24h={sentConversion24h}
           aiDelivery={aiDelivery}
           aiDeliveryTrend={aiDeliveryTrend}
+          aiTrendRange={aiTrendRange}
+          onAiTrendRangeChange={onAiTrendRangeChange}
           deliveryOutcomes={deliveryOutcomes}
           deliveryTitle={deliveryTitle}
         />
@@ -6524,6 +6578,7 @@ function App() {
   const [activity24h, setActivity24h] = useState(null);
   const [aiDelivery, setAiDelivery] = useState(null);
   const [aiDeliveryTrend, setAiDeliveryTrend] = useState(null);
+  const [aiTrendRange, setAiTrendRange] = useState(() => localStorage.getItem('lcb_ai_trend_range') || 'day');
   const [dmDirectFunnel, setDmDirectFunnel] = useState(null);
   const [recentSent, setRecentSent] = useState(null);
   const [recentSent24h, setRecentSent24h] = useState(null);
@@ -6636,15 +6691,7 @@ function App() {
       }
     } catch { /* backend offline → fallback to recentSent24h */ }
 
-    try {
-      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
-      const trend = await Promise.all([3, 6, 12, 24].map(async hours => {
-        const r = await fetch(`${bu}/api/ai_delivery_breakdown?hours=${hours}`, { cache: 'no-store' });
-        if (!r.ok) return null;
-        return await r.json();
-      }));
-      setAiDeliveryTrend(trend.filter(Boolean));
-    } catch { /* optional trend; card can render current 24h point */ }
+    // ai delivery trend fetched in dedicated useEffect (depends on aiTrendRange)
 
     // ── Process activity over last 24h (counts per process + Browser Walk) ──
     try {
@@ -6763,6 +6810,38 @@ function App() {
     const fast = setInterval(() => load(true), 10000);
     return () => clearInterval(fast);
   }, [activity24h?.proc_browser_walk?.status, load]);
+
+  // ── AI → сообщения trend, range-dependent windows ──
+  useEffect(() => {
+    const WINDOWS = {
+      day:   [3, 6, 12, 24],
+      week:  [12, 24, 72, 168],
+      month: [72, 168, 360, 720],
+      '3m':  [168, 720, 1440, 2160],
+    };
+    const hoursList = WINDOWS[aiTrendRange] || WINDOWS.day;
+    let alive = true;
+    async function load() {
+      try {
+        const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+        const trend = await Promise.all(hoursList.map(async hours => {
+          const r = await fetch(`${bu}/api/ai_delivery_breakdown?hours=${hours}`, { cache: 'no-store' });
+          if (!r.ok) return null;
+          return await r.json();
+        }));
+        if (alive) setAiDeliveryTrend(trend.filter(Boolean));
+      } catch { /* keep previous trend */ }
+    }
+    load();
+    // refresh long-window trends slower; short ranges keep ~30s rhythm
+    const periodMs = aiTrendRange === 'day' ? 30000 : aiTrendRange === 'week' ? 120000 : 300000;
+    const iv = setInterval(load, periodMs);
+    return () => { alive = false; clearInterval(iv); };
+  }, [aiTrendRange]);
+
+  useEffect(() => {
+    try { localStorage.setItem('lcb_ai_trend_range', aiTrendRange); } catch {}
+  }, [aiTrendRange]);
 
   const saxFilterLeads = useMemo(
     () => (data?.allLeads || []).filter(hasSaxLead),
@@ -6904,6 +6983,8 @@ function App() {
                 sent24h={recentSent24h}
                 aiDelivery={aiDelivery}
                 aiDeliveryTrend={aiDeliveryTrend}
+                aiTrendRange={aiTrendRange}
+                onAiTrendRangeChange={setAiTrendRange}
                 onProcessClick={setShowProcess}
               />
               <ActionButtons />
