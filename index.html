@@ -4018,6 +4018,8 @@ function AgentMatrixStatus() {
             waiting: j.waiting || 0,
             plist_only: j.plist_only || 0,
             failed: failed,
+            hung: j.hung || 0,
+            hung_agents: j.hung_agents || [],
           });
           setError(false);
         } else {
@@ -4081,6 +4083,18 @@ function AgentMatrixStatus() {
           <span className="matrix-sep">│</span>
           <span className="matrix-cell failed">
             <span className="label">FAIL</span><span className="val">{stats.failed}</span>
+          </span>
+        </>
+      )}
+      {stats.hung > 0 && (
+        <>
+          <span className="matrix-sep">│</span>
+          <span
+            className="matrix-cell failed"
+            style={{color: '#fb923c', textShadow: '0 0 8px rgba(251,146,60,.85)'}}
+            title={`Hung agents (PID живёт дольше лимита):\n${(stats.hung_agents||[]).join('\n')}`}
+          >
+            <span className="label">HUNG</span><span className="val">{stats.hung}</span>
           </span>
         </>
       )}
