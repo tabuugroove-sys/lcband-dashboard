@@ -1,6 +1,6 @@
 // Service Worker — network-first для app shell (HTML/JS/CSS).
 // До v29 был cache-first → пользователь не видел свежие деплои до hard-reload.
-const CACHE = "lcb-v38-ai-trend-range-tabs";
+const CACHE = "lcb-v39-ai-trend-buckets";
 const SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {

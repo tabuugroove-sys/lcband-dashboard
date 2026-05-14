@@ -3687,21 +3687,44 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
     {key: '3m',    label: '3 мес'},
   ];
   const fmtHours = h => h < 24 ? `${h}h` : h < 48 ? '1d' : h < 168 ? `${Math.round(h/24)}d` : h < 720 ? `${Math.round(h/168)}w` : `${Math.round(h/720)}m`;
-  const trend = (Array.isArray(aiDeliveryTrend) && aiDeliveryTrend.length ? aiDeliveryTrend : [
-    {hours: 24, sent_per_ai_pct: sentConversion24h, sent_total: sentMessages24h, ai_calls: aiCalls24h},
-  ]).map(p => ({
-    hours: Number(p.hours || 0),
+
+  // New shape: aiDeliveryTrend = {series:[...], sent_per_ai_pct, ai_calls, sent_total, hours, bucket_hours}
+  // Old fallback: 24h-only data.
+  const bundle = (aiDeliveryTrend && Array.isArray(aiDeliveryTrend.series) && aiDeliveryTrend.series.length)
+    ? aiDeliveryTrend
+    : null;
+  const trend = (bundle ? bundle.series : [
+    {sent_per_ai_pct: sentConversion24h, sent_total: sentMessages24h, ai_calls: aiCalls24h, start: null, end: null},
+  ]).map((p, i, arr) => ({
+    label: p.end ? new Date(p.end) : null,
+    bucketIdx: i,
+    bucketsTotal: arr.length,
     pct: Number(p.sent_per_ai_pct || 0),
     sent: Number(p.sent_total || 0),
     calls: Number(p.ai_calls || 0),
-  })).filter(p => p.hours > 0);
+  }));
+
+  // Headline pct/counts follow the selected range when bucketed data is available
+  const headlinePct = bundle ? bundle.sent_per_ai_pct : sentConversion24h;
+  const headlineCalls = bundle ? bundle.ai_calls : aiCalls24h;
+  const headlineSent = bundle ? bundle.sent_total : sentMessages24h;
+  // Axis labels: show 4-5 tick marks, formatted relative to range
+  const totalHours = bundle ? bundle.hours : 24;
+  const tickCount = Math.min(5, trend.length);
+  const tickStep = (trend.length - 1) / (tickCount - 1 || 1);
+  const fmtTick = (bucketIdx) => {
+    const elapsed = totalHours * (bucketIdx + 1) / trend.length;
+    const ago = totalHours - elapsed;
+    if (ago <= 0.5) return 'сейчас';
+    return `−${fmtHours(Math.round(ago))}`;
+  };
   const maxPct = Math.max(5, ...trend.map(p => p.pct));
   const points = trend.map((p, i) => {
     const x = trend.length === 1 ? 100 : (i / (trend.length - 1)) * 100;
     const y = 42 - Math.min(1, p.pct / maxPct) * 34;
     return `${x},${y}`;
   }).join(' ');
-  const outPct = Math.min(100, sentConversion24h);
+  const outPct = Math.min(100, Number(headlinePct || 0));
   const skip = (deliveryOutcomes.ai_skip || 0) + (deliveryOutcomes.broker_skip || 0);
 
   return (
@@ -3709,11 +3732,11 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
       <div className="delivery-top">
         <div>
           <div className="delivery-kicker">AI → сообщения</div>
-          <div className="delivery-main">{sentConversion24h}%</div>
+          <div className="delivery-main">{Number(headlinePct || 0).toFixed(1)}%</div>
         </div>
         <div className="delivery-counts">
-          <span>🤖 {aiCalls24h}</span>
-          <span>📩 {sentMessages24h}</span>
+          <span>🤖 {headlineCalls}</span>
+          <span>📩 {headlineSent}</span>
         </div>
       </div>
       {onAiTrendRangeChange && (
@@ -3745,7 +3768,10 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
         })}
       </svg>
       <div className="delivery-axis">
-        {trend.map(p => <span key={p.hours}>{fmtHours(p.hours)}</span>)}
+        {Array.from({length: tickCount}, (_, k) => {
+          const idx = Math.round(k * tickStep);
+          return <span key={k}>{fmtTick(idx)}</span>;
+        })}
       </div>
       {aiDelivery && (
         <div className="delivery-outcomes">
@@ -6811,29 +6837,29 @@ function App() {
     return () => clearInterval(fast);
   }, [activity24h?.proc_browser_walk?.status, load]);
 
-  // ── AI → сообщения trend, range-dependent windows ──
+  // ── AI → сообщения trend, real time-bucketed series per range ──
   useEffect(() => {
-    const WINDOWS = {
-      day:   [3, 6, 12, 24],
-      week:  [12, 24, 72, 168],
-      month: [72, 168, 360, 720],
-      '3m':  [168, 720, 1440, 2160],
+    const RANGE_CFG = {
+      day:   {hours: 24,   buckets: 12},  // 2h buckets
+      week:  {hours: 168,  buckets: 14},  // 12h buckets
+      month: {hours: 720,  buckets: 15},  // 2-day buckets — weekly dips visible
+      '3m':  {hours: 2160, buckets: 18},  // 5-day buckets
     };
-    const hoursList = WINDOWS[aiTrendRange] || WINDOWS.day;
+    const cfg = RANGE_CFG[aiTrendRange] || RANGE_CFG.day;
     let alive = true;
     async function load() {
       try {
         const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
-        const trend = await Promise.all(hoursList.map(async hours => {
-          const r = await fetch(`${bu}/api/ai_delivery_breakdown?hours=${hours}`, { cache: 'no-store' });
-          if (!r.ok) return null;
-          return await r.json();
-        }));
-        if (alive) setAiDeliveryTrend(trend.filter(Boolean));
+        const r = await fetch(
+          `${bu}/api/ai_delivery_buckets?hours=${cfg.hours}&buckets=${cfg.buckets}`,
+          { cache: 'no-store' }
+        );
+        if (!r.ok) return;
+        const j = await r.json();
+        if (alive) setAiDeliveryTrend(j);
       } catch { /* keep previous trend */ }
     }
     load();
-    // refresh long-window trends slower; short ranges keep ~30s rhythm
     const periodMs = aiTrendRange === 'day' ? 30000 : aiTrendRange === 'week' ? 120000 : 300000;
     const iv = setInterval(load, periodMs);
     return () => { alive = false; clearInterval(iv); };
