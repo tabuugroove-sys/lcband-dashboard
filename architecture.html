@@ -853,7 +853,7 @@ flowchart TD
 
   <section class="mindmap-card">
     <h2>2. Outbound DM responder — клиент пишет в ЛС → ответ</h2>
-    <p class="diagram-note">realtime-gateway держит TG/VK/payment listener-компоненты; tg-dm-realtime-listener ловит private DM сразу и запускает tg-responder. Сам tg-responder остаётся владельцем Opus-ответа, ai_review, anti-ban и approval-bot.</p>
+    <p class="diagram-note">realtime-gateway держит TG/VK/payment listener-компоненты; tg-dm-realtime-listener ловит private DM сразу и запускает tg-responder. Сам tg-responder остаётся владельцем Opus-ответа, ai_review, anti-ban и approval-bot. Persistent per-conversation memory (<code>conversation_memory/{username}.json</code>) подмешивается в prompt перед генерацией и обновляется фоновой задачей после успешной отправки — чтобы AI не переспрашивал уже подтверждённые факты (дата/город/бюджет, broker-связки, risk-флаги типа bypass).</p>
     <div class="mermaid">
 flowchart TD
   classDef chan fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
@@ -875,8 +875,11 @@ flowchart TD
   TGRESP --> CTX["Load context: orders_db.find_by_username<br/>+ last 15 msgs Telethon"]:::store
   VKRESP --> CTX
 
+  MEM[("conversation_memory/{username}.json<br/>event · facts_confirmed · promises<br/>broker_links · risk_flags")]:::store
+  MEM -.read into prompt.-> GEN
+
   CTX --> CONV["convo_analysis_tg — Opus<br/>(category hints, intent, refusal probe)"]:::ai
-  CONV --> GEN["generate_contextual_response — Opus<br/>(personalised reply, no hardcoded templates)"]:::ai
+  CONV --> GEN["generate_contextual_response — Opus<br/>(personalised reply, no hardcoded templates)<br/>+ memory injection block"]:::ai
   GEN --> REVIEW{"ai_review_before_send<br/>skip / adapt / ok ?"}:::ai
 
   REVIEW -->|"skip"| DROP[("отказ / музыкант / не наш<br/>→ refusal_classify, archived")]:::store
@@ -888,6 +891,8 @@ flowchart TD
   SEND --> ORDERS[("orders.db<br/>status update")]:::store
   SEND --> ACT[("session_actions.jsonl")]:::store
   SEND --> SENT[("sent_proposals.json")]:::store
+  SEND -.async update.-> MEMUP["conversation_memory.queue_update<br/>1 Opus call · fire-and-forget"]:::ai
+  MEMUP -.merge facts/promises/risks.-> MEM
 
   REVIEW -.->|"low confidence"| BOT["bot-commander<br/>approval buttons in TG"]:::agent
   BOT -->|"user clicks send"| SEND
@@ -918,6 +923,7 @@ flowchart LR
   TGRESP --> P4["tg_responder_cli"]:::ai
   TGRESP --> P5["presend_review"]:::ai
   TGRESP --> P11["tg_direct_inbound_classify"]:::ai
+  TGRESP --> P20["conversation_memory_update<br/>(after each exchange, fire-and-forget)"]:::ai
 
   IGRESP["ig-responder paused"]:::agent --> P15["convo_analysis_ig"]:::ai
 
@@ -963,6 +969,7 @@ flowchart LR
   P17 --> CLI
   P18 --> CLI
   P19 --> CLI
+  P20 --> CLI
     </div>
   </section>
 
@@ -1713,6 +1720,7 @@ sequenceDiagram
     P17: 'hot_drafts',
     P18: 'drum_draft_fix',
     P19: 'cli_json',
+    P20: 'conversation_memory_update',
   };
   // Reverse map purpose → P-code for click-from-table flow.
   const PURPOSE_TO_PCODE = Object.fromEntries(
@@ -1865,6 +1873,12 @@ sequenceDiagram
       why: 'Catch-all bucket, чтобы все JSON-режим вызовы были учтены в ai_usage.json. Часто это новые/экспериментальные purposes которые ещё не получили свой код.',
       where: 'claude_cli.call_opus_json default purpose',
     },
+    conversation_memory_update: {
+      role: 'Per-conversation persistent memory updater',
+      what: '1 Opus call после каждого успешного обмена (inbound + наш outbound). Извлекает обновления: подтверждённые факты (дата/город/формат/гости/бюджет), open_questions, promises_we_made, broker_links, risk_flags (bypass, wrong_contact, price_objection). Merge в conversation_memory/{username}.json через fcntl-lock. Fire-and-forget — не блокирует ответ клиенту.',
+      why: 'Чтобы AI не переспрашивал то, что клиент уже сказал на 5 turn раньше, и видел стратегические сигналы (например bypass на Joshua у @nkrsvrs или wrong_contact у @invi_tado). Контекст подмешивается в user_prompt блоком «=== ПЕРСИСТЕНТНАЯ ПАМЯТЬ ===» перед каждой генерацией.',
+      where: 'conversation_memory.queue_update / update_from_exchange_sync (вызов из tg_responder.safe_send)',
+    },
   };
 
   function heatColor(intensity) {
@@ -1916,6 +1930,8 @@ sequenceDiagram
     RECORD: { role: 'orders_db_bridge.record_tg_order', what: 'Insert в orders.db через единый bridge с dedupe по username.', why: 'Никаких raw SQL из ботов — всё через bridge (memory project_db_architecture).', where: 'orders_db_bridge.py' },
     SEND: { role: 'Отправка пит­ча клиенту', what: 'send_proposal с pre-send AI review. На skip — пит­ч не уходит, на adapt — отправляется adapted_text.', why: 'Memory feedback_pre_send_ai_check — обязательный гейт перед auto-send.', where: 'telegram_monitor.send_proposal' },
     CTX: { role: 'Загрузка контекста переписки', what: 'find_by_username в orders.db + последние 15 msg через Telethon. Без AI.', why: 'Перед AI generate нужен полный контекст — кто это, что за event, что мы уже писали.', where: 'tg_responder.py' },
+    MEM: { role: 'Persistent per-conversation memory', what: 'JSON-файл на каждого peer: event (date/city/format/guests/budget), client_profile, open_questions, promises_we_made, facts_confirmed, broker_links, risk_flags. Atomic write через fcntl + per-username threading.Lock.', why: 'orders.db даёт только статус и текст переписки — но не извлечённые факты/стратегические сигналы. Без памяти AI каждый раз спрашивал бы заново «когда дата?», «какой город?», не видел бы что клиент уже обходит нас (bypass) или что это контрактор а не organizer.', where: 'conversation_memory.py · conversation_memory/{username}.json (gitignored)' },
+    MEMUP: { role: 'Async memory updater — 1 Opus call после exchange', what: 'fire-and-forget threading.Thread из safe_send → call_opus_json(_skip_codex=True) → merge новых фактов/promises/risks в существующий JSON. Не блокирует отправку клиенту.', why: 'Один call после успешного обмена дешевле и точнее чем парсить regex'ом. _skip_codex=True гарантирует что L2 Sonnet не уйдёт через codex_cli weighted_codex.', where: 'conversation_memory.queue_update / update_from_exchange_sync' },
     REVIEW: { role: 'AI-гейт перед send (decision skip/adapt/ok)', what: 'См. presend_review в By purpose.', why: '—', where: '—' },
     BOT: { role: 'bot-commander approval flow', what: 'Если ai_review низкая уверенность → draft уходит в @lcband_notify_bot для оператора. Кнопки Send / Reject.', why: 'Edge cases (большой бюджет / нестандартный запрос / drum unsure) идут через человека.', where: 'bot_commander.py' },
     DROP: { role: 'Сброс — лид/ответ не нужен', what: 'Refusal / музыкант / не наш профиль / spam — уходит в archived ветку, в воронку не попадает.', why: '—', where: '—' },
