@@ -114,6 +114,11 @@
     background: rgba(16,185,129,0.15); color: var(--ok);
     border-color: rgba(16,185,129,0.35);
   }
+  .event-pill.stub {
+    background: rgba(245,158,11,0.12); color: var(--warn);
+    border-color: rgba(245,158,11,0.40);
+    border-style: dashed;
+  }
 
   /* List fallback */
   .upcoming-list {
@@ -164,8 +169,9 @@
     <button id="next">Следующий →</button>
     <button id="today-btn">Сегодня</button>
     <div class="legend">
-      <span class="legend-chip"><span class="dot" style="background:#60a5fa"></span>future</span>
-      <span class="legend-chip"><span class="dot" style="background:#10b981"></span>confirmed (lineup ≥4)</span>
+      <span class="legend-chip"><span class="dot" style="background:#60a5fa"></span>event (полная карточка)</span>
+      <span class="legend-chip"><span class="dot" style="background:#10b981"></span>confirmed lineup ≥4</span>
+      <span class="legend-chip"><span class="dot" style="background:#f59e0b"></span>stub-event (до оплаты)</span>
       <span class="legend-chip"><span class="dot" style="background:#4b5563"></span>past</span>
     </div>
   </div>
@@ -200,7 +206,6 @@
 
   async function fetchEvents() {
     try {
-      // Same backend URL convention as other pages.
       const bu = await getBackendBase();
       const r = await fetch(`${bu}/api/events`, { cache: 'no-store' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -208,6 +213,19 @@
       return j.events || [];
     } catch (e) {
       console.warn('fetch /api/events failed:', e.message);
+      return [];
+    }
+  }
+
+  async function fetchStubs() {
+    try {
+      const bu = await getBackendBase();
+      const r = await fetch(`${bu}/api/event_stubs?with_date_only=1`, { cache: 'no-store' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      return j.stubs || [];
+    } catch (e) {
+      console.warn('fetch /api/event_stubs failed:', e.message);
       return [];
     }
   }
@@ -252,17 +270,28 @@
     return d;
   }
 
-  function render(events) {
+  function render(events, stubs) {
     curMonthEl.textContent = monthLabel(view);
     grid.innerHTML = '';
 
-    // Group events by ymd for fast lookup.
+    // Group events + stubs by ymd. Real events take visual priority; stubs
+    // render alongside if a stub doesn't share a date with a full event.
     const byDate = {};
     for (const ev of events) {
       const d = parseDate(ev.date);
       if (!d) continue;
       const k = ymd(d);
-      (byDate[k] = byDate[k] || []).push(ev);
+      (byDate[k] = byDate[k] || []).push({ ...ev, _kind: 'event' });
+    }
+    for (const s of (stubs || [])) {
+      const d = parseDate(s.hint_date);
+      if (!d) continue;
+      const k = ymd(d);
+      (byDate[k] = byDate[k] || []).push({
+        id: s.stub_id, title: s.title || s.client_thread,
+        members_count: 0, _kind: 'stub',
+        _client_thread: s.client_thread, _stage: s.stage,
+      });
     }
 
     const start = startOfMonthGrid(view);
@@ -286,11 +315,18 @@
       for (const ev of evs) {
         const a = document.createElement('a');
         a.className = 'event-pill';
-        if (k < todayY) a.classList.add('past');
-        else if ((ev.members_count || 0) >= 4) a.classList.add('confirmed');
-        a.href = `./events.html#${encodeURIComponent(ev.id)}`;
-        a.textContent = ev.title || ev.id;
-        a.title = (ev.title || ev.id) + (ev.members_count ? `\nсостав: ${ev.members_count} чел` : '');
+        if (ev._kind === 'stub') {
+          a.classList.add('stub');
+          a.href = `./events.html`;  // no full card yet — link to events list
+          a.textContent = '🌱 ' + (ev.title || ev.id);
+          a.title = `Stub (${ev._stage}): ${ev._client_thread}\nПолной карточки ещё нет — bridges работают по stub_id.`;
+        } else {
+          if (k < todayY) a.classList.add('past');
+          else if ((ev.members_count || 0) >= 4) a.classList.add('confirmed');
+          a.href = `./events.html#${encodeURIComponent(ev.id)}`;
+          a.textContent = ev.title || ev.id;
+          a.title = (ev.title || ev.id) + (ev.members_count ? `\nсостав: ${ev.members_count} чел` : '');
+        }
         cell.appendChild(a);
       }
       grid.appendChild(cell);
@@ -328,22 +364,24 @@
     }
   }
 
-  let allEvents = [];
+  let allEvents = [], allStubs = [];
 
   async function refresh() {
-    allEvents = await fetchEvents();
-    render(allEvents);
+    const [evs, stubs] = await Promise.all([fetchEvents(), fetchStubs()]);
+    allEvents = evs;
+    allStubs = stubs;
+    render(allEvents, allStubs);
     renderUpcoming(allEvents);
   }
 
   document.getElementById('prev').onclick = () => {
-    view = new Date(view.getFullYear(), view.getMonth() - 1, 1); render(allEvents);
+    view = new Date(view.getFullYear(), view.getMonth() - 1, 1); render(allEvents, allStubs);
   };
   document.getElementById('next').onclick = () => {
-    view = new Date(view.getFullYear(), view.getMonth() + 1, 1); render(allEvents);
+    view = new Date(view.getFullYear(), view.getMonth() + 1, 1); render(allEvents, allStubs);
   };
   document.getElementById('today-btn').onclick = () => {
-    view = new Date(today.getFullYear(), today.getMonth(), 1); render(allEvents);
+    view = new Date(today.getFullYear(), today.getMonth(), 1); render(allEvents, allStubs);
   };
 
   refresh();
