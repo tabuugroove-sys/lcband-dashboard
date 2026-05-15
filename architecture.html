@@ -902,6 +902,97 @@ flowchart TD
   </section>
 
   <section class="mindmap-card">
+    <h2>2b. Broker pipeline — лид → справочник → бриф → ответ → каст → relay → оплата</h2>
+    <p class="diagram-note">
+      Брокер работает, когда AI решает что услуга не из пула LCB (танцы / файер / соло-скрипка / ведущий
+      и т.п.) — мы координируем сделку client↔contractor, держим маржу. С 15.05.2026 принимаем только
+      MSK (Москва/МО/ближнее Подмосковье). Маржа плавающая: 50% при бюджете 30к до 20% floor на 150к+
+      (см. <code>broker_margin.py</code>). Drum/Noize (Вадим) — обычный contractor в roster, special-flow снят.
+      Стандартные правила: НЕТ контактов клиента подрядчику, НЕТ имён внешних фрилансеров клиенту,
+      ceiling вычисляется централизованно, не Opus'ом.
+    </p>
+    <div class="mermaid">
+flowchart TD
+  classDef chan fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
+  classDef agent fill:#2d2a4a,stroke:#bc8cff,color:#e6edf3
+  classDef ai fill:#3d2f1a,stroke:#f0883e,color:#e6edf3
+  classDef store fill:#2a2a2a,stroke:#8b949e,color:#e6edf3
+  classDef gate fill:#3a1a1a,stroke:#f85149,color:#e6edf3
+  classDef out fill:#3a1f3a,stroke:#bc8cff,color:#e6edf3
+  classDef manual fill:#2a3a1a,stroke:#3fb950,color:#e6edf3
+
+  %% PHASE 1: lead intake
+  LEAD["📨 Лид: TG event-chat / DM / VK<br/>«ищу скрипача 23.08 Москва»"]:::chan
+  LEAD --> CLASSIFY["ai_classify_chain (Opus)<br/>verdict = broker_request"]:::ai
+  CLASSIFY --> INTAKE["broker_pipeline.intake_broker_order<br/>service_type / label / date / location / budget"]:::ai
+  INTAKE --> GATE1{"MSK location?<br/>viable margin?<br/>not dedup-7d?"}:::gate
+  GATE1 -- skip --> DROP[("orders.status<br/>= AI-skip / non_msk")]:::store
+  GATE1 -- ok --> CREATE["broker_orders.create()<br/>fcntl atomic write"]:::out
+  CREATE --> DBROW[("orders.db<br/>status=Посредник<br/>db_order_id link")]:::store
+  CREATE --> BORDER[("broker_orders.json<br/>{id, client, service, candidates}")]:::store
+
+  %% PHASE 2: contractor sourcing (the roster) — ВЕТКА СЛЕВА
+  ROSTER[("broker_vendor_roster.json<br/>(по service_type)")]:::store
+  TGFOLDER[["TG-папка БРОКЕР<br/>(Михаил кладёт партнёров)"]]:::manual
+  EVENT["Event-чат отклики<br/>«я ведущий, ищу заказы»"]:::chan
+  CONVCACHE[("conversation_cache/&lt;username&gt;.jsonl<br/>(conv-cache-sync 5мин)")]:::store
+
+  TGFOLDER -.-> MINING["ad-hoc AI session<br/>читает conv_cache → notes/rate/promo"]:::manual
+  EVENT -.-> MINING
+  CONVCACHE -.read.-> MINING
+  MINING -. append .-> ROSTER
+
+  %% PHASE 3: brief + price gathering
+  BORDER --> SELECT["broker_pipeline._select_candidates<br/>top из roster по service_type"]:::ai
+  ROSTER -.lookup.-> SELECT
+  SELECT --> BRIEF["compose_contractor_brief (Opus)<br/>ceiling из broker_margin<br/>НЕТ контактов клиента"]:::ai
+  BRIEF --> SENDC["pending_approvals (folder=broker_brief)<br/>_broker_auto_send (no-budget)"]:::out
+  SENDC --> CONTR["📤 Бриф в TG → @contractor"]:::chan
+  CONTR --> CREPLY["Подрядчик отвечает в TG<br/>цена + видео/фото"]:::chan
+  CREPLY --> CINBOUND["tg_responder._handle_broker_inbound"]:::agent
+  CINBOUND --> EXTRACT["broker_pipeline._extract_price<br/>→ candidate.price_rub / price_text"]:::ai
+  CINBOUND -.media.-> COLLECT["broker_collect_promo<br/>→ broker_promo/&lt;svc&gt;/&lt;contractor&gt;/"]:::agent
+  CREPLY -.cloud URL.-> CLOUDPIPE["broker_media_pipeline<br/>mail.ru/yadisk/gdrive → vision review"]:::ai
+  CLOUDPIPE --> COLLECT
+  EXTRACT --> BORDER
+  COLLECT --> BORDER
+
+  %% Follow-up if no price/media
+  CINBOUND --> NOPRICE{"price пусто?"}:::gate
+  NOPRICE -- yes --> FUP["broker_contractor_followup_agent<br/>ping 6ч cadence × 3 attempts"]:::agent
+  FUP -. _PRICE_REQUEST_TO_CONTRACTOR_SYSTEM .-> SENDC
+
+  %% PHASE 4: casting + relay to client
+  EXTRACT --> SCORE["broker_quality_scorer (Sonnet)<br/>quality_score 1-10 + media bonus"]:::ai
+  SCORE --> BORDER
+  BORDER --> ELIG["broker_casting._eligible<br/>price ≤ contractor_ceiling<br/>media present, service match"]:::ai
+  ELIG --> CASTING["broker_casting: sort by<br/>(score DESC, cheaper margin DESC)<br/>→ top-2"]:::ai
+  CASTING --> RELAY["compose_relay_to_client (Opus)<br/>от лица «директор LCB»<br/>одна финальная цена с маржой<br/>_strip_contacts + _strip_contractor_leaks"]:::ai
+  RELAY --> SENDCL["pending_approvals<br/>folder=broker_relay_to_client<br/>kind=media_bundle (photo/video only)<br/>_broker_auto_send (no-budget)"]:::out
+  SENDCL --> CLIENT["📤 Текст + 5 фото + 2 видео<br/>в TG @client"]:::chan
+
+  %% PHASE 5: negotiation client ↔ contractor
+  CLIENT --> CREPLY2["Клиент отвечает: «дорого / вариант 2 / а если»"]:::chan
+  CREPLY2 --> RELAYBACK["compose_relay_to_contractor (Opus)<br/>передаём подрядчику запрос<br/>без контактов клиента"]:::ai
+  RELAYBACK --> SENDC
+  CINBOUND -.«думаем».-> STATUSNOTE["_queue_broker_status_notices<br/>уведомление подрядчику<br/>«клиент пока думает»"]:::ai
+  STATUSNOTE --> SENDC
+
+  %% PHASE 6: payment
+  CREPLY2 --> AGREE{"клиент: «беру вариант N за Xк»"}:::gate
+  AGREE -- yes --> PAYMENT["AI presend-gate ловит<br/>payment_touch / реквизиты"]:::ai
+  PAYMENT --> APPROVAL[["📋 approval bot<br/>НИКАКОГО auto-send денег<br/>Михаил решает руками"]]:::manual
+  APPROVAL --> KIRILL[["@Kirill_muspro<br/>ИП-получатель платежей<br/>генерит договор ИП Щукин<br/>(lcb-contract-builder)"]]:::manual
+  KIRILL --> EDO[["ЭДО (Контур.Диадок)<br/>договор → клиенту"]]:::manual
+  EDO --> PAID["payment_event_handler<br/>ловит 'Вас оплатили'"]:::agent
+  PAID --> ORDERSTATUS[("orders.status<br/>Посредник → ОПЛАТИЛА")]:::store
+  PAID --> EVENTCARD[("dashboard_events<br/>event_card для день-Х")]:::store
+  PAID --> PAYC[["LCB → @contractor<br/>перевод его цены<br/>(manual через Кирилла)"]]:::manual
+  PAYC --> CLOSED[("broker_orders<br/>status = closed_won")]:::store
+    </div>
+  </section>
+
+  <section class="mindmap-card">
     <h2>3. AI calls map — кто какой purpose дёргает</h2>
     <p class="diagram-note">Все AI-вызовы оркеструются через claude_cli.call_opus*. Для classification/extraction purposes (whitelist в codex_cli.CODEX_LAYER1_PURPOSES) Codex Layer 1 пробуется первым. Для генерации/relay/responder сразу Claude. Fail-fast: упал/quota → следующий слой без задержки. Quota → 5h cooldown.</p>
     <div class="mermaid">
