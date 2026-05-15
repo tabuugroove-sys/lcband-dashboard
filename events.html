@@ -325,6 +325,11 @@
     border-left-color: var(--orange);
     border-left-style: dashed;
   }
+  .cal-pill.lead {
+    background: rgba(188,140,255,0.16); color: var(--purple);
+    border-left-color: var(--purple);
+    border-left-style: dotted;
+  }
 
   .back-to-cal-btn {
     background: transparent; color: var(--muted);
@@ -1089,6 +1094,7 @@
   CAL_VIEW.setDate(1);
   let CAL_EVENTS = [];
   let CAL_STUBS = [];
+  let CAL_LEADS = [];
 
   function _ymd(d) {
     return d.getFullYear() + '-' +
@@ -1119,6 +1125,13 @@
       console.warn('[cal] /api/event_stubs failed:', e.message);
       CAL_STUBS = [];
     }
+    try {
+      const leads = await api('/leads_with_dates');
+      CAL_LEADS = leads.leads || [];
+    } catch (e) {
+      console.warn('[cal] /api/leads_with_dates failed:', e.message);
+      CAL_LEADS = [];
+    }
   }
 
   function renderCalendarView() {
@@ -1132,10 +1145,11 @@
           <button onclick="calNext()">›</button>
           <div class="cur-month" id="cal-cur-month"></div>
           <div class="legend">
+            <span><span class="dot" style="background:var(--purple)"></span>заявка</span>
+            <span><span class="dot" style="background:var(--orange)"></span>ждём предоплату</span>
             <span><span class="dot" style="background:var(--blue)"></span>будущий event</span>
             <span><span class="dot" style="background:var(--green)"></span>состав ≥4</span>
             <span><span class="dot" style="background:var(--red)"></span>предоплата получена</span>
-            <span><span class="dot" style="background:var(--orange)"></span>ждём предоплату (stub)</span>
             <span><span class="dot" style="background:#f472b6"></span>видео/фото получены</span>
           </div>
           <div class="stamp" id="cal-stamp"></div>
@@ -1171,6 +1185,22 @@
         _kind: 'stub', _stage: s.stage, _thread: s.client_thread,
       });
     }
+    // Leads: ранние заявки с датой, ещё не event_stub'ы. Кликабельны →
+    // открывают чат с клиентом через index.html (мы знаем username/channel).
+    for (const l of CAL_LEADS) {
+      const d = _parseYmd(l.event_date_iso);
+      if (!d) continue;
+      const k = _ymd(d);
+      (byDate[k] = byDate[k] || []).push({
+        id: 'lead' + l.order_id,
+        title: l.client,
+        _kind: 'lead',
+        _status: l.status,
+        _channel: l.channel,
+        _username: l.username,
+        _raw_date: l.event_date_raw,
+      });
+    }
 
     const today = new Date();
     const todayY = _ymd(today);
@@ -1191,27 +1221,34 @@
       for (const ev of evs) {
         let pcls = 'cal-pill';
         let stateLabel = '';
+        let click = '';
+        let tip = '';
+        const safe = (ev.title || ev.id || '').replace(/[<>&"']/g, c =>
+          ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+
         if (ev._kind === 'stub') {
           pcls += ' stub';
           stateLabel = 'ждём предоплату';
+          tip = `Stub (${ev._stage}): ${ev._thread || ''}\n${stateLabel}\nПолной карточки ещё нет — bridges работают по stub_id.`;
+        } else if (ev._kind === 'lead') {
+          pcls += ' lead';
+          stateLabel = `заявка · ${ev._status}`;
+          tip = `${ev.title}\n${stateLabel}\n${ev._channel || ''}${ev._username ? ' · @' + ev._username : ''}\nдата в переписке: ${ev._raw_date}`;
+          // Click → open chat in index.html (if we have username+channel).
+          if (ev._username && ev._channel) {
+            const ch = ev._channel.toUpperCase().startsWith('VK') ? 'VK' : 'TG';
+            click = `onclick="window.open('./index.html?chat=${encodeURIComponent(ev._username)}&channel=${ch}', '_blank')"`;
+          }
         } else {
-          // Business state from /api/events. Priority is enforced server-side;
-          // we just map → CSS class.
           switch (ev.business_state) {
             case 'video_received': pcls += ' video-received'; stateLabel = 'видео/фото получены'; break;
             case 'prepaid':        pcls += ' prepaid';        stateLabel = 'предоплата получена'; break;
             case 'lineup_ready':   pcls += ' lineup-ready';   stateLabel = 'состав ≥4'; break;
-            default:               /* default future event — blue */         stateLabel = 'будущий event'; break;
+            default:               stateLabel = 'будущий event'; break;
           }
+          click = `onclick="loadEvent('${(ev.id || '').replace(/'/g, "\\'")}')"`;
+          tip = (ev.title || ev.id) + (ev.members_count ? `  ·  ${ev.members_count} чел` : '') + `\n${stateLabel}`;
         }
-        const safe = (ev.title || ev.id || '').replace(/[<>&"']/g, c =>
-          ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
-        const click = ev._kind === 'stub'
-          ? '' /* no full card yet — just hover info */
-          : `onclick="loadEvent('${(ev.id || '').replace(/'/g, "\\'")}')"`;
-        const tip = ev._kind === 'stub'
-          ? `Stub (${ev._stage}): ${ev._thread || ''}\nПолной карточки ещё нет — bridges работают по stub_id.`
-          : (ev.title || ev.id) + (ev.members_count ? `  ·  ${ev.members_count} чел` : '') + `\n${stateLabel}`;
         pills += `<span class="${pcls}" title="${tip.replace(/"/g, '&quot;')}" ${click} style="${click ? 'cursor:pointer' : 'cursor:default;opacity:.85'}">${safe}</span>`;
       }
       html += `<div class="${cls}"><div class="cal-day-num">${d.getDate()}</div>${pills}</div>`;
@@ -1220,7 +1257,7 @@
 
     const stamp = document.getElementById('cal-stamp');
     if (stamp) {
-      stamp.textContent = `events: ${CAL_EVENTS.length} · stubs: ${CAL_STUBS.length}`;
+      stamp.textContent = `events: ${CAL_EVENTS.length} · stubs: ${CAL_STUBS.length} · заявки: ${CAL_LEADS.length}`;
     }
   }
 

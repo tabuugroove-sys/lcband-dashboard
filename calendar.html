@@ -123,6 +123,11 @@
     border-color: rgba(245,158,11,0.40);
     border-style: dashed;
   }
+  .event-pill.lead {
+    background: rgba(188,140,255,0.14); color: #bc8cff;
+    border-color: rgba(188,140,255,0.45);
+    border-style: dotted;
+  }
 
   /* List fallback */
   .upcoming-list {
@@ -173,10 +178,11 @@
     <button id="next">Следующий →</button>
     <button id="today-btn">Сегодня</button>
     <div class="legend">
+      <span class="legend-chip"><span class="dot" style="background:#bc8cff"></span>заявка</span>
+      <span class="legend-chip"><span class="dot" style="background:#f59e0b"></span>ждём предоплату</span>
       <span class="legend-chip"><span class="dot" style="background:#60a5fa"></span>будущий event</span>
       <span class="legend-chip"><span class="dot" style="background:#10b981"></span>состав ≥4</span>
       <span class="legend-chip"><span class="dot" style="background:#ef4444"></span>предоплата получена</span>
-      <span class="legend-chip"><span class="dot" style="background:#f59e0b"></span>ждём предоплату (stub)</span>
       <span class="legend-chip"><span class="dot" style="background:#f472b6"></span>видео/фото получены</span>
     </div>
   </div>
@@ -235,6 +241,19 @@
     }
   }
 
+  async function fetchLeads() {
+    try {
+      const bu = await getBackendBase();
+      const r = await fetch(`${bu}/api/leads_with_dates`, { cache: 'no-store' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      return j.leads || [];
+    } catch (e) {
+      console.warn('fetch /api/leads_with_dates failed:', e.message);
+      return [];
+    }
+  }
+
   async function getBackendBase() {
     try {
       const r = await fetch('./backend_url.json', { cache: 'no-store' });
@@ -275,12 +294,12 @@
     return d;
   }
 
-  function render(events, stubs) {
+  function render(events, stubs, leads) {
     curMonthEl.textContent = monthLabel(view);
     grid.innerHTML = '';
 
-    // Group events + stubs by ymd. Real events take visual priority; stubs
-    // render alongside if a stub doesn't share a date with a full event.
+    // Group events + stubs + leads by ymd. Real events show first, then
+    // stubs (waiting prepayment), then leads (earliest funnel stage).
     const byDate = {};
     for (const ev of events) {
       const d = parseDate(ev.date);
@@ -296,6 +315,17 @@
         id: s.stub_id, title: s.title || s.client_thread,
         members_count: 0, _kind: 'stub',
         _client_thread: s.client_thread, _stage: s.stage,
+      });
+    }
+    for (const l of (leads || [])) {
+      const d = parseDate(l.event_date_iso);
+      if (!d) continue;
+      const k = ymd(d);
+      (byDate[k] = byDate[k] || []).push({
+        id: 'lead' + l.order_id, title: l.client,
+        members_count: 0, _kind: 'lead',
+        _status: l.status, _channel: l.channel,
+        _username: l.username, _raw_date: l.event_date_raw,
       });
     }
 
@@ -327,6 +357,20 @@
           a.href = `./events.html`;
           a.textContent = '🌱 ' + (ev.title || ev.id);
           a.title = `Stub (${ev._stage}): ${ev._client_thread}\n${stateLabel}`;
+        } else if (ev._kind === 'lead') {
+          a.classList.add('lead');
+          stateLabel = `заявка · ${ev._status}`;
+          const ch = (ev._channel || '').toUpperCase().startsWith('VK') ? 'VK' : 'TG';
+          a.href = ev._username
+            ? `./index.html?chat=${encodeURIComponent(ev._username)}&channel=${ch}`
+            : `./index.html`;
+          a.target = '_blank';
+          a.textContent = '· ' + (ev.title || ev.id);
+          a.title = (ev.title || ev.id)
+                  + `\n${stateLabel}`
+                  + (ev._channel ? `  ·  ${ev._channel}` : '')
+                  + (ev._username ? `  ·  @${ev._username}` : '')
+                  + `\nдата в переписке: ${ev._raw_date}`;
         } else {
           switch (ev.business_state) {
             case 'video_received': a.classList.add('video-received'); stateLabel = 'видео/фото получены'; break;
@@ -377,24 +421,25 @@
     }
   }
 
-  let allEvents = [], allStubs = [];
+  let allEvents = [], allStubs = [], allLeads = [];
 
   async function refresh() {
-    const [evs, stubs] = await Promise.all([fetchEvents(), fetchStubs()]);
+    const [evs, stubs, leads] = await Promise.all([fetchEvents(), fetchStubs(), fetchLeads()]);
     allEvents = evs;
     allStubs = stubs;
-    render(allEvents, allStubs);
+    allLeads = leads;
+    render(allEvents, allStubs, allLeads);
     renderUpcoming(allEvents);
   }
 
   document.getElementById('prev').onclick = () => {
-    view = new Date(view.getFullYear(), view.getMonth() - 1, 1); render(allEvents, allStubs);
+    view = new Date(view.getFullYear(), view.getMonth() - 1, 1); render(allEvents, allStubs, allLeads);
   };
   document.getElementById('next').onclick = () => {
-    view = new Date(view.getFullYear(), view.getMonth() + 1, 1); render(allEvents, allStubs);
+    view = new Date(view.getFullYear(), view.getMonth() + 1, 1); render(allEvents, allStubs, allLeads);
   };
   document.getElementById('today-btn').onclick = () => {
-    view = new Date(today.getFullYear(), today.getMonth(), 1); render(allEvents, allStubs);
+    view = new Date(today.getFullYear(), today.getMonth(), 1); render(allEvents, allStubs, allLeads);
   };
 
   refresh();
