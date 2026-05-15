@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LC Band — Последние отправленные (72ч)</title>
+<link rel="stylesheet" href="_theme.css">
+<script src="_theme.js"></script>
+<style>
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e;
+    --card: #161b22; --border: #30363d;
+    --accent: #58a6ff; --green: #3fb950; --orange: #f0883e; --red: #f85149;
+    --purple: #bc8cff; --gold: #d29922;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); padding:20px;
+         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; line-height:1.5; }
+  .header { display:flex; justify-content:space-between; align-items:center;
+            margin-bottom:18px; gap:12px; flex-wrap:wrap; }
+  .header h1 { margin:0; font-size:20px; }
+  .header .nav { display:flex; gap:10px; flex-wrap:wrap; }
+  .header .nav a { color:var(--muted); text-decoration:none; font-size:13px;
+                   padding:4px 8px; border-radius:4px; }
+  .header .nav a:hover { color:var(--accent); background:rgba(255,255,255,0.05); }
+  .theme-toggle { background:var(--card); border:1px solid var(--border); color:var(--fg);
+                  border-radius:6px; padding:6px 12px; font-size:12px; cursor:pointer; }
+  html[data-theme="light"] .theme-toggle { background:#fff; border-color:#d0d7de; color:#1f2328; }
+  .lcb-theme-toggle { display:none !important; }
+
+  .meta { color:var(--muted); font-size:12px; margin-bottom:14px; }
+  .filters { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .filter-btn { padding:5px 10px; border-radius:14px; border:1px solid var(--border);
+                background:var(--card); color:var(--fg); font-size:12px; cursor:pointer; }
+  .filter-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .search { flex:1; min-width:200px; padding:6px 10px; border-radius:6px;
+            border:1px solid var(--border); background:var(--card); color:var(--fg);
+            font-size:13px; }
+
+  .msg-row { background:var(--card); border:1px solid var(--border); border-radius:8px;
+             padding:12px 14px; margin-bottom:8px; display:grid;
+             grid-template-columns: 130px 200px 90px 1fr 100px; gap:12px;
+             align-items:start; font-size:13px; }
+  .msg-row.cold { border-left:3px solid var(--gold); }
+  .msg-row.sent { border-left:3px solid var(--green); }
+  .msg-row.awaiting { border-left:3px solid var(--orange); }
+  .ts { color:var(--muted); font-size:11px; white-space:nowrap; }
+  .user { color:var(--accent); font-weight:600; }
+  .user-name { display:block; color:var(--muted); font-size:11px; }
+  .channel { font-size:11px; color:var(--muted); text-transform:uppercase; }
+  .status { font-size:11px; padding:2px 6px; border-radius:3px; display:inline-block; }
+  .status.sent { background:rgba(63,185,80,0.18); color:var(--green); }
+  .status.awaiting { background:rgba(240,136,62,0.18); color:var(--orange); }
+  .status.cold { background:rgba(210,153,34,0.18); color:var(--gold); }
+  .text { white-space:pre-wrap; word-break:break-word; max-height:80px; overflow:hidden;
+          position:relative; }
+  .text.expanded { max-height:none; }
+  .text-fade { position:absolute; bottom:0; left:0; right:0; height:24px;
+               background:linear-gradient(transparent, var(--card)); pointer-events:none; }
+  .text.expanded .text-fade { display:none; }
+  .toggle-text { color:var(--accent); font-size:11px; cursor:pointer; margin-top:4px;
+                 display:inline-block; }
+
+  html[data-theme="light"] body { background:#fafbfc; color:#1f2328; }
+  html[data-theme="light"] .msg-row { background:#fff; border-color:#d0d7de; }
+  html[data-theme="light"] .filter-btn { background:#fff; border-color:#d0d7de; color:#1f2328; }
+  html[data-theme="light"] .filter-btn.active { background:#0969da; color:#fff; }
+  html[data-theme="light"] .search { background:#fff; border-color:#d0d7de; color:#1f2328; }
+  html[data-theme="light"] .text-fade { background:linear-gradient(transparent, #fff); }
+  html[data-theme="light"] .user { color:#0969da; }
+  html[data-theme="light"] .header .nav a:hover { background:rgba(0,0,0,0.05); color:#0969da; }
+  html[data-theme="light"] .ts, html[data-theme="light"] .meta, html[data-theme="light"] .channel,
+  html[data-theme="light"] .user-name { color:#656d76; }
+
+  .empty { text-align:center; padding:30px; color:var(--muted); font-style:italic; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>📤 Последние отправленные за 72 часа</h1>
+  <div class="nav">
+    <button class="theme-toggle" id="theme-toggle">🌙 Тёмная</button>
+    <a href="index.html">← Dashboard</a>
+    <a href="architecture.html">Architecture</a>
+    <a href="broker.html">Broker</a>
+  </div>
+</div>
+<div class="meta" id="meta">Загрузка…</div>
+<div class="filters">
+  <button class="filter-btn active" data-filter="all">Все</button>
+  <button class="filter-btn" data-filter="sent">✅ Отправлено</button>
+  <button class="filter-btn" data-filter="awaiting_approve">⏳ В боте</button>
+  <button class="filter-btn" data-filter="cold_outreach">🎯 Холодные</button>
+  <input type="text" class="search" id="search" placeholder="🔍 поиск по @username / клиенту / тексту…">
+</div>
+<div id="list"></div>
+
+<script>
+(function syncThemeButton() {
+  const btn = document.getElementById('theme-toggle');
+  function update() {
+    const cur = document.documentElement.getAttribute('data-theme') || 'light';
+    btn.textContent = cur === 'light' ? '☀️ Светлая' : '🌙 Тёмная';
+  }
+  update();
+  btn.addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme') || 'light';
+    const next = cur === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('lcb_theme', next); } catch {}
+    update();
+  });
+})();
+
+async function getBackendUrl() {
+  return location.protocol === 'file:' || location.hostname === '127.0.0.1' || location.hostname === 'localhost'
+    ? `${location.protocol}//${location.hostname}:8878`
+    : 'http://127.0.0.1:8878';
+}
+function escHtml(s) {
+  return (s||'').toString()
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+function fmtTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso.slice(0,16);
+  const today = new Date();
+  const isToday = d.toDateString() === today.toDateString();
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  if (isToday) return `сегодня ${hh}:${mm}`;
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mon = String(d.getMonth()+1).padStart(2,'0');
+  return `${dd}.${mon} ${hh}:${mm}`;
+}
+
+let ALL_ITEMS = [];
+let CURRENT_FILTER = 'all';
+
+function render() {
+  const search = document.getElementById('search').value.toLowerCase().trim();
+  const filtered = ALL_ITEMS.filter(it => {
+    if (CURRENT_FILTER !== 'all' && it.status !== CURRENT_FILTER) return false;
+    if (search) {
+      const hay = `${it.username||''} ${it.client_name||''} ${it.text||''}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+  if (!filtered.length) {
+    document.getElementById('list').innerHTML = '<div class="empty">Нет сообщений по фильтру.</div>';
+    return;
+  }
+  document.getElementById('list').innerHTML = filtered.map((it, idx) => {
+    const statusClass = it.status === 'sent' ? 'sent' : it.status === 'cold_outreach' ? 'cold' : 'awaiting';
+    const text = it.text || '(текст не сохранён)';
+    const isLong = text.length > 200;
+    return `<div class="msg-row ${statusClass}">
+      <div class="ts">${escHtml(fmtTime(it.ts))}</div>
+      <div>
+        <span class="user">@${escHtml(it.username || '—')}</span>
+        ${it.client_name ? `<span class="user-name">${escHtml(it.client_name)}</span>` : ''}
+      </div>
+      <div class="channel">${escHtml(it.channel || 'TG')}</div>
+      <div>
+        <div class="text" data-idx="${idx}">${escHtml(text)}${isLong ? '<div class="text-fade"></div>' : ''}</div>
+        ${isLong ? `<span class="toggle-text" data-idx="${idx}">показать всё</span>` : ''}
+        ${it.details ? `<div style="color:var(--muted);font-size:10px;margin-top:4px">${escHtml(it.details)}</div>` : ''}
+      </div>
+      <div><span class="status ${statusClass}">${escHtml(it.status_label || it.status)}</span></div>
+    </div>`;
+  }).join('');
+
+  document.querySelectorAll('.toggle-text').forEach(el => {
+    el.onclick = () => {
+      const idx = el.dataset.idx;
+      const t = document.querySelector(`.text[data-idx="${idx}"]`);
+      t.classList.toggle('expanded');
+      el.textContent = t.classList.contains('expanded') ? 'свернуть' : 'показать всё';
+    };
+  });
+}
+
+async function load() {
+  const base = await getBackendUrl();
+  try {
+    const r = await fetch(`${base}/api/outgoing_72h`, { cache:'no-store' });
+    const data = await r.json();
+    ALL_ITEMS = data.items || [];
+    const m = data._meta || {};
+    document.getElementById('meta').innerHTML =
+      `Всего отправок: <strong>${m.total}</strong> · с ${(m.cutoff_iso||'').slice(5,16)} · ` +
+      `обновлено ${(m.generated_at||'').slice(11,19)}`;
+    render();
+  } catch (e) {
+    document.getElementById('meta').innerHTML =
+      `<span style="color:var(--red)">Ошибка: ${escHtml(e.message)}</span>`;
+  }
+}
+
+document.querySelectorAll('.filter-btn').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.filter-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    CURRENT_FILTER = b.dataset.filter;
+    render();
+  };
+});
+document.getElementById('search').oninput = render;
+
+load();
+setInterval(load, 60000); // refresh каждую минуту
+</script>
+</body>
+</html>

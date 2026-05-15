@@ -538,6 +538,7 @@
     <a href="./events.html">📋 Events</a>
     <a href="./pricing.html">💰 Pricing</a>
     <a href="./broker.html">🤝 Broker</a>
+    <a href="./outgoing.html">📤 Отправленные</a>
     <a href="./dm-direct-funnel.html">📨 DM funnel</a>
   </div>
 </header>
@@ -1295,7 +1296,7 @@ sequenceDiagram
   }[c]));
 
   const ARCH_AGENT_CATALOG = {
-    'com.lcband.agent-watchdog': { block: '4. Reconciliation & watchdog', node: 'WATCHDOG', what: 'Следит за launchd-агентами, перезапускает упавшие, шлёт alert.' },
+    'com.lcband.agent-watchdog': { block: '4. Reconciliation & watchdog', node: 'WATCHDOG', what: 'Следит за launchd-агентами, heartbeat и outcome-based drought. Не алертит на нормальный Sent=0: cooldown/declined/privacy/no actionable contractors.' },
     'com.lcband.attention-auto-action': { block: '2/3. DM + AI review', node: 'AAA', what: 'Авто-действия по важным входящим сообщениям: urgent, musician review, presend gate.' },
     'com.lcband.attention-classify-cache': { block: '2. DM responder', what: 'Поддерживает кэш классификации внимания/важности входящих переписок.' },
     'com.lcband.auto-browser-walk': { block: '1. Inbound classification', node: 'WALK', what: 'Deprecated launchd: ручной browser/Telethon walk оставлен как fallback.' },
@@ -1960,7 +1961,7 @@ sequenceDiagram
     MORNING: { role: 'morning-reconciliation — 02:03 SP / 05:03 MSK', what: 'Diff monitor (orders.db) vs walk (browser_walk_result.json) за 24ч. Если walk нашёл лид которого нет в DB → alert.', why: 'Catch-up safety net.', where: 'morning_reconciliation.py' },
     AUTOHEAL: { role: 'funnel_autoheal — 02:15 SP / 05:15 MSK', what: '4 правила: stale Написал/Переговоры >3д → Follow-up; refusal → archived; paid+event прошёл → Концерт.', why: 'Без этого статусы зависают. Идемпотентно — можно гонять часто.', where: 'funnel_autoheal.py' },
     REPORT: { role: 'daily-report — 23:00 SP / 05:00 MSK', what: 'Бизнес-сводка в TG бот: новые валидные лиды, кому написали, follow-up due, в переговорах, DM funnel.', why: 'Утренний обзор за чашкой кофе.', where: 'daily_report.py' },
-    WATCHDOG: { role: 'agent-watchdog — every 30min', what: 'Проверяет что все launchd-агенты живы. Если упали — restart + TG alert.', why: 'Самовосстановление без human ops.', where: 'agent_watchdog.py' },
+    WATCHDOG: { role: 'agent-watchdog — every 30min', what: 'Проверяет launchd, heartbeat и follow-up drought. Drought alert только если нет success и последний run не дал нейтральный no-send outcome либо содержит lock/error marker.', why: 'Самовосстановление без human ops и без шума от нормальной тишины.', where: 'agent_watchdog.py' },
 
     BACKEND: { role: 'Flask backend на 127.0.0.1:8878', what: '15+ endpoints для дашборда: /api/dashboard_data, /api/db/snapshot, /api/ai_usage_breakdown, etc.', why: '—', where: 'dashboard_backend.py' },
     TUNNEL: { role: 'Cloudflare quick tunnel', what: 'tunnel_watcher.py spawn cloudflared → URL → push в backend_url.json → gh-pages подхватит.', why: 'Бесплатно, но URL меняется при рестарте. Долгосрочно — named tunnel со своим доменом.', where: 'tunnel_watcher.py' },
