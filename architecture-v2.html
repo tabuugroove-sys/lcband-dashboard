@@ -378,32 +378,86 @@ route_v2()   [pure Python, §3]
       смысл, иначе всё застрянет.
     </p>
 
-    <h3>Четыре вида маршрутизации внутри event'а</h3>
+    <h3>Виды маршрутизации — открытое множество, не enum</h3>
+    <p class="warn-c">
+      🔴 kind вопроса = решение агента, не закрытый список. AI смотрит на
+      event_context + текст и сам формулирует <code>intent</code> + <code>action</code>.
+      Промпт даёт примеры, не enum. Перечислять «4 типа» в коде = ограничивать
+      себя на первой неочевидной ситуации.
+    </p>
     <table>
-      <thead><tr><th>Тип</th><th>Триггер</th><th>Действие</th></tr></thead>
+      <thead><tr><th>Action (примеры)</th><th>Когда</th><th>Что делает</th></tr></thead>
       <tbody>
         <tr>
           <td><code>kb_lookup</code></td>
-          <td>«дайте райдер», «фото костюмов», «репертуар», «прайс PDF»</td>
-          <td>ответ из <code>lcb_knowledge_base.json</code> с ссылкой, никого не дёргаем</td>
+          <td>«дайте райдер / фото костюмов / репертуар / прайс / промо»</td>
+          <td>ссылка из <code>lcb_knowledge_base.json</code></td>
         </tr>
         <tr>
           <td><code>person_bridge</code></td>
-          <td>«можно этот костюм?» — про конкретного вокалиста в видео</td>
-          <td>identify person via <code>event_planning.Состав</code> → forward question → relay answer back</td>
+          <td>вопрос про конкретного участника состава</td>
+          <td>bridge клиент ↔ музыкант</td>
         </tr>
         <tr>
           <td><code>role_bridge</code></td>
-          <td>tech: «барабанщик со своими треками или от проката?»</td>
-          <td>identify musician by role for THIS event → bridge tech ↔ musician</td>
+          <td>tech: backline / треки / барабаны / сетлист</td>
+          <td>bridge tech ↔ музыкант по роли</td>
         </tr>
         <tr>
           <td><code>domain_handoff</code></td>
-          <td>клиент прислал реквизиты ООО / договор / акт</td>
-          <td>extract → contract-builder agent (сейчас manual, ИП меняем)</td>
+          <td>реквизиты / договор / акт</td>
+          <td>передать contract-builder агенту</td>
+        </tr>
+        <tr>
+          <td><code>auto_reply</code></td>
+          <td>факт-вопрос с ответом в orders.db (дата, состав, бюджет)</td>
+          <td>ответить из DB</td>
+        </tr>
+        <tr>
+          <td><code>clarify</code></td>
+          <td>многозначно (несколько артистов в видео)</td>
+          <td>спросить клиента уточнение</td>
+        </tr>
+        <tr>
+          <td><code>escalate_payment</code></td>
+          <td>реальный money-event</td>
+          <td>approval-bot Михаилу — единственная legit-ветка</td>
+        </tr>
+        <tr>
+          <td><code>&lt;новое&gt;</code></td>
+          <td>по необходимости</td>
+          <td>агент сам решит</td>
         </tr>
       </tbody>
     </table>
+
+    <h3 class="bad-c">Anti-spam контур bridges (обязательный)</h3>
+    <ul>
+      <li><strong><code>bridge_id</code></strong> — стабильный ключ
+          <code>(event_id, from_thread, to_thread, intent_hash)</code>.</li>
+      <li><strong>Один открытый bridge на вопрос.</strong> Повторное письмо
+          в пределах одного event'а до получения ответа = no-op, не дёргаем
+          человека дважды.</li>
+      <li><strong>Cooldown по получателю.</strong> ≥30 мин между двумя
+          bridge-сообщениями одному и тому же музыканту, независимо от event.</li>
+      <li><strong>Dedupe по intent_hash.</strong> Если в течение 24ч был
+          bridge с тем же intent+target в этом event'е и ответ получен —
+          повторно тот же question не пересылаем, отвечаем кэшем.</li>
+      <li><strong>Redaction.</strong> Sanitize-фильтр для исходящих к
+          музыканту — вырезаем имя клиента, телефон, бюджет (см. §5a,
+          <code>recipient_role=lcb_internal</code>).</li>
+      <li><strong>Timeout.</strong> Если получатель не ответил за N часов —
+          bridge не «висит», закрывается со статусом <code>timeout</code> + AI
+          шлёт клиенту мягкое «уточняю, возвращусь чуть позже». Михаил не дёргается.</li>
+    </ul>
+
+    <h3 class="bad-c">Bridges НЕ строим на promise-layer</h3>
+    <p class="note">
+      Codex 15.05: promise-layer в продакшене сейчас врёт (закрытые обещания
+      помечены <code>open</code>). Источник правды о составе event'а —
+      <code>event_planning.Состав</code> (manual) + <code>event_graph.event_contacts</code>
+      как context-only, не truth.
+    </p>
 
     <h3>Поток</h3>
 <pre>inbound (от участника event'а, не cold)
@@ -490,10 +544,10 @@ outbound_policy (§5a)</pre>
           Сейчас тебя дёргают каждый раз когда клиент просит видео/райдер. Закрывается
           одним словарём + lookup'ом, без bridges. Делать первым.</li>
       <li><strong><code>person_bridge</code> и <code>role_bridge</code> нужен event_id.</strong>
-          Если event ещё не в DB (на стадии negotiation) — bridges не работают,
-          ответ идёт через обычный sales-flow. Поэтому <code>event_watcher</code>
-          должен создавать events <em>раньше</em> — на стадии «реквизиты обсуждаются»,
-          не «деньги получены».</li>
+          Решение: НЕ трогать <code>event_watcher</code> (post-payment ops).
+          Добавляем отдельный <strong><code>event_stub</code></strong> слой
+          (§3c.2) для стадий <em>negotiation/confirmed</em>. Paid event_watcher
+          работает как был.</li>
       <li><strong><code>domain_handoff</code> — на тебе пока меняешь ИП.</strong>
           Когда новый ИП закреплён → contract-builder agent (есть skill
           <code>lcb-contract-builder</code>) подключается через
@@ -505,6 +559,57 @@ outbound_policy (§5a)</pre>
           AI задаёт <em>clarifier клиенту</em>: «уточните, про какого артиста — Иру
           или LAZ?». Это auto, НЕ Михаил.</li>
     </ul>
+
+    <h3>§3c.1 Порядок реализации (Codex 15.05)</h3>
+    <ol>
+      <li><code>lcb_knowledge_base.json</code> + <code>kb_lookup</code>. Польза
+          сразу, новый канал спама не создаёт. Параллельно §3c.2.</li>
+      <li><code>event_stub</code> слой (§3c.2). Опорный production-источник для
+          bridges. Не трогает <code>event_watcher</code>.</li>
+      <li><code>classify_in_event()</code> в DRY-mode. Запускается на каждом inbound
+          в event-thread, но НИЧЕГО не делает — пишет решение в
+          <code>event_classify_shadow.jsonl</code>. Неделю собираем, смотрим
+          какие kinds реально предлагает.</li>
+      <li><code>person_bridge</code> / <code>role_bridge</code> live. Только после
+          shadow-аудита и anti-spam контура. Хард-cap «не больше N bridges/час на
+          музыканта» в первую неделю.</li>
+      <li><code>domain_handoff</code> → contract-builder. Когда новый ИП закреплён.</li>
+    </ol>
+
+    <h3>§3c.2 event_stub layer — отдельный слой до оплаты</h3>
+    <p>
+      <code>event_watcher.py</code> остаётся как есть — наблюдает paid orders,
+      создаёт карточки в <code>event_planning.json</code> после оплаты
+      (post-payment ops: гонорары, состав, договор-акт).
+    </p>
+    <p>
+      <strong>Новый <code>event_stub_updater.py</code></strong> — отдельный
+      наблюдатель, создаёт <strong>stub-event</strong> на ранних стадиях
+      (<code>status ∈ {Переговоры, Интерес}</code> AND есть event_date или упоминание
+      реквизитов/договора/состава). НЕ пишет в <code>event_planning.json</code>:
+    </p>
+<pre>CREATE TABLE event_stubs (
+  stub_id           TEXT PRIMARY KEY,        -- стабильно по (client_thread_id, hint_date)
+  client_thread     TEXT NOT NULL,           -- "tg:@username" или "vk:peer_id"
+  order_id          INTEGER REFERENCES orders(id),
+  hint_date         TEXT,                    -- извлечённая дата, может быть пустой
+  stage             TEXT NOT NULL,           -- negotiation | confirmed | promoted | dropped
+  participants_json TEXT,                    -- что AI извлёк про состав/тех/юриста
+  created_at        INTEGER NOT NULL,
+  updated_at        INTEGER NOT NULL,
+  promoted_event_id TEXT                     -- если event_watcher продвинул в полную карточку
+);</pre>
+    <p class="note">
+      Bridges работают на <code>event_stub</code> с момента его появления.
+      Когда сделка переходит в paid → <code>event_watcher</code> создаёт полную
+      карточку → <code>stub.stage='promoted'</code> + <code>promoted_event_id</code>
+      указывает на полный event. Bridges продолжают работать на новом event_id
+      без потери истории.
+    </p>
+    <p class="note">
+      Две независимые fixture: pre-sale stub (lightweight, координация) и
+      post-payment full event (ops). Не мешают друг другу.
+    </p>
   </div>
 
   <h2>4. Thread ownership &amp; state</h2>
