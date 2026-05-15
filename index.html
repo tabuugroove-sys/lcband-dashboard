@@ -2005,8 +2005,25 @@ function computePipeline(allLeads, archived, branchSpec) {
   const eq = (s) => (o) => st(o).toLowerCase() === s.toLowerCase();
   const any = (re) => (o) => re.test(st(o));
 
-  const stage_new      = active.filter(eq('Новый'));
-  const stage_sent     = active.filter(eq('Написал'));
+  // 15.05.2026: broker (status="Посредник") leads — раньше не подбирались ни
+  // одной стадией (Новые/Написал/Follow-up/...), их 18 жило в выгрузке но они
+  // нигде не считались. Маппинг по next_action / desc сигналам:
+  //   • next_action содержит "BROKER:" с ожиданием подтверждения / поиска
+  //     подрядчика → Follow-up (мы что-то делаем)
+  //   • next_action пустой / только classification text → Новые
+  //   • next_action содержит явное «отправлен»/«ушло клиенту» → Отправили питч
+  const isBroker = (o) => st(o) === 'Посредник';
+  const brokerSubStage = (o) => {
+    const na = String(o.next_action || '').toLowerCase();
+    if (!na) return 'new';
+    if (/отправил|relay|ушло\s+клиенту|client[_\s]relayed/.test(na)) return 'sent';
+    if (/назначить|поиск|ищем|подбираем|без\s+подрядчика/.test(na)) return 'new';
+    if (/жд[её]м|подтверждение|reconfirm|waiting|brief_sent/.test(na)) return 'followup';
+    return 'followup'; // BROKER: prefix без явного signal — active brokering
+  };
+
+  const stage_new      = active.filter(o => eq('Новый')(o) || (isBroker(o) && brokerSubStage(o) === 'new'));
+  const stage_sent     = active.filter(o => eq('Написал')(o) || (isBroker(o) && brokerSubStage(o) === 'sent'));
   const neg_all        = active.filter(eq('Переговоры'));
   const neg_stale      = neg_all.filter(_funnelIsStaleNegotiation);
   const neg_fresh      = neg_all.filter(o => !_funnelIsStaleNegotiation(o));
@@ -2021,7 +2038,11 @@ function computePipeline(allLeads, archived, branchSpec) {
   // DB-статусы: Оплачен (fully paid), Концерт/Сыграл/Выступил (explicit markers),
   // Отзыв (future status when review collected).
   const stage_review   = active.filter(any(/^(Оплачен|Концерт|Сыграл|Выступил|Отзыв)/i));
-  const stage_followup_all = [...active.filter(eq('Follow-up')), ...neg_stale];
+  const stage_followup_all = [
+    ...active.filter(eq('Follow-up')),
+    ...neg_stale,
+    ...active.filter(o => isBroker(o) && brokerSubStage(o) === 'followup'),
+  ];
   // 🔴 27.04: разделяем Follow-up на «обычные» и «Потерянные обещания»
   const stage_promises   = stage_followup_all.filter(_funnelHasUnfulfilledPromise);
   const stage_followup   = stage_followup_all.filter(o => !_funnelHasUnfulfilledPromise(o));
