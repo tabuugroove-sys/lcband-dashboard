@@ -106,13 +106,17 @@
     cursor: pointer; text-decoration: none;
   }
   .event-pill:hover { filter: brightness(1.2); }
-  .event-pill.past {
-    background: rgba(75,85,99,0.20); color: var(--past);
-    border-color: rgba(75,85,99,0.45);
-  }
-  .event-pill.confirmed {
+  .event-pill.lineup-ready {
     background: rgba(16,185,129,0.15); color: var(--ok);
     border-color: rgba(16,185,129,0.35);
+  }
+  .event-pill.prepaid {
+    background: rgba(239,68,68,0.15); color: var(--bad);
+    border-color: rgba(239,68,68,0.40);
+  }
+  .event-pill.video-received {
+    background: rgba(244,114,182,0.15); color: #f472b6;
+    border-color: rgba(244,114,182,0.40);
   }
   .event-pill.stub {
     background: rgba(245,158,11,0.12); color: var(--warn);
@@ -169,10 +173,11 @@
     <button id="next">Следующий →</button>
     <button id="today-btn">Сегодня</button>
     <div class="legend">
-      <span class="legend-chip"><span class="dot" style="background:#60a5fa"></span>event (полная карточка)</span>
-      <span class="legend-chip"><span class="dot" style="background:#10b981"></span>confirmed lineup ≥4</span>
-      <span class="legend-chip"><span class="dot" style="background:#f59e0b"></span>stub-event (до оплаты)</span>
-      <span class="legend-chip"><span class="dot" style="background:#4b5563"></span>past</span>
+      <span class="legend-chip"><span class="dot" style="background:#60a5fa"></span>будущий event</span>
+      <span class="legend-chip"><span class="dot" style="background:#10b981"></span>состав ≥4</span>
+      <span class="legend-chip"><span class="dot" style="background:#ef4444"></span>предоплата получена</span>
+      <span class="legend-chip"><span class="dot" style="background:#f59e0b"></span>ждём предоплату (stub)</span>
+      <span class="legend-chip"><span class="dot" style="background:#f472b6"></span>видео/фото получены</span>
     </div>
   </div>
 
@@ -315,17 +320,25 @@
       for (const ev of evs) {
         const a = document.createElement('a');
         a.className = 'event-pill';
+        let stateLabel = '';
         if (ev._kind === 'stub') {
           a.classList.add('stub');
-          a.href = `./events.html`;  // no full card yet — link to events list
+          stateLabel = 'ждём предоплату';
+          a.href = `./events.html`;
           a.textContent = '🌱 ' + (ev.title || ev.id);
-          a.title = `Stub (${ev._stage}): ${ev._client_thread}\nПолной карточки ещё нет — bridges работают по stub_id.`;
+          a.title = `Stub (${ev._stage}): ${ev._client_thread}\n${stateLabel}`;
         } else {
-          if (k < todayY) a.classList.add('past');
-          else if ((ev.members_count || 0) >= 4) a.classList.add('confirmed');
+          switch (ev.business_state) {
+            case 'video_received': a.classList.add('video-received'); stateLabel = 'видео/фото получены'; break;
+            case 'prepaid':        a.classList.add('prepaid');        stateLabel = 'предоплата получена'; break;
+            case 'lineup_ready':   a.classList.add('lineup-ready');   stateLabel = 'состав ≥4'; break;
+            default:               stateLabel = 'будущий event'; break;
+          }
           a.href = `./events.html#${encodeURIComponent(ev.id)}`;
           a.textContent = ev.title || ev.id;
-          a.title = (ev.title || ev.id) + (ev.members_count ? `\nсостав: ${ev.members_count} чел` : '');
+          a.title = (ev.title || ev.id)
+                  + (ev.members_count ? `  ·  ${ev.members_count} чел` : '')
+                  + `\n${stateLabel}`;
         }
         cell.appendChild(a);
       }
