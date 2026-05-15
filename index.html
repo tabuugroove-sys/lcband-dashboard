@@ -2828,52 +2828,92 @@ function BrokerCandidateRow({ c }) {
   );
 }
 
+// Org-status badge label (читаемая стадия по сторонe организатора).
+function _orgStageLabel(orderStatus) {
+  const k = _orgStageKey(orderStatus);
+  const found = BROKER_ORG_STAGES.find(s => s.key === k);
+  return found ? found.label : orderStatus;
+}
+
 function BrokerOrderCard({ order }) {
   const [expanded, setExpanded] = React.useState(true);
-  const stageColor = order.candidates_sent_to_client > 0 ? '#22d3ee' : (
-    order.candidates_ready > 0 ? '#34d399' : '#94a3b8'
-  );
+  const orgStageLabel = _orgStageLabel(order.status);
   return (
     <div className="card" style={{ marginBottom: 10, padding: 0, borderColor: 'rgba(255,255,255,.08)' }}>
+      {/* HEADER — событие + бюджет/маржа */}
       <div onClick={() => setExpanded(!expanded)}
            style={{ padding: '10px 12px', cursor: 'pointer',
-                    display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 16, alignItems: 'center' }}>
+                    display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'center',
+                    borderBottom: expanded ? '1px solid rgba(255,255,255,.06)' : 'none' }}>
         <div>
-          <div style={{ fontWeight: 700 }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>
             {order.service_label || order.service_type || '—'}
             {order.event_date && <span style={{ color: '#94a3b8', fontWeight: 500, marginLeft: 8 }}>· {order.event_date}</span>}
             {order.event_location && <span style={{ color: '#94a3b8', fontWeight: 500, marginLeft: 8 }}>· {order.event_location}</span>}
           </div>
-          <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>id: {order.id} · {order.status}</div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+            id: {order.id} · raw status: {order.status}
+            {order.guests && <span> · гостей {order.guests}</span>}
+          </div>
         </div>
-        <a href={`https://t.me/${order.client_username}`} target="_blank" rel="noopener"
-           onClick={(e) => e.stopPropagation()}
-           style={{ color: 'var(--blue)', fontWeight: 700, textDecoration: 'none' }}>
-          @{order.client_username}
-        </a>
         <div style={{ textAlign: 'right', fontSize: 12 }}>
           <div style={{ color: '#cbd5e1' }}>
-            бюджет {_fmtRub(order.budget_rub) || '—'} · потолок {_fmtRub(order.contractor_ceiling_rub) || '—'}
+            бюджет <b style={{ color: '#e2e8f0' }}>{_fmtRub(order.budget_rub) || '—'}</b>
+            {' '}· потолок <b style={{ color: '#e2e8f0' }}>{_fmtRub(order.contractor_ceiling_rub) || '—'}</b>
           </div>
-          <div style={{ color: order.margin_pct >= 35 ? '#34d399' : (order.margin_pct >= 25 ? '#fbbf24' : '#94a3b8') }}>
+          <div style={{ color: order.margin_pct >= 35 ? '#34d399' : (order.margin_pct >= 25 ? '#fbbf24' : '#94a3b8'), fontWeight: 700 }}>
             маржа {order.margin_pct ? order.margin_pct.toFixed(0) + '% (' + _fmtRub(order.margin_rub) + ')' : '—'}
           </div>
         </div>
-        <div style={{ minWidth: 90, textAlign: 'right', fontSize: 12, color: stageColor }}>
-          {order.candidates_sent_to_client > 0 ? `📤 ${order.candidates_sent_to_client} клиенту` :
-           order.candidates_ready > 0 ? `✅ ${order.candidates_ready} готов(ы)` :
-           order.candidates_count > 0 ? `${order.candidates_count} подр.` : 'ищем'}
-        </div>
       </div>
       {expanded && (
-        <div style={{ background: 'rgba(0,0,0,.18)' }}>
-          {order.candidates.length === 0 ? (
-            <div style={{ padding: '10px 12px', fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>
-              (нет кандидатов — ищем подрядчика)
+        <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', background: 'rgba(0,0,0,.18)' }}>
+          {/* LEFT — ORGANIZER */}
+          <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,.06)' }}>
+            <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+              🧑‍💼 Организатор
             </div>
-          ) : (
-            order.candidates.map(c => <BrokerCandidateRow key={c.username} c={c} />)
-          )}
+            <a href={`https://t.me/${order.client_username}`} target="_blank" rel="noopener"
+               style={{ color: 'var(--blue)', fontWeight: 700, fontSize: 14, textDecoration: 'none' }}>
+              @{order.client_username}
+            </a>
+            {order.client_name && order.client_name !== order.client_username && (
+              <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>{order.client_name}</div>
+            )}
+            <div style={{ marginTop: 8 }}>
+              <span style={{
+                display: 'inline-block', padding: '3px 8px', fontSize: 11, fontWeight: 700,
+                background: 'rgba(251,191,36,.12)', color: '#fbbf24',
+                border: '1px solid rgba(251,191,36,.35)', borderRadius: 12,
+              }}>
+                {orgStageLabel}
+              </span>
+            </div>
+            {order.updated_at && (
+              <div style={{ color: '#64748b', fontSize: 10.5, marginTop: 8 }}>
+                upd: {order.updated_at.slice(0, 16).replace('T', ' ')}
+              </div>
+            )}
+          </div>
+          {/* RIGHT — CONTRACTORS */}
+          <div style={{ padding: '10px 12px' }}>
+            <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6,
+                          display: 'flex', justifyContent: 'space-between' }}>
+              <span>🤝 Подрядчики ({order.candidates.length})</span>
+              {order.candidates_sent_to_client > 0 && (
+                <span style={{ color: '#22d3ee' }}>📤 {order.candidates_sent_to_client} у клиента</span>
+              )}
+            </div>
+            {order.candidates.length === 0 ? (
+              <div style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>
+                (нет кандидатов — ищем подрядчика)
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {order.candidates.map(c => <BrokerCandidateRow key={c.username} c={c} />)}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -2915,7 +2955,7 @@ function _contrStageKey(candStage) {
   return 'briefed';
 }
 
-function BrokerDualFunnel({ data }) {
+function BrokerDualFunnel({ data, selectedFilter, onCellClick }) {
   // refs to cells for measuring centers
   const containerRef = React.useRef(null);
   const topRefs  = React.useRef({});
@@ -3006,15 +3046,18 @@ function BrokerDualFunnel({ data }) {
     });
   };
 
-  const cellStyle = (count, isHover) => ({
-    background: count > 0 ? (isHover ? 'rgba(34,211,238,.18)' : 'rgba(255,255,255,.04)') : 'rgba(255,255,255,.015)',
-    border: `1px solid ${isHover ? 'rgba(34,211,238,.6)' : 'rgba(255,255,255,.08)'}`,
+  const cellStyle = (count, isHover, isSelected) => ({
+    background: isSelected ? 'rgba(34,211,238,.28)'
+              : count > 0   ? (isHover ? 'rgba(34,211,238,.18)' : 'rgba(255,255,255,.04)')
+              : 'rgba(255,255,255,.015)',
+    border: `1px solid ${isSelected ? '#22d3ee' : (isHover ? 'rgba(34,211,238,.6)' : 'rgba(255,255,255,.08)')}`,
+    boxShadow: isSelected ? '0 0 12px rgba(34,211,238,.4)' : 'none',
     borderRadius: 8,
     padding: '8px 6px',
     minHeight: 60,
     display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
     cursor: count > 0 ? 'pointer' : 'default',
-    transition: 'background 120ms, border 120ms',
+    transition: 'background 120ms, border 120ms, box-shadow 120ms',
   });
 
   return (
@@ -3027,14 +3070,17 @@ function BrokerDualFunnel({ data }) {
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${BROKER_ORG_STAGES.length}, 1fr)`, gap: 6 }}>
           {BROKER_ORG_STAGES.map(st => {
             const isHover = hoverCell?.row === 'top' && hoverCell?.key === st.key;
+            const isSelected = selectedFilter?.row === 'top' && selectedFilter?.key === st.key;
+            const count = orgCounts[st.key];
             return (
               <div key={st.key}
                    ref={el => { topRefs.current[st.key] = el; }}
                    onMouseEnter={() => setHoverCell({ row: 'top', key: st.key })}
                    onMouseLeave={() => setHoverCell(null)}
-                   style={cellStyle(orgCounts[st.key], isHover)}>
-                <div style={{ fontSize: 22, fontWeight: 800, color: orgCounts[st.key] > 0 ? '#fbbf24' : '#475569' }}>
-                  {orgCounts[st.key]}
+                   onClick={() => count > 0 && onCellClick && onCellClick('top', st.key, st.label)}
+                   style={cellStyle(count, isHover, isSelected)}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: isSelected ? '#22d3ee' : (count > 0 ? '#fbbf24' : '#475569') }}>
+                  {count}
                 </div>
                 <div style={{ fontSize: 10.5, color: '#cbd5e1', marginTop: 2, textAlign: 'center' }}>{st.label}</div>
               </div>
@@ -3051,14 +3097,17 @@ function BrokerDualFunnel({ data }) {
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${BROKER_CONTR_STAGES.length}, 1fr)`, gap: 6 }}>
           {BROKER_CONTR_STAGES.map(st => {
             const isHover = hoverCell?.row === 'bot' && hoverCell?.key === st.key;
+            const isSelected = selectedFilter?.row === 'bot' && selectedFilter?.key === st.key;
+            const count = botCounts[st.key];
             return (
               <div key={st.key}
                    ref={el => { botRefs.current[st.key] = el; }}
                    onMouseEnter={() => setHoverCell({ row: 'bot', key: st.key })}
                    onMouseLeave={() => setHoverCell(null)}
-                   style={cellStyle(botCounts[st.key], isHover)}>
-                <div style={{ fontSize: 22, fontWeight: 800, color: botCounts[st.key] > 0 ? '#22d3ee' : '#475569' }}>
-                  {botCounts[st.key]}
+                   onClick={() => count > 0 && onCellClick && onCellClick('bot', st.key, st.label)}
+                   style={cellStyle(count, isHover, isSelected)}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: isSelected ? '#22d3ee' : (count > 0 ? '#22d3ee' : '#475569') }}>
+                  {count}
                 </div>
                 <div style={{ fontSize: 10.5, color: '#cbd5e1', marginTop: 2, textAlign: 'center' }}>{st.label}</div>
               </div>
@@ -3096,16 +3145,24 @@ function BrokerFunnelArea() {
     return () => { cancelled = true; clearInterval(t); };
   }, [backendUrl]);
 
+  // 15.05.2026 (variant C iteration 2): click-to-filter — клик на ячейку
+  // воронки фильтрует список заказов снизу. selectedFilter = null | {row, key, label}.
+  const [selectedFilter, setSelectedFilter] = React.useState(null);
+  const onCellClick = (row, key, label) => {
+    setSelectedFilter(prev =>
+      prev && prev.row === row && prev.key === key ? null : { row, key, label }
+    );
+  };
   if (!data) return null;
   return (
     <>
-      <BrokerDualFunnel data={data} />
-      <BrokerOrdersList data={data} error={error} />
+      <BrokerDualFunnel data={data} selectedFilter={selectedFilter} onCellClick={onCellClick} />
+      <BrokerOrdersList data={data} error={error} selectedFilter={selectedFilter} clearFilter={() => setSelectedFilter(null)} />
     </>
   );
 }
 
-function BrokerOrdersList({ data, error }) {
+function BrokerOrdersList({ data, error, selectedFilter, clearFilter }) {
   if (!data) return null;
   if (error || !data.items || data.items.length === 0) {
     return (
@@ -3117,16 +3174,54 @@ function BrokerOrdersList({ data, error }) {
       </div>
     );
   }
+  // Apply filter
+  let items = data.items;
+  if (selectedFilter) {
+    if (selectedFilter.row === 'top') {
+      items = items.filter(o => _orgStageKey(o.status) === selectedFilter.key);
+    } else {
+      // bot row: order matches if at least one candidate is in that stage,
+      // OR if 'searching' selected and order has no candidates.
+      const target = selectedFilter.key;
+      items = items.filter(o => {
+        const cands = o.candidates || [];
+        if (target === 'searching') return cands.length === 0;
+        return cands.some(c => _contrStageKey(c.stage) === target);
+      });
+    }
+  }
   return (
     <div className="section" style={{ marginTop: 14 }}>
-      <div className="section-title">
-        Активные брокер-заказы <span style={{ color: '#94a3b8', fontWeight: 600 }}>· {data.total}</span>
+      <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span>
+          Активные брокер-заказы
+          <span style={{ color: '#94a3b8', fontWeight: 600, marginLeft: 6 }}>
+            · {items.length}{selectedFilter ? ` из ${data.total}` : ''}
+          </span>
+        </span>
+        {selectedFilter && (
+          <button onClick={clearFilter}
+                  style={{
+                    padding: '3px 10px', fontSize: 11, fontWeight: 600,
+                    background: 'rgba(34,211,238,.15)', color: '#22d3ee',
+                    border: '1px solid rgba(34,211,238,.5)',
+                    borderRadius: 12, cursor: 'pointer',
+                  }}>
+            фильтр: {selectedFilter.row === 'top' ? '🧑‍💼' : '🤝'} {selectedFilter.label} ✕
+          </button>
+        )}
       </div>
       <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
-        ⏳ ждём  ✅ готов к relay  🎯 в кастинге  📤 у клиента  🥉 не выбран  💎 over budget  ❌ отказался
-        &nbsp;·&nbsp; vs ceiling: ✓ под  ~ на  ⚠ выше
+        ⏳ ждём ответ  ✅ готов к relay  🎯 в кастинге  📤 у клиента  🥉 не выбран  💎 over budget  ❌ отказался  &nbsp;·&nbsp;
+        vs ceiling: ✓ под  ~ на  ⚠ выше
       </div>
-      {data.items.map(o => <BrokerOrderCard key={o.id} order={o} />)}
+      {items.length === 0 ? (
+        <div style={{ color: '#94a3b8', fontSize: 12, fontStyle: 'italic' }}>
+          (в этой стадии заказов нет)
+        </div>
+      ) : (
+        items.map(o => <BrokerOrderCard key={o.id} order={o} />)
+      )}
     </div>
   );
 }
