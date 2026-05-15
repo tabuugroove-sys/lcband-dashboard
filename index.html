@@ -1877,22 +1877,33 @@ function hasThreePlusVocalsLead(o) {
   return THREE_PLUS_VOCALS_RE.test(leadText(o, { preferRequest: true }));
 }
 
-function isDrumLead(o) {
-  // Priority #1: AI-classifier result (funnel_brand column written by classify_brand.py).
-  // Opus решает с полным контекстом — надёжнее regex. Regex остаётся как fallback если
-  // AI ещё не классифицировал (новый лид, cold start).
+// 15.05.2026: переименовано из isDrumLead → isBrokerLead. Drum (Noize/Вадим)
+// теперь — обычный broker contractor через broker_pipeline (Phase A unification).
+// «Воронка брокер» собирает ВСЕ broker'овские лиды: drum_show, solo показы,
+// host, animation, dance, fire, dj и любые status="Посредник" из orders.db.
+function isBrokerLead(o) {
+  // Priority #0: orders.db status="Посредник" — explicit broker assignment
+  // (выставляется когда AI решил, что это broker_request и не наш формат).
+  const st = String(o.status || '');
+  if (st === 'Посредник' || /посредник/i.test(st)) return true;
+
+  // Priority #1: AI-classifier result (funnel_brand column).
   const brand = (o.funnel_brand || '').toLowerCase();
-  if (brand === 'drum') return true;
+  if (brand === 'drum' || brand === 'broker') return true;
   if (brand === 'lcb')  return false;
+
+  // Solo (скрипка/арфа/etc) — тоже broker.
   if (isSoloShowLead(o)) return true;
 
   // Fallback: regex-based routing (для лидов где AI ещё не прошёл).
-  if (/бриф\s*вадим/i.test(o.status || '')) return true;
+  if (/бриф\s*вадим/i.test(st)) return true;
   const d = o.desc || '';
   const h = (o.history || '') + ' ' + (o.next_action || '');
   if (DRUM_NEG_BEFORE.test(d) || DRUM_NEG_AFTER.test(d)) return false;
   return DRUM_DESC_RE.test(d) || DRUM_RACE_RE.test(d) || DRUM_WORKFLOW_RE.test(h);
 }
+// Compat alias чтобы внешние snippet'ы не падали (если кто-то ещё вызовет старое имя).
+const isDrumLead = isBrokerLead;
 
 function leadChatUrl(o) {
   // Prefer TG username → direct t.me link. Fallback: contact URL (could be vk, tg, etc.)
@@ -2636,12 +2647,17 @@ function ApprovalButtons({ approvalId, draft, username }) {
 
 
 function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog, fallbackFunnel }) {
-  const { bandLeads, bandArchived, drumLeads, drumArchived } = React.useMemo(() => {
-    const bandL = [], drumL = [], bandA = [], drumA = [];
-    (allLeads || []).forEach(o => (isDrumLead(o) ? drumL : bandL).push(o));
-    (archived || []).forEach(o => (isDrumLead(o) ? drumA : bandA).push(o));
-    return { bandLeads: bandL, bandArchived: bandA, drumLeads: drumL, drumArchived: drumA };
+  // 15.05.2026: переименовано drum* → broker*. Содержит drum_show, solo показы,
+  // host, animation, dance, fire, dj — всё что идёт через broker pipeline.
+  const { bandLeads, bandArchived, brokerLeads, brokerArchived } = React.useMemo(() => {
+    const bandL = [], brokerL = [], bandA = [], brokerA = [];
+    (allLeads || []).forEach(o => (isBrokerLead(o) ? brokerL : bandL).push(o));
+    (archived || []).forEach(o => (isBrokerLead(o) ? brokerA : bandA).push(o));
+    return { bandLeads: bandL, bandArchived: bandA, brokerLeads: brokerL, brokerArchived: brokerA };
   }, [allLeads, archived]);
+  // Compat aliases — пока briefLeads ниже использует drumLeads (drum-only брифы).
+  const drumLeads = brokerLeads;
+  const drumArchived = brokerArchived;
 
   // "Бриф Вадиму" leads — session_actions where status=awaiting_director,
   // joined with the drum lead (by username) to show real profile info.
@@ -2688,8 +2704,8 @@ function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog, fa
   const hasLiveFunnelData =
     bandLeads.length > 0 ||
     bandArchived.length > 0 ||
-    drumLeads.length > 0 ||
-    drumArchived.length > 0 ||
+    brokerLeads.length > 0 ||
+    brokerArchived.length > 0 ||
     (pendingDrafts || []).length > 0 ||
     briefLeads.length > 0;
 
@@ -2708,11 +2724,11 @@ function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog, fa
         }]}
       />
       <FunnelSection
-        title="Воронка Drum Show / Solo"
-        allLeads={drumLeads}
-        archived={drumArchived}
+        title="Воронка брокер"
+        allLeads={brokerLeads}
+        archived={brokerArchived}
         branchSpec={[{
-          key: 'brief', label: 'Бриф Вадиму', icon: '🥁', parent: 'sent', leads: briefLeads,
+          key: 'brief', label: 'Бриф подрядчику', icon: '🤝', parent: 'sent', leads: briefLeads,
         }]}
       />
     </>
