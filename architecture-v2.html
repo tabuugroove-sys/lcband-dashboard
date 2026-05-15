@@ -363,6 +363,150 @@ route_v2()   [pure Python, §3]
     </ol>
   </div>
 
+  <h2>3c. Event-internal coordination — Question Router + Bridges</h2>
+  <div class="card">
+    <p>
+      Третий уровень маршрутизации (после router-as-contract §3a на входе
+      и outbound_policy §5a на выходе). Применяется когда <strong>event уже
+      создан</strong> (стадия «реквизиты / договор / подтверждённая дата»).
+    </p>
+    <p>
+      Sales/broker маршрутизируют наружу (клиент ↔ агент). Event coordination
+      маршрутизирует <strong>внутри одного event_id</strong> между несколькими
+      участниками: клиент, музыканты по ролям, технический контакт, юрист-договорщик.
+      <span class="accent">Михаил в bridges не участвует</span> — это и есть
+      смысл, иначе всё застрянет.
+    </p>
+
+    <h3>Четыре вида маршрутизации внутри event'а</h3>
+    <table>
+      <thead><tr><th>Тип</th><th>Триггер</th><th>Действие</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>kb_lookup</code></td>
+          <td>«дайте райдер», «фото костюмов», «репертуар», «прайс PDF»</td>
+          <td>ответ из <code>lcb_knowledge_base.json</code> с ссылкой, никого не дёргаем</td>
+        </tr>
+        <tr>
+          <td><code>person_bridge</code></td>
+          <td>«можно этот костюм?» — про конкретного вокалиста в видео</td>
+          <td>identify person via <code>event_planning.Состав</code> → forward question → relay answer back</td>
+        </tr>
+        <tr>
+          <td><code>role_bridge</code></td>
+          <td>tech: «барабанщик со своими треками или от проката?»</td>
+          <td>identify musician by role for THIS event → bridge tech ↔ musician</td>
+        </tr>
+        <tr>
+          <td><code>domain_handoff</code></td>
+          <td>клиент прислал реквизиты ООО / договор / акт</td>
+          <td>extract → contract-builder agent (сейчас manual, ИП меняем)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Поток</h3>
+<pre>inbound (от участника event'а, не cold)
+   ↓
+event_lookup(thread_id) → event_id или None
+   ↓ (если event_id есть — координация; если None — обычный sales/broker)
+   ↓
+classify_in_event(text, event_context) [Opus]
+   → {kind: kb_lookup | person_bridge | role_bridge | domain_handoff,
+      target: &lt;name|role|agent&gt;, payload: {...}}
+   ↓
+   ┌───────────────────────────────────────────────────────────────┐
+   │ kb_lookup     → lcb_knowledge_base[kind] → outbound_policy    │
+   │                  (recipient_role=client, link + 1 line)       │
+   │                                                               │
+   │ person_bridge → resolve_person_in_event(target, event_id)     │
+   │                  → bridge_relay(client → person → client)     │
+   │                                                               │
+   │ role_bridge   → resolve_role_for_event(role, event_id)        │
+   │                  → bridge_relay(tech → musician → tech)       │
+   │                                                               │
+   │ domain_handoff → agent_tasks.spawn(to=contract_builder)       │
+   │                   (currently Misha — мост на тебе пока ИП)    │
+   └───────────────────────────────────────────────────────────────┘</pre>
+
+    <h3>Что уже есть, что нужно</h3>
+    <p><strong>Уже есть:</strong></p>
+    <ul>
+      <li><code>event_planning.json</code> — sections.Состав связывает event_id → Иру/Стаса/LAZ/сакса с их TG/телефонами.</li>
+      <li><code>event_graph.event_contacts</code> (517 events, 1094 связей) — auto-extract такой же связи из message_events.jsonl.</li>
+      <li><code>lcb_roster.py</code> + skill <code>lcb-band-roster</code> — справочник ролей и канон-составов.</li>
+    </ul>
+    <p><strong>Нужно добавить:</strong></p>
+    <ul>
+      <li><code>lcb_knowledge_base.json</code> — типизированный FAQ:
+<pre>{
+  "rider":          { "url": "...", "tg_caption": "..." },
+  "costumes_photo": { "url": "...", "tg_caption": "..." },
+  "repertoire":     { "url": "...", "tg_caption": "..." },
+  "promo_pack":     { "url": "...", "tg_caption": "..." },
+  "price_pdf":      { "url": "...", "tg_caption": "..." }
+}</pre></li>
+      <li>Таблица <code>event_bridges</code> в orders.db (или event_graph.db):
+<pre>CREATE TABLE event_bridges (
+  bridge_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id      TEXT NOT NULL,
+  from_thread   TEXT NOT NULL,
+  to_thread     TEXT NOT NULL,
+  kind          TEXT NOT NULL,   -- person_bridge | role_bridge | domain_handoff
+  target        TEXT,
+  question_text TEXT NOT NULL,
+  answer_text   TEXT,
+  status        TEXT NOT NULL,   -- pending | answered | timeout | failed
+  created_at    INTEGER NOT NULL,
+  resolved_at   INTEGER
+);</pre>
+      Bridge — это специальный sub-thread, не выход через approval-bot.
+      Михаил не видит — bridge живёт между AI и двумя участниками.</li>
+    </ul>
+
+    <h3>Где этот слой стоит в pipeline</h3>
+<pre>inbound message
+  ↓ router-as-contract (§3a) — определяет owner_agent
+  ↓
+  ├─ owner=lcb (Sales)   ─┐
+  ├─ owner=broker         ─┼─► classify_in_event(text, event_id)  ← НОВОЕ
+  ├─ owner=lcb_internal  ─┘
+  ↓
+  если event_id есть → Question Router (§3c) разруливает kb/bridge/handoff
+  если event_id нет  → обычный sales/broker reply path
+  ↓
+outbound_policy (§5a)</pre>
+
+    <p class="note">
+      Question Router — это <strong>post-routing внутри тех же owner-агентов</strong>,
+      не заменяет их. Sales-агент клиента увидел «можно этот костюм?» — он не
+      отвечает сам, он спрашивает Question Router «это что за вопрос?», получает
+      <code>kind=person_bridge target=LAZ</code>, создаёт bridge.
+    </p>
+
+    <h3>Особенности</h3>
+    <ul>
+      <li><strong><code>kb_lookup</code> — наибольший impact / наименьший риск.</strong>
+          Сейчас тебя дёргают каждый раз когда клиент просит видео/райдер. Закрывается
+          одним словарём + lookup'ом, без bridges. Делать первым.</li>
+      <li><strong><code>person_bridge</code> и <code>role_bridge</code> нужен event_id.</strong>
+          Если event ещё не в DB (на стадии negotiation) — bridges не работают,
+          ответ идёт через обычный sales-flow. Поэтому <code>event_watcher</code>
+          должен создавать events <em>раньше</em> — на стадии «реквизиты обсуждаются»,
+          не «деньги получены».</li>
+      <li><strong><code>domain_handoff</code> — на тебе пока меняешь ИП.</strong>
+          Когда новый ИП закреплён → contract-builder agent (есть skill
+          <code>lcb-contract-builder</code>) подключается через
+          <code>agent_tasks.spawn(to=contract_builder, payload={requisites_json,
+          client_thread_id, event_id})</code>.</li>
+      <li><strong>«Про кого этот вопрос»</strong> — AI видит event_context
+          (состав с фото/видео-метками). «Можно этот костюм?» в треде сразу после
+          видео с LAZ → связь по имени из transcript/caption. Если непонятно —
+          AI задаёт <em>clarifier клиенту</em>: «уточните, про какого артиста — Иру
+          или LAZ?». Это auto, НЕ Михаил.</li>
+    </ul>
+  </div>
+
   <h2>4. Thread ownership &amp; state</h2>
   <div class="card">
     <h3 style="margin-top:0">Правило</h3>
