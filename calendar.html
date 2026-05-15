@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LC Band — Календарь событий</title>
+<link rel="stylesheet" href="_theme.css">
+<script src="_theme.js"></script>
+<script src="_nav.js"></script>
+<style>
+  :root {
+    --bg:       #0a0a12;
+    --card:     #13131f;
+    --card-2:   #1a1a28;
+    --border:   #23233a;
+    --gold:     #f5c518;
+    --text:     #e2e8f0;
+    --muted:    #94a3b8;
+    --ok:       #10b981;
+    --warn:     #f59e0b;
+    --bad:      #ef4444;
+    --info:     #60a5fa;
+    --past:     #4b5563;
+  }
+  :root[data-theme="light"] {
+    --bg:     #fafbfc; --card: #ffffff; --card-2: #f4f6fa; --border: #d0d7de;
+    --gold:   #9a6700; --text: #1f2328; --muted: #59636e;
+    --ok:     #1a7f37; --warn: #bc4c00; --bad: #cf222e;
+    --info:   #0969da; --past: #8b949e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px; padding: 20px;
+  }
+  .app { max-width: 1300px; margin: 0 auto; }
+  h1 { font-size: 24px; color: var(--gold); margin-bottom: 6px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+
+  .controls {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .controls button {
+    padding: 6px 12px; border-radius: 6px;
+    background: var(--card-2); color: var(--text);
+    border: 1px solid var(--border); font-size: 13px;
+    cursor: pointer;
+  }
+  .controls button:hover { border-color: var(--gold); }
+  .controls .current-month {
+    font-size: 16px; font-weight: 600; color: var(--gold);
+    min-width: 180px; text-align: center;
+  }
+  .controls .legend {
+    margin-left: auto; display: flex; gap: 12px;
+    font-size: 11px; color: var(--muted);
+  }
+  .legend-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .legend-chip .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+
+  /* Calendar grid */
+  .calendar {
+    background: var(--card);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden;
+  }
+  .week-header {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    background: var(--card-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .week-header div {
+    padding: 8px 10px; font-size: 11px;
+    color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.5px; font-weight: 600;
+    border-right: 1px solid var(--border);
+  }
+  .week-header div:last-child { border-right: none; }
+  .grid {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+  }
+  .cell {
+    min-height: 110px; padding: 6px 8px;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+    position: relative;
+  }
+  .cell:nth-child(7n) { border-right: none; }
+  .cell.outside { background: var(--card-2); color: var(--muted); opacity: 0.55; }
+  .cell.today { background: rgba(245,197,24,0.10); }
+  .cell.today .day-num { color: var(--gold); font-weight: 700; }
+  .day-num { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .event-pill {
+    display: block; margin: 2px 0; padding: 3px 6px;
+    border-radius: 4px; font-size: 11px;
+    background: rgba(96,165,250,0.15); color: var(--info);
+    border: 1px solid rgba(96,165,250,0.35);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    cursor: pointer; text-decoration: none;
+  }
+  .event-pill:hover { filter: brightness(1.2); }
+  .event-pill.past {
+    background: rgba(75,85,99,0.20); color: var(--past);
+    border-color: rgba(75,85,99,0.45);
+  }
+  .event-pill.confirmed {
+    background: rgba(16,185,129,0.15); color: var(--ok);
+    border-color: rgba(16,185,129,0.35);
+  }
+
+  /* List fallback */
+  .upcoming-list {
+    margin-top: 24px; background: var(--card);
+    border: 1px solid var(--border); border-radius: 10px; padding: 16px;
+  }
+  .upcoming-list h2 {
+    font-size: 14px; color: var(--gold);
+    margin-bottom: 10px; font-weight: 600;
+  }
+  .upcoming-row {
+    display: grid;
+    grid-template-columns: 110px 1fr 80px 100px;
+    gap: 12px; padding: 8px 0;
+    border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .upcoming-row:last-child { border: none; }
+  .upcoming-row .date {
+    color: var(--info); font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+  .upcoming-row .title { color: var(--text); }
+  .upcoming-row .members {
+    color: var(--muted); text-align: right; font-size: 12px;
+  }
+  .upcoming-row .fee {
+    color: var(--ok); text-align: right; font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .empty { color: var(--muted); padding: 12px; text-align: center; }
+
+  .note {
+    color: var(--muted); font-size: 12px;
+    margin-top: 18px; line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>📅 Календарь событий</h1>
+  <div class="subtitle">
+    Все события из <code>event_planning.json</code>. Каждая ячейка с событием
+    кликабельна — открывает карточку в <code>events.html</code>.
+  </div>
+
+  <div class="controls">
+    <button id="prev">← Прошлый</button>
+    <div class="current-month" id="cur-month">—</div>
+    <button id="next">Следующий →</button>
+    <button id="today-btn">Сегодня</button>
+    <div class="legend">
+      <span class="legend-chip"><span class="dot" style="background:#60a5fa"></span>future</span>
+      <span class="legend-chip"><span class="dot" style="background:#10b981"></span>confirmed (lineup ≥4)</span>
+      <span class="legend-chip"><span class="dot" style="background:#4b5563"></span>past</span>
+    </div>
+  </div>
+
+  <div class="calendar">
+    <div class="week-header">
+      <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="upcoming-list">
+    <h2>Ближайшие 90 дней</h2>
+    <div id="upcoming"></div>
+  </div>
+
+  <div class="note">
+    Источник: <code>GET /api/events</code> → <code>event_planning.json</code>.
+    Когда §3c.2 event_stub приземлится — здесь же будут показаны pre-paid stubs
+    другим цветом.
+  </div>
+</div>
+
+<script>
+(async function () {
+  const grid       = document.getElementById('grid');
+  const curMonthEl = document.getElementById('cur-month');
+  const upcomingEl = document.getElementById('upcoming');
+
+  const today = new Date();
+  let view = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  async function fetchEvents() {
+    try {
+      // Same backend URL convention as other pages.
+      const bu = await getBackendBase();
+      const r = await fetch(`${bu}/api/events`, { cache: 'no-store' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      return j.events || [];
+    } catch (e) {
+      console.warn('fetch /api/events failed:', e.message);
+      return [];
+    }
+  }
+
+  async function getBackendBase() {
+    try {
+      const r = await fetch('./backend_url.json', { cache: 'no-store' });
+      if (r.ok) {
+        const j = await r.json();
+        if (j && j.url) return j.url.replace(/\/$/, '');
+      }
+    } catch {}
+    return 'http://localhost:8878';
+  }
+
+  function parseDate(s) {
+    if (!s) return null;
+    // expected YYYY-MM-DD
+    const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    return new Date(+m[1], +m[2] - 1, +m[3]);
+  }
+  function fmtRu(d) {
+    if (!d) return '—';
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+  function ymd(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function monthLabel(d) {
+    return d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+  }
+  function sameDay(a, b) {
+    return a && b && a.getFullYear() === b.getFullYear()
+       && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+  function startOfMonthGrid(monthFirst) {
+    // We want grid to start from the Monday of the week containing day 1.
+    const d = new Date(monthFirst);
+    const day = (d.getDay() + 6) % 7;  // Mon=0 … Sun=6
+    d.setDate(d.getDate() - day);
+    return d;
+  }
+
+  function render(events) {
+    curMonthEl.textContent = monthLabel(view);
+    grid.innerHTML = '';
+
+    // Group events by ymd for fast lookup.
+    const byDate = {};
+    for (const ev of events) {
+      const d = parseDate(ev.date);
+      if (!d) continue;
+      const k = ymd(d);
+      (byDate[k] = byDate[k] || []).push(ev);
+    }
+
+    const start = startOfMonthGrid(view);
+    const todayY = ymd(today);
+
+    // 6 rows × 7 cols = 42 cells covers any month.
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const outside = d.getMonth() !== view.getMonth();
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (outside ? ' outside' : '') +
+                       (sameDay(d, today) ? ' today' : '');
+      const dn = document.createElement('div');
+      dn.className = 'day-num';
+      dn.textContent = d.getDate();
+      cell.appendChild(dn);
+
+      const k = ymd(d);
+      const evs = byDate[k] || [];
+      for (const ev of evs) {
+        const a = document.createElement('a');
+        a.className = 'event-pill';
+        if (k < todayY) a.classList.add('past');
+        else if ((ev.members_count || 0) >= 4) a.classList.add('confirmed');
+        a.href = `./events.html#${encodeURIComponent(ev.id)}`;
+        a.textContent = ev.title || ev.id;
+        a.title = (ev.title || ev.id) + (ev.members_count ? `\nсостав: ${ev.members_count} чел` : '');
+        cell.appendChild(a);
+      }
+      grid.appendChild(cell);
+    }
+  }
+
+  function renderUpcoming(events) {
+    const todayY = ymd(today);
+    const horizon = new Date(today);
+    horizon.setDate(horizon.getDate() + 90);
+    const horizonY = ymd(horizon);
+    const rows = events
+      .filter(e => {
+        const k = (e.date || '').slice(0, 10);
+        return k && k >= todayY && k <= horizonY;
+      })
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+    upcomingEl.innerHTML = '';
+    if (!rows.length) {
+      upcomingEl.innerHTML = '<div class="empty">Ничего на ближайшие 90 дней</div>';
+      return;
+    }
+    for (const ev of rows) {
+      const r = document.createElement('div');
+      r.className = 'upcoming-row';
+      const d = parseDate(ev.date);
+      r.innerHTML = `
+        <div class="date">${d ? fmtRu(d) : '—'}</div>
+        <div class="title"><a href="./events.html#${encodeURIComponent(ev.id)}" style="color:inherit;text-decoration:none">${ev.title || ev.id}</a></div>
+        <div class="members">${ev.members_count || 0} чел</div>
+        <div class="fee">${ev.members_total_fee ? Math.round(ev.members_total_fee).toLocaleString('ru-RU') + ' ₽' : '—'}</div>
+      `;
+      upcomingEl.appendChild(r);
+    }
+  }
+
+  let allEvents = [];
+
+  async function refresh() {
+    allEvents = await fetchEvents();
+    render(allEvents);
+    renderUpcoming(allEvents);
+  }
+
+  document.getElementById('prev').onclick = () => {
+    view = new Date(view.getFullYear(), view.getMonth() - 1, 1); render(allEvents);
+  };
+  document.getElementById('next').onclick = () => {
+    view = new Date(view.getFullYear(), view.getMonth() + 1, 1); render(allEvents);
+  };
+  document.getElementById('today-btn').onclick = () => {
+    view = new Date(today.getFullYear(), today.getMonth(), 1); render(allEvents);
+  };
+
+  refresh();
+  setInterval(refresh, 60000);
+})();
+</script>
+</body>
+</html>

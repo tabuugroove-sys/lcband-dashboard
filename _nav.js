@@ -10,6 +10,7 @@
   var PAGES = [
     { href: 'index.html',           emoji: '🏠', label: 'Дашборд',     color: 'home' },
     { href: 'events.html',          emoji: '📋', label: 'Events',     color: 'events' },
+    { href: 'calendar.html',        emoji: '📅', label: 'Календарь',  color: 'events' },
     { href: 'pricing.html',         emoji: '💰', label: 'Pricing',    color: 'pricing' },
     { href: 'architecture.html',    emoji: '🧠', label: 'Архитектура', color: 'arch' },
     { href: 'architecture-v2.html', emoji: '🧬', label: 'Arch v2',    color: 'archv2' },
