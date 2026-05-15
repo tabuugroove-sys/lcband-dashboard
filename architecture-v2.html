@@ -256,6 +256,113 @@ if not mine:
     </p>
   </div>
 
+  <h2>3b. Категории сейчас — фрагментация и куда движемся</h2>
+  <div class="card">
+    <p>Сейчас в production <strong>4 параллельные схемы классификации</strong>,
+       ~50 distinct меток. Они частично пересекаются по смыслу, но
+       используют разные имена — отсюда путаница и сломанные fallback'и.</p>
+
+    <table>
+      <thead><tr><th>Слой</th><th>Где</th><th>Кол-во</th><th>Назначение</th></tr></thead>
+      <tbody>
+        <tr><td>LCB Ingest</td><td><code>ai_classify_chain._INGEST_SCHEMA</code></td><td><strong>9</strong></td><td>event-chat пост → первый verdict</td></tr>
+        <tr><td>Broker intake</td><td><code>broker_pipeline._INTAKE_SYSTEM</code></td><td><strong>10</strong> service_types + ~14 vendor-roster keys</td><td>подтип когда verdict=broker_request</td></tr>
+        <tr><td>TG DM responder</td><td><code>tg_responder.CLASSIFY_CATEGORIES</code></td><td><strong>19</strong></td><td>ответы в личке TG</td></tr>
+        <tr><td>VK DM responder</td><td><code>vk_auto_responder.VALID_CATEGORIES</code></td><td><strong>9</strong></td><td>ответы в личке VK</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Как сейчас</h3>
+<pre>┌─ INBOUND событие ───────────────────────────────────────────────────┐
+│                                                                      │
+│ event-chat post (TG) ─┐                                              │
+│ VK community post  ───┼─▶ ai_classify_chain.classify_ingest_post()   │
+│                       │   LCB Ingest schema → 9 verdicts:            │
+│                       │   music_band | drum_show | solo_musician     │
+│                       │   | broker_request | abstract | vacancy      │
+│                       │   | musician_promo | non_event | none        │
+│                       │                                              │
+│                       │   IF broker_request →                        │
+│                       │   broker_pipeline.intake_broker_order()      │
+│                       │   Broker schema → 10 service_types:          │
+│                       │   dance | fire | solo_other | host           │
+│                       │   | animation | drum_show | video_photo      │
+│                       │   | decor | dj | other                       │
+│                       │                                              │
+│ TG private DM     ────┼─▶ tg_responder.classify_with_context()       │
+│                       │   TG-DM schema → 19 categories:              │
+│                       │   decline | soft_decline | stop | has_event  │
+│                       │   | has_date | wants_promo | wants_price     │
+│                       │   | asks_drums | checks_availability         │
+│                       │   | found_other | thanks | short_positive    │
+│                       │   | interested_later | rider | will_follow_up│
+│                       │   | wants_link | question                    │
+│                       │   | post_event_positive | vendor_selfpromo   │
+│                       │                                              │
+│ VK private DM     ────┴─▶ vk_auto_responder.decide_from_dialog()     │
+│                           VK-DM schema → 9 categories:               │
+│                           organizer_wants_info | organizer_qualified │
+│                           | price_objection | contractor_vendor      │
+│                           | musician_or_competitor                   │
+│                           | no_thanks | spam | unclear | none        │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘</pre>
+
+    <p class="note">
+      Главная боль: <code>unclear</code> / <code>none</code> / <code>musician_promo</code>
+      поднимают <code>requires_user=TRUE</code> → застревают в «Горячих»
+      навсегда (см. <code>feedback_no_manual_review_except_payment</code>).
+      VK-промпт явно учит модель отдавать <code>unclear</code> при сомнении
+      («лучше тишина, чем неверный ответ» — <code>vk_auto_responder.py:770</code>).
+    </p>
+
+    <h3>Куда идём в v2 — одна L1-schema фактов + два domain-action set'а</h3>
+<pre>inbound (любой канал)
+   ↓
+ai_triage_v2.classify_v2()   [Gemini Flash Lite → GPT-5.5 если unsure]
+   ↓
+L1 facts schema (§2):
+  lcb_match     + lcb_type ∈ {cover_band, drum_show, solo_musician}
+  broker_match  + broker_categories: list (10 service_types)
+  is_refusal, is_musician_promo
+  event_signals, geo, budget_hint
+  *_confidence per-field
+   ↓
+route_v2()   [pure Python, §3]
+   ↓
+   ┌─ lcb_direct    → LCB Sales Agent (Opus) — действия из 19 DM-категорий
+   ├─ drum_brief    → LCB Sales (lcb_internal) — формат Vadim brief
+   ├─ broker_order  → Broker Agent — действия из broker_categories
+   ├─ hybrid        → оба (LCB primary + Broker sub-task)
+   ├─ skip          → owner=skip, downstream агенты НЕ запускаются
+   └─ manual_review → ТОЛЬКО payment-related</pre>
+
+    <p class="note">
+      L1 — единая schema фактов на все каналы. Action-catalog сужается до
+      двух доменов (LCB / Broker). Категории «действий внутри домена» — это
+      решение агента, не классификатор.
+    </p>
+
+    <h3>Two-pass Opus + unclear-recheck (15.05 — фикс СЕЙЧАС, до v2 cutover)</h3>
+    <ol>
+      <li><strong>Промпты VK/TG DM:</strong> убрать «unclear → safe-fallback».
+          Замена: «Всегда выбери самую вероятную категорию. При confidence
+          ниже threshold — второй проход Opus с расширенным контекстом
+          (10 сообщений вместо 5). <code>unclear</code> ТОЛЬКО для буквально
+          пустых/мусорных сообщений».</li>
+      <li><strong><code>vk_unclear_recheck.py</code></strong> (новый, раз в сутки):
+          выбирает <code>orders WHERE status='Написал' AND requires_user='TRUE'
+          AND last_activity > 1d</code>, прогоняет через Opus заново. Если
+          verdict нормальный — обновить статус, снять requires_user. Если
+          снова unclear — archive как <em>«Неактуально (AI не классифицировал,
+          2 попытки)»</em>.</li>
+      <li><strong>CI lint:</strong> <code>requires_user="TRUE"</code> и
+          <code>alert_human=True</code> допустимы ТОЛЬКО в файлах с маркером
+          <code># payment-gated</code>. Везде иначе → fail build. Закрепляет
+          правило «approval-bot Михаила только для денег».</li>
+    </ol>
+  </div>
+
   <h2>4. Thread ownership &amp; state</h2>
   <div class="card">
     <h3 style="margin-top:0">Правило</h3>
@@ -551,6 +658,80 @@ await send_outbound(
       и бан-риск.
     </p>
 
+    <h3>Step 0 — Observability foundation (обязательно ДО canary)</h3>
+    <p class="note">
+      Без этого блока canary начинать нельзя: метрика снова смешает ingest,
+      review, follow-up и реальные отправки в одну глобальную цифру.
+      <code>/api/ai_efficiency</code> оставляем как общий burn-rate; для A/B нужен
+      отдельный <code>/api/pipeline_efficiency</code>.
+    </p>
+
+    <ol>
+      <li>
+        <strong>Расширить <code>ai_timeline.jsonl</code>.</strong>
+        Каждый AI-вызов пишет <code>pipeline_version</code> и <code>thread_id</code>
+        рядом с <code>purpose</code>, model/service, tokens и decision.
+        Для system-job'ов без peer'а <code>thread_id=null</code>; они считаются
+        bucket'ом <code>system</code> и исключаются из v1/v2
+        <code>calls/sent</code>.
+<pre>{
+  "ts": "...",
+  "kind": "ai_call",
+  "purpose": "ingest_post_classify",
+  "model": "sonnet",
+  "input_tok": 1200,
+  "output_tok": 80,
+  "decision": "skip",
+  "pipeline_version": "v1",
+  "thread_id": "tg:@username"
+}</pre>
+      </li>
+      <li>
+        <strong>Расширить <code>message_events.jsonl</code>.</strong>
+        Каждый реальный outbound пишет те же <code>pipeline_version</code> и
+        <code>thread_id</code>, чтобы считать <code>AI calls → sent</code> по
+        pipeline/thread, а не глобально. Outbound без peer'а получает
+        <code>thread_id=null</code> и не участвует в per-thread конверсии.
+      </li>
+      <li>
+        <strong>Добавить <code>runtime_config.pipeline_v2_canary</code>.</strong>
+        Per-purpose dict, дефолт — все нули. Нельзя включать «10% всего трафика»:
+        туда попадут payment/refusal/urgent.
+<pre>{
+  "pipeline_v2_canary": {
+    "ingest_post_classify": 10,
+    "cold_outreach_first": 5,
+    "payment_intent_classify": 0,
+    "outbound_promise": 0,
+    "refusal_handling": 0
+  }
+}</pre>
+      </li>
+      <li>
+        <strong>Добавить <code>choose_pipeline(thread_id, purpose)</code>.</strong>
+        Детерминированный <code>sha1(thread_id) % 100</code>, читает pct из config.
+        Один и тот же лид всю жизнь остаётся в одном pipeline.
+      </li>
+      <li>
+        <strong>Добавить <code>PIPELINE_VERSION</code> contextvar.</strong>
+        Router ставит context один раз в начале обработки треда; logger'ы читают
+        его без протаскивания через десятки сигнатур.
+      </li>
+      <li>
+        <strong>Добавить <code>/api/pipeline_efficiency?hours=24</code>.</strong>
+        Endpoint считает отдельно v1/v2: AI calls, input/output tokens,
+        sent messages, calls/sent, tokens/sent, skip/adapt/fail, stage changes.
+<pre>v1: 812 AI calls (320k input + 18k output) → 34 sent = 23.9 calls/msg
+v2:  94 AI calls ( 38k input + 2.1k output) →  7 sent = 13.4 calls/msg
+Δ: v2 на 44% эффективнее по calls/sent</pre>
+      </li>
+      <li>
+        <strong>Добавить dashboard tile <code>pipeline-ab</code>.</strong>
+        Тайл должен быть живым уже на shadow-фазе. Только после этого можно
+        включать реальный canary.
+      </li>
+    </ol>
+
     <h3>Пять правил, без которых canary не работает</h3>
 
     <ol>
@@ -633,14 +814,13 @@ entry["pipeline_version"] = PIPELINE_VERSION.get()</pre>
 
     <h3>Порядок шагов (после §10 step 1-2)</h3>
     <ol>
+      <li><span class="pill">0</span> Observability foundation: <code>pipeline_version</code>, <code>thread_id</code>, config, contextvar, endpoint, dashboard tile.</li>
       <li><span class="pill">A</span> Закрыть bypass'ы из §5a (<code>outbound_policy</code>, sanitize, 3 роли).</li>
-      <li><span class="pill">B</span> Добавить <code>PIPELINE_VERSION</code> contextvar + read в logger'ах.</li>
-      <li><span class="pill">C</span> Дашборд-тайл <code>pipeline-ab</code> (живой на shadow).</li>
-      <li><span class="pill">D</span> Shadow 24-48ч на whitelist purposes (v2 решает, ничего не шлёт).</li>
-      <li><span class="pill">E</span> Circuit-breaker watchdog (читает таймлайн, пишет config, алертит).</li>
-      <li><span class="pill">F</span> Canary 5% на <code>ingest_post_classify</code> + <code>cold_outreach_first</code>.</li>
-      <li><span class="pill">G</span> Через 7 чистых дней → 10% → 20%.</li>
-      <li><span class="pill">H</span> Cutover каждого purpose отдельно (не «v2 в 100%», а «ingest_post_classify в v2», «outbound_promise в v2»...).</li>
+      <li><span class="pill">B</span> Shadow 24-48ч на whitelist purposes (v2 решает, ничего не шлёт).</li>
+      <li><span class="pill">C</span> Circuit-breaker watchdog (читает таймлайн, пишет config, алертит).</li>
+      <li><span class="pill">D</span> Canary 5% на <code>ingest_post_classify</code> + <code>cold_outreach_first</code>.</li>
+      <li><span class="pill">E</span> Через 7 чистых дней → 10% → 20%.</li>
+      <li><span class="pill">F</span> Cutover каждого purpose отдельно (не «v2 в 100%», а «ingest_post_classify в v2», «outbound_promise в v2»...).</li>
     </ol>
 
     <p class="note">
