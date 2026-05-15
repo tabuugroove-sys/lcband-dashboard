@@ -2756,6 +2756,181 @@ function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog, fa
   );
 }
 
+// 15.05.2026: список broker_orders с раскрытыми кандидатами под воронкой.
+// Pulls /api/broker_orders, обновляется каждые 30с. Per order — шапка с
+// бюджетом/потолком/маржой + per-candidate карточка со stage, vs_ceiling,
+// score, ratio. Двойной клик на заказ — открыть переписку с заказчиком.
+const _BROKER_STAGE_BADGE = {
+  briefed_waiting:        { icon: '⏳', label: 'Бриф ушёл, ждём', color: '#94a3b8' },
+  awaiting_contractor:    { icon: '⏳', label: 'Ждём подрядчика',  color: '#fbbf24' },
+  replied_ready:          { icon: '✅', label: 'Готов к relay',    color: '#34d399' },
+  in_casting_top:         { icon: '🎯', label: 'В кастинге top',   color: '#60a5fa' },
+  sent_to_client:         { icon: '📤', label: 'У клиента',        color: '#22d3ee' },
+  replied_not_selected:   { icon: '🥉', label: 'Не выбран',        color: '#a78bfa' },
+  hidden_over_budget:     { icon: '💎', label: 'Over budget',      color: '#f472b6' },
+  declined:               { icon: '❌', label: 'Отказался',         color: '#f87171' },
+  no_price:               { icon: '🔍', label: 'Нет цены',          color: '#fbbf24' },
+};
+
+const _VS_CEILING_BADGE = {
+  under:     { icon: '✓', label: 'под потолком',  color: '#34d399' },
+  at:        { icon: '~', label: 'на потолке',    color: '#fbbf24' },
+  over:      { icon: '⚠', label: 'выше потолка',  color: '#f87171' },
+  no_price:  { icon: '?', label: 'нет цены',      color: '#94a3b8' },
+  no_budget: { icon: '–', label: 'нет бюджета',   color: '#94a3b8' },
+};
+
+function _fmtRub(n) {
+  if (!n || n <= 0) return '—';
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + ' млн';
+  if (n >= 1000) return Math.round(n / 1000) + 'к';
+  return String(n);
+}
+
+function BrokerCandidateRow({ c }) {
+  const stageBadge = _BROKER_STAGE_BADGE[c.stage] || { icon: '•', label: c.stage, color: '#94a3b8' };
+  const vsBadge = _VS_CEILING_BADGE[c.vs_ceiling] || _VS_CEILING_BADGE.no_price;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px',
+      borderTop: '1px solid rgba(255,255,255,.04)', fontSize: 12,
+    }}>
+      <span style={{ minWidth: 22, fontSize: 14, textAlign: 'center' }} title={stageBadge.label}>
+        {stageBadge.icon}
+      </span>
+      <a href={`https://t.me/${c.username}`} target="_blank" rel="noopener"
+         style={{ color: 'var(--blue)', fontWeight: 700, minWidth: 130, textDecoration: 'none' }}>
+        @{c.username}
+      </a>
+      <span style={{ minWidth: 56, color: '#cbd5e1' }}>
+        {_fmtRub(c.price_rub)}
+      </span>
+      <span style={{ minWidth: 18, color: vsBadge.color, fontWeight: 700 }} title={vsBadge.label}>
+        {vsBadge.icon}
+      </span>
+      {c.quality_score != null && (
+        <span style={{ color: '#a78bfa', minWidth: 50 }} title="quality score (1-10) + media bonus">
+          {c.quality_score}/10{c.quality_media_bonus > 0 ? `+${c.quality_media_bonus}` : ''}
+        </span>
+      )}
+      {c.cost_quality_ratio != null && (
+        <span style={{ color: '#94a3b8', minWidth: 60 }} title="cost / quality ratio (lower = better)">
+          ratio {c.cost_quality_ratio}
+        </span>
+      )}
+      {(c.media?.photos > 0 || c.media?.videos > 0) && (
+        <span style={{ color: '#94a3b8' }}>
+          {c.media.photos > 0 && `📷${c.media.photos} `}
+          {c.media.videos > 0 && `🎥${c.media.videos}`}
+        </span>
+      )}
+      <span style={{ color: '#94a3b8', flex: 1, marginLeft: 4, fontStyle: 'italic',
+                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {c.summary || c.raw_message || ''}
+      </span>
+    </div>
+  );
+}
+
+function BrokerOrderCard({ order }) {
+  const [expanded, setExpanded] = React.useState(true);
+  const stageColor = order.candidates_sent_to_client > 0 ? '#22d3ee' : (
+    order.candidates_ready > 0 ? '#34d399' : '#94a3b8'
+  );
+  return (
+    <div className="card" style={{ marginBottom: 10, padding: 0, borderColor: 'rgba(255,255,255,.08)' }}>
+      <div onClick={() => setExpanded(!expanded)}
+           style={{ padding: '10px 12px', cursor: 'pointer',
+                    display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 16, alignItems: 'center' }}>
+        <div>
+          <div style={{ fontWeight: 700 }}>
+            {order.service_label || order.service_type || '—'}
+            {order.event_date && <span style={{ color: '#94a3b8', fontWeight: 500, marginLeft: 8 }}>· {order.event_date}</span>}
+            {order.event_location && <span style={{ color: '#94a3b8', fontWeight: 500, marginLeft: 8 }}>· {order.event_location}</span>}
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>id: {order.id} · {order.status}</div>
+        </div>
+        <a href={`https://t.me/${order.client_username}`} target="_blank" rel="noopener"
+           onClick={(e) => e.stopPropagation()}
+           style={{ color: 'var(--blue)', fontWeight: 700, textDecoration: 'none' }}>
+          @{order.client_username}
+        </a>
+        <div style={{ textAlign: 'right', fontSize: 12 }}>
+          <div style={{ color: '#cbd5e1' }}>
+            бюджет {_fmtRub(order.budget_rub) || '—'} · потолок {_fmtRub(order.contractor_ceiling_rub) || '—'}
+          </div>
+          <div style={{ color: order.margin_pct >= 35 ? '#34d399' : (order.margin_pct >= 25 ? '#fbbf24' : '#94a3b8') }}>
+            маржа {order.margin_pct ? order.margin_pct.toFixed(0) + '% (' + _fmtRub(order.margin_rub) + ')' : '—'}
+          </div>
+        </div>
+        <div style={{ minWidth: 90, textAlign: 'right', fontSize: 12, color: stageColor }}>
+          {order.candidates_sent_to_client > 0 ? `📤 ${order.candidates_sent_to_client} клиенту` :
+           order.candidates_ready > 0 ? `✅ ${order.candidates_ready} готов(ы)` :
+           order.candidates_count > 0 ? `${order.candidates_count} подр.` : 'ищем'}
+        </div>
+      </div>
+      {expanded && (
+        <div style={{ background: 'rgba(0,0,0,.18)' }}>
+          {order.candidates.length === 0 ? (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>
+              (нет кандидатов — ищем подрядчика)
+            </div>
+          ) : (
+            order.candidates.map(c => <BrokerCandidateRow key={c.username} c={c} />)
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BrokerOrdersList() {
+  const [data, setData] = React.useState(null);
+  const [error, setError] = React.useState(false);
+  const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+  React.useEffect(() => {
+    let cancelled = false;
+    async function fetchOnce() {
+      try {
+        const r = await fetch(`${backendUrl}/api/broker_orders`, { cache: 'no-store' });
+        const j = await r.json();
+        if (!cancelled && r.ok) { setData(j); setError(false); }
+        else if (!cancelled) setError(true);
+      } catch (e) {
+        if (!cancelled) setError(true);
+      }
+    }
+    fetchOnce();
+    const t = setInterval(fetchOnce, 30000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [backendUrl]);
+
+  if (!data) return null;
+  if (error || !data.items || data.items.length === 0) {
+    return (
+      <div className="section" style={{ marginTop: 14 }}>
+        <div className="section-title">Активные брокер-заказы</div>
+        <div style={{ color: '#94a3b8', fontSize: 12 }}>
+          {error ? '(не удалось загрузить /api/broker_orders)' : '(нет активных заказов)'}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">
+        Активные брокер-заказы <span style={{ color: '#94a3b8', fontWeight: 600 }}>· {data.total}</span>
+      </div>
+      <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
+        ⏳ ждём  ✅ готов к relay  🎯 в кастинге  📤 у клиента  🥉 не выбран  💎 over budget  ❌ отказался
+        &nbsp;·&nbsp; vs ceiling: ✓ под  ~ на  ⚠ выше
+      </div>
+      {data.items.map(o => <BrokerOrderCard key={o.id} order={o} />)}
+    </div>
+  );
+}
+
+
 function DMDirectFunnelSection({ data }) {
   if (!data || !data.total) return null;
   const specs = [
@@ -7084,6 +7259,7 @@ function App() {
                 sessionLog={sessionLog || null}
                 fallbackFunnel={data.funnel || []}
               />
+              <BrokerOrdersList />
               <div className="section" style={{ marginTop: 20 }}>
                 <div className="section-title">Дополнительные воронки</div>
                 <DMDirectFunnelSection data={dmDirectFunnel} />
