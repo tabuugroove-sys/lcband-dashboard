@@ -88,6 +88,24 @@ tr:last-child td { border-bottom: none; }
 }
 .fader-title { font-size: 12px; font-weight: 700; margin-bottom: 6px; }
 .fader-stats { display:flex; justify-content:space-between; gap:10px; color:var(--muted); font-size:10px; margin-bottom:6px; }
+/* 17.05.2026 — видный бейдж total daily quota % для пула агентов под этим fader */
+.fader-pool-usage {
+  display:flex; justify-content:space-between; align-items:baseline;
+  gap:8px;
+  padding:6px 8px;
+  margin-bottom:6px;
+  border-radius:6px;
+  background: rgba(255,255,255,.5);
+  border: 1px solid var(--border);
+  font-size:11px;
+}
+.fader-pool-usage .pool-label { color: var(--muted); }
+.fader-pool-usage .pool-val   { font-size: 14px; font-weight: 800; font-family: 'SF Mono','Menlo','Consolas',monospace; }
+.fader-pool-usage.green  .pool-val { color: var(--ok, #2da44e); }
+.fader-pool-usage.yellow .pool-val { color: var(--warn, #d97706); }
+.fader-pool-usage.red    .pool-val { color: var(--danger, #cf222e); }
+.fader-pool-usage.red    { background: rgba(207, 34, 46, .07); border-color: rgba(207,34,46,.4); }
+.fader-pool-usage.yellow { background: rgba(217, 119, 6, .07); border-color: rgba(217,119,6,.4); }
 .fader-track { display:flex; align-items:center; gap:8px; }
 .fader-track .end-label { width:44px; text-align:center; font-size:10px; text-transform:uppercase; letter-spacing:.35px; }
 .fader-track .codex-side { color: var(--accent); }
@@ -143,6 +161,27 @@ tr:last-child td { border-bottom: none; }
 .fader-readout { display:flex; justify-content:space-between; gap:8px; margin-top:6px; color:var(--muted); font-size:11px; }
 .fader-readout .codex-pct { color: var(--accent); font-weight:700; }
 .fader-readout .claude-pct { color: var(--warn); font-weight:700; text-align:right; }
+.fader-processes { margin-top:8px; padding-top:7px; border-top:1px solid var(--border); }
+.fader-processes summary { cursor:pointer; color:var(--muted); font-size:11px; user-select:none; }
+.fader-process-list { display:flex; flex-direction:column; gap:5px; margin-top:6px; }
+.fader-process-row {
+  display:grid;
+  grid-template-columns:minmax(130px,1fr) 52px 66px 72px 72px;
+  gap:7px;
+  align-items:center;
+  font-size:11px;
+}
+.fader-process-row .purpose {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-family:'SF Mono','Menlo','Consolas',monospace;
+}
+.fader-process-row .calls,
+.fader-process-row .tokens { color:var(--muted); text-align:right; }
+.fader-process-row .claude-day { color:var(--warn); text-align:right; font-weight:700; }
+.fader-process-row .codex-day { color:var(--accent); text-align:right; font-weight:700; }
+.fader-process-empty { color:var(--muted); font-size:11px; }
 .impact-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -622,7 +661,11 @@ const FADER_CATEGORIES = [
   { key: 'client_review',     label: '2. Ревью ответов клиентам' },
   { key: 'funnel_review',     label: '3. Ревью шага воронки' },
   { key: 'broker',            label: '4. Broker pipeline (посредник)' },
-  { key: 'other_opus',        label: '5. Прочие Opus процессы' },
+  // 17.05.2026: новая категория — L1 Gemini batch + L2 Opus escalation
+  // классификатор event-постов. Своя дорожка чтобы тюнить % GPT-5.5
+  // независимо от broker pipeline (cost profile разный).
+  { key: 'classify',          label: '5. Классификация event-постов' },
+  { key: 'other_opus',        label: '6. Прочие Opus процессы' },
 ];
 let _adminToken = localStorage.getItem('lcband_admin_token') || '';
 
@@ -800,6 +843,10 @@ function buildFaderCards() {
     div.dataset.category = cat.key;
     div.innerHTML = `
       <div class="fader-title">${esc(cat.label)}</div>
+      <div class="fader-pool-usage" data-fld="pool-usage">
+        <span class="pool-label">пул потратил 24ч</span>
+        <span class="pool-val" data-fld="pool-pct">—</span>
+      </div>
       <div class="fader-stats">
         <span data-fld="used">used: —</span>
         <span data-fld="quota">target: —</span>
@@ -812,9 +859,67 @@ function buildFaderCards() {
       <div class="fader-readout">
         <span class="codex-pct" data-fld="codex-pct">100% Codex</span>
         <span class="claude-pct" data-fld="opus-pct">0% Claude</span>
-      </div>`;
+      </div>
+      <details class="fader-processes">
+        <summary data-fld="proc-summary">процессы 24ч: —</summary>
+        <div class="fader-process-list" data-fld="proc-list"></div>
+      </details>`;
     grid.appendChild(div);
   }
+}
+
+function renderFaderProcesses(card, processes) {
+  const summary = card.querySelector('[data-fld="proc-summary"]');
+  const list = card.querySelector('[data-fld="proc-list"]');
+  const poolUsage = card.querySelector('[data-fld="pool-usage"]');
+  const poolPct = card.querySelector('[data-fld="pool-pct"]');
+  if (!summary || !list) return;
+  const rows = (processes || []).filter(p => Number(p.calls || 0) > 0);
+  const totalCalls = rows.reduce((s, p) => s + Number(p.calls || 0), 0);
+  const totalDaily = rows.reduce((s, p) => s + Number(p.total_daily_quota_pct || 0), 0);
+  summary.textContent = `процессы 24ч: ${rows.length} · ${totalCalls} calls · ${totalDaily.toFixed(2)}% day`;
+
+  // 17.05.2026 — видимый бейдж pool total% сверху fader card.
+  // Цвет: <50% серый, 50-80% жёлтый, >80% красный.
+  // 14% baseline (per CLAUDE.md routing budget) — отображается как примерный таргет.
+  if (poolPct && poolUsage) {
+    poolPct.textContent = totalDaily > 0
+      ? `${totalDaily.toFixed(1)}% · ${rows.length} агентов · ${totalCalls} calls`
+      : '—';
+    poolUsage.classList.remove('green', 'yellow', 'red');
+    if (totalDaily > 80) poolUsage.classList.add('red');
+    else if (totalDaily > 50) poolUsage.classList.add('yellow');
+    else if (totalDaily > 0) poolUsage.classList.add('green');
+  }
+
+  // Auto-open details если категория тратит > 5% — пользователь сразу видит кто.
+  const details = card.querySelector('details.fader-processes');
+  if (details && !details.dataset.userToggled) {
+    details.open = totalDaily > 5;
+  }
+
+  if (!rows.length) {
+    list.innerHTML = '<div class="fader-process-empty">нет CLI-вызовов за 24ч</div>';
+    return;
+  }
+  const visible = rows.slice(0, 12);
+  const more = rows.length > visible.length
+    ? `<div class="fader-process-empty">ещё ${rows.length - visible.length} процессов скрыто</div>`
+    : '';
+  list.innerHTML = visible.map(p => {
+    const models = Object.entries(p.models || {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => `${name}:${count}`)
+      .join(' · ');
+    return `
+      <div class="fader-process-row" title="${esc(models || 'models —')}">
+        <span class="purpose">${esc(p.purpose || 'unknown')}</span>
+        <span class="calls">${Number(p.calls || 0)}</span>
+        <span class="tokens">${fmtTok(Number(p.input_tok || 0) + Number(p.output_tok || 0))}</span>
+        <span class="claude-day">Cl ${Number(p.claude_daily_quota_pct || 0).toFixed(2)}%</span>
+        <span class="codex-day">Cx ${Number(p.codex_daily_quota_pct || 0).toFixed(2)}%</span>
+      </div>`;
+  }).join('') + more;
 }
 
 async function postRuntimeConfig(updates) {
@@ -842,6 +947,14 @@ function bindRoutingControls() {
   if (!grid || grid.dataset.boundRouting) return;
   grid.dataset.boundRouting = '1';
   let pendingTimer;
+  // 17.05.2026 — пользователь сам открывает/закрывает details → flag чтобы
+  // авто-open в renderFaderProcesses не переопределял его выбор.
+  grid.addEventListener('toggle', e => {
+    const details = e.target;
+    if (details && details.classList && details.classList.contains('fader-processes')) {
+      details.dataset.userToggled = '1';
+    }
+  }, true);
   grid.addEventListener('input', e => {
     if (e.target.tagName !== 'INPUT' || e.target.type !== 'range') return;
     const card = e.target.closest('.fader-card');
@@ -978,6 +1091,7 @@ async function loadRoutingControls() {
         last24h > 0
           ? `24ч: ${data.codex_success_pct || 0}% Codex (${data.last_24h_codex || 0}) · ${data.opus_fallback_pct || 0}% Claude (${data.last_24h_opus || 0})${recentLine}`
           : `24ч: нет calls${recentLine}`;
+      renderFaderProcesses(card, data.processes_24h || []);
     }
 
     const totals = stats.totals || {};
