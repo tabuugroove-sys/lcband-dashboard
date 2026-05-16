@@ -2838,10 +2838,33 @@ function _orgStageLabel(orderStatus) {
 function BrokerOrderCard({ order }) {
   const [expanded, setExpanded] = React.useState(true);
   const orgStageLabel = _orgStageLabel(order.status);
+  // 16.05.2026: hover на карточку → панель переписки клиента справа.
+  const chatCtx = React.useContext(ChatContext);
+  const hoverTimer = React.useRef(null);
+  const _uname = (order.client_username || '').replace(/^@/, '').trim();
+  const _canChat = !!_uname && !!chatCtx;
+  const _openChat = () => _canChat && chatCtx.openChat({
+    user_id: order.client_user_id || null,
+    username: _uname,
+    client: order.client_name || _uname,
+    channel: 'TG',
+  });
+  const _onCardEnter = _canChat ? () => {
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(_openChat, 350);  // 350ms — реагируем без флуктуаций
+  } : undefined;
+  const _onCardLeave = _canChat ? () => clearTimeout(hoverTimer.current) : undefined;
   return (
-    <div className="card" style={{ marginBottom: 10, padding: 0, borderColor: 'rgba(255,255,255,.08)' }}>
+    <div className="card"
+         onMouseEnter={_onCardEnter} onMouseLeave={_onCardLeave}
+         style={{ marginBottom: 10, padding: 0, borderColor: 'rgba(255,255,255,.08)',
+                  cursor: _canChat ? 'pointer' : 'default' }}>
       {/* HEADER — событие + бюджет/маржа */}
-      <div onClick={() => setExpanded(!expanded)}
+      <div onClick={(e) => {
+             const tag = (e.target.tagName || '').toLowerCase();
+             if (tag === 'a' || tag === 'button') return;
+             setExpanded(!expanded);
+           }}
            style={{ padding: '10px 12px', cursor: 'pointer',
                     display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'center',
                     borderBottom: expanded ? '1px solid rgba(255,255,255,.06)' : 'none' }}>
@@ -2881,6 +2904,16 @@ function BrokerOrderCard({ order }) {
             {order.guests && <span> · гостей {order.guests}</span>}
             {order.post_dt && <span> · пост: {String(order.post_dt).slice(0,16)}</span>}
           </div>
+          {order.block_reason && (
+            <div style={{ fontSize: 12, marginTop: 6,
+                          color: order.block_severity === 'block' ? '#f87171' : '#fbbf24',
+                          fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 10 }}>
+                {order.block_severity === 'block' ? '🚧' : '⏳'}
+              </span>
+              <span>{order.block_reason}</span>
+            </div>
+          )}
         </div>
         <div style={{ textAlign: 'right', fontSize: 12 }}>
           <div style={{ color: '#cbd5e1' }}>
