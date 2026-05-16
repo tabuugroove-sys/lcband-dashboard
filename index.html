@@ -367,28 +367,7 @@
     /* ── Followups ── */
     .followup-list { display: flex; flex-direction: column; gap: 6px; }
 
-    /* ── Scan status ── */
-    .scan-card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--r); padding: 14px; margin-top: 8px;
-    }
-    .scan-card-active { border-color: var(--gold); }
-    .scan-card-permission { border-color: var(--err); animation: pulse-err 1.5s ease infinite; }
-    .scan-card-error { border-color: var(--err); }
-    .scan-card-done { border-color: var(--ok); }
-    .scan-progress-bar {
-      height: 6px; border-radius: 3px; background: var(--card2);
-      margin: 10px 0 8px; overflow: hidden;
-    }
-    .scan-progress-fill {
-      height: 100%; border-radius: 3px; background: var(--gold);
-      transition: width .4s ease;
-    }
-    .scan-result-item {
-      background: var(--card2); border: 1px solid var(--border);
-      border-radius: 8px; padding: 8px 12px; margin-top: 6px;
-      font-size: 12px; line-height: 1.4;
-    }
+    /* ── Scan status (REMOVED 16.05.2026: TG-scan widget удалён — устаревший) ── */
     .followup-card {
       background: var(--card); border: 1px solid var(--border);
       border-radius: 10px; padding: 10px 14px;
@@ -684,7 +663,7 @@ function processRows(rows) {
   const connection = { status: 'unknown', lastCheck: null, sessions: {} };
   const vkConnection = { status: 'unknown', lastCheck: null, reason: '', tokens: {} };
   const waConnection = { status: 'unknown', lastCheck: null, detail: '' };
-  const scan = { status: 'idle', progress: 0, message: '', results: [], chatsChecked: [], updated: '' };
+  // scan state removed 16.05.2026 — TG-scan widget удалён
   const agents = { total: 0, running: 0, missing: 0, staleSla: 0, items: [] };
   const newLeads = { total: 0, items: [] };
   const aiSkips = { total: 0, items: [] };
@@ -746,18 +725,7 @@ function processRows(rows) {
         tgFunnel[period][metric] = Number(row.value) || 0;
       }
     }
-    if (section === 'Scan') {
-      if (row.key === 'scan_status') scan.status = row.value || 'idle';
-      if (row.key === 'scan_progress') scan.progress = Number(row.value) || 0;
-      if (row.key === 'scan_message') scan.message = row.value || '';
-      if (row.key === 'scan_updated') scan.updated = row.value || '';
-      if (row.key === 'scan_results') {
-        try { scan.results = JSON.parse(row.value); } catch { scan.results = []; }
-      }
-      if (row.key === 'scan_chats_checked') {
-        try { scan.chatsChecked = JSON.parse(row.value); } catch { scan.chatsChecked = []; }
-      }
-    }
+    // Scan binding removed 16.05.2026 — TG-scan widget устаревший, виджет удалён
     if (section === 'Connection') {
       if (row.key === 'conn_status') {
         const [st, reason] = (row.value || '').split('|');
@@ -842,7 +810,7 @@ function processRows(rows) {
       }
     }
   }
-  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, vkConnection, waConnection, scan, agents, newLeads, aiSkips, paid, aiUsage, timeline, browserWalk };
+  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, vkConnection, waConnection, agents, newLeads, aiSkips, paid, aiUsage, timeline, browserWalk };
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -3676,163 +3644,6 @@ function RefusedSection({ refused }) {
   );
 }
 
-function ScanStatus({ scan }) {
-  if (!scan || scan.status === 'idle') return null;
-
-  const isActive = scan.status === 'scanning';
-  const needsPerm = scan.status === 'needs_permission';
-  const isDone = scan.status === 'done';
-  const isError = scan.status === 'error';
-
-  const cardClass = needsPerm ? 'scan-card scan-card-permission'
-    : isError ? 'scan-card scan-card-error'
-    : isDone ? 'scan-card scan-card-done'
-    : isActive ? 'scan-card scan-card-active'
-    : 'scan-card';
-
-  const statusEmoji = needsPerm ? '⚠️' : isError ? '❌' : isDone ? '✅' : '🔍';
-  const statusLabel = needsPerm ? 'Требуется разрешение'
-    : isError ? 'Ошибка'
-    : isDone ? 'Сканирование завершено'
-    : 'Сканирование...';
-
-  const statusColor = needsPerm || isError ? '#f87171' : isDone ? 'var(--ok)' : 'var(--gold)';
-
-  let timeAgo = '';
-  if (scan.updated) {
-    try {
-      const d = new Date(scan.updated);
-      const mins = Math.round((Date.now() - d.getTime()) / 60000);
-      if (mins < 1) timeAgo = 'только что';
-      else if (mins < 60) timeAgo = mins + ' мин назад';
-      else timeAgo = Math.round(mins / 60) + ' ч назад';
-    } catch { timeAgo = ''; }
-  }
-
-  return (
-    <div className="section" style={{ marginTop: 14 }}>
-      <div className="section-title">TG Сканирование</div>
-      <div className={cardClass}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div style={{fontSize:14,fontWeight:700,color:statusColor}}>
-            {statusEmoji} {statusLabel}
-          </div>
-          {timeAgo && <div style={{fontSize:10,color:'var(--muted)'}}>{timeAgo}</div>}
-        </div>
-
-        {scan.message && (
-          <div style={{fontSize:12,color:'var(--text)',marginTop:6,lineHeight:1.4}}>{scan.message}</div>
-        )}
-
-        {isActive && (
-          <div className="scan-progress-bar">
-            <div className="scan-progress-fill" style={{width: scan.progress + '%'}} />
-          </div>
-        )}
-        {isActive && (
-          <div style={{fontSize:11,color:'var(--muted)',textAlign:'right'}}>{scan.progress}%</div>
-        )}
-
-        {scan.chatsChecked && scan.chatsChecked.length > 0 && (() => {
-          const totalPosts = scan.chatsChecked.reduce((a, c) => a + (Number(c.posts) || 0), 0);
-          return (
-            <div style={{marginTop:8,padding:'6px 8px',background:'rgba(255,255,255,0.03)',borderRadius:6,fontSize:10,color:'var(--muted)'}}>
-              <div style={{fontWeight:700,textTransform:'uppercase',letterSpacing:'1.2px',marginBottom:4}}>
-                Проверено: {scan.chatsChecked.length} {scan.chatsChecked.length === 1 ? 'чат' : 'чатов'} · {totalPosts} постов
-              </div>
-              {scan.chatsChecked.map((c, i) => (
-                <div key={i} style={{display:'flex',gap:6,flexWrap:'wrap',lineHeight:1.5}}>
-                  <span style={{color:'var(--text)'}}>{c.chat || '—'}</span>
-                  <span>· {c.posts || 0} постов</span>
-                  {c.period_from && c.period_to && <span>· {c.period_from}–{c.period_to}</span>}
-                </div>
-              ))}
-            </div>
-          );
-        })()}
-
-        {scan.results && scan.results.length > 0 && (
-          <div style={{marginTop:8}}>
-            <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'1.2px',color:'var(--muted)',marginBottom:4}}>
-              Найдено заявок: {scan.results.length}
-            </div>
-            {scan.results.map((r, i) => {
-              // Build a Telegram Web link that opens the chat directly.
-              // Priority: explicit post_link > @username (contact/link) > chat-source @username > source chat name map.
-              const chatNameMap = {
-                'Event Family': 'EventFamily',
-                'EventFamily': 'EventFamily',
-                'Event Russia': 'Event_Russian',
-                'Event_Russian': 'Event_Russian',
-                'Event Area': 'event_area',
-                'event_area': 'event_area',
-                'Event People': 'eventori',
-                'eventori': 'eventori',
-                'Event hunter': 'mskeventjob',
-                'mskeventjob': 'mskeventjob',
-                'myeventhunter': 'myeventhunter',
-                'Bigfinger': 'bigfingerchat',
-                'bigfingerchat': 'bigfingerchat',
-                'eventchatrussia': 'eventchatrussia',
-                'Event Мероприятия': 'eventchatrussia',
-              };
-              const unameMatch = (r.contact || '').match(/@([A-Za-z0-9_]+)/)
-                || (r.link || '').match(/t\.me\/([A-Za-z0-9_]+)/)
-                || (r.chat || '').match(/@([A-Za-z0-9_]+)/);
-              let uname = unameMatch && unameMatch[1];
-              // Fallback: use chat-name map when contact is "в ЛС" and link empty
-              if (!uname && r.chat) {
-                for (const [k, v] of Object.entries(chatNameMap)) {
-                  if (r.chat.toLowerCase().includes(k.toLowerCase())) { uname = v; break; }
-                }
-              }
-              // tg://resolve?domain=X opens Telegram Desktop DIRECTLY to the DM with that user.
-              // Fallback: https://t.me/X for leads without explicit uname (Telegram Desktop handles it too).
-              const tgLink = uname
-                ? `tg://resolve?domain=${uname}`
-                : r.post_link
-                  ? r.post_link
-                  : null;
-              // If we fell back to source chat, adjust label
-              const contactIsDM = (r.contact || '').trim() === 'в ЛС';
-              const linkLabel = contactIsDM && uname && !unameMatch
-                ? `→ чат @${uname}`
-                : null;
-              return (
-              <div key={i} className="scan-result-item"
-                onClick={() => tgLink && window.open(tgLink, '_blank')}
-                style={{cursor: tgLink ? 'pointer' : 'default'}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                  <div>
-                    <span style={{color:'var(--gold)',marginRight:6}}>•</span>
-                    {tgLink
-                      ? <a href={tgLink} target="_blank" rel="noopener" style={{color:'var(--blue)',textDecoration:'none',fontWeight:700}}>{r.who || '—'}</a>
-                      : <strong>{r.who || '—'}</strong>
-                    }
-                    {r.contact && (tgLink && uname
-                      ? <a href={tgLink} style={{color:'var(--blue)',fontSize:10,marginLeft:4,textDecoration:'none'}} onClick={e=>e.stopPropagation()}>💬 {r.contact}</a>
-                      : <span style={{color:'var(--muted)',fontSize:10,marginLeft:4}}>{r.contact}</span>
-                    )}
-                    {linkLabel && <span style={{color:'var(--blue)',fontSize:10,marginLeft:6}}>{linkLabel}</span>}
-                  </div>
-                  {r.note && <span style={{color:'#f87171',fontSize:9,fontWeight:700,flexShrink:0}}>⚠ {r.note}</span>}
-                </div>
-                <div style={{marginTop:2}}>{r.what || '—'}</div>
-                <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:4,fontSize:10,color:'var(--muted)'}}>
-                  {r.event_date && <span>📅 Событие: {r.event_date}</span>}
-                  {r.post_date && <span>✉ Пост: {r.post_date}</span>}
-                  {r.budget && r.budget !== 'не указан' && <span style={{color:'var(--ok)'}}>💰 {r.budget}</span>}
-                  {r.post_link && !r.post_link.includes('@') && <a href={tgLink} target="_blank" rel="noopener" style={{color:'var(--blue)'}}>→ открыть пост</a>}
-                </div>
-              </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /* ───────────────────────────────────────────────────────────────────
  * RestartAllButton — «Hillary-Lavrov 2009» Reset Button
@@ -7622,14 +7433,7 @@ function App() {
   }, [data?.attention?.items?.length]);
 
 
-  // Fast polling (30s) when scan is active
-  useEffect(() => {
-    if (!data || !data.scan) return;
-    const active = data.scan.status === 'scanning' || data.scan.status === 'needs_permission';
-    if (!active) return;
-    const fast = setInterval(() => load(true), 30000);
-    return () => clearInterval(fast);
-  }, [data?.scan?.status, load]);
+  // 16.05.2026: scan-fast-poll removed (TG-scan widget удалён)
 
   useEffect(() => {
     if (activity24h?.proc_browser_walk?.status !== 'running') return;
@@ -7834,7 +7638,6 @@ function App() {
                 <DMDirectFunnelSection data={dmDirectFunnel} />
               </div>
               <RecentSentMessagesSection data={recentSent} />
-              <ScanStatus scan={data.scan} />
               <FollowupsSection followups={data.followups} />
             </>
           )}
