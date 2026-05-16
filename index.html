@@ -2846,14 +2846,30 @@ function BrokerOrderCard({ order }) {
                     display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'center',
                     borderBottom: expanded ? '1px solid rgba(255,255,255,.06)' : 'none' }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>
-            {order.service_label || order.service_type || '—'}
-            {order.event_date && <span style={{ color: '#94a3b8', fontWeight: 500, marginLeft: 8 }}>· {order.event_date}</span>}
-            {order.event_location && <span style={{ color: '#94a3b8', fontWeight: 500, marginLeft: 8 }}>· {order.event_location}</span>}
+          <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+            <span>{order.service_label || order.service_type || '—'}</span>
+            {order.event_date && <span style={{ color: '#94a3b8', fontWeight: 500 }}>· {order.event_date}</span>}
+            {order.event_location && <span style={{ color: '#94a3b8', fontWeight: 500 }}>· {order.event_location}</span>}
+            {order.post_age_days != null && (() => {
+              // Цветной бейдж возраста поста: ≤2д зелёный, 3-5 жёлтый, >5 красный.
+              const a = order.post_age_days;
+              const bg = a <= 2 ? 'rgba(52,211,153,.15)' : a <= 5 ? 'rgba(251,191,36,.15)' : 'rgba(248,113,113,.18)';
+              const fg = a <= 2 ? '#34d399'           : a <= 5 ? '#fbbf24'             : '#f87171';
+              const label = a < 1 ? 'свежий' : `${a.toFixed(a < 10 ? 1 : 0)}д назад`;
+              return (
+                <span title={`пост в event-чате: ${order.post_dt || ''}`}
+                      style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px',
+                               background: bg, color: fg, border: `1px solid ${fg}55`,
+                               borderRadius: 10 }}>
+                  📅 {label}
+                </span>
+              );
+            })()}
           </div>
           <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
             id: {order.id} · raw status: {order.status}
             {order.guests && <span> · гостей {order.guests}</span>}
+            {order.post_dt && <span> · пост: {String(order.post_dt).slice(0,16)}</span>}
           </div>
         </div>
         <div style={{ textAlign: 'right', fontSize: 12 }}>
