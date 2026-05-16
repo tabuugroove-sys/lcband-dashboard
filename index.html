@@ -2806,6 +2806,27 @@ function BrokerCandidateRow({ c }) {
           🎁 готов
         </span>
       )}
+      {(() => {
+        // 16.05.2026 Phase 3 — quality gate badge.
+        // Кандидат «прошёл проверку» если: есть цена, не выше потолка,
+        // есть медиа (фото/видео), score >= 6. Это все слои eligibility
+        // + presend safety check от broker_pipeline / broker_quality_scorer.
+        const passes = (
+          c.price_rub > 0 &&
+          c.vs_ceiling !== 'over' &&
+          (c.media?.photos > 0 || c.media?.videos > 0) &&
+          (c.quality_score == null || c.quality_score >= 6)
+        );
+        if (!passes) return null;
+        return (
+          <span title="Quality gate passed: цена ≤ потолка, есть фото/видео, score ≥6 — кандидат готов к relay клиенту"
+                style={{ fontSize: 11, fontWeight: 700, padding: '1px 5px',
+                         background: 'rgba(52,211,153,.15)', color: '#34d399',
+                         border: '1px solid #34d39955', borderRadius: 10 }}>
+            🛡️
+          </span>
+        );
+      })()}
       <span style={{ minWidth: 56, color: '#cbd5e1' }}>
         {_fmtRub(c.price_rub)}
       </span>
@@ -3224,6 +3245,7 @@ function BrokerFunnelArea() {
   return (
     <>
       <BrokerSummaryCards data={data} selectedFilter={selectedFilter} onFilterByCode={(code) => setSelectedFilter({row: 'code', key: code, label: code})} />
+      <BrokerPaymentLane data={data} />
       <BrokerDualFunnel data={data} selectedFilter={selectedFilter} onCellClick={onCellClick} />
       <BrokerRelayNowLane data={data} />
       <BrokerOrdersList data={data} error={error} selectedFilter={selectedFilter} clearFilter={() => setSelectedFilter(null)} />
@@ -3278,6 +3300,63 @@ function BrokerSummaryCards({ data, selectedFilter, onFilterByCode }) {
     </div>
   );
 }
+
+// 16.05.2026 (Phase 3): «💰 Оплата → Михаил» — заказы где клиент готов
+// платить (просит счёт / договор / реквизиты). Единственная категория где
+// нужен Михаил руками, остальное автоном. Оранжевая панель сверху всего.
+function BrokerPaymentLane({ data }) {
+  const items = (data?.items || []).filter(o => o.block_code === 'payment_intent_needs_user');
+  if (items.length === 0) return null;
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ color: '#22d3ee' }}>💰 Готовы платить — нужен Михаил</span>
+        <span style={{ color: '#94a3b8', fontWeight: 600, fontSize: 11 }}>· {items.length}</span>
+      </div>
+      <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
+        Клиент просит счёт / договор / реквизиты / готов к предоплате.
+        Единственный кейс где AI не действует сам — деньги только руками.
+      </div>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {items.map(o => (
+          <div key={o.id} style={{
+            padding: '10px 12px',
+            background: 'linear-gradient(135deg, rgba(34,211,238,.12), rgba(251,191,36,.08))',
+            border: '1px solid #22d3ee',
+            borderRadius: 8,
+            display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center',
+            boxShadow: '0 0 16px rgba(34,211,238,.22)',
+          }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>
+                💰 {o.service_label || o.service_type}
+                <span style={{ color: '#94a3b8', fontWeight: 500, marginLeft: 8 }}>
+                  · @{o.client_username}
+                  {o.event_date && ` · ${o.event_date}`}
+                </span>
+              </div>
+              <div style={{ color: '#22d3ee', fontSize: 12, marginTop: 3 }}>
+                ▶ {o.block_reason}
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right' }}>
+              бюджет {_fmtRub(o.budget_rub) || '—'}<br/>
+              маржа {o.margin_pct ? o.margin_pct.toFixed(0) + '%' : '—'}
+            </div>
+            <a href={`https://t.me/${o.client_username}`} target="_blank" rel="noopener"
+               style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700,
+                        background: 'rgba(34,211,238,.25)', color: '#22d3ee',
+                        border: '1px solid #22d3ee', borderRadius: 4,
+                        textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              Открыть TG
+            </a>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 // 16.05.2026 (Phase 1): «🔴 Нужно переслать» — заказы где бот должен
 // прямо сейчас отправить ответ другой стороне. Самый «горячий» статус —
@@ -3387,7 +3466,8 @@ function BrokerOrdersList({ data, error, selectedFilter, clearFilter }) {
       </div>
       <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
         ⏳ ждём ответ  ✅ готов к relay  🎯 в кастинге  📤 у клиента  🥉 не выбран  💎 over budget  ❌ отказался  &nbsp;·&nbsp;
-        vs ceiling: ✓ под  ~ на  ⚠ выше
+        vs ceiling: ✓ под  ~ на  ⚠ выше  &nbsp;·&nbsp;
+        🎁 standard package · 🛡️ quality gate passed
       </div>
       {items.length === 0 ? (
         <div style={{ color: '#94a3b8', fontSize: 12, fontStyle: 'italic' }}>
