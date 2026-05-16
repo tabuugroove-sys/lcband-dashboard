@@ -683,6 +683,7 @@ function processRows(rows) {
   const tgFunnel = {};  // { day: {sent,leads,paid,earned}, week: {…}, … }
   const connection = { status: 'unknown', lastCheck: null, sessions: {} };
   const vkConnection = { status: 'unknown', lastCheck: null, reason: '', tokens: {} };
+  const waConnection = { status: 'unknown', lastCheck: null, detail: '' };
   const scan = { status: 'idle', progress: 0, message: '', results: [], chatsChecked: [], updated: '' };
   const agents = { total: 0, running: 0, missing: 0, staleSla: 0, items: [] };
   const newLeads = { total: 0, items: [] };
@@ -785,6 +786,11 @@ function processRows(rows) {
         vkConnection.tokens[tokenName] = { status: st, reason, label: row.label };
       }
     }
+    if (section === 'WAConnection') {
+      if (row.key === 'wa_conn_status')     waConnection.status    = row.value;
+      if (row.key === 'wa_conn_last_check') waConnection.lastCheck = row.value;
+      if (row.key === 'wa_conn_detail')     waConnection.detail    = row.value;
+    }
     if (section === 'Agents') {
       if (row.key === 'agents_total')   agents.total = Number(row.value) || 0;
       else if (row.key === 'agents_running') agents.running = Number(row.value) || 0;
@@ -836,7 +842,7 @@ function processRows(rows) {
       }
     }
   }
-  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, vkConnection, scan, agents, newLeads, aiSkips, paid, aiUsage, timeline, browserWalk };
+  return { kpi, funnel, status, followups, orders, refused, attention, refusalCategories, channels, tgFunnel, connection, vkConnection, waConnection, scan, agents, newLeads, aiSkips, paid, aiUsage, timeline, browserWalk };
 }
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -1281,7 +1287,7 @@ function ConnectionRow({ title, status, reason, lastCheck }) {
   );
 }
 
-function ConnectionStatus({ connection, vkConnection }) {
+function ConnectionStatus({ connection, vkConnection, waConnection }) {
   const sessionReasons = connection?.sessionReasons || {};
   const firstSessionReason = Object.values(sessionReasons).find(Boolean) || '';
   const tgReason = connection?.reason || firstSessionReason;
@@ -1308,6 +1314,14 @@ function ConnectionStatus({ connection, vkConnection }) {
           status={vkConnection.status}
           reason={vkReason}
           lastCheck={vkConnection.lastCheck}
+        />
+      )}
+      {waConnection && waConnection.status !== 'unknown' && (
+        <ConnectionRow
+          title="💬 WhatsApp (Baileys)"
+          status={waConnection.status}
+          reason={waConnection.detail || ''}
+          lastCheck={waConnection.lastCheck}
         />
       )}
     </div>
@@ -7766,7 +7780,7 @@ function App() {
       {/* Content */}
       {data && (
         <>
-          <ConnectionStatus connection={data.connection} vkConnection={data.vkConnection} />
+          <ConnectionStatus connection={data.connection} vkConnection={data.vkConnection} waConnection={data.waConnection} />
           <TabBar
             activeTab={activeTab}
             setActiveTab={setActiveTab}
