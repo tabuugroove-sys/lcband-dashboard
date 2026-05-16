@@ -397,12 +397,17 @@
           const m = stageMap[ev._stage] || stageMap.lead;
           a.classList.add(m.cls);
           stateLabel = `${m.label} · ${ev._status}`;
-          const ch = (ev._channel || '').toUpperCase().startsWith('VK') ? 'VK' : 'TG';
+          const chRaw = (ev._channel || '').toUpperCase();
+          let ch = 'TG';
+          let chIcon = '';
+          if (chRaw.startsWith('VK')) { ch = 'VK'; chIcon = '🟦 '; }
+          else if (chRaw.startsWith('WA')) { ch = 'WA'; chIcon = '🟢 '; }
+          else if (chRaw.includes('DIRECT')) { ch = 'TG'; chIcon = '✉️ '; }
           a.href = ev._username
             ? `./index.html?chat=${encodeURIComponent(ev._username)}&channel=${ch}`
             : `./index.html`;
           a.target = '_blank';
-          a.textContent = `${m.icon} ${ev.title || ev.id}`;
+          a.textContent = `${chIcon}${m.icon} ${ev.title || ev.id}`;
           a.title = (ev.title || ev.id)
                   + `\n${stateLabel}`
                   + (ev._channel ? `  ·  ${ev._channel}` : '')
