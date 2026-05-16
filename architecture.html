@@ -953,12 +953,29 @@ flowchart TD
   <section class="mindmap-card" id="ai-20-coverage">
     <h2>2a. Funnel classification — где живёт AI 2.0 vs legacy</h2>
     <p class="diagram-note">
-      <strong style="color:#3fb950">AI 2.0</strong> (<code>smart_funnel.classify_unified</code>) — один Opus-call с большим промптом,
+      <strong style="color:#3fb950">AI 2.0</strong> (<code>smart_funnel.classify_unified</code>) — TIERED классификатор,
       инструктированный думать как менеджер по шагам 1-6: <em>кто это / кто инициировал / паттерн переписки /
       что сказал / brand-guard / консерватизм</em>. Видит ВСЮ переписку (до 50 msgs) + структурные метрики
       (out:in count, streak, first_5 balance). Возвращает <code>{client_type, funnel_status, intent, conversation_phase,
-      next_action, reasoning, confidence}</code>. Каждое решение в <code>ai_timeline.jsonl</code> event=<code>funnel_classify_unified</code>.
-      Kill switch: <code>LCB_UNIFIED_CLASSIFIER=0</code>.
+      next_action, reasoning, confidence, layer}</code>.
+      <br><br>
+      <strong>Tiered routing (cost saving -68% vs full Opus):</strong>
+      <br>
+      • <strong>L1 Gemini Flash</strong> (~$0/call) — quick screen на 15 msgs, resolve ТОЛЬКО non-terminal статусы
+      с conf ≥ 0.92. 🔴 запрет: «Не актуален», «Бриф Вадиму», vendor.
+      <br>
+      • <strong>L2 Sonnet</strong> (~$0.025/call) — полный 6-шаговый анализ, resolve если status non-terminal +
+      conf ≥ 0.78 + next_action не high-risk.
+      <br>
+      • <strong>L3 Opus arbiter</strong> (~$0.124/call) — финальное решение на ~10-20% сомнительных + всех
+      закрывающих (Не актуален / vendor_skip / archive).
+      <br><br>
+      <strong>Conservative bias</strong> per user mandate 16.05: «нормальные заказы не зарубать первыми двумя
+      слоями если не уверены». Дешёвые слои всегда эскалируют при ambiguity. Caмый трудный кейс (@dmitry_churakov
+      «Оуууу во как») прошёл L1 → L2 → L3 → правильный «Холодный ответ».
+      <br><br>
+      Каждое решение в <code>ai_timeline.jsonl</code> event=<code>funnel_classify_unified</code> с полем
+      <code>layer</code> (L1/L2/L3). Kill switch: <code>LCB_UNIFIED_CLASSIFIER=0</code>.
       <br>
       <br>
       <strong style="color:#f0883e">Legacy / approval-driven</strong> — где AI 2.0 ещё не подключён:
@@ -980,7 +997,7 @@ flowchart TD
   classDef chan fill:#1f3a5f,stroke:#58a6ff,color:#e6edf3
   classDef hard fill:#2a1f1f,stroke:#f85149,color:#e6edf3
 
-  AI20["🟢 AI 2.0 — smart_funnel.classify_unified<br/>один Opus call · full context · 6 шагов<br/>возвращает {client_type, funnel_status, intent,<br/>conversation_phase, next_action, reasoning, confidence}"]:::ai20
+  AI20["🟢 AI 2.0 — smart_funnel.classify_unified<br/>TIERED: L1 Gemini → L2 Sonnet → L3 Opus arbiter<br/>guard rules: терминальные статусы и vendor-skip<br/>только L3 Opus; L1/L2 эскалируют при сомнении<br/>(conservative bias — не зарубать лиды)<br/>~70% calls обрабатывает дешёвый L1/L2"]:::ai20
   FALLBACK["⚫ Fallback — CATEGORY_STATUS dict<br/>fires только если Opus timeout / malformed JSON<br/>hardcoded category → status mapping"]:::hard
 
   TGDM["💬 TG DM auto-reply<br/>tg_responder.py · LIVE"]:::chan
