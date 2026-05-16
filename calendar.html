@@ -128,6 +128,26 @@
     border-color: rgba(188,140,255,0.45);
     border-style: dotted;
   }
+  /* 4-стадийная воронка: переговоры → договор → предоплата → оплачено */
+  .event-pill.stage-negotiating {
+    background: rgba(16,185,129,0.15); color: var(--ok);
+    border-color: rgba(16,185,129,0.45);
+    border-style: dotted;
+  }
+  .event-pill.stage-contract {
+    background: rgba(245,197,24,0.15); color: var(--gold);
+    border-color: rgba(245,197,24,0.45);
+    border-style: dashed;
+  }
+  .event-pill.stage-prepayment {
+    background: rgba(245,158,11,0.18); color: var(--warn);
+    border-color: rgba(245,158,11,0.50);
+    border-style: dashed;
+  }
+  .event-pill.stage-paid {
+    background: rgba(239,68,68,0.18); color: var(--bad);
+    border-color: rgba(239,68,68,0.50);
+  }
 
   /* List fallback */
   .upcoming-list {
@@ -178,10 +198,11 @@
     <button id="next">Следующий →</button>
     <button id="today-btn">Сегодня</button>
     <div class="legend">
-      <span class="legend-chip"><span class="dot" style="background:#bc8cff"></span>заявка</span>
+      <span class="legend-chip"><span class="dot" style="background:#bc8cff"></span>ранняя заявка</span>
+      <span class="legend-chip"><span class="dot" style="background:#10b981"></span>переговоры</span>
+      <span class="legend-chip"><span class="dot" style="background:#f5c518"></span>договор готовится</span>
       <span class="legend-chip"><span class="dot" style="background:#f59e0b"></span>ждём предоплату</span>
-      <span class="legend-chip"><span class="dot" style="background:#60a5fa"></span>будущий event</span>
-      <span class="legend-chip"><span class="dot" style="background:#10b981"></span>состав ≥4</span>
+      <span class="legend-chip"><span class="dot" style="background:#ef4444"></span>оплачено</span>
       <span class="legend-chip"><span class="dot" style="background:#ef4444"></span>предоплата получена</span>
       <span class="legend-chip"><span class="dot" style="background:#f472b6"></span>видео/фото получены</span>
     </div>
@@ -326,6 +347,7 @@
         members_count: 0, _kind: 'lead',
         _status: l.status, _channel: l.channel,
         _username: l.username, _raw_date: l.event_date_raw,
+        _stage: l.stage || 'lead',
       });
     }
 
@@ -352,34 +374,50 @@
         a.className = 'event-pill';
         let stateLabel = '';
         if (ev._kind === 'stub') {
-          a.classList.add('stub');
-          stateLabel = 'ждём предоплату';
+          // event_stub: negotiation = 🟢 переговоры, confirmed = 🟡 договор
+          if (ev._stage === 'confirmed') {
+            a.classList.add('stage-contract');
+            stateLabel = 'договор готовится';
+            a.textContent = '📝 ' + (ev.title || ev.id);
+          } else {
+            a.classList.add('stage-negotiating');
+            stateLabel = 'переговоры';
+            a.textContent = '💬 ' + (ev.title || ev.id);
+          }
           a.href = `./events.html`;
-          a.textContent = '🌱 ' + (ev.title || ev.id);
           a.title = `Stub (${ev._stage}): ${ev._client_thread}\n${stateLabel}`;
         } else if (ev._kind === 'lead') {
-          a.classList.add('lead');
-          stateLabel = `заявка · ${ev._status}`;
+          // lead с расширенным stage: negotiating / contract / prepayment / lead
+          const stageMap = {
+            negotiating: { cls: 'stage-negotiating', label: 'переговоры',     icon: '💬' },
+            contract:    { cls: 'stage-contract',    label: 'договор готовится', icon: '📝' },
+            prepayment:  { cls: 'stage-prepayment',  label: 'ждём предоплату',  icon: '⏳' },
+            lead:        { cls: 'lead',              label: 'заявка',           icon: '·'  },
+          };
+          const m = stageMap[ev._stage] || stageMap.lead;
+          a.classList.add(m.cls);
+          stateLabel = `${m.label} · ${ev._status}`;
           const ch = (ev._channel || '').toUpperCase().startsWith('VK') ? 'VK' : 'TG';
           a.href = ev._username
             ? `./index.html?chat=${encodeURIComponent(ev._username)}&channel=${ch}`
             : `./index.html`;
           a.target = '_blank';
-          a.textContent = '· ' + (ev.title || ev.id);
+          a.textContent = `${m.icon} ${ev.title || ev.id}`;
           a.title = (ev.title || ev.id)
                   + `\n${stateLabel}`
                   + (ev._channel ? `  ·  ${ev._channel}` : '')
                   + (ev._username ? `  ·  @${ev._username}` : '')
                   + `\nдата в переписке: ${ev._raw_date}`;
         } else {
+          // Real paid event = 🔴 красный по умолчанию (оплачено)
           switch (ev.business_state) {
             case 'video_received': a.classList.add('video-received'); stateLabel = 'видео/фото получены'; break;
-            case 'prepaid':        a.classList.add('prepaid');        stateLabel = 'предоплата получена'; break;
-            case 'lineup_ready':   a.classList.add('lineup-ready');   stateLabel = 'состав ≥4'; break;
-            default:               stateLabel = 'будущий event'; break;
+            case 'prepaid':        a.classList.add('stage-paid');     stateLabel = 'оплачено'; break;
+            case 'lineup_ready':   a.classList.add('stage-paid');     stateLabel = 'оплачено · состав ≥4'; break;
+            default:               a.classList.add('stage-paid');     stateLabel = 'оплачено'; break;
           }
           a.href = `./events.html#${encodeURIComponent(ev.id)}`;
-          a.textContent = ev.title || ev.id;
+          a.textContent = '🎤 ' + (ev.title || ev.id);
           a.title = (ev.title || ev.id)
                   + (ev.members_count ? `  ·  ${ev.members_count} чел` : '')
                   + `\n${stateLabel}`;
