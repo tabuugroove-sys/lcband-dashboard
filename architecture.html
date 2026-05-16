@@ -994,14 +994,14 @@ flowchart TD
   VK -->|"decide_from_dialog() — Opus full-context<br/>читает 30 msgs + metadata + trash-gate +<br/>Stage 2 Sonnet quality pass"| VKAI["🟢 VK AI 2.0<br/>(независимая таксономия:<br/>replied_promo_sent / replied_hot_lead /<br/>replied_skipped_vendor / ...)"]:::ai20
   VKAI -.->|"safe_default if fail"| VKFALL["⚫ _safe_default_decision<br/>no send, alert human"]:::hard
 
-  BROKER -.->|"NOT YET — uses Opus<br/>для intake/brief/relay,<br/>но funnel = manual approval"| LEG1["🟡 broker_pending<br/>Михаил подтверждает руками"]:::legacy
-  WA -.->|"NOT YET — wa_responder<br/>генерит draft в queue,<br/>funnel-классификации нет"| LEG2["🟡 wa_computer_use_queue<br/>Михаил отправляет руками"]:::legacy
+  BROKER -.->|"AUTONOMOUS — Opus для<br/>intake/brief/relay/casting/relay,<br/>auto-send через tg_responder<br/>(_broker_auto_send, fail-open<br/>per 16.05). Funnel-классификация<br/>broker-клиента → через TG = AI 2.0"| LEG1["🟢 Полностью авто (broker_pipeline +<br/>broker_casting + broker_contractor_followup_agent +<br/>tg_responder auto-send)<br/>approval только для money_intent"]:::ai20
+  WA -.->|"NOT YET — wa_responder<br/>генерит draft в очередь,<br/>funnel-классификации нет"| LEG2["🟡 wa_computer_use_queue<br/>(агенты пока не auto-send'ят WA)"]:::legacy
 
   AI20 --> LOG[("ai_timeline.jsonl<br/>event=funnel_classify_unified<br/>reasoning · confidence · metrics")]:::stale
   AI20 --> DB[("orders.db<br/>status update<br/>включая 'Холодный ответ'")]:::stale
   VKAI --> DB
 
-  TODO["📋 Roadmap унификации:<br/>• TG funnel + VK taxonomy → общая воронка (статус mapping)<br/>• Broker → подключить AI 2.0 когда станет автономным<br/>• WA → подключить когда auto-reply mode включится<br/>• refusal_guard regex до AI L1 → проверить нюансы 'не актуально сейчас, но позже'"]:::legacy
+  TODO["📋 Roadmap унификации:<br/>• TG funnel + VK taxonomy → общая воронка (статус mapping)<br/>• WA → подключить AI 2.0 когда auto-reply mode включится<br/>• refusal_guard regex до AI L1 → проверить нюансы 'не актуально сейчас, но позже'<br/>• Михаил руками НЕ работает (per user mandate 16.05) — только агенты"]:::legacy
     </div>
     <p class="diagram-note" style="margin-top:12px;">
       <strong>Доля трафика покрытая AI 2.0 pattern:</strong> TG DM (через
@@ -1015,8 +1015,11 @@ flowchart TD
       • <strong>WA responder</strong> — пока draft-only, ошибиться негде, но при auto-reply mode подключение
       AI 2.0 обязательно.
       <br>
-      • <strong>Broker</strong> — Opus используется для генерации brief/relay, manual approval защищает от
-      ошибок классификации. Подключим AI 2.0 когда broker станет автономным.
+      • <strong>Broker</strong> — Opus используется для генерации intake/brief/relay/casting; auto-send
+      через <code>tg_responder._broker_auto_send / _autosend_broker_notice</code> работает автономно
+      (fail-open per 16.05). Manual approval остался только для <code>money_intent</code>
+      (см. <code>feedback_approval_only_for_money</code>). Funnel-классификация broker-клиента
+      покрыта через TG-канал = AI 2.0. Отдельная AI 2.0 интеграция в broker не нужна.
       <br>
       • <strong>refusal_guard regex</strong> до AI L1 в TG — может пометить «не актуально сейчас, но позже»
       как `decline`. AI 2.0 это переопределяет в `Follow-up`, но regex срабатывает раньше — стоит мониторить.
