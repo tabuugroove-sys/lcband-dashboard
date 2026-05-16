@@ -2798,6 +2798,14 @@ function BrokerCandidateRow({ c }) {
          style={{ color: 'var(--blue)', fontWeight: 700, minWidth: 130, textDecoration: 'none' }}>
         @{c.username}
       </a>
+      {c.has_standard_package && (
+        <span title={`Готовый пакет в roster${c.standard_price_rub ? ` (${_fmtRub(c.standard_price_rub)})` : ''} — pipeline может идти к pitch без ожидания подрядчика`}
+              style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px',
+                       background: 'rgba(34,211,238,.15)', color: '#22d3ee',
+                       border: '1px solid #22d3ee55', borderRadius: 10 }}>
+          🎁 готов
+        </span>
+      )}
       <span style={{ minWidth: 56, color: '#cbd5e1' }}>
         {_fmtRub(c.price_rub)}
       </span>
@@ -3215,9 +3223,113 @@ function BrokerFunnelArea() {
   if (!data) return null;
   return (
     <>
+      <BrokerSummaryCards data={data} selectedFilter={selectedFilter} onFilterByCode={(code) => setSelectedFilter({row: 'code', key: code, label: code})} />
       <BrokerDualFunnel data={data} selectedFilter={selectedFilter} onCellClick={onCellClick} />
+      <BrokerRelayNowLane data={data} />
       <BrokerOrdersList data={data} error={error} selectedFilter={selectedFilter} clearFilter={() => setSelectedFilter(null)} />
     </>
+  );
+}
+
+// 16.05.2026 (Phase 1): summary cards сверху страницы. 8 ключевых
+// чисел — клик на цифру фильтрует список снизу.
+function BrokerSummaryCards({ data, selectedFilter, onFilterByCode }) {
+  const s = data?.summary;
+  if (!s || s.active === 0) return null;
+  const cards = [
+    { label: 'Активные',      value: s.active,             color: '#cbd5e1', code: null },
+    { label: 'Нужно переслать', value: s.needs_relay,      color: '#f87171', code: 'needs_relay_to_client', highlight: s.needs_relay > 0 },
+    { label: 'Ждём клиента',   value: s.waiting_client,    color: '#fbbf24', code: 'client_thinking' },
+    { label: 'Ждём подрядчика', value: s.waiting_contractor, color: '#fbbf24', code: 'contractor_no_reply' },
+    { label: 'Готовы к pitch', value: s.ready_to_pitch,    color: '#34d399', code: null },
+    { label: 'Нет подрядчиков', value: s.no_candidates,    color: '#f87171', code: 'no_candidates' },
+    { label: 'Выше потолка',   value: s.over_ceiling,      color: '#f87171', code: 'all_over_ceiling' },
+    { label: 'Оплата → Михаил', value: s.payment_urgent,   color: '#22d3ee', code: 'payment_intent_needs_user', highlight: s.payment_urgent > 0 },
+  ];
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">Сводка по брокеру</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+        {cards.map(c => {
+          const active = c.value > 0;
+          const isSelected = selectedFilter?.row === 'code' && selectedFilter?.key === c.code;
+          return (
+            <div key={c.label}
+                 onClick={() => active && c.code && onFilterByCode(c.code)}
+                 style={{
+                   padding: '12px 14px',
+                   background: c.highlight
+                     ? `linear-gradient(135deg, ${c.color}22, transparent)`
+                     : (isSelected ? 'rgba(34,211,238,.18)' : 'rgba(255,255,255,.03)'),
+                   border: `1px solid ${isSelected ? '#22d3ee' : (c.highlight ? c.color + '99' : 'rgba(255,255,255,.06)')}`,
+                   borderRadius: 8,
+                   cursor: (active && c.code) ? 'pointer' : 'default',
+                   boxShadow: c.highlight ? `0 0 16px ${c.color}33` : 'none',
+                   transition: 'all 200ms',
+                 }}>
+              <div style={{ fontSize: 24, fontWeight: 800, color: active ? c.color : '#475569' }}>
+                {c.value}
+              </div>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{c.label}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// 16.05.2026 (Phase 1): «🔴 Нужно переслать» — заказы где бот должен
+// прямо сейчас отправить ответ другой стороне. Самый «горячий» статус —
+// показываем перед общим списком, акцентом.
+function BrokerRelayNowLane({ data }) {
+  const items = (data?.items || []).filter(o => o.needs_relay);
+  if (items.length === 0) return null;
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ color: '#f87171' }}>🔴 Нужно переслать сейчас</span>
+        <span style={{ color: '#94a3b8', fontWeight: 600, fontSize: 11 }}>· {items.length}</span>
+      </div>
+      <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
+        Бот ждёт чтобы переслать готовый ответ. Не давай этим заказам залипнуть.
+      </div>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {items.map(o => (
+          <div key={o.id} style={{
+            padding: '10px 12px',
+            background: 'rgba(248,113,113,.08)',
+            border: '1px solid rgba(248,113,113,.4)',
+            borderRadius: 8,
+            display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center',
+          }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>
+                {o.service_label || o.service_type}
+                <span style={{ color: '#94a3b8', fontWeight: 500, marginLeft: 8 }}>
+                  · @{o.client_username}
+                  {o.event_date && ` · ${o.event_date}`}
+                </span>
+              </div>
+              <div style={{ color: '#f87171', fontSize: 12, marginTop: 3 }}>
+                ▶ {o.block_reason}
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right' }}>
+              {o.candidates_count} подр.<br/>
+              {o.candidates_sent_to_client > 0 && `📤 ${o.candidates_sent_to_client} у клиента`}
+            </div>
+            <a href={`https://t.me/${o.client_username}`} target="_blank" rel="noopener"
+               style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700,
+                        background: 'rgba(248,113,113,.2)', color: '#f87171',
+                        border: '1px solid #f87171', borderRadius: 4,
+                        textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              Открыть TG
+            </a>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -3238,6 +3350,9 @@ function BrokerOrdersList({ data, error, selectedFilter, clearFilter }) {
   if (selectedFilter) {
     if (selectedFilter.row === 'top') {
       items = items.filter(o => _orgStageKey(o.status) === selectedFilter.key);
+    } else if (selectedFilter.row === 'code') {
+      // 16.05 Phase 1: фильтр по block_code из summary cards.
+      items = items.filter(o => o.block_code === selectedFilter.key);
     } else {
       // bot row: order matches if at least one candidate is in that stage,
       // OR if 'searching' selected and order has no candidates.
@@ -3266,7 +3381,7 @@ function BrokerOrdersList({ data, error, selectedFilter, clearFilter }) {
                     border: '1px solid rgba(34,211,238,.5)',
                     borderRadius: 12, cursor: 'pointer',
                   }}>
-            фильтр: {selectedFilter.row === 'top' ? '🧑‍💼' : '🤝'} {selectedFilter.label} ✕
+            фильтр: {selectedFilter.row === 'top' ? '🧑‍💼' : selectedFilter.row === 'code' ? '🏷️' : '🤝'} {selectedFilter.label} ✕
           </button>
         )}
       </div>
