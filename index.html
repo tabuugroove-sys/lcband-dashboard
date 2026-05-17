@@ -7276,180 +7276,141 @@ function LeadFlowSection() {
 
   return (
     <div className="section" style={{marginTop:14}}>
-      {/* Pipeline diagram — три агента */}
-      <div style={{display:'flex', flexDirection:'column', gap:10, marginBottom:12}}>
+      {/* ── Full flow diagram ── */}
+      <div style={{overflowX:'auto', marginBottom:12}}>
+      <div style={{minWidth:520, display:'flex', flexDirection:'column', gap:8}}>
 
-        {/* ─── Агент 1: Event Classifier ─── */}
-        <div style={{background:'rgba(15,23,42,0.6)', borderRadius:10, border:'1px solid var(--border)', padding:'10px 14px', overflowX:'auto'}}>
-          <div style={{fontSize:10, fontWeight:700, color:'#3b82f6', textTransform:'uppercase', letterSpacing:0.6, marginBottom:8}}>
-            🤖 Агент 1 — Event Classifier
+        {/* Row 1: Three source lanes */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8}}>
+          <div style={{background:'rgba(59,130,246,.08)', border:'1px solid rgba(59,130,246,.3)', borderRadius:9, padding:'8px 10px'}}>
+            <div style={{fontSize:10, fontWeight:700, color:'#3b82f6', textTransform:'uppercase', letterSpacing:.5, marginBottom:6}}>📢 Посты</div>
+            <div style={{fontSize:10, color:'#93c5fd', marginBottom:2}}>TG event-чаты ({pipe.tg_chats||18}+)</div>
+            <div style={{fontSize:10, color:'#93c5fd', marginBottom:6}}>VK community</div>
+            <div style={{fontSize:9, color:'var(--muted)', background:'rgba(59,130,246,.1)', borderRadius:5, padding:'3px 6px', marginBottom:4}}>cross-dedup: tg_seen_posts.jsonl</div>
+            <div style={{fontSize:9, color:'var(--muted)'}}>BW догоняет пропущенное · 30м</div>
           </div>
-          <div style={{display:'grid', gridTemplateColumns:'minmax(115px,1fr) auto minmax(120px,1fr) auto minmax(110px,1fr) auto minmax(145px,1fr)', gap:0, alignItems:'start'}}>
-            <div>
-              <PipeCol label="Источники" />
-              <SourceBox icon="💬" label="TG event-чаты" sub={`${pipe.tg_chats||18} чатов · пуш`} active={isActive} pulse={isActive} ago={pipe.last_event_at ? fmtAgo(pipe.last_event_at)+' назад':''} color='#3b82f6' />
-              <SourceBox icon="🅰️" label="VK чаты" sub={`${pipe.vk_groups||8} групп · пуш`} active color='#4f8ef7' style={{marginTop:5}} />
+          <div style={{background:'rgba(96,165,250,.08)', border:'1px solid rgba(96,165,250,.3)', borderRadius:9, padding:'8px 10px'}}>
+            <div style={{fontSize:10, fontWeight:700, color:'#60a5fa', textTransform:'uppercase', letterSpacing:.5, marginBottom:6}}>📩 Входящий DM</div>
+            <div style={{fontSize:10, color:'#93c5fd', marginBottom:2}}>TG DM · realtime push</div>
+            <div style={{fontSize:10, color:'#93c5fd', marginBottom:2}}>VK DM · longpoll</div>
+            <div style={{fontSize:10, color:'#93c5fd', marginBottom:6}}>WhatsApp · Baileys</div>
+            <div style={{fontSize:9, color:'#fde68a', background:'rgba(245,197,24,.08)', borderRadius:5, padding:'3px 6px'}}>enrich(force=True) — до агента</div>
+          </div>
+          <div style={{background:'rgba(167,139,250,.08)', border:'1px solid rgba(167,139,250,.3)', borderRadius:9, padding:'8px 10px'}}>
+            <div style={{fontSize:10, fontWeight:700, color:'#a78bfa', textTransform:'uppercase', letterSpacing:.5, marginBottom:6}}>🤝 Broker</div>
+            <div style={{fontSize:10, color:'#d8b4fe', marginBottom:2}}>broker opportunity trigger</div>
+            <div style={{fontSize:10, color:'#d8b4fe', marginBottom:6}}>← от Agent 1 (broker_request)</div>
+            <div style={{fontSize:9, color:'#fde68a', background:'rgba(245,197,24,.08)', borderRadius:5, padding:'3px 6px'}}>get_or_enrich(ns="broker")</div>
+          </div>
+        </div>
+
+        {/* Arrows */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, textAlign:'center', color:'var(--muted)', fontSize:16, lineHeight:1}}>
+          <div>↓</div><div>↓</div><div>↓</div>
+        </div>
+
+        {/* Row 2: Agents + kartotekas */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, alignItems:'stretch'}}>
+          {/* Agent 1 */}
+          <div style={{background:'rgba(139,92,246,.1)', border:'1px solid rgba(139,92,246,.35)', borderRadius:9, padding:'8px 10px'}}>
+            <div style={{fontSize:10, fontWeight:700, color:'#a78bfa', marginBottom:6}}>🤖 Agent 1 · Event Classifier</div>
+            <div style={{display:'flex', flexDirection:'column', gap:3, marginBottom:6}}>
+              <div style={{fontSize:9.5, color:'#6ee7b7', background:'rgba(16,185,129,.1)', borderRadius:4, padding:'2px 6px'}}>L1 Gemini Flash · binary</div>
+              <div style={{fontSize:9.5, color:'#c4b5fd', background:'rgba(139,92,246,.1)', borderRadius:4, padding:'2px 6px'}}>L2 Sonnet · classify</div>
+              <div style={{fontSize:9.5, color:'#fde68a', background:'rgba(245,197,24,.08)', borderRadius:4, padding:'2px 6px'}}>L3 Opus · compose pitch</div>
             </div>
-            <FlowArrow />
-            <div>
-              <PipeCol label="Классификатор" />
-              <div style={{background:'rgba(139,92,246,0.12)', border:'1px solid rgba(139,92,246,0.4)', borderRadius:8, padding:'8px 10px', textAlign:'center'}}>
-                <div style={{fontSize:11, fontWeight:700, color:'#a78bfa'}}>🤖 AI 2.0</div>
-                <div style={{fontSize:10, color:'var(--muted)', marginTop:3}}>Gemini Flash L1</div>
-                <div style={{fontSize:10, color:'var(--muted)'}}>→ Sonnet L2</div>
-              </div>
-              <div style={{marginTop:4, background:'rgba(14,165,233,0.08)', border:'1px solid rgba(14,165,233,0.2)', borderRadius:6, padding:'5px 8px'}}>
-                <div style={{fontSize:9.5, color:'#38bdf8', fontWeight:600}}>⚡ hard-regex pre-filter</div>
-              </div>
-            </div>
-            <FlowArrow />
-            <div>
-              <PipeCol label="Вердикт" />
-              {[['🟢 Организатор','#34d399'],['🔵 Лид LCB','#60a5fa'],['🤝 Брокер','#a78bfa'],['🔧 Подрядчик','#94a3b8'],['❌ Отказ/спам','#f87171']].map(([l,c],i) => (
-                <div key={i} style={{fontSize:10, color:c, padding:'2px 0', fontWeight:600}}>{l}</div>
+            <div style={{fontSize:9, color:'#f87171', background:'rgba(239,68,68,.08)', borderRadius:4, padding:'2px 6px', marginBottom:4}}>⚡ hard-regex pre-filter</div>
+            <div style={{fontSize:9, color:'var(--muted)', fontStyle:'italic'}}>картотеки нет — пост холодный</div>
+          </div>
+          {/* Agent 2 + LCB kartoteka */}
+          <div style={{display:'flex', flexDirection:'column', gap:6}}>
+            <div style={{background:'rgba(59,130,246,.08)', border:'1.5px dashed rgba(59,130,246,.4)', borderRadius:8, padding:'6px 8px'}}>
+              <div style={{fontSize:9.5, fontWeight:700, color:'#60a5fa', marginBottom:4}}>📋 Картотека LCB · tg:username</div>
+              {[['client_intent','намерение'],['event_date_confirmed','дата'],['waiting_for_us','ждёт нас'],['refusal_detected','отказ']].map(([k,v]) => (
+                <div key={k} style={{fontSize:9, color:'var(--muted)'}}><span style={{color:'#60a5fa'}}>{k}</span> · {v}</div>
               ))}
+              <div style={{marginTop:4, fontSize:8.5, color:'var(--muted)', display:'flex', gap:6}}>
+                <span style={{color:'#6ee7b7'}}>← IN · auto</span>
+                <span style={{color:'#d8b4fe'}}>← OUT · record_outgoing</span>
+              </div>
             </div>
-            <FlowArrow />
-            <div>
-              <PipeCol label="Роутинг" />
-              <div style={{fontSize:10, color:'#60a5fa', padding:'2px 0'}}>↓ Агент 2 (LCB)</div>
-              <div style={{fontSize:10, color:'#a78bfa', padding:'2px 0'}}>↓ Агент 3 (Брокер)</div>
-              <div style={{fontSize:10, color:'var(--muted)', padding:'2px 0', marginTop:4}}>📤 cold pitch</div>
-              <div style={{fontSize:10, color:'var(--muted)', padding:'2px 0'}}>🔇 skip / mark</div>
+            <div style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.35)', borderRadius:9, padding:'8px 10px', flex:1}}>
+              <div style={{fontSize:10, fontWeight:700, color:'#60a5fa', marginBottom:5}}>🤖 Agent 2 · LCB DM</div>
+              <div style={{fontSize:9.5, color:'var(--muted)', marginBottom:2}}>unified_dm_responder · Opus</div>
+              <div style={{fontSize:9.5, color:'#fde68a', marginBottom:2}}>get_or_enrich() → читает карточку</div>
+              <div style={{fontSize:9.5, color:'#f87171', marginBottom:4}}>is_refused_any() хард-стоп</div>
+              <div style={{fontSize:9, color:'var(--muted)'}}>approval gate · 8/run · 40/сут</div>
+            </div>
+          </div>
+          {/* Agent 3 + Broker kartoteka */}
+          <div style={{display:'flex', flexDirection:'column', gap:6}}>
+            <div style={{background:'rgba(167,139,250,.07)', border:'1.5px dashed rgba(167,139,250,.4)', borderRadius:8, padding:'6px 8px'}}>
+              <div style={{fontSize:9.5, fontWeight:700, color:'#a78bfa', marginBottom:4}}>📋 Картотека Broker · broker:tg:u</div>
+              {[['client_intent','намерение Broker'],['waiting_for_us','ждёт нас'],['silence_days','молчит Nд'],['key_asks','уточнения']].map(([k,v]) => (
+                <div key={k} style={{fontSize:9, color:'var(--muted)'}}><span style={{color:'#a78bfa'}}>{k}</span> · {v}</div>
+              ))}
+              <div style={{marginTop:4, fontSize:8.5, color:'var(--muted)', display:'flex', gap:6}}>
+                <span style={{color:'#6ee7b7'}}>← IN · auto</span>
+                <span style={{color:'#d8b4fe'}}>← OUT · record_outgoing</span>
+              </div>
+            </div>
+            <div style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.35)', borderRadius:9, padding:'8px 10px', flex:1}}>
+              <div style={{fontSize:10, fontWeight:700, color:'#a78bfa', marginBottom:5}}>🤖 Agent 3 · Broker</div>
+              <div style={{fontSize:9.5, color:'var(--muted)', marginBottom:2}}>broker_pipeline · Opus</div>
+              <div style={{fontSize:9.5, color:'#fde68a', marginBottom:2}}>get_or_enrich(ns="broker")</div>
+              <div style={{fontSize:9.5, color:'#f87171', marginBottom:4}}>is_refused_any() хард-стоп</div>
+              <div style={{fontSize:9, color:'var(--muted)'}}>brief → relay client ↔ vendor</div>
             </div>
           </div>
         </div>
 
-        {/* ─── Две раздельные картотеки + общий hard-stop ─── */}
-        <div style={{display:'grid', gridTemplateColumns:'1fr auto 1fr', gap:8, alignItems:'start'}}>
-          {/* LCB картотека */}
-          <div style={{background:'rgba(96,165,250,0.07)', border:'1px dashed rgba(96,165,250,0.4)', borderRadius:9, padding:'8px 12px'}}>
-            <div style={{fontSize:10, fontWeight:700, color:'#60a5fa', marginBottom:4}}>
-              📋 Картотека LCB
-              <span style={{fontSize:9, fontWeight:400, color:'var(--muted)', marginLeft:6}}>ключ: tg:username</span>
-            </div>
-            {[['client_intent','намерение'],['event_date_confirmed','дата'],['budget_confirmed','бюджет LCB'],['waiting_for_us','ждёт нас'],['silence_days','молчит Nд']].map(([k,v]) => (
-              <div key={k} style={{fontSize:9.5, color:'var(--muted)'}}>
-                <span style={{color:'#60a5fa', fontWeight:600}}>{k}</span> {v}
-              </div>
-            ))}
-          </div>
-          {/* Общий hard-stop */}
-          <div style={{display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4, padding:'0 4px'}}>
-            <div style={{fontSize:9, color:'#f87171', fontWeight:700, textAlign:'center', whiteSpace:'nowrap'}}>🚫 hard-stop</div>
-            <div style={{fontSize:9, color:'var(--muted)', textAlign:'center', whiteSpace:'nowrap'}}>is_refused_any()</div>
-            <div style={{fontSize:9, color:'var(--muted)', textAlign:'center'}}>↕</div>
-            <div style={{fontSize:9, color:'var(--muted)', textAlign:'center', whiteSpace:'nowrap'}}>оба агента</div>
-            <div style={{fontSize:9, color:'var(--muted)', textAlign:'center', whiteSpace:'nowrap'}}>видят отказ</div>
-          </div>
-          {/* Broker картотека */}
-          <div style={{background:'rgba(167,139,250,0.07)', border:'1px dashed rgba(167,139,250,0.4)', borderRadius:9, padding:'8px 12px'}}>
-            <div style={{fontSize:10, fontWeight:700, color:'#a78bfa', marginBottom:4}}>
-              📋 Картотека Broker
-              <span style={{fontSize:9, fontWeight:400, color:'var(--muted)', marginLeft:6}}>ключ: broker:tg:username</span>
-            </div>
-            {[['client_intent','намерение'],['event_date_confirmed','дата'],['budget_confirmed','бюджет Broker'],['waiting_for_us','ждёт нас'],['key_asks','уточнения']].map(([k,v]) => (
-              <div key={k} style={{fontSize:9.5, color:'var(--muted)'}}>
-                <span style={{color:'#a78bfa', fontWeight:600}}>{k}</span> {v}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div style={{fontSize:9.5, color:'var(--muted)', fontStyle:'italic', textAlign:'center'}}>
-          ↓ входящее → enrich(force) · ↑ исходящее → record_outgoing + enrich(force) · один и тот же человек — разные карточки, разные сигналы
-        </div>
-
-        {/* ─── Агент 2: LC Band DM ─── */}
-        {(() => {
-          return (
-            <div style={{background:'rgba(15,23,42,0.6)', borderRadius:10, border:'1px solid rgba(96,165,250,0.25)', padding:'10px 14px', overflowX:'auto'}}>
-              <div style={{fontSize:10, fontWeight:700, color:'#60a5fa', textTransform:'uppercase', letterSpacing:0.6, marginBottom:8}}>
-                🤖 Агент 2 — LC Band DM (кавер · drum-show)
-              </div>
-              <div style={{display:'grid', gridTemplateColumns:'minmax(105px,1fr) auto minmax(120px,1fr) auto minmax(155px,1fr) auto minmax(125px,1fr)', gap:0, alignItems:'start'}}>
-                <div>
-                  <PipeCol label="DM источники" />
-                  <SourceBox icon="📩" label="TG DM" sub="realtime push" active color='#38bdf8' />
-                  <SourceBox icon="✉️" label="VK DM" sub="longpoll" active color='#5b7fd4' style={{marginTop:5}} />
-                  <SourceBox icon="💚" label="WhatsApp" sub="Baileys" active={pipe.wa_active!==false} color='#25d366' style={{marginTop:5}} />
-                </div>
-                <FlowArrow />
-                <div>
-                  <PipeCol label="🤖 LCB-агент" />
-                  <div style={{background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.35)', borderRadius:8, padding:'7px 9px'}}>
-                    <div style={{fontSize:10, fontWeight:700, color:'#60a5fa'}}>unified_dm_responder</div>
-                    <div style={{height:1, background:'rgba(96,165,250,0.2)', margin:'5px 0'}} />
-                    <div style={{fontSize:9.5, color:'#f59e0b'}}>↕ общая картотека</div>
-                    <div style={{fontSize:9.5, color:'var(--muted)', marginTop:2}}>CRM · vendor check</div>
-                    <div style={{fontSize:9.5, color:'var(--muted)'}}>Opus draft</div>
-                    <div style={{fontSize:9.5, color:'var(--muted)'}}>ai_review → send</div>
-                    <div style={{height:1, background:'rgba(96,165,250,0.2)', margin:'5px 0'}} />
-                    <div style={{fontSize:9.5, color:'var(--muted)', fontStyle:'italic'}}>Промпты:</div>
-                    <div style={{fontSize:9.5, color:'#34d399'}}>🗂 logistics</div>
-                    <div style={{fontSize:9.5, color:'#fbbf24'}}>💼 sales</div>
-                    <div style={{fontSize:9.5, color:'#60a5fa'}}>📤 cold pitch</div>
-                  </div>
-                </div>
-                <FlowArrow />
-                <div>
-                  <PipeCol label="Выход" />
-                  <div style={{fontSize:9.5, color:'#60a5fa', fontWeight:600, padding:'2px 0'}}>→ TG / VK / WA</div>
-                  <div style={{fontSize:9.5, color:'#f59e0b', padding:'2px 0'}}>→ Картотека update</div>
-                  <div style={{height:1, background:'var(--border)', margin:'5px 0'}} />
-                  <div style={{fontSize:9.5, color:'#fbbf24', padding:'2px 0'}}>⚠️ approval-бот</div>
-                  <div style={{fontSize:9.5, color:'#38bdf8', padding:'2px 0'}}>📋 follow-up</div>
-                  <div style={{fontSize:9.5, color:'#f87171', padding:'2px 0'}}>🔇 skip/отказ</div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* ─── Агент 3: Broker ─── */}
-        <div style={{background:'rgba(15,23,42,0.6)', borderRadius:10, border:'1px solid rgba(167,139,250,0.25)', padding:'10px 14px', overflowX:'auto'}}>
-          <div style={{fontSize:10, fontWeight:700, color:'#a78bfa', textTransform:'uppercase', letterSpacing:0.6, marginBottom:8}}>
-            🤖 Агент 3 — Broker (подбор подрядчиков)
-          </div>
-          <div style={{display:'grid', gridTemplateColumns:'minmax(105px,1fr) auto minmax(120px,1fr) auto minmax(155px,1fr) auto minmax(125px,1fr)', gap:0, alignItems:'start'}}>
-            <div>
-              <PipeCol label="Вход" />
-              <div style={{background:'rgba(167,139,250,0.1)', border:'1px solid rgba(167,139,250,0.3)', borderRadius:7, padding:'7px 9px'}}>
-                <div style={{fontSize:10, color:'#a78bfa', fontWeight:600}}>broker_request</div>
-                <div style={{fontSize:9.5, color:'var(--muted)', marginTop:3}}>← от Агента 1</div>
-                <div style={{height:1, background:'rgba(167,139,250,0.2)', margin:'5px 0'}} />
-                <div style={{fontSize:9.5, color:'var(--muted)'}}>DM входящие</div>
-                <div style={{fontSize:9.5, color:'var(--muted)'}}>VK / WA</div>
-              </div>
-            </div>
-            <FlowArrow />
-            <div>
-              <PipeCol label="🤖 Broker-агент" />
-              <div style={{background:'rgba(167,139,250,0.1)', border:'1px solid rgba(167,139,250,0.35)', borderRadius:8, padding:'7px 9px'}}>
-                <div style={{fontSize:10, fontWeight:700, color:'#a78bfa'}}>broker_pipeline</div>
-                <div style={{height:1, background:'rgba(167,139,250,0.2)', margin:'5px 0'}} />
-                <div style={{fontSize:9.5, color:'#f59e0b'}}>↕ общая картотека</div>
-                <div style={{fontSize:9.5, color:'var(--muted)', marginTop:2}}>vendor search</div>
-                <div style={{fontSize:9.5, color:'var(--muted)'}}>Opus brief</div>
-                <div style={{fontSize:9.5, color:'var(--muted)'}}>relay client ↔ vendor</div>
-                <div style={{height:1, background:'rgba(167,139,250,0.2)', margin:'5px 0'}} />
-                <div style={{fontSize:9.5, color:'var(--muted)', fontStyle:'italic'}}>Промпты:</div>
-                <div style={{fontSize:9.5, color:'#a78bfa'}}>📋 intake brief</div>
-                <div style={{fontSize:9.5, color:'#94a3b8'}}>📤 contractor relay</div>
-              </div>
-            </div>
-            <FlowArrow />
-            <div>
-              <PipeCol label="Выход" />
-              <div style={{fontSize:9.5, color:'#a78bfa', fontWeight:600, padding:'2px 0'}}>→ клиент (relay)</div>
-              <div style={{fontSize:9.5, color:'#f59e0b', padding:'2px 0'}}>→ Картотека update</div>
-              <div style={{height:1, background:'var(--border)', margin:'5px 0'}} />
-              <div style={{fontSize:9.5, color:'#94a3b8', padding:'2px 0'}}>→ подрядчик (brief)</div>
-              <div style={{fontSize:9.5, color:'#fbbf24', padding:'2px 0'}}>⚠️ approval деньги</div>
-              <div style={{fontSize:9.5, color:'#f87171', padding:'2px 0'}}>🔇 нет подрядчика</div>
-            </div>
+        {/* Dual-stream */}
+        <div style={{background:'rgba(20,184,166,.05)', border:'1px solid rgba(20,184,166,.25)', borderRadius:8, padding:'7px 12px'}}>
+          <div style={{fontSize:10, fontWeight:700, color:'#5eead4', marginBottom:4}}>↕ Dual-stream — каждый ответ агента идёт двумя потоками одновременно</div>
+          <div style={{display:'flex', gap:12, flexWrap:'wrap'}}>
+            <div style={{fontSize:9.5, color:'#93c5fd'}}><span style={{fontWeight:700}}>Поток 1 →</span> сообщение доставлено в TG / VK / WA</div>
+            <div style={{fontSize:9.5, color:'#5eead4'}}><span style={{fontWeight:700}}>Поток 2 →</span> <code style={{fontSize:9}}>_record_outgoing_to_cache(out=True)</code> + <code style={{fontSize:9}}>enrich(force=True)</code> → карточка обновлена</div>
           </div>
         </div>
 
+        {/* Arrows */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, textAlign:'center', color:'var(--muted)', fontSize:16, lineHeight:1}}>
+          <div>↓</div><div>↓</div><div>↓</div>
+        </div>
+
+        {/* Row 3: Outputs */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8}}>
+          <div style={{background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.3)', borderRadius:9, padding:'7px 10px'}}>
+            <div style={{fontSize:10, fontWeight:700, color:'#6ee7b7', marginBottom:4}}>✅ Выход Agent 1</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>orders.db → воронка</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>approval bot → pitch DM</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>skip → mark-read</div>
+          </div>
+          <div style={{background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.3)', borderRadius:9, padding:'7px 10px'}}>
+            <div style={{fontSize:10, fontWeight:700, color:'#6ee7b7', marginBottom:4}}>✅ Выход Agent 2</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>ответ → TG / VK / WA</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>+ картотека LCB обновлена</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>follow-up · 10:09 · 30м</div>
+          </div>
+          <div style={{background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.3)', borderRadius:9, padding:'7px 10px'}}>
+            <div style={{fontSize:10, fontWeight:700, color:'#6ee7b7', marginBottom:4}}>✅ Выход Agent 3</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>relay → клиент</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>brief → подрядчик</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>+ картотека Broker обновлена</div>
+          </div>
+        </div>
+
+        {/* Hard-stop + followup */}
+        <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+          <div style={{flex:1, background:'rgba(239,68,68,.06)', border:'1px solid rgba(239,68,68,.2)', borderRadius:7, padding:'6px 10px', fontSize:9.5, color:'#fca5a5', minWidth:180}}>
+            🛑 <code style={{fontSize:9}}>is_refused_any()</code> — общий хард-стоп: отказал одному → молчат оба агента (LCB + Broker)
+          </div>
+          <div style={{flex:1, background:'rgba(245,158,11,.05)', border:'1px solid rgba(245,158,11,.2)', borderRadius:7, padding:'6px 10px', fontSize:9.5, color:'#fde68a', minWidth:180}}>
+            ⏰ Follow-ups: <code style={{fontSize:9}}>tg_followup</code> 10:09 · <code style={{fontSize:9}}>attention_auto_action</code> 30м · <code style={{fontSize:9}}>broker-*-followup</code> — читают <code style={{fontSize:9}}>get_or_enrich()</code>
+          </div>
+        </div>
+
+      </div>
       </div>
 
       {/* Live events feed */}

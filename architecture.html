@@ -126,16 +126,25 @@
     .side-nav .snb { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; font-size: 11px; color: var(--muted); cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s; }
     .side-nav .snb:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
     .side-nav .snb-gold { border-color: rgba(245,197,24,.3); color: var(--gold); }
+    .hn { color: var(--muted); font-size: 12px; font-weight: 600; text-decoration: none; padding: 5px 9px; border-radius: 7px; background: rgba(255,255,255,.05); border: 1px solid var(--border); white-space: nowrap; transition: color .15s, border-color .15s; }
+    .hn:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
   </style>
 </head>
 <body>
 
 <div class="hdr">
-  <div>
-    <div class="hdr-title">⚙️ Архитектура LCB</div>
+  <div style="flex-shrink:0">
+    <div class="hdr-title">⚙️ Архитектура</div>
     <div class="hdr-sub">Посты · DM · Агенты · Картотека · Фолоу-апы</div>
   </div>
-  <a href="./index.html" style="margin-left:auto">← Дашборд</a>
+  <nav style="display:flex;gap:6px;align-items:center;margin-left:16px;overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap">
+    <a href="./index.html"     class="hn">🏠 Дашборд</a>
+    <a href="./broker.html"    class="hn">🤝 Broker</a>
+    <a href="./contacts.html"  class="hn">🎭 Contacts</a>
+    <a href="./cost.html"      class="hn">💸 Расход</a>
+    <a href="./bw-catchup.html" class="hn">🔍 BW</a>
+    <a href="./ab-monitor.html" class="hn">📊 AB</a>
+  </nav>
 </div>
 
 <div class="wrap">
