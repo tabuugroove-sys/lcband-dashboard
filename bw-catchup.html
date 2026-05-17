@@ -16,6 +16,7 @@
   --green: #10b981;
   --yellow:#f59e0b;
   --red:   #ef4444;
+  --vk:    #4c75a3;
 }
 * { box-sizing:border-box; margin:0; padding:0; }
 body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:14px; padding:0 0 60px; }
@@ -38,6 +39,7 @@ h1 { font-size:20px; font-weight:700; padding:20px 20px 4px; }
 .chip-warn { background:rgba(245,158,11,.15);  color:var(--yellow); border:1px solid rgba(245,158,11,.3); }
 .chip-off  { background:rgba(100,116,139,.15); color:var(--muted);  border:1px solid rgba(100,116,139,.3); }
 .chip-bw   { background:rgba(167,139,250,.15); color:var(--bw);     border:1px solid rgba(167,139,250,.3); }
+.chip-vk   { background:rgba(76,117,163,.15);  color:var(--vk);     border:1px solid rgba(76,117,163,.3); }
 
 /* Summary cards */
 .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; padding:0 20px 24px; }
@@ -49,6 +51,7 @@ h1 { font-size:20px; font-weight:700; padding:20px 20px 4px; }
 .card-bw  .card-val { color:var(--bw); }
 .card-pct .card-val { color:var(--green); }
 .card-dup .card-val { color:var(--muted); }
+.card-vk  .card-val { color:var(--vk); }
 
 /* Section headers */
 .section { padding:0 20px 8px; }
@@ -112,6 +115,7 @@ td.ok      { color:var(--green); }
   <span id="tg-status"  class="chip chip-ok">● TG Monitor: активен</span>
   <span id="bw-status"  class="chip chip-off">⏸ BW: нет данных</span>
   <span id="rec-status" class="chip chip-off">📋 Reconcile: нет данных</span>
+  <span id="vk-status"  class="chip chip-off">⏸ VK: нет данных</span>
 </div>
 
 <div class="cards">
@@ -163,6 +167,55 @@ td.ok      { color:var(--green); }
 
 <div class="section"><h2>Последний запуск BW — найденные лиды</h2></div>
 <div id="bw-leads-wrap" style="padding:0 20px 24px"></div>
+
+<!-- ══════════ VK PROCESS ══════════ -->
+<div class="section" style="margin-top:8px">
+  <h2 style="color:var(--vk)">🔵 VK Monitor — процесс за 24ч</h2>
+</div>
+
+<div class="cards" id="vk-cards">
+  <div class="card card-vk">
+    <div class="card-label">Циклов (24ч)</div>
+    <div class="card-val" id="vk-cycles">—</div>
+    <div class="card-sub">раз в ~10 мин</div>
+  </div>
+  <div class="card card-vk">
+    <div class="card-label">Постов прочитано</div>
+    <div class="card-val" id="vk-posts">—</div>
+    <div class="card-sub">за 24ч</div>
+  </div>
+  <div class="card card-pct">
+    <div class="card-label">Лидов найдено</div>
+    <div class="card-val" id="vk-orders">—</div>
+    <div class="card-sub">за 24ч</div>
+  </div>
+  <div class="card card-dup">
+    <div class="card-label">Групп активно</div>
+    <div class="card-val" id="vk-groups">—</div>
+    <div class="card-sub">VK event-группы</div>
+  </div>
+</div>
+
+<div class="section"><h2>VK — статус по группам</h2></div>
+<div class="table-wrap">
+  <table class="rec-table" id="vk-table">
+    <thead>
+      <tr>
+        <th>Группа</th>
+        <th class="num">Постов (цикл)</th>
+        <th class="num">Лидов (цикл)</th>
+        <th>Последняя проверка</th>
+        <th>Статус</th>
+      </tr>
+    </thead>
+    <tbody id="vk-tbody"><tr><td colspan="5" style="padding:16px;color:var(--muted);text-align:center">Загрузка…</td></tr></tbody>
+  </table>
+</div>
+
+<div class="section"><h2>VK — последние питчи / действия (24ч)</h2></div>
+<div class="feed" id="vk-feed">
+  <div class="feed-empty">Загрузка…</div>
+</div>
 
 <script>
 const BASE = 'http://127.0.0.1:8878';
@@ -321,6 +374,63 @@ async function load() {
           <div class="meta">${l.source_chat||''} · ${l.date||''} · ${l.format||l.kind||''} · ${l.city||''}</div>
         </div>
       `).join('')}</div>`;
+    }
+
+    // ── VK ──
+    const vk = d.vk || {};
+    document.getElementById('vk-cycles').textContent  = vk.cycles_24h  ?? '—';
+    document.getElementById('vk-posts').textContent   = vk.posts_24h   ?? '—';
+    document.getElementById('vk-orders').textContent  = vk.orders_24h  ?? '—';
+    document.getElementById('vk-groups').textContent  = vk.groups_total ?? '—';
+
+    // VK status chip
+    const vkChip = document.getElementById('vk-status');
+    if (vk.last_cycle) {
+      const agoCls = (vk.cycles_24h || 0) > 0 ? 'chip-vk' : 'chip-warn';
+      vkChip.className = `chip ${agoCls}`;
+      vkChip.textContent = `● VK: ${fmtAgo(vk.last_cycle)} · ${vk.cycles_24h||0} циклов`;
+    }
+
+    // VK groups table
+    const vkTbody = document.getElementById('vk-tbody');
+    const groups = vk.groups || [];
+    if (groups.length === 0) {
+      vkTbody.innerHTML = '<tr><td colspan="5" style="padding:16px;color:var(--muted);text-align:center">Нет данных</td></tr>';
+    } else {
+      vkTbody.innerHTML = groups.map(g => {
+        const gname = g.id.replace('vk_group_', '');
+        const statusCol = g.status === 'ok' ? 'ok' : 'gap';
+        return `<tr>
+          <td style="color:var(--vk);font-weight:600">group ${gname}</td>
+          <td class="num">${g.posts}</td>
+          <td class="num ${g.leads > 0 ? 'hit-bw' : ''}">${g.leads > 0 ? g.leads : '—'}</td>
+          <td style="color:var(--muted);font-size:11px">${fmtAgo(g.last_check)}</td>
+          <td class="${statusCol}">${g.status === 'ok' ? '✓' : g.status}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    // VK pitches feed
+    const vkFeed = document.getElementById('vk-feed');
+    const pitches = vk.pitches_24h || [];
+    if (pitches.length === 0) {
+      vkFeed.innerHTML = '<div class="feed-empty">Питчей за 24ч нет</div>';
+    } else {
+      const actionLabel = a => ({
+        sent: '✅ отправлен', ai_skip: '⬜ AI skip', ai_adapt: '🔄 adapt',
+        review_block: '🔴 blocked', draft_only: '📝 draft',
+      }[a] || a || '—');
+      const actionCls = a => ({
+        sent: 'v-lead', ai_skip: 'v-skip', review_block: 'v-refusal',
+      }[a] || 'v-other');
+      vkFeed.innerHTML = pitches.map(p => `
+        <div class="feed-row">
+          <span class="feed-ts">${fmtTime(p.ts)}</span>
+          <span class="feed-chat">@${p.vk_id || p.id || '?'}</span>
+          <span class="feed-verdict ${actionCls(p.action)}">${actionLabel(p.action)}</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:8px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(p.reason||'').slice(0,80)}</span>
+        </div>
+      `).join('');
     }
 
   } catch(e) {
