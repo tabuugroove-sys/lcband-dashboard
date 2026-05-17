@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LC Band — Карточки контекста</title>
+<link rel="stylesheet" href="_theme.css">
+<script src="_theme.js"></script>
+<script src="_nav.js"></script>
+<style>
+  :root {
+    --bg:      #08080f;
+    --card:    #111120;
+    --card2:   #18182a;
+    --border:  #22223a;
+    --gold:    #f5c518;
+    --text:    #e2e8f0;
+    --muted:   #7c8ba1;
+    --ok:      #22c55e;
+    --warn:    #f59e0b;
+    --bad:     #ef4444;
+    --info:    #60a5fa;
+    --purple:  #a78bfa;
+  }
+  :root[data-theme="light"] {
+    --bg:#f4f6fb; --card:#fff; --card2:#f0f2f8; --border:#d0d7de;
+    --gold:#9a6700; --text:#1f2328; --muted:#59636e;
+    --ok:#16a34a; --warn:#b45309; --bad:#dc2626; --info:#1d4ed8; --purple:#7c3aed;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); min-height: 100vh; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; padding: 16px; }
+
+  .app { max-width: 1200px; margin: 0 auto; padding-top: 54px; }
+
+  /* ── Header ── */
+  .page-header { margin-bottom: 16px; }
+  .page-header h1 { font-size: 22px; color: var(--gold); font-weight: 700; }
+  .page-header p  { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+  /* ── Controls ── */
+  .controls {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 14px;
+  }
+  .controls input[type=text] {
+    padding: 6px 10px; border-radius: 7px; border: 1px solid var(--border);
+    background: var(--card2); color: var(--text); font-size: 12px;
+    outline: none; width: 200px;
+  }
+  .controls input[type=text]:focus { border-color: var(--info); }
+  .filter-btn {
+    padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--card2); color: var(--muted); font-size: 11px;
+    cursor: pointer; transition: all .15s;
+  }
+  .filter-btn.active { border-color: var(--info); color: var(--info); background: rgba(96,165,250,0.08); }
+  .meta-line { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+  /* ── Stats bar ── */
+  .stats-bar {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .stat-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 8px;
+    background: var(--card2); border: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .stat-chip .n { font-weight: 700; }
+
+  /* ── Cards grid ── */
+  .cards-grid { display: flex; flex-direction: column; gap: 10px; }
+
+  /* ── Single card ── */
+  .ctx-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+    transition: border-color .15s;
+  }
+  .ctx-card:hover { border-color: #3a3a5a; }
+  .ctx-card.needs-action  { border-color: rgba(239,68,68,0.45); background: rgba(239,68,68,0.04); }
+  .ctx-card.has-event     { border-color: rgba(34,197,94,0.3); }
+  .ctx-card.overdue       { border-color: rgba(245,158,11,0.4); }
+
+  .card-header {
+    padding: 10px 14px; display: flex; align-items: center;
+    gap: 8px; flex-wrap: wrap; border-bottom: 1px solid var(--border);
+    cursor: pointer; user-select: none;
+  }
+  .card-header:hover { background: rgba(255,255,255,0.02); }
+
+  .ch-badge {
+    border-radius: 5px; padding: 1px 6px;
+    font-size: 10px; font-weight: 700; letter-spacing: .5px;
+    color: #fff;
+  }
+  .ch-tg { background: #2b6cb0; }
+  .ch-wa { background: #16a34a; }
+  .ch-vk { background: #7c3aed; }
+
+  .username { font-size: 14px; font-weight: 700; }
+  .intent-badge {
+    border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 500;
+  }
+  .chevron { margin-left: 4px; color: var(--muted); font-size: 11px; transition: transform .2s; }
+  .chevron.open { transform: rotate(180deg); }
+
+  .card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* ── Section within card ── */
+  .card-section { }
+  .card-section-title {
+    font-size: 10px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .8px;
+    margin-bottom: 6px;
+  }
+
+  /* ── Pill tags ── */
+  .pills { display: flex; gap: 5px; flex-wrap: wrap; }
+  .pill {
+    border-radius: 6px; padding: 2px 8px; font-size: 11px;
+    border: 1px solid transparent;
+  }
+  .pill-green  { background: rgba(34,197,94,0.1);  color: var(--ok);   border-color: rgba(34,197,94,0.25); }
+  .pill-blue   { background: rgba(96,165,250,0.1);  color: var(--info); border-color: rgba(96,165,250,0.25); }
+  .pill-amber  { background: rgba(245,158,11,0.1);  color: var(--warn); border-color: rgba(245,158,11,0.25); }
+  .pill-red    { background: rgba(239,68,68,0.1);   color: var(--bad);  border-color: rgba(239,68,68,0.25); }
+  .pill-grey   { background: rgba(255,255,255,0.06); color: var(--muted); }
+
+  /* ── Follow-up timeline ── */
+  .timeline { display: flex; flex-direction: column; gap: 4px; }
+  .tl-row { display: flex; gap: 8px; align-items: flex-start; font-size: 11px; }
+  .tl-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 3px; flex-shrink: 0; }
+  .tl-date { color: var(--muted); min-width: 80px; flex-shrink: 0; }
+  .tl-note { color: var(--text); flex: 1; line-height: 1.35; }
+
+  /* ── Next followup countdown ── */
+  .followup-box {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 8px; font-size: 12px;
+  }
+  .followup-box.overdue { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); color: var(--warn); }
+  .followup-box.soon    { background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.2); color: var(--info); }
+  .followup-box.future  { background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--muted); }
+
+  /* ── Event graph event row ── */
+  .eg-event {
+    padding: 7px 10px; border-radius: 8px;
+    background: var(--card2); border: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .eg-event-header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-weight: 600; }
+  .eg-event-detail { color: var(--muted); margin-top: 3px; line-height: 1.35; }
+
+  /* ── Promises ── */
+  .promise-row {
+    padding: 5px 8px; border-radius: 7px; font-size: 11px;
+    background: rgba(96,165,250,0.06); border-left: 2px solid var(--info);
+    display: flex; gap: 8px;
+  }
+  .promise-dir { font-size: 10px; color: var(--muted); min-width: 60px; flex-shrink: 0; }
+
+  /* ── Team threads ── */
+  .thread-row {
+    display: flex; gap: 8px; align-items: flex-start;
+    padding: 5px 8px; border-radius: 7px;
+    background: var(--card2);
+  }
+  .thread-status-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 3px; flex-shrink: 0; }
+  .thread-info { flex: 1; min-width: 0; }
+  .thread-name { font-size: 12px; font-weight: 600; }
+  .thread-sub  { font-size: 11px; color: var(--muted); }
+  .tech-cat-badge { font-size: 10px; padding: 1px 6px; border-radius: 5px; }
+
+  /* ── Group chat note ── */
+  .group-chat-note { font-size: 11px; color: var(--muted); font-style: italic; }
+
+  /* ── Empty state ── */
+  .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
+
+  /* ── Loading skeleton ── */
+  .skeleton { background: linear-gradient(90deg, var(--card2) 25%, var(--border) 50%, var(--card2) 75%); background-size: 200%; animation: shimmer 1.2s infinite; border-radius: 8px; height: 80px; }
+  @keyframes shimmer { 0%{background-position:200%} 100%{background-position:-200%} }
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="page-header">
+  <h1>🗂 Карточки контекста</h1>
+  <p>AI-портрет каждого лида: переписка, намерение, follow-up план, команда мероприятия, обещания</p>
+</div>
+
+<div class="controls" id="controls">
+  <input type="text" id="search" placeholder="Поиск по username…" oninput="applyFilters()">
+
+  <div id="intent-filters" style="display:flex;gap:4px;flex-wrap:wrap;">
+    <button class="filter-btn active" data-intent="" onclick="setIntent(this,'')">Все</button>
+    <button class="filter-btn" data-intent="active" onclick="setIntent(this,'active')">🟢 Активные</button>
+    <button class="filter-btn" data-intent="interested" onclick="setIntent(this,'interested')">🔵 Интерес</button>
+    <button class="filter-btn" data-intent="silent" onclick="setIntent(this,'silent')">🟡 Молчат</button>
+  </div>
+
+  <div style="display:flex;gap:4px;">
+    <button class="filter-btn" id="btn-waiting" onclick="toggleFilter('waiting')">⚡ Ждут ответа</button>
+    <button class="filter-btn" id="btn-event" onclick="toggleFilter('event')">📅 С датой</button>
+    <button class="filter-btn" id="btn-overdue" onclick="toggleFilter('overdue')">⏰ Просрочен фолоуап</button>
+  </div>
+
+  <span class="meta-line" id="meta-line">загрузка…</span>
+</div>
+
+<div class="stats-bar" id="stats-bar"></div>
+
+<div class="cards-grid" id="cards-grid">
+  <div class="skeleton"></div>
+  <div class="skeleton"></div>
+  <div class="skeleton"></div>
+</div>
+
+</div>
+
+<script>
+const INTENT_COLOR = {active:'#22c55e',interested:'#3b82f6',silent:'#f59e0b',refused:'#ef4444',cold:'#94a3b8'};
+const INTENT_LABEL = {active:'активный',interested:'интересуется',silent:'молчит',refused:'отказ',cold:'холодный'};
+const THREAD_STATUS_COLOR = {confirmed:'#22c55e',pending:'#f59e0b',no_contact:'#4b5563',issue:'#ef4444',not_related:'#4b5563'};
+const THREAD_STATUS_LABEL = {confirmed:'подтверждён',pending:'ожидаем',no_contact:'нет контакта',issue:'проблема',not_related:'не связано'};
+const TECH_CAT = {
+  our_tech:  {label:'Наш / мы платим',   icon:'🔧', color:'#22c55e'},
+  org_tech:  {label:'Тех орга',          icon:'🤝', color:'#f59e0b'},
+  venue_tech:{label:'Тех площадки',      icon:'🏛', color:'#60a5fa'},
+};
+
+let ALL_CARDS = [];
+let EXPANDED  = new Set();
+let intentFilter  = '';
+let filterWaiting = false;
+let filterEvent   = false;
+let filterOverdue = false;
+
+async function getBackendUrl() {
+  try {
+    const r = await fetch('./backend_url.json?_='+Date.now());
+    if (r.ok) { const j = await r.json(); if (j&&j.url) return j.url.replace(/\/$/,''); }
+  } catch(_) {}
+  return 'http://127.0.0.1:8878';
+}
+
+async function loadData() {
+  const base = await getBackendUrl();
+  try {
+    const r = await fetch(`${base}/api/context_cards?limit=200&include_refused=0`, {cache:'no-store'});
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    ALL_CARDS = data.cards || [];
+    renderStats(data);
+    applyFilters();
+  } catch(e) {
+    document.getElementById('cards-grid').innerHTML =
+      `<div class="empty">Не удалось загрузить данные: ${e.message}</div>`;
+    document.getElementById('meta-line').textContent = 'ошибка загрузки';
+  }
+}
+
+function renderStats(data) {
+  const bi = data.by_intent || {};
+  const chips = [
+    ['🟢', bi.active||0, '#22c55e', 'активных'],
+    ['🔵', bi.interested||0, '#3b82f6', 'интерес'],
+    ['🟡', bi.silent||0, '#f59e0b', 'молчат'],
+    ['⚡', data.needs_action||0, '#ef4444', 'ждут ответа'],
+    ['⏰', data.overdue_followups||0, '#f59e0b', 'просрочен фолоуап'],
+  ];
+  document.getElementById('stats-bar').innerHTML = chips.map(([ico,n,c,l]) =>
+    `<span class="stat-chip"><span style="color:${c}">${ico}</span><span class="n" style="color:${c}">${n}</span><span style="color:var(--muted)">${l}</span></span>`
+  ).join('');
+  const t = data.generated_at || '';
+  document.getElementById('meta-line').textContent =
+    `${data.total_shown} из ${data.total_in_store} карточек · ${t.slice(11,16)}`;
+}
+
+function setIntent(btn, val) {
+  intentFilter = val;
+  document.querySelectorAll('[data-intent]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function toggleFilter(name) {
+  if (name === 'waiting') filterWaiting = !filterWaiting;
+  if (name === 'event')   filterEvent   = !filterEvent;
+  if (name === 'overdue') filterOverdue = !filterOverdue;
+  document.getElementById('btn-'+name).classList.toggle('active');
+  applyFilters();
+}
+
+function applyFilters() {
+  const q = (document.getElementById('search').value || '').toLowerCase();
+  let cards = ALL_CARDS;
+
+  if (q) cards = cards.filter(c => (c.username||'').toLowerCase().includes(q) || (c.crm_client||'').toLowerCase().includes(q));
+  if (intentFilter) cards = cards.filter(c => c.client_intent === intentFilter);
+  if (filterWaiting) cards = cards.filter(c => c.waiting_for_us);
+  if (filterEvent)   cards = cards.filter(c => c.event_date_confirmed || c.eg_events?.length);
+  if (filterOverdue) cards = cards.filter(c => c.days_until_followup !== null && c.days_until_followup < 0);
+
+  renderCards(cards);
+}
+
+function renderCards(cards) {
+  const grid = document.getElementById('cards-grid');
+  if (!cards.length) {
+    grid.innerHTML = '<div class="empty">Нет карточек по заданным фильтрам</div>';
+    return;
+  }
+  grid.innerHTML = cards.map(c => renderCard(c)).join('');
+  // Restore expanded state
+  document.querySelectorAll('.ctx-card').forEach(el => {
+    const key = el.dataset.key;
+    const body = el.querySelector('.card-body');
+    const chev = el.querySelector('.chevron');
+    if (EXPANDED.has(key) || el.classList.contains('needs-action')) {
+      body.style.display = '';
+      if (chev) chev.classList.add('open');
+    } else {
+      body.style.display = 'none';
+    }
+  });
+}
+
+function toggleCard(key) {
+  const el   = document.querySelector(`.ctx-card[data-key="${key}"]`);
+  if (!el) return;
+  const body = el.querySelector('.card-body');
+  const chev = el.querySelector('.chevron');
+  if (body.style.display === 'none') {
+    body.style.display = '';
+    chev && chev.classList.add('open');
+    EXPANDED.add(key);
+  } else {
+    body.style.display = 'none';
+    chev && chev.classList.remove('open');
+    EXPANDED.delete(key);
+  }
+}
+
+function renderCard(c) {
+  const intentC = INTENT_COLOR[c.client_intent] || '#888';
+  const intentL = INTENT_LABEL[c.client_intent] || c.client_intent;
+  const chClass = `ch-${c.channel||'tg'}`;
+  const chLabel = (c.channel||'tg').toUpperCase();
+
+  const isNeedsAction = c.waiting_for_us;
+  const hasEvent = c.event_date_confirmed || (c.eg_events && c.eg_events.length > 0);
+  const isOverdue = c.days_until_followup !== null && c.days_until_followup < 0;
+
+  let cardClass = 'ctx-card';
+  if (isNeedsAction) cardClass += ' needs-action';
+  else if (hasEvent) cardClass += ' has-event';
+  else if (isOverdue) cardClass += ' overdue';
+
+  // Silence label
+  const silLabel = c.silence_days < 1
+    ? `${Math.round(c.silence_days * 24)}ч молчания`
+    : `${c.silence_days.toFixed(1)}д молчания`;
+
+  // Follow-up countdown
+  let fuHtml = '';
+  if (c.next_followup_planned) {
+    const d = c.days_until_followup;
+    let cls = d < 0 ? 'overdue' : d <= 3 ? 'soon' : 'future';
+    let label = d < 0 ? `просрочен ${Math.abs(d)}д` : d === 0 ? 'сегодня' : d === 1 ? 'завтра' : `через ${d}д`;
+    fuHtml = `<span class="followup-box ${cls}">⏰ Фолоуап ${c.next_followup_planned} · ${label}</span>`;
+  }
+
+  // Header pills
+  let headerExtra = '';
+  if (c.waiting_for_us)    headerExtra += `<span style="color:#ef4444;font-size:11px;font-weight:700">⚡ ждёт ответа</span>`;
+  if (c.waiting_for_client) headerExtra += `<span style="color:#f59e0b;font-size:11px">⏳ ждём клиента</span>`;
+  if (c.crm_status)        headerExtra += `<span style="font-size:10px;color:var(--muted);padding:1px 6px;border:1px solid var(--border);border-radius:5px">${e(c.crm_status)}</span>`;
+
+  const html = `
+<div class="${cardClass}" data-key="${e(c.key)}">
+  <div class="card-header" onclick="toggleCard('${e(c.key)}')">
+    <span class="ch-badge ${chClass}">${chLabel}</span>
+    <span class="username">@${e(c.username)}</span>
+    ${c.crm_client ? `<span style="font-size:12px;color:var(--muted)">${e(c.crm_client)}</span>` : ''}
+    <span class="intent-badge" style="background:${intentC}22;color:${intentC};border:1px solid ${intentC}44">${intentL}</span>
+    ${headerExtra}
+    <span style="font-size:11px;color:var(--muted);margin-left:auto">${silLabel}</span>
+    ${fuHtml ? `<span style="font-size:10px;color:var(--warn)">⏰</span>` : ''}
+    <span class="chevron">▼</span>
+  </div>
+  <div class="card-body">
+    ${renderCardBody(c)}
+  </div>
+</div>`;
+  return html;
+}
+
+function renderCardBody(c) {
+  const parts = [];
+
+  // ── Next action hint ──
+  if (c.next_action_hint) {
+    parts.push(`<div style="font-size:12px;color:#d1d5db;padding:0 2px">→ ${e(c.next_action_hint)}</div>`);
+  }
+
+  // ── Pills: date, budget, key_asks ──
+  let pills = '';
+  if (c.event_date_confirmed) pills += `<span class="pill pill-green">📅 ${e(c.event_date_confirmed)}</span>`;
+  if (c.budget_confirmed)     pills += `<span class="pill pill-blue">💰 ${e(c.budget_confirmed)}</span>`;
+  if (c.refusal_detected && c.refusal_signal) pills += `<span class="pill pill-red">✗ ${e(c.refusal_signal.slice(0,50))}</span>`;
+  (c.key_asks||[]).slice(0,4).forEach(a => { pills += `<span class="pill pill-grey">${e(a)}</span>`; });
+  if (pills) parts.push(`<div class="card-section"><div class="pills">${pills}</div></div>`);
+
+  // ── Follow-up section ──
+  let fuParts = '';
+  if (c.next_followup_planned) {
+    const d = c.days_until_followup;
+    const cls = d < 0 ? 'overdue' : d <= 3 ? 'soon' : 'future';
+    const label = d < 0 ? `просрочен на ${Math.abs(d)} дн` : d === 0 ? 'сегодня' : d === 1 ? 'завтра' : `через ${d} дн`;
+    fuParts += `<div class="followup-box ${cls}" style="margin-bottom:8px">⏰ Следующий фолоуап: <strong>${e(c.next_followup_planned)}</strong> — ${label}${c.next_followup_note ? ' · ' + e(c.next_followup_note.slice(0,60)) : ''}</div>`;
+  }
+  if (c.last_followup_date) {
+    fuParts += `<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Последняя активность: ${e(c.last_followup_date)}</div>`;
+  }
+  if ((c.followup_history||[]).length > 0) {
+    const recent = c.followup_history.slice(-5).reverse();
+    fuParts += `<div class="timeline">${recent.map(h => `
+      <div class="tl-row">
+        <div class="tl-dot" style="background:var(--border)"></div>
+        <div class="tl-date">${e(h.date)}</div>
+        <div class="tl-note">${e(h.note)}</div>
+      </div>`).join('')}</div>`;
+  }
+  if (fuParts) {
+    parts.push(`<div class="card-section"><div class="card-section-title">Follow-up</div>${fuParts}</div>`);
+  }
+
+  // ── Event graph events ──
+  if ((c.eg_events||[]).length > 0) {
+    const evHtml = c.eg_events.map(ev => {
+      const statusColor = {lead:'#60a5fa',negotiation:'#f59e0b',confirmed:'#22c55e',won:'#22c55e',lost:'#ef4444'}[ev.status] || '#888';
+      return `<div class="eg-event">
+        <div class="eg-event-header">
+          <span style="color:${statusColor};font-size:10px;font-weight:700;text-transform:uppercase">${e(ev.status)}</span>
+          <span>${ev.event_date ? '📅 ' + e(ev.event_date) : ''}</span>
+          ${ev.city ? `<span style="color:var(--muted)">📍 ${e(ev.city)}</span>` : ''}
+          ${ev.brand ? `<span class="pill pill-grey" style="font-size:10px">${e(ev.brand)}</span>` : ''}
+        </div>
+        <div class="eg-event-detail">
+          ${ev.format ? e(ev.format) + ' ' : ''}${ev.guest_count ? '· ' + e(String(ev.guest_count)) + ' гостей ' : ''}${ev.budget_text ? '· ' + e(ev.budget_text.slice(0,80)) : ''}
+          ${ev.venue ? '<br>🏢 ' + e(ev.venue) : ''}
+        </div>
+      </div>`;
+    }).join('');
+    parts.push(`<div class="card-section"><div class="card-section-title">Event Graph</div>${evHtml}</div>`);
+  }
+
+  // ── Promises ──
+  if ((c.promises||[]).length > 0) {
+    const prHtml = c.promises.map(p => {
+      const dirLabel = p.direction === 'self_to_them' ? '→ Мы обещали' : '← Они обещали';
+      return `<div class="promise-row">
+        <span class="promise-dir">${dirLabel}</span>
+        <span>${e(p.text)}${p.due_at ? ' <em style="color:var(--warn)">до '+e(p.due_at.slice(0,10))+'</em>' : ''}</span>
+      </div>`;
+    }).join('');
+    parts.push(`<div class="card-section"><div class="card-section-title">Обещания (открытые)</div>${prHtml}</div>`);
+  }
+
+  // ── Team threads ──
+  const threads = c.event_threads || [];
+  if (threads.length > 0) {
+    const musicians = threads.filter(t => t.role === 'musician');
+    const techs     = threads.filter(t => t.role === 'tech');
+    let teamHtml = '';
+    if (musicians.length) {
+      teamHtml += `<div style="font-size:11px;color:var(--muted);margin-bottom:5px">🎤 Музыканты</div>`;
+      teamHtml += musicians.map(t => {
+        const sc = THREAD_STATUS_COLOR[t.thread_status] || '#888';
+        const sl = THREAD_STATUS_LABEL[t.thread_status] || t.thread_status;
+        return `<div class="thread-row">
+          <div class="thread-status-dot" style="background:${sc}"></div>
+          <div class="thread-info">
+            <div><span class="thread-name">${e(t.name)}</span> <span class="thread-sub">@${e(t.username)}</span> <span style="font-size:10px;color:${sc}">${sl}</span></div>
+            ${t.thread_summary ? `<div class="thread-sub" style="margin-top:2px">${e(t.thread_summary)}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+    if (techs.length) {
+      teamHtml += `<div style="font-size:11px;color:var(--muted);margin:8px 0 5px">🎛 Техники</div>`;
+      teamHtml += techs.map(t => {
+        const cat = TECH_CAT[t.tech_category] || {label:t.tech_category||'?',icon:'?',color:'#888'};
+        const sc  = THREAD_STATUS_COLOR[t.thread_status] || '#888';
+        const sl  = THREAD_STATUS_LABEL[t.thread_status] || t.thread_status;
+        const venueLine = t.tech_category === 'venue_tech'
+          ? `<span style="font-size:10px;color:#60a5fa;display:block;margin-top:2px">ℹ Наш техник везёт беклайн</span>` : '';
+        return `<div class="thread-row" style="background:${cat.color}0d;border:1px solid ${cat.color}22">
+          <div class="thread-info">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <span>${cat.icon}</span>
+              <span class="thread-name">${e(t.name)}</span>
+              <span class="thread-sub">@${e(t.username)}</span>
+              <span class="tech-cat-badge" style="color:${cat.color};background:${cat.color}18">${cat.label}</span>
+              ${t.venue ? `<span class="thread-sub">${e(t.venue)}</span>` : ''}
+              <span style="font-size:10px;color:${sc};margin-left:auto">${sl}</span>
+            </div>
+            ${t.thread_summary ? `<div class="thread-sub" style="margin-top:3px">${e(t.thread_summary)}</div>` : ''}
+            ${venueLine}
+          </div>
+        </div>`;
+      }).join('');
+    }
+    parts.push(`<div class="card-section"><div class="card-section-title">Команда мероприятия</div>${teamHtml}</div>`);
+  } else if (c.event_date_confirmed) {
+    parts.push(`<div class="card-section"><div class="card-section-title">Команда мероприятия</div><div class="group-chat-note">Треды ещё не загружены — запустите: python3 lead_context_enricher.py --username ${e(c.username)} --channel ${e(c.channel)}</div></div>`);
+  }
+
+  // ── Band group chat ──
+  parts.push(`<div class="card-section">
+    <div class="card-section-title">Групповой чат группы</div>
+    <div class="group-chat-note">Кэш группового чата по этой дате пока недоступен. Будет заполняться автоматически при появлении project-чата LCB.</div>
+  </div>`);
+
+  return parts.join('');
+}
+
+function e(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Auto-refresh every 90s
+loadData();
+setInterval(loadData, 90000);
+</script>
+</body>
+</html>

@@ -18,6 +18,7 @@
     { href: 'broker.html',          emoji: '🤝', label: 'Broker',     color: 'broker' },
     { href: 'dm-direct-funnel.html', emoji: '📨', label: 'DM funnel',  color: 'funnel' },
     { href: 'cost.html',            emoji: '💸', label: 'Расход',     color: 'cost' },
+    { href: 'context_cards.html',   emoji: '🗂', label: 'Карточки',   color: 'cards' },
   ];
 
   var STYLE_ID = 'lcb-nav-style';
@@ -43,6 +44,7 @@
       '#' + NAV_ID + ' a.broker  { background:rgba(16,163,127,0.12); color:#10a37f;  border-color:rgba(16,163,127,0.35); }',
       '#' + NAV_ID + ' a.funnel  { background:rgba(0,122,255,0.10); color:#007aff;  border-color:rgba(0,122,255,0.30); }',
       '#' + NAV_ID + ' a.cost    { background:rgba(0,112,243,0.14); color:#0070f3;  border-color:rgba(0,112,243,0.45); }',
+      '#' + NAV_ID + ' a.cards   { background:rgba(255,59,48,0.10); color:#ff3b30;  border-color:rgba(255,59,48,0.30); }',
       '#' + NAV_ID + ' a.active  { box-shadow: inset 0 0 0 1px currentColor; }',
       // Dark theme — повышаем contrast
       'html[data-theme="dark"] #' + NAV_ID + ' a { color: inherit; }',
