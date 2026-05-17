@@ -276,23 +276,185 @@
         </li>
       </ol>
 
-      <div style="margin-top:14px">
-        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">Dual-stream после отправки:</div>
-        <div class="dual">
-          <div class="dual-branch" style="border:1px solid rgba(59,130,246,.3)">
-            <b style="color:#93c5fd">Поток 1 — DM</b>
-            Сообщение отправлено клиенту<br>
-            через TG / VK / WA API
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       2.5 DUAL-STREAM — ПОЛНЫЙ ЦИКЛ
+  ═══════════════════════════════════════════ -->
+  <div class="sec anchor-target" id="dualstream">
+    <div class="sec-hdr">
+      <div class="sec-num" style="background:rgba(20,184,166,.2);color:#5eead4">↕</div>
+      <div>
+        <div class="sec-label">Как сообщения попадают в картотеку</div>
+        <div class="sec-desc">conversation_cache.jsonl — общий лог входящих и исходящих → enrich → context card</div>
+      </div>
+    </div>
+
+    <div class="card" style="overflow-x:auto">
+    <div style="min-width:560px">
+
+    <!-- ── ЦЕНТРАЛЬНЫЙ ФАЙЛ ── -->
+    <div style="margin:0 auto 0;max-width:520px">
+
+      <!-- Заголовок файла -->
+      <div style="text-align:center;margin-bottom:6px">
+        <span style="font-size:11px;color:var(--muted)">Центр системы — сырой лог переписки</span>
+      </div>
+      <div style="background:#0d1117;border:1.5px solid rgba(20,184,166,.5);border-radius:10px;padding:0;overflow:hidden">
+        <div style="background:rgba(20,184,166,.08);padding:7px 14px;border-bottom:1px solid rgba(20,184,166,.2);display:flex;align-items:center;gap:8px">
+          <span style="font-size:16px">📄</span>
+          <code style="font-size:12px;color:#5eead4;font-weight:700">conversation_cache/username.jsonl</code>
+        </div>
+        <div style="padding:10px 14px;display:flex;flex-direction:column;gap:5px" id="cache-log">
+          <!-- entry 1 — incoming old -->
+          <div style="display:flex;align-items:baseline;gap:8px;opacity:.5">
+            <span style="background:rgba(59,130,246,.2);color:#93c5fd;padding:1px 6px;border-radius:4px;font-size:10px;white-space:nowrap">IN</span>
+            <code style="font-size:11px;color:#94a3b8">{"out":false, "text":"Добрый день, сколько стоит?", "date":"09:30"}</code>
           </div>
-          <div class="dual-branch" style="border:1px solid rgba(20,184,166,.3)">
-            <b style="color:#5eead4">Поток 2 — Картотека</b>
-            <code>_record_outgoing_to_cache()</code><br>
-            запись: <code>{out: true, text: "...", date: now}</code><br>
-            → <code>enrich(force=True)</code> → карточка обновлена
+          <!-- entry 2 — outgoing old -->
+          <div style="display:flex;align-items:baseline;gap:8px;opacity:.5">
+            <span style="background:rgba(168,85,247,.2);color:#d8b4fe;padding:1px 6px;border-radius:4px;font-size:10px;white-space:nowrap">OUT</span>
+            <code style="font-size:11px;color:#94a3b8">{"out":true,  "text":"Здравствуйте! От 250 000₽…",  "date":"09:45"}</code>
+          </div>
+          <!-- entry 3 — NEW incoming, highlighted -->
+          <div style="display:flex;align-items:baseline;gap:8px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:6px;padding:4px 8px;margin-top:2px">
+            <span style="background:rgba(59,130,246,.3);color:#93c5fd;padding:1px 6px;border-radius:4px;font-size:10px;white-space:nowrap;flex-shrink:0">NEW IN</span>
+            <code style="font-size:11px;color:#93c5fd">{"out":false, "text":"Хочу 14 июня, 100 гостей", "date":"10:01"}</code>
           </div>
         </div>
       </div>
+
+      <!-- Две стрелки В файл сверху -->
+      <div style="display:flex;justify-content:space-between;padding:0 60px;margin-bottom:-2px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+          <div style="width:1px;height:20px;background:rgba(59,130,246,.5)"></div>
+          <span style="font-size:9px;color:rgba(59,130,246,.7);white-space:nowrap">приходит автоматически<br>через Telethon</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+          <div style="width:1px;height:20px;background:rgba(168,85,247,.5)"></div>
+          <span style="font-size:9px;color:rgba(168,85,247,.7);white-space:nowrap;text-align:right">_record_outgoing_to_cache()<br>вызывает агент</span>
+        </div>
+      </div>
+
+      <!-- Источники сверху -->
+      <div style="display:flex;justify-content:space-between;padding:0 20px;margin-bottom:12px">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div style="width:1px;height:12px;background:rgba(59,130,246,.5)"></div>
+          <div class="node node-src node-sm" style="font-size:11px;text-align:center">
+            👤 Клиент<br>пишет в TG/VK/WA
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div style="width:1px;height:12px;background:rgba(168,85,247,.5)"></div>
+          <div class="node node-ai node-sm" style="font-size:11px;text-align:center">
+            🤖 Агент<br>отправляет ответ
+          </div>
+        </div>
+      </div>
+
+      <!-- Стрелка вниз из файла -->
+      <div style="text-align:center;margin:4px 0">
+        <div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px">
+          <div style="width:1px;height:16px;background:rgba(245,197,24,.6)"></div>
+          <span style="font-size:10px;color:rgba(245,197,24,.8)">enrich(force=True)<br>читает все записи</span>
+          <div style="width:1px;height:10px;background:rgba(245,197,24,.6)"></div>
+          <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid rgba(245,197,24,.6)"></div>
+        </div>
+      </div>
+
+      <!-- Opus -->
+      <div style="text-align:center;margin:6px 0">
+        <div class="node node-ai" style="display:inline-block;min-width:200px">
+          Opus AI<br>
+          <span style="font-size:10px;opacity:.8">анализирует ВСЮ переписку<br>(вх + исх вместе)</span>
+        </div>
+      </div>
+      <div style="text-align:center;color:var(--muted);font-size:18px;padding:4px 0">↓</div>
+
+      <!-- Context card -->
+      <div style="background:#0d1117;border:1.5px solid rgba(245,197,24,.4);border-radius:10px;overflow:hidden">
+        <div style="background:rgba(245,197,24,.07);padding:7px 14px;border-bottom:1px solid rgba(245,197,24,.2);display:flex;align-items:center;gap:8px">
+          <span style="font-size:16px">🗂</span>
+          <code style="font-size:12px;color:var(--gold);font-weight:700">lead_context_store.json → "tg:username"</code>
+          <span class="badge badge-warn" style="margin-left:auto">карточка</span>
+        </div>
+        <div style="padding:10px 14px;display:flex;flex-direction:column;gap:3px">
+          <code style="font-size:11px;color:#86efac">"client_intent": "хочет забронировать 14 июня, 100 гостей"</code>
+          <code style="font-size:11px;color:#86efac">"event_date_confirmed": "2026-06-14"</code>
+          <code style="font-size:11px;color:#fde68a">"waiting_for_us": true</code>
+          <code style="font-size:11px;color:#fca5a5">"refusal_detected": false</code>
+          <code style="font-size:11px;color:#c4b5fd">"next_action_hint": "подтвердить дату, уточнить программу"</code>
+          <code style="font-size:11px;color:#94a3b8">"enriched_at": "2026-05-17T10:01:23"</code>
+        </div>
+      </div>
+
+    </div><!-- /max-width -->
+
+    <!-- ── DUAL STREAM ── -->
+    <div style="margin-top:28px;border-top:1px solid var(--border);padding-top:20px">
+      <div style="text-align:center;font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px">
+        Момент раздвоения — после того как агент решил ответить
+      </div>
+
+      <div style="display:flex;gap:0;align-items:flex-start;justify-content:center">
+
+        <!-- Left: agent box -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">
+          <div class="node node-ai" style="min-width:130px;text-align:center">
+            🤖 Агент<br>
+            <span style="font-size:10px">сгенерировал:<br>«Да, 14 июня свободно!»</span>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">одновременно ↙ ↘</div>
+        </div>
+
+        <!-- Branches -->
+        <div style="display:flex;flex-direction:column;gap:10px;margin-left:20px">
+
+          <!-- Stream 1 -->
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:30px;height:1px;background:rgba(59,130,246,.5);flex-shrink:0"></div>
+            <div style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.4);border-radius:8px;padding:8px 12px;min-width:220px">
+              <div style="color:#93c5fd;font-weight:700;font-size:12px;margin-bottom:4px">Поток 1 — отправка</div>
+              <div class="anno">
+                TG/VK/WA API<br>
+                → сообщение доставлено клиенту<br>
+                <span style="color:#6ee7b7">✓ клиент видит ответ</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stream 2 -->
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:30px;height:1px;background:rgba(20,184,166,.5);flex-shrink:0"></div>
+            <div style="background:rgba(20,184,166,.08);border:1px solid rgba(20,184,166,.4);border-radius:8px;padding:8px 12px;min-width:220px">
+              <div style="color:#5eead4;font-weight:700;font-size:12px;margin-bottom:4px">Поток 2 — картотека</div>
+              <div class="anno">
+                <code>_record_outgoing_to_cache()</code><br>
+                в jsonl пишется новая строка:<br>
+                <div style="background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.3);border-radius:4px;padding:3px 6px;margin:4px 0">
+                  <span style="background:rgba(168,85,247,.3);color:#d8b4fe;padding:0 4px;border-radius:3px;font-size:9px">OUT</span>
+                  <code style="font-size:10px;color:#d8b4fe"> {"out":true, "text":"Да, 14 июня свободно!", "date":"10:02"}</code>
+                </div>
+                → <code>enrich(force=True)</code> снова<br>
+                → карточка: <code style="color:#fde68a">waiting_for_client: true</code>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div style="margin-top:16px;background:rgba(245,197,24,.04);border:1px solid rgba(245,197,24,.15);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--muted)">
+        <span style="color:var(--gold);font-weight:700">Итог:</span>
+        после каждого обмена в <code>conversation_cache.jsonl</code> есть <b>все</b> сообщения — и входящие (<code>out:false</code>) и исходящие (<code>out:true</code>).
+        Enricher видит полную переписку и строит карточку с актуальным контекстом.
+        Следующий ответ агента будет знать что мы уже написали.
+      </div>
     </div>
+
+    </div><!-- /min-width -->
+    </div><!-- /card -->
   </div>
 
   <!-- ═══════════════════════════════════════════
@@ -674,6 +836,7 @@
 <div class="side-nav">
   <a href="#posts"><div class="snb">1 Посты</div></a>
   <a href="#dm"><div class="snb">2 DM</div></a>
+  <a href="#dualstream"><div class="snb" style="color:#5eead4;border-color:rgba(20,184,166,.3)">↕ Dual-stream</div></a>
   <a href="#kartoteka"><div class="snb">3 Картотека</div></a>
   <a href="#agents"><div class="snb">4 Агенты</div></a>
   <a href="#followups"><div class="snb">5 Фолоу-апы</div></a>
