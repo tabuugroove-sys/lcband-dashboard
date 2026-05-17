@@ -7290,7 +7290,8 @@ function LeadFlowSection() {
           <PipeCol label="Источники" />
           <SourceBox icon="💬" label="TG event-чаты" sub={`${pipe.tg_chats||18} чатов · пуш`} active={isActive} pulse={isActive} ago={pipe.last_event_at ? fmtAgo(pipe.last_event_at)+' назад':''} color='#3b82f6' />
           <SourceBox icon="📩" label="TG DM" sub="входящие · realtime" active color='#38bdf8' style={{marginTop:5}} />
-          <SourceBox icon="🅰️" label="VK" sub={`${pipe.vk_groups||8} групп + DM`} active color='#4f8ef7' style={{marginTop:5}} />
+          <SourceBox icon="🅰️" label="VK чаты" sub={`${pipe.vk_groups||8} event-групп · пуш`} active color='#4f8ef7' style={{marginTop:5}} />
+          <SourceBox icon="✉️" label="VK DM" sub="входящие · longpoll" active color='#5b7fd4' style={{marginTop:5}} />
           <SourceBox icon="💚" label="WhatsApp" sub="Baileys · входящие" active={pipe.wa_active!==false} ago={pipe.wa_last_at ? fmtAgo(pipe.wa_last_at)+' назад':''} color='#25d366' style={{marginTop:5}} />
         </div>
 
@@ -8217,12 +8218,12 @@ function App() {
                title="Расход AI и лимитов">
               <span>💸</span><span>Расход</span>
             </a>
-            <a href="./ab-test.html"
+            <a href="./bw-catchup.html"
                style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
                        background:'rgba(139,92,246,0.15)', color:'#8b5cf6', border:'1px solid rgba(139,92,246,0.4)',
                        display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
-               title="A/B тесты промптов / моделей">
-              <span>🧪</span><span>A/B</span>
+               title="Что пропустил TG Monitor — добавил BW">
+              <span>🔍</span><span>BW catch-up</span>
             </a>
             <ThemeHeaderButton />
             <button

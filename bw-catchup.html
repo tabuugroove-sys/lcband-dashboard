@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BW Catch-up — что пропустил TG Monitor</title>
+<style>
+:root {
+  --bg:    #0f1117;
+  --card:  #1a1d27;
+  --border:#2a2d3a;
+  --text:  #e2e8f0;
+  --muted: #94a3b8;
+  --tg:    #3b82f6;
+  --bw:    #a78bfa;
+  --green: #10b981;
+  --yellow:#f59e0b;
+  --red:   #ef4444;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:14px; padding:0 0 60px; }
+
+nav { display:flex; align-items:center; gap:8px; padding:12px 20px; background:var(--card); border-bottom:1px solid var(--border); flex-wrap:wrap; }
+nav a { padding:6px 12px; border-radius:8px; font-size:12px; font-weight:600; text-decoration:none; color:var(--muted); background:transparent; border:1px solid transparent; transition:all .15s; }
+nav a:hover { background:rgba(255,255,255,.06); color:var(--text); }
+nav a.home { color:var(--tg); border-color:rgba(59,130,246,.3); background:rgba(59,130,246,.08); }
+nav a.active { color:var(--bw); border-color:rgba(167,139,250,.4); background:rgba(167,139,250,.12); }
+nav a.mon { color:#38bdf8; border-color:rgba(56,189,248,.3); background:rgba(56,189,248,.08); }
+#generated { font-size:10px; color:var(--muted); margin-left:auto; }
+
+h1 { font-size:20px; font-weight:700; padding:20px 20px 4px; }
+.subtitle { font-size:13px; color:var(--muted); padding:0 20px 16px; line-height:1.5; }
+
+/* Status chips */
+.status-row { display:flex; flex-wrap:wrap; gap:8px; padding:0 20px 20px; }
+.chip { display:inline-flex; align-items:center; gap:5px; padding:5px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+.chip-ok   { background:rgba(16,185,129,.15); color:var(--green); border:1px solid rgba(16,185,129,.3); }
+.chip-warn { background:rgba(245,158,11,.15);  color:var(--yellow); border:1px solid rgba(245,158,11,.3); }
+.chip-off  { background:rgba(100,116,139,.15); color:var(--muted);  border:1px solid rgba(100,116,139,.3); }
+.chip-bw   { background:rgba(167,139,250,.15); color:var(--bw);     border:1px solid rgba(167,139,250,.3); }
+
+/* Summary cards */
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; padding:0 20px 24px; }
+.card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; }
+.card-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
+.card-val   { font-size:28px; font-weight:700; line-height:1; }
+.card-sub   { font-size:11px; color:var(--muted); margin-top:4px; }
+.card-tg  .card-val { color:var(--tg); }
+.card-bw  .card-val { color:var(--bw); }
+.card-pct .card-val { color:var(--green); }
+.card-dup .card-val { color:var(--muted); }
+
+/* Section headers */
+.section { padding:0 20px 8px; }
+.section h2 { font-size:15px; font-weight:700; color:var(--text); border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:12px; }
+
+/* Events feed */
+.feed { margin:0 20px 24px; background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+.feed-empty { padding:20px; color:var(--muted); font-size:13px; text-align:center; }
+.feed-row { display:flex; align-items:flex-start; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
+.feed-row:last-child { border-bottom:none; }
+.feed-ts  { font-size:11px; color:var(--muted); white-space:nowrap; min-width:50px; margin-top:1px; }
+.feed-chat { font-size:11px; font-weight:600; color:var(--bw); min-width:100px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.feed-verdict { font-size:11px; padding:2px 7px; border-radius:10px; font-weight:600; white-space:nowrap; }
+.v-lead       { background:rgba(16,185,129,.15); color:var(--green); }
+.v-drum_show  { background:rgba(245,158,11,.15);  color:var(--yellow); }
+.v-refusal    { background:rgba(239,68,68,.15);   color:var(--red); }
+.v-skip       { background:rgba(100,116,139,.15); color:var(--muted); }
+.v-other      { background:rgba(167,139,250,.15); color:var(--bw); }
+
+/* Reconcile table */
+.rec-table { width:100%; border-collapse:collapse; margin:0 0 4px; font-size:13px; }
+.rec-table th { text-align:left; padding:8px 10px; color:var(--muted); font-size:11px; font-weight:600; text-transform:uppercase; border-bottom:1px solid var(--border); }
+.rec-table td { padding:8px 10px; border-bottom:1px solid rgba(42,45,58,.5); }
+.rec-table tr:last-child td { border-bottom:none; }
+.rec-table tr:hover td { background:rgba(255,255,255,.03); }
+td.num { text-align:right; }
+td.hit-tg  { color:var(--tg); font-weight:600; }
+td.hit-bw  { color:var(--bw); font-weight:600; }
+td.gap     { color:var(--yellow); font-weight:600; }
+td.ok      { color:var(--green); }
+.table-wrap { margin:0 20px 24px; background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; padding:0; }
+
+/* BW runs */
+.run-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; margin:0 20px 24px; }
+.run-row  { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+.run-tag  { font-size:11px; padding:3px 9px; border-radius:8px; background:rgba(167,139,250,.12); color:var(--bw); border:1px solid rgba(167,139,250,.25); }
+.run-tag.tg-tag { background:rgba(59,130,246,.12); color:var(--tg); border-color:rgba(59,130,246,.25); }
+.lead-list { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+.lead-item { background:rgba(167,139,250,.07); border:1px solid rgba(167,139,250,.2); border-radius:8px; padding:8px 10px; font-size:12px; }
+.lead-item .who { font-weight:600; color:var(--bw); }
+.lead-item .meta { color:var(--muted); margin-top:2px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="home" href="./index.html">← Дашборд</a>
+  <a class="mon"  href="./ab-monitor.html">📡 Walk vs Push</a>
+  <a class="active" href="./bw-catchup.html">🔍 BW catch-up</a>
+  <span id="generated">обновлено …</span>
+</nav>
+
+<h1>🔍 BW Catch-up: что пропустил TG Monitor</h1>
+<div class="subtitle">
+  Посты за последние 24ч. <b style="color:var(--tg)">TG Push Monitor</b> обрабатывает realtime —
+  но изредка что-то проскальзывает. <b style="color:var(--bw)">Browser Walk</b> сканирует каждые 30 мин
+  и классифицирует то, что TG ещё не пометил.
+</div>
+
+<div class="status-row">
+  <span id="tg-status"  class="chip chip-ok">● TG Monitor: активен</span>
+  <span id="bw-status"  class="chip chip-off">⏸ BW: нет данных</span>
+  <span id="rec-status" class="chip chip-off">📋 Reconcile: нет данных</span>
+</div>
+
+<div class="cards">
+  <div class="card card-tg">
+    <div class="card-label">TG обработал (24ч)</div>
+    <div class="card-val" id="tg-count">—</div>
+    <div class="card-sub">постов через realtime</div>
+  </div>
+  <div class="card card-bw">
+    <div class="card-label">BW поймал сверху</div>
+    <div class="card-val" id="bw-only-count">—</div>
+    <div class="card-sub">TG пропустил, BW догнал</div>
+  </div>
+  <div class="card card-pct">
+    <div class="card-label">% catch-up</div>
+    <div class="card-val" id="catchup-pct">—</div>
+    <div class="card-sub">от общего потока</div>
+  </div>
+  <div class="card card-dup">
+    <div class="card-label">Дублей BW</div>
+    <div class="card-val" id="both-count">—</div>
+    <div class="card-sub">оба обработали (ок)</div>
+  </div>
+</div>
+
+<div class="section"><h2>Последние catch-up события (BW поймал, TG пропустил)</h2></div>
+<div class="feed" id="events-feed">
+  <div class="feed-empty">Загрузка…</div>
+</div>
+
+<div class="section"><h2>Запуски BW за 24ч</h2></div>
+<div id="bw-runs-wrap"></div>
+
+<div class="section"><h2>По чатам — аудит за 24ч (morning reconcile)</h2></div>
+<div class="table-wrap">
+  <table class="rec-table" id="rec-table">
+    <thead>
+      <tr>
+        <th>Чат</th>
+        <th class="num">Постов</th>
+        <th class="num">TG hit</th>
+        <th class="num">BW hit</th>
+        <th class="num">Пропущено</th>
+      </tr>
+    </thead>
+    <tbody id="rec-tbody"><tr><td colspan="5" style="padding:16px;color:var(--muted);text-align:center">Загрузка…</td></tr></tbody>
+  </table>
+</div>
+
+<div class="section"><h2>Последний запуск BW — найденные лиды</h2></div>
+<div id="bw-leads-wrap" style="padding:0 20px 24px"></div>
+
+<script>
+const BASE = 'http://127.0.0.1:8878';
+
+function fmtAgo(isoStr) {
+  if (!isoStr) return '';
+  const diff = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
+  if (diff < 60)   return diff + 'с назад';
+  if (diff < 3600) return Math.floor(diff/60) + 'м назад';
+  if (diff < 86400) return Math.floor(diff/3600) + 'ч назад';
+  return Math.floor(diff/86400) + 'д назад';
+}
+
+function fmtTime(isoStr) {
+  if (!isoStr) return '';
+  return new Date(isoStr).toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'});
+}
+
+function verdictClass(v) {
+  if (!v) return 'v-skip';
+  if (v === 'music_band' || v === 'lead') return 'v-lead';
+  if (v === 'drum_show') return 'v-drum_show';
+  if (v === 'refusal') return 'v-refusal';
+  if (v === 'skip' || v === 'filtered') return 'v-skip';
+  return 'v-other';
+}
+
+function verdictLabel(v) {
+  const MAP = {
+    music_band:'🎵 лид', lead:'🎵 лид', drum_show:'🥁 барабан',
+    refusal:'❌ отказ', skip:'⬜ шум', filtered:'⬜ пре-фильтр',
+    broker_request:'🤝 брокер', abstract:'🔍 уточнить',
+    solo_musician:'🎸 соло',
+  };
+  return MAP[v] || v || '—';
+}
+
+async function load() {
+  try {
+    const r = await fetch(BASE + '/api/bw_catchup');
+    const d = await r.json();
+
+    document.getElementById('generated').textContent = 'обновлено ' + fmtTime(d.generated_at);
+
+    const cd = d.cross_dedup || {};
+    document.getElementById('tg-count').textContent     = cd.tg_processed_24h  ?? '—';
+    document.getElementById('bw-only-count').textContent = cd.bw_only_24h       ?? '—';
+    document.getElementById('catchup-pct').textContent  = cd.catchup_pct != null ? cd.catchup_pct + '%' : '—';
+    document.getElementById('both-count').textContent   = cd.both_24h           ?? '—';
+
+    // Status chips
+    const bwHist = d.bw_history_24h || [];
+    const bwStatus = document.getElementById('bw-status');
+    if (bwHist.length > 0) {
+      const last = bwHist[0];
+      bwStatus.className = 'chip chip-bw';
+      bwStatus.textContent = `● BW: ${fmtAgo(last.ts)} · ${last.orders||0} лидов`;
+    } else if (d.bw_last_run && d.bw_last_run.ran_at) {
+      bwStatus.className = 'chip chip-warn';
+      bwStatus.textContent = `⏸ BW: ${fmtAgo(d.bw_last_run.ran_at)}`;
+    }
+    const rec = d.reconcile || {};
+    const recStatus = document.getElementById('rec-status');
+    if (rec.ran_at) {
+      recStatus.className = 'chip chip-ok';
+      recStatus.textContent = `📋 Reconcile: ${fmtAgo(rec.ran_at)}`;
+    }
+
+    // Events feed
+    const events = d.catchup_events || [];
+    const feed = document.getElementById('events-feed');
+    if (events.length === 0 && cd.tg_processed_24h === 0) {
+      feed.innerHTML = '<div class="feed-empty">Данные накапливаются — tg_seen_posts.jsonl только начал писаться. Появятся при следующем запуске BW.</div>';
+    } else if (events.length === 0) {
+      feed.innerHTML = '<div class="feed-empty">TG Monitor не пропустил ни одного поста за 24ч — BW catch-up не требуется ✓</div>';
+    } else {
+      feed.innerHTML = events.map(ev => `
+        <div class="feed-row">
+          <span class="feed-ts">${fmtTime(ev.ts)}</span>
+          <span class="feed-chat">@${ev.chat_id}</span>
+          <span class="feed-verdict ${verdictClass(ev.verdict)}">${verdictLabel(ev.verdict)}</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:auto">msg #${ev.msg_id}</span>
+        </div>
+      `).join('');
+    }
+
+    // BW runs
+    const runsWrap = document.getElementById('bw-runs-wrap');
+    if (bwHist.length > 0) {
+      runsWrap.innerHTML = bwHist.map(r => `
+        <div class="run-card" style="margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-weight:600;font-size:13px">${fmtTime(r.ts)}</span>
+            <span class="run-tag">${r.orders||0} лидов</span>
+            <span class="run-tag tg-tag">${r.chats_checked||0} чатов</span>
+            <span class="run-tag tg-tag">${r.messages_read||0} постов</span>
+            <span class="run-tag">${Math.round((r.duration_sec||0)/60)}м</span>
+          </div>
+        </div>
+      `).join('');
+    } else if (d.bw_last_run && d.bw_last_run.ran_at) {
+      const lr = d.bw_last_run;
+      runsWrap.innerHTML = `<div class="run-card">
+        <div style="color:var(--muted);font-size:12px">Из browser_walk_result.json</div>
+        <div class="run-row">
+          <span class="run-tag">${lr.leads_found||0} лидов</span>
+          <span class="run-tag tg-tag">${lr.chats_scanned||0} чатов</span>
+          <span class="run-tag tg-tag">${fmtAgo(lr.ran_at)}</span>
+        </div>
+      </div>`;
+    } else {
+      runsWrap.innerHTML = '<div style="padding:0 20px 24px;color:var(--muted);font-size:13px">Запусков BW за 24ч нет.</div>';
+    }
+
+    // Reconcile table
+    const perChat = (rec.per_chat || []).filter(c => !c.error && c.posts > 0);
+    const tbody = document.getElementById('rec-tbody');
+    if (perChat.length === 0) {
+      const totals = rec.totals || {};
+      if (totals.posts_scanned > 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="padding:12px;color:var(--muted);text-align:center">
+          Итого: ${totals.posts_scanned} постов · TG hit: ${totals.monitor_hits} · пропущено: ${totals.missed}
+        </td></tr>`;
+      } else {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:16px;color:var(--muted);text-align:center">Нет данных reconcile</td></tr>';
+      }
+    } else {
+      const totals = rec.totals || {};
+      tbody.innerHTML = perChat.map(c => {
+        const missed = (c.missed || []).length || 0;
+        return `<tr>
+          <td>${c.chat}</td>
+          <td class="num">${c.posts}</td>
+          <td class="num hit-tg">${c.monitor_hits||0}</td>
+          <td class="num hit-bw">${c.walk_hits||0}</td>
+          <td class="num ${missed > 0 ? 'gap' : 'ok'}">${missed > 0 ? missed : '✓'}</td>
+        </tr>`;
+      }).join('') + `<tr style="background:rgba(255,255,255,.03)">
+        <td><b>Итого</b></td>
+        <td class="num"><b>${totals.posts_scanned||0}</b></td>
+        <td class="num hit-tg"><b>${totals.monitor_hits||0}</b></td>
+        <td class="num hit-bw"><b>${totals.walk_hits||0}</b></td>
+        <td class="num ${(totals.missed||0) > 0 ? 'gap' : 'ok'}"><b>${totals.missed||0}</b></td>
+      </tr>`;
+    }
+
+    // Latest BW leads
+    const leads = (d.bw_last_run || {}).leads || [];
+    const leadsWrap = document.getElementById('bw-leads-wrap');
+    if (leads.length === 0) {
+      leadsWrap.innerHTML = '<div style="color:var(--muted);font-size:13px">Нет лидов в последнем запуске.</div>';
+    } else {
+      leadsWrap.innerHTML = `<div class="lead-list">${leads.map(l => `
+        <div class="lead-item">
+          <div class="who">@${l.author||'?'}</div>
+          <div class="meta">${l.source_chat||''} · ${l.date||''} · ${l.format||l.kind||''} · ${l.city||''}</div>
+        </div>
+      `).join('')}</div>`;
+    }
+
+  } catch(e) {
+    document.getElementById('events-feed').innerHTML = `<div class="feed-empty">Ошибка: ${e.message}</div>`;
+  }
+}
+
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>
