@@ -1516,7 +1516,7 @@ function bindProcessPopover() {
   });
 }
 
-function dualSparklineSVG(systemData, userData, dailyBudgetPct) {
+function dualSparklineSVG(systemData, userData) {
   // Activity Monitor style: filled area для System (red) и User (blue) поверх.
   // Шкала фиксированная: 0 → max(всех значений, 200%) — чтобы overload spike виден.
   const allValues = [...(systemData||[]), ...(userData||[])];
@@ -1533,13 +1533,8 @@ function dualSparklineSVG(systemData, userData, dailyBudgetPct) {
     return 'M ' + data.map((v, i) => `${(i*step).toFixed(1)},${(h - (v/dMax)*h).toFixed(1)}`).join(' L ');
   }
   const sustY = (h - (100/dMax)*h).toFixed(1);
-  // Дневная линия: pinned к min 4px от низа, чтобы оставалась видимой при огромном dMax.
-  const daily = dailyBudgetPct || (100 / 7);
-  const dailyYRaw = h - (daily / dMax) * h;
-  const dailyY = Math.min(dailyYRaw, h - 4).toFixed(1);
   return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="display:block;max-width:100%;overflow:hidden;">
     <line x1="0" y1="${sustY}" x2="${w}" y2="${sustY}" stroke="var(--muted)" stroke-width="0.5" stroke-dasharray="3,3" />
-    <line x1="0" y1="${dailyY}" x2="${w}" y2="${dailyY}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,4" opacity="0.85" />
     <path d="${pathArea(userData)}"   fill="rgba(0,122,255,0.18)" />
     <path d="${pathArea(systemData)}" fill="rgba(255,59,48,0.20)" />
     <path d="${pathLine(userData)}"   fill="none" stroke="#007aff" stroke-width="1.2" />
@@ -1556,7 +1551,7 @@ function renderBurn(d) {
     const idleP = info.idle_pct || 0;
     const totalColor = burnColor(totalP);
     const totalEmoji = burnEmoji(totalP);
-    const spark = dualSparklineSVG(info.sparkline_system, info.sparkline_user, info.daily_budget_pct);
+    const spark = dualSparklineSVG(info.sparkline_system, info.sparkline_user);
     return `<div style="background:var(--panel-2,#f6f8fa);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
