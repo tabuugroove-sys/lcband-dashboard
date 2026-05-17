@@ -7320,17 +7320,36 @@ function LeadFlowSection() {
           </div>
         </div>
 
+        {/* ─── Общая картотека контекста (одна на агентов 2 и 3) ─── */}
+        <div style={{background:'rgba(245,158,11,0.07)', border:'2px dashed rgba(245,158,11,0.4)', borderRadius:10, padding:'10px 14px'}}>
+          <div style={{fontSize:10, fontWeight:700, color:'#f59e0b', marginBottom:6, display:'flex', alignItems:'center', gap:8}}>
+            📋 Общая картотека контекста
+            <span style={{fontSize:9, fontWeight:400, color:'var(--muted)'}}>lead_context_store.json · ключ: channel:username · один контакт = одна карточка</span>
+          </div>
+          <div style={{display:'flex', gap:12, flexWrap:'wrap'}}>
+            {[
+              ['client_intent','намерение клиента'],
+              ['refusal_detected','отказ?'],
+              ['event_date_confirmed','дата ивента'],
+              ['budget_confirmed','бюджет'],
+              ['waiting_for_us','ждёт нас?'],
+              ['waiting_for_client','мы ждём?'],
+              ['key_asks','что просил'],
+              ['silence_days','молчит N дней'],
+            ].map(([k,v]) => (
+              <div key={k} style={{fontSize:9.5, color:'var(--muted)'}}>
+                <span style={{color:'#f59e0b', fontWeight:600}}>{k}</span>
+                <span style={{marginLeft:3}}>{v}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{marginTop:6, fontSize:9.5, color:'var(--muted)', fontStyle:'italic'}}>
+            ↓ входящее DM → enrich(force=True) · ↑ исходящий ответ → record_outgoing + enrich(force=True)
+          </div>
+        </div>
+
         {/* ─── Агент 2: LC Band DM ─── */}
         {(() => {
-          const KartoBox = () => (
-            <div style={{background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:8, padding:'7px 9px'}}>
-              <div style={{fontSize:10, fontWeight:700, color:'#f59e0b'}}>📋 Картотека</div>
-              <div style={{fontSize:9.5, color:'var(--muted)', marginTop:3}}>client_intent</div>
-              <div style={{fontSize:9.5, color:'var(--muted)'}}>event_date · budget</div>
-              <div style={{fontSize:9.5, color:'var(--muted)'}}>waiting_for_us?</div>
-              <div style={{fontSize:9.5, color:'var(--muted)'}}>silence_days</div>
-            </div>
-          );
           return (
             <div style={{background:'rgba(15,23,42,0.6)', borderRadius:10, border:'1px solid rgba(96,165,250,0.25)', padding:'10px 14px', overflowX:'auto'}}>
               <div style={{fontSize:10, fontWeight:700, color:'#60a5fa', textTransform:'uppercase', letterSpacing:0.6, marginBottom:8}}>
@@ -7345,27 +7364,11 @@ function LeadFlowSection() {
                 </div>
                 <FlowArrow />
                 <div>
-                  <PipeCol label="📋 Картотека" />
-                  <div style={{background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:8, padding:'7px 9px'}}>
-                    <div style={{fontSize:10, fontWeight:700, color:'#f59e0b'}}>↓ входящий</div>
-                    <div style={{fontSize:9.5, color:'var(--muted)', marginTop:2}}>enrich(force=True)</div>
-                    <div style={{height:1, background:'rgba(245,158,11,0.2)', margin:'5px 0'}} />
-                    <div style={{fontSize:10, fontWeight:700, color:'#f59e0b'}}>↑ исходящий</div>
-                    <div style={{fontSize:9.5, color:'var(--muted)', marginTop:2}}>record_outgoing</div>
-                    <div style={{fontSize:9.5, color:'var(--muted)'}}>+ enrich(force=True)</div>
-                    <div style={{height:1, background:'rgba(245,158,11,0.2)', margin:'5px 0'}} />
-                    <div style={{fontSize:9.5, color:'var(--muted)'}}>client_intent · отказ</div>
-                    <div style={{fontSize:9.5, color:'var(--muted)'}}>event_date · budget</div>
-                    <div style={{fontSize:9.5, color:'var(--muted)'}}>waiting_for_us?</div>
-                  </div>
-                </div>
-                <FlowArrow />
-                <div>
                   <PipeCol label="🤖 LCB-агент" />
                   <div style={{background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.35)', borderRadius:8, padding:'7px 9px'}}>
                     <div style={{fontSize:10, fontWeight:700, color:'#60a5fa'}}>unified_dm_responder</div>
                     <div style={{height:1, background:'rgba(96,165,250,0.2)', margin:'5px 0'}} />
-                    <div style={{fontSize:9.5, color:'#f59e0b'}}>← get_or_enrich()</div>
+                    <div style={{fontSize:9.5, color:'#f59e0b'}}>↕ общая картотека</div>
                     <div style={{fontSize:9.5, color:'var(--muted)', marginTop:2}}>CRM · vendor check</div>
                     <div style={{fontSize:9.5, color:'var(--muted)'}}>Opus draft</div>
                     <div style={{fontSize:9.5, color:'var(--muted)'}}>ai_review → send</div>
@@ -7409,26 +7412,11 @@ function LeadFlowSection() {
             </div>
             <FlowArrow />
             <div>
-              <PipeCol label="📋 Картотека" />
-              <div style={{background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:8, padding:'7px 9px'}}>
-                <div style={{fontSize:10, fontWeight:700, color:'#f59e0b'}}>↓ входящий</div>
-                <div style={{fontSize:9.5, color:'var(--muted)', marginTop:2}}>enrich(force=True)</div>
-                <div style={{height:1, background:'rgba(245,158,11,0.2)', margin:'5px 0'}} />
-                <div style={{fontSize:10, fontWeight:700, color:'#f59e0b'}}>↑ исходящий</div>
-                <div style={{fontSize:9.5, color:'var(--muted)', marginTop:2}}>record_outgoing</div>
-                <div style={{fontSize:9.5, color:'var(--muted)'}}>+ enrich(force=True)</div>
-                <div style={{height:1, background:'rgba(245,158,11,0.2)', margin:'5px 0'}} />
-                <div style={{fontSize:9.5, color:'var(--muted)'}}>broker_orders.db</div>
-                <div style={{fontSize:9.5, color:'var(--muted)'}}>vendor roster</div>
-              </div>
-            </div>
-            <FlowArrow />
-            <div>
               <PipeCol label="🤖 Broker-агент" />
               <div style={{background:'rgba(167,139,250,0.1)', border:'1px solid rgba(167,139,250,0.35)', borderRadius:8, padding:'7px 9px'}}>
                 <div style={{fontSize:10, fontWeight:700, color:'#a78bfa'}}>broker_pipeline</div>
                 <div style={{height:1, background:'rgba(167,139,250,0.2)', margin:'5px 0'}} />
-                <div style={{fontSize:9.5, color:'#f59e0b'}}>← get_or_enrich()</div>
+                <div style={{fontSize:9.5, color:'#f59e0b'}}>↕ общая картотека</div>
                 <div style={{fontSize:9.5, color:'var(--muted)', marginTop:2}}>vendor search</div>
                 <div style={{fontSize:9.5, color:'var(--muted)'}}>Opus brief</div>
                 <div style={{fontSize:9.5, color:'var(--muted)'}}>relay client ↔ vendor</div>
