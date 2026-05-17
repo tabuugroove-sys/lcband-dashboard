@@ -7775,6 +7775,16 @@ function App() {
           {activeTab === 'overview' && (
             <>
               <OverviewStatsSection stats={overviewStats} />
+              <StatusSection
+                status={data.status}
+                activity24h={activity24h}
+                sent24h={recentSent24h}
+                aiDelivery={aiDelivery}
+                aiDeliveryTrend={aiDeliveryTrend}
+                aiTrendRange={aiTrendRange}
+                onAiTrendRangeChange={setAiTrendRange}
+                onProcessClick={setShowProcess}
+              />
               <ActionButtons />
               <KPISection kpi={data.kpi} setActiveTab={setActiveTab}
                           browserWalk={data.browserWalk || {leads:0, refusals:0, chats:0, ranAt:'', hours:48, items:[]}} />
