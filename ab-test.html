@@ -107,24 +107,62 @@ h1 { margin: 0 0 4px 0; font-size: 22px; }
 
 <div class="test-grid">
 
-  <!-- TEST 1 — главный, активный план -->
-  <div class="test-card planned" id="test-l1-event-classifier">
+  <!-- TEST 1 — завершён 17.05, v1 выигрывает -->
+  <div class="test-card done" id="test-l1-event-classifier">
     <div class="test-head">
       <div>
-        <div class="test-title">L1 event-chat classifier: текущий vs AI 2.0 paradigm</div>
+        <div class="test-title">L1 event-chat classifier: v1 (текущий) vs v2 (Gemini screener + Opus L2)</div>
         <div style="color: var(--muted); font-size: 11px; margin-top: 3px;">
-          создано 17.05.2026 · файл: <span class="code-ref">lcb_classifier.py</span>
+          17.05.2026 · завершён · v1 wins · файл: <span class="code-ref">lcb_classifier.py</span>
         </div>
       </div>
-      <span class="test-status planned">Запланирован</span>
+      <span class="test-status done">Завершён · v1 wins</span>
     </div>
 
     <div class="test-desc">
-      <b>Гипотеза:</b> текущий L1 (Sonnet/Gemini batch) выбирает verdict из 7 enum-категорий
-      и часто промахивается на skip — пропускает реальные music_band / broker заявки
-      (видели десятки сегодня). По эталону <span class="code-ref">smart_funnel.L1_SCREEN_PROMPT</span>
-      (тест 6/6 PASS): Gemini лучше работает как <b>бинарный screener</b>
-      (escalate / clear), не как enum-классификатор.
+      <b>Итог:</b> v2 (Gemini binary screener + Opus L2) проиграл по всем метрикам
+      против v1 (текущий Sonnet/Gemini batch). На 45-постовом heuristic ground-truth
+      v2 имел false_skip +10pp (хуже основной метрики). На частичном прогоне с
+      Opus-judged 100-постовым gold-set рано подтвердилось: v2 промахивается на
+      false_skip даже с confidence 0.97 (post #6: gt=solo_musician → v2=skip).
+      <b>Решение:</b> остаёмся на v1. v2 архивирован. Weekly auto-run выключен.
+    </div>
+
+    <div class="test-section">
+      <h3>Результаты первого прогона (45 items, heuristic ground-truth)</h3>
+      <table class="results-table">
+        <thead>
+          <tr><th>Метрика</th><th class="num">v1</th><th class="num">v2</th><th class="num">Δ</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>accuracy</td><td class="num">62.2%</td><td class="num">55.6%</td><td class="num">−6.6pp</td></tr>
+          <tr><td>false_skip_rate</td><td class="num">26.7%</td><td class="num">36.7%</td><td class="num">+10.0pp 🔴</td></tr>
+          <tr><td>recall music_band</td><td class="num">55.0%</td><td class="num">45.0%</td><td class="num">−10.0pp</td></tr>
+          <tr><td>recall broker_request</td><td class="num">70.0%</td><td class="num">60.0%</td><td class="num">−10.0pp</td></tr>
+          <tr><td>avg latency</td><td class="num">11.9s</td><td class="num">19.8s</td><td class="num">+7.9s</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="test-section">
+      <h3>Что усвоили (для будущих тестов)</h3>
+      <ul class="checklist">
+        <li class="done">Gemini Flash как screener для event-постов <b>недостаточно умный</b> — путает «реклама подрядчика» vs «организатор ищет»</li>
+        <li class="done">Confidence 0.97 не спасает от false_skip — Gemini уверен в неверных кейсах</li>
+        <li class="done">Эталон <span class="code-ref">smart_funnel.L1_SCREEN_PROMPT</span> работает для DM-классификации (DM 6/6 PASS), но event-чат посты сложнее (вне известного контекста)</li>
+        <li class="done">Ground-truth через Opus judge с margin_check работает — 100 items за ~30 мин, $1.5</li>
+        <li class="done">Hard guards в auto-deploy (false_skip ≤ v1, recall ≥ v1) спасли — v2 не выкатился автоматически</li>
+      </ul>
+    </div>
+
+    <div class="test-section">
+      <h3>Деактивировано</h3>
+      <ul class="checklist">
+        <li class="done">PID 71883 убит</li>
+        <li class="done">launchd <code>com.lcband.ab-test-runner</code> unloaded + plist в Trash</li>
+        <li class="done">Watchdog hung-detect entry убирать не надо (просто не сработает без agent)</li>
+        <li class="done">Gold-set <code>tests/ab_gold_set.json</code> оставлен — пригодится для будущих тестов</li>
+      </ul>
     </div>
 
     <div class="test-section">
