@@ -7251,6 +7251,7 @@ function LeadFlowSection() {
     if (vl.includes('active') || vl.includes('активн')) return '#34d399';
     if (vl.includes('pending') || vl.includes('переговор') || vl.includes('интерес')) return '#fbbf24';
     if (vl === 'lead' || vl.includes('новый лид') || vl.includes('прямой')) return '#60a5fa';
+    if (vl.includes('кандидат') || vl.includes('отсеян')) return '#fbbf24';
     if (vl === 'broker' || vl.includes('брокер')) return '#a78bfa';
     if (vl === 'contractor' || vl.includes('подрядчик')) return '#94a3b8';
     if (vl === 'tech_crew' || vl.includes('техник')) return '#f97316';
@@ -7294,7 +7295,7 @@ function LeadFlowSection() {
       <div style={{overflowX:'auto', marginBottom:12}}>
       <div style={{minWidth:520, display:'flex', flexDirection:'column', gap:8}}>
 
-        {/* Row 1: Three source lanes */}
+        {/* Row 1: Two real sources + Broker origin note */}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8}}>
           <div style={{background:'rgba(59,130,246,.08)', border:'1px solid rgba(59,130,246,.3)', borderRadius:9, padding:'8px 10px'}}>
             <div style={{fontSize:10, fontWeight:700, color:'#3b82f6', textTransform:'uppercase', letterSpacing:.5, marginBottom:6}}>📢 Посты</div>
@@ -7310,17 +7311,19 @@ function LeadFlowSection() {
             <div style={{fontSize:10, color:'#93c5fd', marginBottom:6}}>WhatsApp · Baileys</div>
             <div style={{fontSize:9, color:'#fde68a', background:'rgba(245,197,24,.08)', borderRadius:5, padding:'3px 6px'}}>enrich(force=True) — до агента</div>
           </div>
-          <div style={{background:'rgba(167,139,250,.08)', border:'1px solid rgba(167,139,250,.3)', borderRadius:9, padding:'8px 10px'}}>
-            <div style={{fontSize:10, fontWeight:700, color:'#a78bfa', textTransform:'uppercase', letterSpacing:.5, marginBottom:6}}>🤝 Broker</div>
-            <div style={{fontSize:10, color:'#d8b4fe', marginBottom:2}}>broker opportunity trigger</div>
-            <div style={{fontSize:10, color:'#d8b4fe', marginBottom:6}}>← от Agent 1 (broker_request)</div>
-            <div style={{fontSize:9, color:'#fde68a', background:'rgba(245,197,24,.08)', borderRadius:5, padding:'3px 6px'}}>get_or_enrich(ns="broker")</div>
+          {/* Col 3: Broker is NOT a source — show it as derived */}
+          <div style={{display:'flex', alignItems:'center', justifyContent:'center', padding:'6px 10px'}}>
+            <div style={{textAlign:'center', fontSize:9, color:'rgba(167,139,250,.45)', fontStyle:'italic', lineHeight:1.5}}>
+              <div style={{fontSize:13, marginBottom:2}}>↗</div>
+              Broker pipeline<br/>запускается из Agent 1<br/><span style={{fontSize:8}}>не независимый источник</span>
+            </div>
           </div>
         </div>
 
         {/* Arrows */}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, textAlign:'center', color:'var(--muted)', fontSize:16, lineHeight:1}}>
-          <div>↓</div><div>↓</div><div>↓</div>
+          <div>↓</div><div>↓</div>
+          <div style={{fontSize:10, color:'rgba(167,139,250,.5)', lineHeight:1.6}}>↗<br/><span style={{fontSize:8}}>broker_request</span></div>
         </div>
 
         {/* Row 2: Agents + context enrichment pipeline */}
@@ -7403,6 +7406,11 @@ function LeadFlowSection() {
             );
             return (
               <div style={{display:'flex', flexDirection:'column', gap:3}}>
+                {/* Trigger badge — shows this is derived from Agent 1, not a standalone source */}
+                <div style={{background:'rgba(167,139,250,.07)', border:'1px dashed rgba(167,139,250,.4)', borderRadius:6, padding:'4px 8px', fontSize:9, color:'#c4b5fd', textAlign:'center'}}>
+                  🔀 <strong>триггер от Agent 1</strong><br/>
+                  <span style={{color:'var(--muted)', fontSize:8}}>когда L2 классифицировал <code style={{fontSize:8}}>broker_request</code></span>
+                </div>
                 {/* raw log */}
                 <div style={{background:'#0d1117', border:'1px solid rgba(167,139,250,.45)', borderRadius:7, padding:'5px 8px'}}>
                   <div style={{fontSize:9, fontWeight:700, color:'#a78bfa', marginBottom:3}}>📄 conversation_cache/user.jsonl</div>
@@ -7555,7 +7563,7 @@ function LeadFlowSection() {
                       </div>
                     )) : (
                       <div style={{color:'#fbbf24', fontSize:10}}>
-                        судьба: лид найден, CRM ещё не привязалась к этому циклу
+                        судьба: кандидат-лид, финальная проверка ещё не записала CRM/skip
                       </div>
                     )}
                   </div>
