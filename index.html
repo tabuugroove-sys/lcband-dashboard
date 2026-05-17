@@ -7207,6 +7207,234 @@ function ChatPanel({ target, onClose }) {
   );
 }
 
+// ── Lead Flow Section ─────────────────────────────────────────────────────────
+function LeadFlowSection() {
+  const [data, setData] = React.useState(null);
+  const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch(`${backendUrl}/api/lead_flow`, { cache: 'no-store' });
+        const j = await r.json();
+        if (!cancelled) setData(j);
+      } catch {}
+    };
+    load();
+    const t = setInterval(load, 12000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [backendUrl]);
+
+  const fmtTime = (ts) => {
+    if (!ts) return '';
+    try { return new Date(ts).toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'}); }
+    catch { return ts.slice(11,16); }
+  };
+  const fmtAgo = (ts) => {
+    if (!ts) return '';
+    try {
+      const s = (Date.now() - new Date(ts).getTime()) / 1000;
+      if (s < 60) return `${Math.round(s)}с`;
+      if (s < 3600) return `${Math.round(s/60)}м`;
+      return `${Math.round(s/3600)}ч`;
+    } catch { return ''; }
+  };
+
+  const pipe = data?.pipeline || {};
+  const events = data?.events || [];
+  const isActive = pipe.realtime_active;
+
+  const verdictColor = (v) => {
+    if (!v) return 'var(--muted)';
+    const vl = v.toLowerCase();
+    if (vl.includes('актуал') || vl.includes('отказ') || vl === 'skip') return '#f87171';
+    if (vl.includes('переговор') || vl.includes('интерес') || vl.includes('прямой')) return '#34d399';
+    if (vl.includes('follow') || vl.includes('фолоу')) return '#fbbf24';
+    if (vl.includes('холодн')) return '#94a3b8';
+    return '#93c5fd';
+  };
+  const orderTypeLabel = (t) => ({
+    music_band: 'LC Band', broker_request: 'Broker',
+    drum_show: 'Drum', solo_musician: 'Solo', abstract: 'Уточнение',
+  }[t] || t || '');
+  const orderTypeColor = (t) => ({
+    music_band: '#34d399', broker_request: '#a78bfa',
+    drum_show: '#fbbf24', solo_musician: '#60a5fa', abstract: '#fb923c',
+  }[t] || 'var(--muted)');
+  const nextActionIcon = (a) => ({
+    archive: '📁', follow_up_later: '⏳', approval_needed: '⚠️',
+    send_pitch: '📤', send_followup: '📤', wait: '⏸',
+  }[a] || '·');
+
+  return (
+    <div className="section" style={{marginTop:14}}>
+      {/* Pipeline diagram */}
+      <div style={{
+        display:'grid',
+        gridTemplateColumns:'1fr auto 1fr auto 1fr auto 1fr',
+        gap:0, alignItems:'center', marginBottom:12,
+        background:'rgba(15,23,42,0.6)', borderRadius:10,
+        border:'1px solid var(--border)', padding:'12px 16px',
+        overflowX:'auto',
+      }}>
+        {/* Sources */}
+        <div style={{minWidth:100}}>
+          <div style={{fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6, fontWeight:700}}>Источники</div>
+          <SourceBox icon="💬" label={`TG чаты`} sub={`${pipe.tg_chats || 18} подписок`} active={isActive} pulse={isActive} ago={pipe.last_event_at ? fmtAgo(pipe.last_event_at)+' назад' : ''} color='#3b82f6' />
+          <SourceBox icon="📩" label="TG DM" sub="входящие" active color='#60a5fa' style={{marginTop:6}} />
+          <SourceBox icon="🅰️" label="VK" sub={`${pipe.vk_groups || 8} групп`} active color='#4f8ef7' style={{marginTop:6}} />
+        </div>
+
+        {/* Arrow 1 */}
+        <FlowArrow />
+
+        {/* Classifier */}
+        <div style={{minWidth:120, textAlign:'center'}}>
+          <div style={{fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6, fontWeight:700}}>Классификатор</div>
+          <div style={{background:'rgba(139,92,246,0.12)', border:'1px solid rgba(139,92,246,0.4)', borderRadius:8, padding:'10px 12px'}}>
+            <div style={{fontSize:12, fontWeight:700, color:'#a78bfa'}}>🤖 AI 2.0</div>
+            <div style={{fontSize:10, color:'var(--muted)', marginTop:3}}>Gemini Flash</div>
+            <div style={{fontSize:10, color:'var(--muted)'}}>→ L2 Sonnet</div>
+            <div style={{fontSize:10, color:'var(--muted)'}}>→ Opus</div>
+          </div>
+        </div>
+
+        {/* Arrow 2 */}
+        <FlowArrow />
+
+        {/* Verdicts */}
+        <div style={{minWidth:110, textAlign:'center'}}>
+          <div style={{fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6, fontWeight:700}}>Вердикт</div>
+          {[['music_band','LC Band 🎸','#34d399'],['broker_request','Broker 🤝','#a78bfa'],['drum_show','Drum 🥁','#fbbf24'],['skip','Skip ✗','#475569']].map(([k,l,c]) => (
+            <div key={k} style={{fontSize:11, color:c, padding:'2px 0', fontWeight:600}}>{l}</div>
+          ))}
+        </div>
+
+        {/* Arrow 3 */}
+        <FlowArrow />
+
+        {/* Agents */}
+        <div style={{minWidth:130}}>
+          <div style={{fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6, fontWeight:700}}>Агент</div>
+          <div style={{fontSize:11, color:'#34d399', padding:'2px 0'}}>→ LC Band → питч</div>
+          <div style={{fontSize:11, color:'#a78bfa', padding:'2px 0'}}>→ Broker → intake</div>
+          <div style={{fontSize:11, color:'#fbbf24', padding:'2px 0'}}>→ Noize Drum → бриф</div>
+          <div style={{fontSize:11, color:'#60a5fa', padding:'2px 0'}}>→ DM ответчик → reply</div>
+          <div style={{fontSize:11, color:'var(--muted)', padding:'2px 0'}}>→ Архив</div>
+        </div>
+      </div>
+
+      {/* Live events feed */}
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6}}>
+        <div style={{fontSize:11, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5}}>
+          📋 Последние события
+          {isActive && <span style={{marginLeft:8, color:'#34d399', fontWeight:700, fontSize:10}}>● live</span>}
+        </div>
+        <div style={{fontSize:10, color:'var(--muted)'}}>
+          {pipe.events_seen > 0 && `${pipe.events_seen} событий за сессию`}
+          {pipe.last_event_chat && ` · последний: ${pipe.last_event_chat}`}
+        </div>
+      </div>
+
+      {!data && <div style={{color:'var(--muted)', fontSize:12, padding:'8px 0'}}>Загрузка…</div>}
+      {data && events.length === 0 && <div style={{color:'var(--muted)', fontSize:12, padding:'8px 0'}}>Нет активности — ночное затишье</div>}
+
+      <div style={{display:'flex', flexDirection:'column', gap:3}}>
+        {events.map((ev, i) => {
+          if (ev.kind === 'monitor_cycle') {
+            const src = ev.source === 'vk' ? 'VK' : ev.inline ? 'TG inline' : 'TG monitor';
+            const srcColor = ev.source === 'vk' ? '#4f8ef7' : ev.inline ? '#34d399' : '#3b82f6';
+            return (
+              <div key={i} style={{
+                display:'flex', gap:10, alignItems:'center', padding:'4px 8px',
+                borderRadius:6, background:'rgba(15,23,42,0.4)',
+                fontSize:11, fontVariantNumeric:'tabular-nums',
+              }}>
+                <span style={{color:'var(--muted)', minWidth:34}}>{fmtTime(ev.ts)}</span>
+                <span style={{color:srcColor, fontWeight:600, minWidth:80}}>{src}</span>
+                <span style={{color:'var(--fg)'}}>
+                  {ev.chat_name ? <span style={{color:'#93c5fd'}}>{ev.chat_name} · </span> : null}
+                  {ev.messages_read} {ev.messages_read === 1 ? 'пост' : 'постов'}
+                </span>
+                {ev.orders > 0
+                  ? <span style={{color:'#34d399', fontWeight:700, marginLeft:'auto'}}>🎯 {ev.orders} лид{ev.orders > 1 ? 'а' : ''}</span>
+                  : <span style={{color:'var(--muted)', marginLeft:'auto', fontSize:10}}>skip</span>
+                }
+              </div>
+            );
+          }
+          if (ev.kind === 'dm_classify') {
+            const vc = verdictColor(ev.verdict);
+            return (
+              <div key={i} style={{
+                display:'flex', gap:10, alignItems:'center', padding:'4px 8px',
+                borderRadius:6, background:'rgba(15,23,42,0.4)',
+                fontSize:11, fontVariantNumeric:'tabular-nums',
+              }}>
+                <span style={{color:'var(--muted)', minWidth:34}}>{fmtTime(ev.ts)}</span>
+                <span style={{color:'#60a5fa', fontWeight:600, minWidth:80}}>TG DM</span>
+                <span style={{color:'#e2e8f0'}}>
+                  {ev.username ? <a href={`https://t.me/${ev.username}`} target="_blank" rel="noopener noreferrer" style={{color:'#93c5fd', textDecoration:'none'}}>@{ev.username}</a> : ev.name || '?'}
+                  {ev.layer && <span style={{color:'var(--muted)', fontSize:9, marginLeft:4}}>{ev.layer}</span>}
+                </span>
+                <span style={{color:vc, fontWeight:600, marginLeft:'auto'}}>{ev.verdict}</span>
+                <span style={{fontSize:13}}>{nextActionIcon(ev.next_action)}</span>
+              </div>
+            );
+          }
+          if (ev.kind === 'pitch_sent') {
+            const oc = orderTypeColor(ev.order_type);
+            return (
+              <div key={i} style={{
+                display:'flex', gap:10, alignItems:'center', padding:'4px 8px',
+                borderRadius:6, background:'rgba(52,211,153,0.06)',
+                border:'1px solid rgba(52,211,153,0.15)',
+                fontSize:11, fontVariantNumeric:'tabular-nums',
+              }}>
+                <span style={{color:'var(--muted)', minWidth:34}}>{fmtTime(ev.ts)}</span>
+                <span style={{color:oc, fontWeight:700, minWidth:80}}>📤 {orderTypeLabel(ev.order_type)}</span>
+                <span style={{color:'#e2e8f0'}}>
+                  {ev.username ? <a href={`https://t.me/${ev.username}`} target="_blank" rel="noopener noreferrer" style={{color:'#93c5fd', textDecoration:'none'}}>@{ev.username}</a> : ev.name}
+                  {ev.chat && <span style={{color:'var(--muted)', fontSize:10}}> · {ev.chat}</span>}
+                </span>
+                <span style={{color:'#34d399', fontWeight:700, marginLeft:'auto', fontSize:10}}>✅ отправлен</span>
+              </div>
+            );
+          }
+          return null;
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SourceBox({ icon, label, sub, active, pulse, ago, color, style={} }) {
+  return (
+    <div style={{
+      background: active ? `rgba(${color === '#3b82f6' ? '59,130,246' : color === '#60a5fa' ? '96,165,250' : '79,142,247'},0.10)` : 'rgba(30,41,59,0.6)',
+      border: `1px solid ${active ? color : 'var(--border)'}44`,
+      borderRadius:7, padding:'6px 10px', display:'flex', alignItems:'center', gap:7, ...style,
+    }}>
+      {pulse && <span style={{width:6,height:6,borderRadius:'50%',background:color,display:'inline-block',animation:'pulse 1.5s ease-in-out infinite',flexShrink:0}} />}
+      <span style={{fontSize:14}}>{icon}</span>
+      <div>
+        <div style={{fontSize:11, fontWeight:700, color:'var(--fg)'}}>{label}</div>
+        <div style={{fontSize:10, color:'var(--muted)'}}>{ago || sub}</div>
+      </div>
+    </div>
+  );
+}
+
+function FlowArrow() {
+  return (
+    <div style={{
+      display:'flex', alignItems:'center', justifyContent:'center',
+      padding:'0 4px', color:'var(--muted)', fontSize:16, flexShrink:0,
+    }}>→</div>
+  );
+}
+
 // ── Overview Stats Section ────────────────────────────────────────────────────
 function OverviewStatsSection({ stats }) {
   const [pitchOpen, setPitchOpen] = React.useState(null);
@@ -7775,6 +8003,7 @@ function App() {
           {activeTab === 'overview' && (
             <>
               <OverviewStatsSection stats={overviewStats} />
+              <LeadFlowSection />
               <StatusSection
                 status={data.status}
                 activity24h={activity24h}
