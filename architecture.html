@@ -925,6 +925,10 @@ flowchart TD
   TGRESP --> CTX["Load context: orders_db.find_by_username<br/>+ last 15 msgs Telethon"]:::store
   VKRESP --> CTX
 
+  BOC[("broker_order_context.py<br/>card_by_client / card_by_contractor<br/>prompt_block → AI-ready карточка<br/>SSoT для всех агентов")]:::store
+  TGRESP -.broker card.-> BOC
+  BOC -.inject =BROKER= block.-> GEN
+
   MEM[("conversation_memory/{username}.json<br/>event · facts_confirmed · promises<br/>broker_links · risk_flags")]:::store
   MEM -.read into prompt.-> GEN
 
@@ -1096,6 +1100,16 @@ flowchart TD
   BRIEF --> SENDC["pending_approvals (folder=broker_brief)<br/>_broker_auto_send (no-budget)"]:::out
   SENDC --> CONTR["📤 Бриф в TG → @contractor"]:::chan
   CONTR --> CREPLY["Подрядчик отвечает в TG<br/>цена + видео/фото"]:::chan
+  %% CONTEXT HUB — все агенты тянут карточку отсюда
+  BCTX[("broker_order_context.py<br/>card_by_client() / card_by_contractor()<br/>build_card() → ContextCard<br/>prompt_block() → AI-ready текст<br/><b>SSoT контекста для всех агентов</b>")]:::store
+  BORDER -.read.-> BCTX
+  BCTX -.карточка заказа.-> CINBOUND
+  BCTX -.карточка заказа.-> CDIALOG
+  BCTX -.inject broker block.-> LCBAI
+
+  CDIALOG["contractor_dialog_agent<br/>card_by_contractor(uname)<br/>classify → verdict"]:::agent
+  LCBAI["generate_contextual_response — Opus<br/>LC Band AI (tg_responder)<br/>+ broker context если клиент в broker"]:::ai
+
   CREPLY --> CINBOUND["tg_responder._handle_broker_inbound"]:::agent
   CINBOUND --> EXTRACT["broker_pipeline._extract_price<br/>→ candidate.price_rub / price_text"]:::ai
   CINBOUND -.media.-> COLLECT["broker_collect_promo<br/>→ broker_promo/&lt;svc&gt;/&lt;contractor&gt;/"]:::agent
