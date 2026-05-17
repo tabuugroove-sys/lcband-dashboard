@@ -760,7 +760,10 @@ function combinedUsageRowHtml(rows, data) {
   const totalUsed = Math.max(0, Number(total.used_pct || data.weekly_used_pct || appUsed + cliUsed));
   const appWidth = clampPct(appUsed);
   const cliWidth = clampPct(Math.min(cliUsed, Math.max(0, 100 - appWidth)));
-  const marker = clampPct(total.budget_by_now_pct ?? total.display_allowance_pct ?? total.today_allowance_pct ?? total.daily_budget_pct);
+  // Используем daily_budget_pct как базовую линию — всегда видима на баре.
+  // budget_by_now_pct на день 7 = 100% → уезжает на правый край, не видна.
+  const dailyMarker = clampPct(total.daily_budget_pct ?? (100 / 7));
+  const marker = dailyMarker || clampPct(total.budget_by_now_pct ?? total.display_allowance_pct ?? total.today_allowance_pct ?? 0);
   const over = totalUsed > marker + 0.1 ? ' over' : '';
   return `
     <div class="budget-row">
@@ -768,7 +771,7 @@ function combinedUsageRowHtml(rows, data) {
         <span class="budget-row-name">Usage weekly: факт ${limitPct(totalUsed)}</span>
         <span class="budget-row-delta ${delta.cls}">${delta.text}</span>
       </div>
-      <div class="budget-meter" title="App + CLI usage from weekly limit. Белая черта = максимум к концу расчётного дня">
+      <div class="budget-meter" title="App + CLI usage from weekly limit. Белая черта = дневная норма (1/7 лимита)">
         <div class="budget-meter-segment app" style="width:${appWidth}%"></div>
         <div class="budget-meter-segment cli${over}" style="left:${appWidth}%;width:${cliWidth}%"></div>
         <div class="budget-marker" style="left:${marker}%"></div>
