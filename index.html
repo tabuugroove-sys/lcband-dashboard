@@ -7697,6 +7697,179 @@ function OverviewStatsSection({ stats }) {
 }
 
 // ── Main App ──────────────────────────────────────────────────────────────────
+// ─── CartotekaSection ───────────────────────────────────────────────────────
+function CartotekaSection({ data }) {
+  const [showAll, setShowAll] = React.useState(false);
+  const [includeRefused, setIncludeRefused] = React.useState(false);
+  const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+
+  if (!data) return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">🗂 Картотека лидов</div>
+      <div style={{ color: '#888', fontSize: 13, padding: '8px 0' }}>загрузка...</div>
+    </div>
+  );
+
+  const { cards = [], by_intent = {}, needs_action = 0, total_in_store = 0 } = data;
+
+  const intentColor = {
+    active:     '#22c55e',
+    interested: '#3b82f6',
+    silent:     '#f59e0b',
+    refused:    '#ef4444',
+    cold:       '#94a3b8',
+  };
+  const intentLabel = {
+    active:     'активный',
+    interested: 'интересуется',
+    silent:     'молчит',
+    refused:    'отказ',
+    cold:       'холодный',
+  };
+  const channelBadge = {
+    tg:  { bg: '#2b6cb0', label: 'TG' },
+    wa:  { bg: '#16a34a', label: 'WA' },
+    vk:  { bg: '#7c3aed', label: 'VK' },
+  };
+
+  const visible = showAll ? cards : cards.slice(0, 8);
+
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span>🗂 Картотека лидов</span>
+        {needs_action > 0 && (
+          <span style={{ background: '#ef4444', color: '#fff', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 700 }}>
+            {needs_action} ждут ответа
+          </span>
+        )}
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: '#888', fontWeight: 400 }}>
+          {total_in_store} карточек в базе
+        </span>
+      </div>
+
+      {/* Intent summary bar */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '8px 0 12px' }}>
+        {[['active','🟢'],['interested','🔵'],['silent','🟡'],['refused','🔴'],['cold','⚪']].map(([k, ico]) => (
+          <span key={k} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 8, padding: '3px 10px', fontSize: 12
+          }}>
+            {ico} <strong style={{ color: intentColor[k] }}>{by_intent[k] || 0}</strong>
+            <span style={{ color: '#aaa' }}>{intentLabel[k]}</span>
+          </span>
+        ))}
+        <span
+          onClick={() => setIncludeRefused(v => !v)}
+          style={{ cursor: 'pointer', fontSize: 11, color: '#888', alignSelf: 'center', userSelect: 'none' }}
+        >
+          {includeRefused ? 'скрыть отказы' : '+ с отказами'}
+        </span>
+      </div>
+
+      {/* Cards */}
+      {visible.length === 0 && (
+        <div style={{ color: '#888', fontSize: 13 }}>Карточек нет (store пустой или все свежее 7 дней)</div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {visible.map(card => {
+          const ch = channelBadge[card.channel] || { bg: '#555', label: card.channel.toUpperCase() };
+          const intentC = intentColor[card.client_intent] || '#888';
+          return (
+            <div key={card.key} style={{
+              background: card.waiting_for_us
+                ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)',
+              border: card.waiting_for_us
+                ? '1px solid rgba(239,68,68,0.35)' : '1px solid rgba(255,255,255,0.09)',
+              borderRadius: 10, padding: '9px 12px',
+              display: 'flex', flexDirection: 'column', gap: 4,
+            }}>
+              {/* Row 1: channel badge + username + intent + silence */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{
+                  background: ch.bg, color: '#fff', borderRadius: 5,
+                  padding: '1px 6px', fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                }}>
+                  {ch.label}
+                </span>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>
+                  @{card.username}
+                </span>
+                <span style={{
+                  background: intentC + '22', color: intentC,
+                  border: `1px solid ${intentC}44`,
+                  borderRadius: 6, padding: '1px 7px', fontSize: 11,
+                }}>
+                  {intentLabel[card.client_intent] || card.client_intent}
+                </span>
+                {card.waiting_for_us && (
+                  <span style={{ color: '#ef4444', fontSize: 11, fontWeight: 700 }}>
+                    ⚡ ждёт ответа
+                  </span>
+                )}
+                {card.waiting_for_client && (
+                  <span style={{ color: '#f59e0b', fontSize: 11 }}>⏳ ждём клиента</span>
+                )}
+                <span style={{ marginLeft: 'auto', color: '#888', fontSize: 11 }}>
+                  {card.silence_days < 1
+                    ? `${Math.round(card.silence_days * 24)}ч молчания`
+                    : `${card.silence_days.toFixed(1)}д молчания`}
+                </span>
+              </div>
+
+              {/* Row 2: next_action_hint */}
+              {card.next_action_hint && (
+                <div style={{ fontSize: 12, color: '#d1d5db' }}>
+                  → {card.next_action_hint}
+                </div>
+              )}
+
+              {/* Row 3: pills — event_date, budget, key_asks */}
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 2 }}>
+                {card.event_date_confirmed && (
+                  <span style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
+                    📅 {card.event_date_confirmed}
+                  </span>
+                )}
+                {card.budget_confirmed && (
+                  <span style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
+                    💰 {card.budget_confirmed}
+                  </span>
+                )}
+                {(card.key_asks || []).slice(0, 3).map((ask, i) => (
+                  <span key={i} style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af', borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
+                    {ask}
+                  </span>
+                ))}
+                {card.refusal_detected && card.refusal_signal && (
+                  <span style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
+                    ✗ {card.refusal_signal.slice(0, 40)}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Show more / less */}
+      {cards.length > 8 && (
+        <div
+          onClick={() => setShowAll(v => !v)}
+          style={{ cursor: 'pointer', color: '#60a5fa', fontSize: 12, marginTop: 8, textAlign: 'center' }}
+        >
+          {showAll ? 'Свернуть' : `Показать все ${cards.length} карточек`}
+        </div>
+      )}
+
+      <div style={{ fontSize: 10, color: '#555', marginTop: 6, textAlign: 'right' }}>
+        обновляется при каждом входящем сообщении · {data.generated_at?.slice(11, 16) || ''}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [rows,      setRows]      = useState(null);
   const [dbSnapshot, setDbSnapshot] = useState(null);
@@ -7709,6 +7882,7 @@ function App() {
   const [recentSent, setRecentSent] = useState(null);
   const [recentSent24h, setRecentSent24h] = useState(null);
   const [todos,     setTodos]     = useState(null);
+  const [leadContext, setLeadContext] = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [refreshing,setRefreshing]= useState(false);
   const [error,     setError]     = useState(null);
@@ -7844,6 +8018,13 @@ function App() {
       const r = await fetch(`${bu}/api/overview_stats`, { cache: 'no-store' });
       if (r.ok) setOverviewStats(await r.json());
     } catch {}
+
+    // ── Картотека лидов (lead_context_store) ──
+    try {
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      const r = await fetch(`${bu}/api/lead_context?limit=100`, { cache: 'no-store' });
+      if (r.ok) setLeadContext(await r.json());
+    } catch { /* backend offline → section shows empty state */ }
   }, []);
 
   useEffect(() => {
@@ -8117,6 +8298,7 @@ function App() {
                 sessionLog={sessionLog || null}
                 fallbackFunnel={data.funnel || []}
               />
+              <CartotekaSection data={leadContext} />
               <RecentSentMessagesSection data={recentSent} />
               <FollowupsSection followups={data.followups} />
             </>
