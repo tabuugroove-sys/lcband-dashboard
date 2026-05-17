@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A/B: Browser Walk vs TG Push Monitor</title>
+<style>
+:root {
+  --bg: #0f172a; --fg: #e2e8f0; --muted: #64748b;
+  --border: #1e293b; --card: #1e293b; --card2: #0f172a;
+  --tg: #3b82f6; --bw: #f59e0b; --ok: #34d399;
+  --accent: #a78bfa;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui;
+       background: var(--bg); color: var(--fg); padding: 20px;
+       max-width: 1100px; margin: 0 auto; }
+
+nav { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:20px; }
+nav a { text-decoration:none; padding:5px 12px; font-size:12px; font-weight:600;
+        border-radius:999px; border:1px solid var(--border); color:var(--muted); }
+nav a.home { color:#f59e0b; border-color:rgba(245,158,11,0.4); background:rgba(245,158,11,0.08); }
+nav a.ab   { color:#a78bfa; border-color:rgba(167,139,250,0.4); background:rgba(167,139,250,0.08); }
+nav a.mon  { color:#3b82f6; border-color:rgba(59,130,246,0.4);  background:rgba(59,130,246,0.08); }
+nav a.active { box-shadow: inset 0 0 0 1px currentColor; }
+
+h1 { font-size:22px; margin-bottom:4px; }
+.subtitle { color:var(--muted); font-size:13px; margin-bottom:20px; line-height:1.5; }
+
+/* Summary cards */
+.cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:12px; margin-bottom:20px; }
+.card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+.card .label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.4px; font-weight:700; margin-bottom:6px; }
+.card .val { font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; }
+.card .sub  { font-size:11px; color:var(--muted); margin-top:3px; }
+.card.tg-card  { border-left:3px solid var(--tg); }
+.card.bw-card  { border-left:3px solid var(--bw); }
+.card.ok-card  { border-left:3px solid var(--ok); }
+
+/* Legend */
+.legend { display:flex; gap:16px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+.legend-dot { width:10px; height:10px; border-radius:2px; display:inline-block; margin-right:5px; }
+
+/* Chart */
+.chart-wrap { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:20px; }
+.chart-title { font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:12px; }
+.chart { display:flex; gap:6px; align-items:flex-end; height:180px; overflow-x:auto; padding-bottom:24px; position:relative; }
+.chart-col { display:flex; flex-direction:column; align-items:center; gap:2px; min-width:48px; }
+.chart-col .date-lbl { font-size:9px; color:var(--muted); position:absolute; bottom:4px; white-space:nowrap; }
+.bar-group { display:flex; gap:2px; align-items:flex-end; }
+.bar { border-radius:3px 3px 0 0; min-width:18px; cursor:default; transition:opacity .15s; position:relative; }
+.bar:hover { opacity:0.8; }
+.bar .tip { display:none; position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%);
+            background:#1e293b; border:1px solid #334155; border-radius:6px;
+            padding:6px 10px; font-size:11px; white-space:nowrap; z-index:10; pointer-events:none;
+            color:var(--fg); }
+.bar:hover .tip { display:block; }
+.gridline { position:absolute; left:0; right:0; height:1px; background:rgba(100,116,139,0.15); pointer-events:none; }
+
+/* Table */
+.table-wrap { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:20px; overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+th { color:var(--muted); font-weight:600; font-size:10px; text-transform:uppercase; letter-spacing:0.3px;
+     padding:6px 10px; text-align:left; border-bottom:1px solid var(--border); }
+td { padding:7px 10px; border-bottom:1px solid rgba(30,41,59,0.8); font-variant-numeric:tabular-nums; }
+tr:last-child td { border-bottom:none; }
+.num { text-align:right; }
+.tg-col { color:var(--tg); font-weight:600; }
+.bw-col { color:var(--bw); font-weight:600; }
+.winner { font-weight:700; }
+.delta-pos { color:var(--ok); }
+.delta-neg { color:#f87171; }
+tr.today td { background:rgba(59,130,246,0.05); }
+
+/* Conclusion */
+.conclusion { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:20px; }
+.conclusion h2 { font-size:14px; margin-bottom:12px; color:var(--fg); }
+.conclusion-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.concl-box { border-radius:8px; padding:12px 14px; }
+.concl-box h3 { font-size:12px; font-weight:700; margin-bottom:8px; }
+.concl-box ul { font-size:11px; color:var(--muted); line-height:1.8; padding-left:14px; }
+.concl-box ul li { list-style:disc; }
+.tg-box  { background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); }
+.bw-box  { background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); }
+
+/* Status */
+.status-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+.chip { padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600; }
+.chip-ok   { background:rgba(52,211,153,0.15); color:var(--ok); border:1px solid rgba(52,211,153,0.3); }
+.chip-warn { background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); }
+.chip-off  { background:rgba(100,116,139,0.15); color:var(--muted); border:1px solid rgba(100,116,139,0.3); }
+
+#generated { font-size:10px; color:var(--muted); margin-left:auto; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="home" href="./index.html">← Дашборд</a>
+  <a class="ab"   href="./ab-test.html">🧪 A/B тесты</a>
+  <a class="mon active" href="./ab-monitor.html">📡 Walk vs Push</a>
+</nav>
+
+<h1>📡 Browser Walk vs TG Push Monitor</h1>
+<div class="subtitle">
+  Сколько лидов находит каждый метод за 24ч. <br>
+  <b style="color:var(--bw)">Browser Walk</b> — Claude читает чаты глазами через Chrome, 18 чатов, 1×/час.<br>
+  <b style="color:var(--tg)">TG Push Monitor</b> — Telethon NewMessage подписка на все чаты, real-time.
+</div>
+
+<div class="status-row">
+  <span id="tg-status" class="chip chip-ok">● TG Monitor: активен</span>
+  <span id="bw-status" class="chip chip-warn">⏸ Browser Walk: не запускался</span>
+  <span id="generated">обновлено …</span>
+</div>
+
+<div class="cards" id="cards">
+  <div class="card tg-card"><div class="label">TG Monitor · лидов за период</div><div class="val" id="tg-total">…</div><div class="sub" id="tg-posts">… постов прочитано</div></div>
+  <div class="card bw-card"><div class="label">Browser Walk · лидов за период</div><div class="val" id="bw-total">…</div><div class="sub" id="bw-posts">… постов просмотрено</div></div>
+  <div class="card ok-card"><div class="label">Эффективность BW</div><div class="val" id="bw-eff">…</div><div class="sub">лидов на 100 постов</div></div>
+  <div class="card ok-card" style="border-left-color:var(--tg)"><div class="label">Эффективность TG</div><div class="val" id="tg-eff">…</div><div class="sub">лидов на 100 постов</div></div>
+</div>
+
+<div class="chart-wrap">
+  <div class="chart-title">Лидов найдено по дням</div>
+  <div class="legend">
+    <span><span class="legend-dot" style="background:var(--tg)"></span>TG Push Monitor</span>
+    <span><span class="legend-dot" style="background:var(--bw)"></span>Browser Walk</span>
+  </div>
+  <div class="chart" id="chart"><div style="color:var(--muted);font-size:12px">Загрузка…</div></div>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Дата</th>
+        <th class="num tg-col">TG посты</th>
+        <th class="num tg-col">TG лиды</th>
+        <th class="num tg-col">TG циклы</th>
+        <th class="num bw-col">BW посты</th>
+        <th class="num bw-col">BW лиды</th>
+        <th class="num bw-col">BW циклы</th>
+        <th class="num">Δ лиды</th>
+        <th>Лидер</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<div class="conclusion">
+  <h2>📊 Анализ</h2>
+  <div class="conclusion-grid">
+    <div class="concl-box tg-box">
+      <h3 style="color:var(--tg)">✅ TG Push Monitor</h3>
+      <ul>
+        <li>Real-time реакция — пост пришёл → за секунды</li>
+        <li>Не зависит от Chrome / сессии браузера</li>
+        <li>Читает полный текст через Telethon API</li>
+        <li>Без лимитов на скорость прокрутки</li>
+        <li>Heartbeat catch-up каждые 30 мин</li>
+        <li>Работает 24/7 без участия пользователя</li>
+      </ul>
+    </div>
+    <div class="concl-box bw-box">
+      <h3 style="color:var(--bw)">⚠️ Browser Walk</h3>
+      <ul>
+        <li>Видит то, что видит человек — включая закреплённые/отложенные</li>
+        <li>Может читать закрытые чаты (где API не работает)</li>
+        <li>Зависит от Chrome + TG Web сессии</li>
+        <li>Медленнее (~5-10 мин на 18 чатов)</li>
+        <li>Ломается при смене интерфейса TG Web</li>
+        <li>С мая 13 не запускается (script_exit_rc=0)</li>
+      </ul>
+    </div>
+  </div>
+  <div id="verdict" style="margin-top:14px; padding:12px 14px; background:rgba(52,211,153,0.07); border:1px solid rgba(52,211,153,0.2); border-radius:8px; font-size:12px; line-height:1.6;">
+    Загрузка…
+  </div>
+</div>
+
+<script>
+const BACKEND = 'http://127.0.0.1:8878';
+
+function fmt(n) { return Number(n || 0).toLocaleString('ru-RU'); }
+function eff(orders, posts) {
+  if (!posts) return orders > 0 ? '∞' : '0';
+  return (orders / posts * 100).toFixed(1);
+}
+
+async function load() {
+  try {
+    const r = await fetch(`${BACKEND}/api/monitor_ab`, { cache: 'no-store' });
+    const d = await r.json();
+    render(d);
+  } catch(e) {
+    document.getElementById('chart').innerHTML = `<div style="color:#f87171">Бэкенд недоступен: ${e.message}</div>`;
+  }
+}
+
+function render(d) {
+  const rows = d.rows || [];
+  const tot  = d.totals || {};
+  const tgT  = tot.tg || {};
+  const bwT  = tot.browser_walk || {};
+
+  // Generated
+  document.getElementById('generated').textContent = 'обновлено ' + (d.generated_at||'').slice(11,16);
+
+  // Status chips
+  const bwLast = d.bw_last_run ? new Date(d.bw_last_run) : null;
+  const bwAgo  = bwLast ? Math.round((Date.now() - bwLast.getTime()) / 3600000) : null;
+  const bwChip = document.getElementById('bw-status');
+  if (bwAgo !== null) {
+    if (bwAgo < 2) { bwChip.className='chip chip-ok'; bwChip.textContent='● Browser Walk: работает'; }
+    else if (bwAgo < 26) { bwChip.className='chip chip-warn'; bwChip.textContent=`⏸ Browser Walk: ${bwAgo}ч назад`; }
+    else { bwChip.className='chip chip-off'; bwChip.textContent=`✗ Browser Walk: не запускался ${bwAgo}ч`; }
+  }
+
+  // Summary cards
+  document.getElementById('tg-total').textContent = fmt(tgT.orders);
+  document.getElementById('tg-posts').textContent = fmt(tgT.posts) + ' постов прочитано';
+  document.getElementById('bw-total').textContent = fmt(bwT.orders);
+  document.getElementById('bw-posts').textContent = fmt(bwT.posts) + ' постов просмотрено';
+  document.getElementById('tg-eff').textContent   = eff(tgT.orders, tgT.posts) + '%';
+  document.getElementById('bw-eff').textContent   = eff(bwT.orders, bwT.posts) + '%';
+
+  // Chart
+  const maxOrders = Math.max(1, ...rows.map(r => Math.max(r.tg.orders, r.browser_walk.orders)));
+  const H = 150;
+  const chart = document.getElementById('chart');
+  chart.innerHTML = '';
+  // Gridlines
+  [0.25,0.5,0.75,1].forEach(p => {
+    const g = document.createElement('div');
+    g.className = 'gridline';
+    g.style.bottom = (p * H + 24) + 'px';
+    chart.appendChild(g);
+  });
+
+  rows.forEach(row => {
+    const col = document.createElement('div');
+    col.className = 'chart-col';
+    col.style.position = 'relative';
+
+    const tgH  = Math.max(2, Math.round(row.tg.orders / maxOrders * H));
+    const bwH  = Math.max(2, Math.round(row.browser_walk.orders / maxOrders * H));
+    const isToday = row.date === new Date().toLocaleDateString('sv');
+
+    const bg = document.createElement('div');
+    bg.className = 'bar-group';
+
+    const tgBar = document.createElement('div');
+    tgBar.className = 'bar';
+    tgBar.style.cssText = `height:${tgH}px; background:var(--tg); width:20px; opacity:${isToday?1:0.75};`;
+    tgBar.innerHTML = `<div class="tip">TG: ${row.tg.orders} лидов<br>${fmt(row.tg.posts)} постов<br>${row.tg.cycles} циклов</div>`;
+
+    const bwBar = document.createElement('div');
+    bwBar.className = 'bar';
+    bwBar.style.cssText = `height:${bwH}px; background:var(--bw); width:20px; opacity:${isToday?1:0.75};`;
+    bwBar.innerHTML = `<div class="tip">BW: ${row.browser_walk.orders} лидов<br>${fmt(row.browser_walk.posts)} постов<br>${row.browser_walk.cycles} циклов</div>`;
+
+    bg.appendChild(tgBar);
+    bg.appendChild(bwBar);
+    col.appendChild(bg);
+
+    const lbl = document.createElement('div');
+    lbl.className = 'date-lbl';
+    const d = new Date(row.date);
+    lbl.textContent = (d.getDate()) + '.' + String(d.getMonth()+1).padStart(2,'0');
+    col.appendChild(lbl);
+
+    chart.appendChild(col);
+  });
+
+  // Table
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  const today = new Date().toLocaleDateString('sv');
+  rows.slice().reverse().forEach(row => {
+    const delta = row.tg.orders - row.browser_walk.orders;
+    const winner = row.tg.orders > row.browser_walk.orders ? '🔵 TG'
+                 : row.browser_walk.orders > row.tg.orders ? '🟡 BW' : '🤝 Ничья';
+    const tr = document.createElement('tr');
+    if (row.date === today) tr.className = 'today';
+    tr.innerHTML = `
+      <td>${row.date.slice(5).replace('-','.')}</td>
+      <td class="num tg-col">${fmt(row.tg.posts)}</td>
+      <td class="num tg-col winner">${fmt(row.tg.orders)}</td>
+      <td class="num" style="color:var(--muted)">${row.tg.cycles}</td>
+      <td class="num bw-col">${fmt(row.browser_walk.posts)}</td>
+      <td class="num bw-col winner">${fmt(row.browser_walk.orders)}</td>
+      <td class="num" style="color:var(--muted)">${row.browser_walk.cycles}</td>
+      <td class="num ${delta>0?'delta-pos':delta<0?'delta-neg':''}">${delta>0?'+':''}${delta}</td>
+      <td>${winner}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Verdict
+  const tgWins = rows.filter(r => r.tg.orders > r.browser_walk.orders).length;
+  const bwWins = rows.filter(r => r.browser_walk.orders > r.tg.orders).length;
+  const bwActive = rows.filter(r => r.browser_walk.cycles > 0).length;
+  const verdictEl = document.getElementById('verdict');
+  if (bwActive === 0) {
+    verdictEl.innerHTML = `<b>Browser Walk не запускался</b> в рассматриваемом периоде — сравнение невозможно.
+    TG Push Monitor работает стабильно: <b>${fmt(tgT.orders)} лидов</b> за ${rows.length} дней.
+    Чтобы запустить A/B тест — нужно починить Browser Walk (последняя ошибка: <code>script_exit_rc=0</code> от ${(d.bw_last_run||'').slice(0,10)}).`;
+  } else {
+    verdictEl.innerHTML = `За период когда оба метода работали (${bwActive} дн.):
+    TG выиграл <b>${tgWins}</b> дн., BW выиграл <b>${bwWins}</b> дн.
+    Всего лидов — TG: <b>${fmt(tgT.orders)}</b>, BW: <b>${fmt(bwT.orders)}</b>.
+    Эффективность (лидов/100 постов) — TG: <b>${eff(tgT.orders, tgT.posts)}%</b>, BW: <b>${eff(bwT.orders, bwT.posts)}%</b>.`;
+  }
+}
+
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>
