@@ -152,7 +152,25 @@ h1 { margin: 0 0 4px 0; font-size: 22px; }
     </div>
 
     <div class="test-section">
-      <h3>Ground-truth набор (TODO)</h3>
+      <h3>Ground-truth набор</h3>
+      <div id="gt-info" class="note" style="margin-top:6px">загрузка...</div>
+    </div>
+
+    <div class="test-section">
+      <h3>Запуск</h3>
+      <button id="run-btn" onclick="triggerRun()"
+              style="padding: 8px 18px; font-size: 13px; font-weight: 700;
+                     background: rgba(139,92,246,.15); color: #8b5cf6;
+                     border: 1px solid #8b5cf6; border-radius: 6px; cursor: pointer;">
+        ▶ Прогнать сейчас
+      </button>
+      <span style="color: var(--muted); font-size: 11px; margin-left: 10px;">
+        Auto: каждое воскресенье 07:00 MSK (launchd com.lcband.ab-test-runner)
+      </span>
+    </div>
+
+    <div class="test-section" style="display:none">
+      <h3>TODO list (для справки)</h3>
       <ul class="checklist">
         <li class="todo">Собрать 50 постов из <code>orders.db</code> где verdict верифицирован реальным flow:
           <ul style="margin: 4px 0 0 16px; font-size: 12px; color: var(--muted);">
@@ -178,15 +196,14 @@ h1 { margin: 0 0 4px 0; font-size: 22px; }
             <th class="num">Δ</th>
           </tr>
         </thead>
-        <tbody>
-          <tr><td>Overall accuracy</td>           <td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
-          <tr><td>False skip rate (главное)</td>  <td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
-          <tr><td>music_band recall</td>          <td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
-          <tr><td>broker_request recall</td>      <td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
-          <tr><td>Latency (avg ms/post)</td>      <td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
-          <tr><td>Стоимость на 1000 постов</td>   <td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+        <tbody id="metrics-tbody">
+          <tr><td colspan="4" style="text-align:center; color:var(--muted)">нет прогонов — жми «Прогнать сейчас» или ждите воскресной auto-run</td></tr>
         </tbody>
       </table>
+      <h3 style="margin-top:12px">История прогонов</h3>
+      <ul id="history-list" style="font-size: 11px; font-family: 'SF Mono','Menlo','Consolas',monospace; color: var(--muted); list-style: none; padding: 0; margin: 0;">
+        <li>(пусто)</li>
+      </ul>
       <div class="note warn">
         Решение: <b>v2 deploy</b> если accuracy ≥ v1 AND false_skip ≤ v1 × 0.5 AND latency ≤ v1 × 2.<br>
         Иначе: <b>v1 stays</b>, документируем что Gemini screener не вытянул на event-постах.
@@ -257,11 +274,104 @@ h1 { margin: 0 0 4px 0; font-size: 22px; }
 </div>
 
 <script>
-// 17.05.2026 (skeleton): Static page для трекинга A/B тестов.
-// TODO: подключить /api/ab_tests endpoint для динамического показа результатов
-// когда test harness реально прогонит ground-truth набор.
-// Сейчас — durable trace плана, чтобы не потерять между сессиями.
-console.log('[ab-test] static skeleton — TODO: wire /api/ab_tests');
+// 17.05.2026 — wire /api/ab_tests endpoint для актуальных данных + manual run.
+const BACKEND = 'http://127.0.0.1:8878';
+
+async function loadAbTests() {
+  try {
+    const r = await fetch(`${BACKEND}/api/ab_tests`, { cache: 'no-store' });
+    const j = await r.json();
+    const t = (j.tests || [])[0];
+    if (!t) return;
+
+    // Update test card status badge
+    const card = document.getElementById('test-l1-event-classifier');
+    if (card) {
+      card.classList.remove('planned', 'running', 'done');
+      card.classList.add(t.status);
+      const badge = card.querySelector('.test-status');
+      if (badge) {
+        badge.classList.remove('planned', 'running', 'done');
+        badge.classList.add(t.status);
+        badge.textContent = t.status === 'running' ? `Активен · ${t.snapshots_count} прогонов` :
+                            t.status === 'done' ? 'Готов' : 'Запланирован';
+      }
+    }
+
+    // Ground-truth info
+    const gt = t.ground_truth || {};
+    const gtInfoEl = document.getElementById('gt-info');
+    if (gtInfoEl) {
+      gtInfoEl.innerHTML = gt.size
+        ? `📊 ${gt.size} постов · ${JSON.stringify(gt.by_verdict || {})} · обновлено ${(gt.built_at||'').slice(0,16).replace('T',' ')}`
+        : '⚠️ ground-truth набор не создан';
+    }
+
+    // Latest metrics table
+    const tableBody = document.getElementById('metrics-tbody');
+    if (tableBody && t.latest_snapshot) {
+      const m = t.latest_snapshot.metrics || {};
+      const v1 = m.v1 || {};
+      const v2 = m.v2 || {};
+      const fmt = (a, b, suffix='') => {
+        if (a == null && b == null) return '<td class="num">—</td><td class="num">—</td><td class="num">—</td>';
+        const aS = a != null ? a + suffix : '—';
+        const bS = b != null ? b + suffix : '—';
+        const delta = (a != null && b != null) ? (b - a).toFixed(1) : '—';
+        const cls = (a != null && b != null) ? (b > a ? 'good' : (b < a ? 'bad' : '')) : '';
+        return `<td class="num">${aS}</td><td class="num">${bS}</td><td class="num ${cls}">${delta}${suffix}</td>`;
+      };
+      tableBody.innerHTML = `
+        <tr><td>Overall accuracy</td>${fmt(v1.accuracy, v2.accuracy, '%')}</tr>
+        <tr><td>False skip rate</td>${fmt(v1.false_skip_rate, v2.false_skip_rate, '%')}</tr>
+        <tr><td>Recall music_band</td>${fmt(v1.recall_music_band, v2.recall_music_band, '%')}</tr>
+        <tr><td>Recall broker_request</td>${fmt(v1.recall_broker_request, v2.recall_broker_request, '%')}</tr>
+        <tr><td>Avg latency (sec)</td>${fmt(v1.avg_latency_sec, v2.avg_latency_sec, 's')}</tr>
+      `;
+    }
+
+    // History
+    const hist = t.history || [];
+    const histEl = document.getElementById('history-list');
+    if (histEl && hist.length) {
+      histEl.innerHTML = hist.slice(-10).reverse().map(h => {
+        const dep = h.auto_deployed ? '🟢 deployed' : '';
+        const ts = (h.ts || '').slice(0, 16).replace('T', ' ');
+        return `<li>${ts} · v1 ${h.v1_accuracy}%/v2 ${h.v2_accuracy}% acc · skip v1 ${h.v1_false_skip}%/v2 ${h.v2_false_skip}% ${dep}</li>`;
+      }).join('');
+    }
+  } catch (e) {
+    console.error('[ab-test] load failed', e);
+  }
+}
+
+async function triggerRun() {
+  const token = prompt('Admin token (DASHBOARD_ADMIN_TOKEN):');
+  if (!token) return;
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true; btn.textContent = '⏳ Запускаю...';
+  try {
+    const r = await fetch(`${BACKEND}/api/ab_tests/run`, {
+      method: 'POST',
+      headers: { 'X-Admin-Token': token, 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    const j = await r.json();
+    if (j.ok) {
+      btn.textContent = '✓ Запущено в фоне (~10 мин)';
+      setTimeout(() => { btn.disabled = false; btn.textContent = '🔄 Прогнать ещё раз'; }, 5000);
+    } else {
+      alert('Ошибка: ' + (j.error || 'unknown'));
+      btn.disabled = false; btn.textContent = '▶ Прогнать сейчас';
+    }
+  } catch (e) {
+    alert('Сеть/сервер не отвечает: ' + e.message);
+    btn.disabled = false; btn.textContent = '▶ Прогнать сейчас';
+  }
+}
+
+loadAbTests();
+setInterval(loadAbTests, 30000);  // refresh every 30s
 </script>
 
 </body>
