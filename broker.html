@@ -52,19 +52,39 @@
   .conv-popup .msg.in { color:var(--fg); }
   .conv-popup .msg .when { color:var(--muted); font-size:10px; margin-right:6px; }
 
-  /* Roster section */
+  /* Roster — split pane */
   .roster-section { margin-bottom:28px; }
   .roster-section h2 { font-size:16px; font-weight:700; margin:0 0 12px; display:flex; align-items:center; gap:8px; }
-  .roster-cats { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
-  .roster-cat { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:14px; }
-  .roster-cat-header { display:flex; align-items:center; gap:8px; margin-bottom:10px;
-                       padding-bottom:8px; border-bottom:1px solid var(--border); }
-  .roster-cat-header .emoji { font-size:18px; line-height:1; }
-  .roster-cat-header .cat-name { font-weight:600; font-size:14px; }
-  .roster-cat-header .cat-count { margin-left:auto; background:rgba(88,166,255,0.12);
-                                   color:var(--accent); padding:1px 7px; border-radius:10px;
-                                   font-size:11px; font-weight:600; }
-  .roster-vendor { display:flex; flex-direction:column; gap:3px; padding:8px 0;
+
+  .roster-split { display:flex; border:1px solid var(--border); border-radius:10px; overflow:hidden; min-height:320px; }
+
+  /* Left: category list */
+  .cat-list { width:220px; flex-shrink:0; border-right:1px solid var(--border); overflow-y:auto; }
+  .cat-row { display:flex; align-items:center; gap:9px; padding:10px 14px; cursor:pointer;
+             border-bottom:1px solid rgba(255,255,255,0.04); transition:background .12s; user-select:none; }
+  .cat-row:last-child { border-bottom:none; }
+  .cat-row:hover { background:rgba(88,166,255,0.07); }
+  .cat-row.active { background:rgba(88,166,255,0.13); border-right:2px solid var(--accent); }
+  .cat-row .cr-emoji { font-size:17px; line-height:1; flex-shrink:0; }
+  .cat-row .cr-name { font-size:13px; font-weight:500; flex:1; }
+  .cat-row.active .cr-name { color:var(--accent); font-weight:600; }
+  .cat-row .cr-count { font-size:11px; font-weight:600; color:var(--muted);
+                       background:rgba(255,255,255,0.06); border-radius:10px;
+                       padding:1px 7px; flex-shrink:0; }
+  .cat-row.active .cr-count { color:var(--accent); background:rgba(88,166,255,0.15); }
+  .cat-row .cr-arr { font-size:10px; color:var(--muted); flex-shrink:0; transition:transform .12s; }
+  .cat-row.active .cr-arr { transform:translateX(2px); color:var(--accent); }
+
+  /* Right: vendors panel */
+  .vendors-panel { flex:1; padding:16px 18px; overflow-y:auto; }
+  .vendors-panel .vp-empty { color:var(--muted); font-style:italic; font-size:13px; padding:24px 0; text-align:center; }
+  .vendors-panel .vp-header { font-size:14px; font-weight:700; margin-bottom:14px;
+                               padding-bottom:10px; border-bottom:1px solid var(--border);
+                               display:flex; align-items:center; gap:8px; }
+  .vendors-panel .vp-header .vp-emoji { font-size:20px; }
+  .vendors-panel .vp-header .vp-meta { font-size:11px; color:var(--muted); font-weight:400; margin-left:auto; }
+
+  .roster-vendor { display:flex; flex-direction:column; gap:3px; padding:10px 0;
                    border-bottom:1px dashed var(--border); }
   .roster-vendor:last-child { border-bottom:none; padding-bottom:0; }
   .roster-vendor .v-name { font-weight:600; font-size:13px; }
@@ -80,8 +100,14 @@
                            border-radius:4px; padding:1px 6px; font-size:10px; }
   .roster-vendor .v-last { color:var(--muted); font-size:10px; }
   .roster-empty { color:var(--muted); font-style:italic; font-size:12px; padding:6px 0; }
-  html[data-theme="light"] .roster-cat { background:#fff; border-color:#d0d7de; }
+  html[data-theme="light"] .roster-split { border-color:#d0d7de; }
+  html[data-theme="light"] .cat-list { border-right-color:#d0d7de; }
+  html[data-theme="light"] .cat-row:hover { background:rgba(9,105,218,0.06); }
+  html[data-theme="light"] .cat-row.active { background:rgba(9,105,218,0.1); border-right-color:#0969da; }
+  html[data-theme="light"] .cat-row.active .cr-name { color:#0969da; }
+  html[data-theme="light"] .cat-row.active .cr-count { color:#0969da; background:rgba(9,105,218,0.12); }
   html[data-theme="light"] .roster-vendor { border-bottom-color:#d0d7de; }
+  html[data-theme="light"] .vendors-panel .vp-header { border-bottom-color:#d0d7de; }
 
   .casting-section { margin-top:14px; }
   .casting-section h3 { font-size:13px; text-transform:uppercase; letter-spacing:0.5px;
@@ -177,7 +203,7 @@
 </div>
 <div class="roster-section">
   <h2>📋 Реестр подрядчиков <span id="roster-meta" style="font-weight:400;font-size:12px;color:var(--muted)"></span></h2>
-  <div class="roster-cats" id="roster-cats">
+  <div id="roster-cats">
     <div style="color:var(--muted);font-size:13px">Загрузка реестра…</div>
   </div>
 </div>
@@ -333,51 +359,30 @@ function renderOrder(o) {
   </div>`;
 }
 
-// Фильтр по городу
-var rosterGeoFilter = 'all';
+// ── Roster split-pane ────────────────────────────────────────────────
+var _activeCatIdx = null;
 
-function renderRosterControls(cats) {
-  // Collect unique cities across all vendors
-  const cities = new Set();
-  cats.forEach(c => c.vendors.forEach(v => {
-    const g = (v.geo || '').trim();
-    if (g && g !== 'уточнить') {
-      g.split('/').forEach(p => { const t = p.trim(); if (t) cities.add(t); });
-    }
-  }));
-  const cityOpts = ['all', ...Array.from(cities).sort()];
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-    <span style="color:var(--muted);font-size:12px">Город:</span>
-    ${cityOpts.map(c => `<button onclick="setGeoFilter('${escHtml(c)}')" id="geo-btn-${escHtml(c)}"
-      style="padding:3px 10px;border-radius:12px;font-size:12px;cursor:pointer;border:1px solid var(--border);
-             background:${c==='all'?'rgba(88,166,255,0.15)':'var(--card)'};
-             color:${c==='all'?'var(--accent)':'var(--muted)'}">${c==='all'?'Все':escHtml(c)}</button>`).join('')}
-  </div>`;
-}
-
-function setGeoFilter(city) {
-  rosterGeoFilter = city;
-  document.querySelectorAll('[id^="geo-btn-"]').forEach(b => {
-    const isActive = b.id === `geo-btn-${city}`;
-    b.style.background = isActive ? 'rgba(88,166,255,0.15)' : 'var(--card)';
-    b.style.color = isActive ? 'var(--accent)' : 'var(--muted)';
-    b.style.borderColor = isActive ? 'rgba(88,166,255,0.4)' : 'var(--border)';
+function selectCat(idx) {
+  _activeCatIdx = idx;
+  // highlight active row
+  document.querySelectorAll('.cat-row').forEach((el, i) => {
+    el.classList.toggle('active', i === idx);
   });
-  // Re-render all cats
-  if (window._rosterCats) renderRosterCats(window._rosterCats);
-}
-
-function vendorMatchesGeo(v) {
-  if (rosterGeoFilter === 'all') return true;
-  const g = (v.geo || '').toLowerCase();
-  return g.includes(rosterGeoFilter.toLowerCase());
-}
-
-function renderRosterCats(cats) {
-  const nonEmpty = cats.filter(c => c.vendors.filter(vendorMatchesGeo).length > 0);
-  const empty = cats.filter(c => c.vendors.filter(vendorMatchesGeo).length === 0);
-  const target = document.getElementById('roster-cats-inner') || document.getElementById('roster-cats');
-  target.innerHTML = [...nonEmpty, ...empty].map(renderRosterCat).join('');
+  // render vendors panel
+  const cats = window._rosterCats || [];
+  const cat = cats[idx];
+  const panel = document.getElementById('vendors-panel');
+  if (!panel || !cat) return;
+  const vendors = cat.vendors || [];
+  const withRate = vendors.filter(v => v.rate_quote && v.rate_quote !== 'уточнить').length;
+  panel.innerHTML = `
+    <div class="vp-header">
+      <span class="vp-emoji">${escHtml(cat.emoji)}</span>
+      <span>${escHtml(cat.label)}</span>
+      <span class="vp-meta">${vendors.length} подрядчиков · ${withRate} с ценой</span>
+    </div>
+    ${vendors.length ? vendors.map(renderRosterVendor).join('') : '<div class="vp-empty">нет подрядчиков</div>'}
+  `;
 }
 
 function renderRosterVendor(v) {
@@ -391,10 +396,10 @@ function renderRosterVendor(v) {
     ? `<div class="v-tags">${v.service_formats.map(f => `<span class="v-tag">${escHtml(f)}</span>`).join('')}</div>`
     : '';
   const lastHtml = v.last_contact ? `<div class="v-last">последний контакт: ${escHtml(v.last_contact)}</div>` : '';
-  const notesShort = (v.notes || '').slice(0, 120) + ((v.notes || '').length > 120 ? '…' : '');
+  const notesShort = (v.notes || '').slice(0, 140) + ((v.notes || '').length > 140 ? '…' : '');
   return `<div class="roster-vendor">
     <div class="v-name">${escHtml(v.name || '—')}</div>
-    <div class="v-user">@${escHtml(v.username)}</div>
+    <div class="v-user">@${escHtml(v.username)}${v.geo && v.geo !== 'уточнить' ? `<span style="color:var(--muted);margin-left:8px">📍 ${escHtml(v.geo)}</span>` : ''}</div>
     ${v.rate_quote ? `<div class="v-rate">💰 ${escHtml(v.rate_quote)}</div>` : ''}
     ${promoHtml}
     ${stdHtml ? `<div style="margin-top:3px">${stdHtml}</div>` : ''}
@@ -404,23 +409,26 @@ function renderRosterVendor(v) {
   </div>`;
 }
 
-function renderRosterCat(cat) {
-  const filtered = cat.vendors.filter(vendorMatchesGeo);
-  const withGeo = filtered.filter(v => v.geo && v.geo !== 'уточнить').length;
-  const withRate = filtered.filter(v => v.rate_quote && v.rate_quote !== 'уточнить').length;
-  const vendorsHtml = filtered.length
-    ? filtered.map(renderRosterVendor).join('')
-    : '<div class="roster-empty">нет подрядчиков по фильтру</div>';
-  const geoHint = filtered.length ? `<span style="font-size:10px;color:var(--muted);margin-left:4px">${withGeo} с городом · ${withRate} с ценой</span>` : '';
-  return `<div class="roster-cat">
-    <div class="roster-cat-header">
-      <span class="emoji">${escHtml(cat.emoji)}</span>
-      <span class="cat-name">${escHtml(cat.label)}</span>
-      <span class="cat-count">${filtered.length}</span>
-      ${geoHint}
-    </div>
-    ${vendorsHtml}
-  </div>`;
+function renderRosterSplit(cats) {
+  const target = document.getElementById('roster-cats');
+  // build split layout
+  const catRowsHtml = cats.map((cat, i) => `
+    <div class="cat-row${i === 0 ? ' active' : ''}" onclick="selectCat(${i})">
+      <span class="cr-emoji">${escHtml(cat.emoji)}</span>
+      <span class="cr-name">${escHtml(cat.label)}</span>
+      <span class="cr-count">${cat.vendors.length}</span>
+      <span class="cr-arr">›</span>
+    </div>`).join('');
+  target.innerHTML = `
+    <div class="roster-split">
+      <div class="cat-list">${catRowsHtml}</div>
+      <div class="vendors-panel" id="vendors-panel">
+        <div class="vp-empty">← Выберите категорию</div>
+      </div>
+    </div>`;
+  // auto-select first non-empty
+  const firstNonEmpty = cats.findIndex(c => c.vendors.length > 0);
+  selectCat(firstNonEmpty >= 0 ? firstNonEmpty : 0);
 }
 
 async function loadRoster(base) {
@@ -431,12 +439,7 @@ async function loadRoster(base) {
     window._rosterCats = data.categories;
     const nonEmpty = data.categories.filter(c => c.vendors.length > 0);
     const withGeoTotal = data.categories.reduce((s,c) => s + c.vendors.filter(v => v.geo && v.geo !== 'уточнить').length, 0);
-    // Inject geo filter controls above cats
-    document.getElementById('roster-cats').innerHTML =
-      renderRosterControls(data.categories) +
-      '<div id="roster-cats-inner"></div>';
-    // re-point render target
-    renderRosterCats(data.categories);
+    renderRosterSplit(data.categories);
     document.getElementById('roster-meta').textContent =
       `· ${data.total} подрядчиков · ${withGeoTotal} с городом · ${nonEmpty.length} категорий` +
       (data._meta.updated ? ` · обновлено ${data._meta.updated}` : '');
