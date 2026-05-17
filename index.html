@@ -7248,8 +7248,15 @@ function LeadFlowSection() {
   const verdictColor = (v) => {
     if (!v) return 'var(--muted)';
     const vl = v.toLowerCase();
-    if (vl.includes('актуал') || vl.includes('отказ') || vl === 'skip') return '#f87171';
-    if (vl.includes('переговор') || vl.includes('интерес') || vl.includes('прямой')) return '#34d399';
+    if (vl.includes('active') || vl.includes('активн')) return '#34d399';
+    if (vl.includes('pending') || vl.includes('переговор') || vl.includes('интерес')) return '#fbbf24';
+    if (vl === 'lead' || vl.includes('новый лид') || vl.includes('прямой')) return '#60a5fa';
+    if (vl === 'broker' || vl.includes('брокер')) return '#a78bfa';
+    if (vl === 'contractor' || vl.includes('подрядчик')) return '#94a3b8';
+    if (vl === 'tech_crew' || vl.includes('техник')) return '#f97316';
+    if (vl === 'musician' || vl.includes('музыкант')) return '#475569';
+    if (vl === 'refusal' || vl.includes('отказ') || vl.includes('актуал')) return '#f87171';
+    if (vl === 'spam' || vl.includes('спам')) return '#334155';
     if (vl.includes('follow') || vl.includes('фолоу')) return '#fbbf24';
     if (vl.includes('холодн')) return '#94a3b8';
     return '#93c5fd';
@@ -7272,59 +7279,90 @@ function LeadFlowSection() {
       {/* Pipeline diagram */}
       <div style={{
         display:'grid',
-        gridTemplateColumns:'1fr auto 1fr auto 1fr auto 1fr',
-        gap:0, alignItems:'center', marginBottom:12,
+        gridTemplateColumns:'minmax(130px,1fr) auto minmax(120px,1fr) auto minmax(110px,1fr) auto minmax(140px,1fr) auto minmax(155px,1fr)',
+        gap:0, alignItems:'start', marginBottom:12,
         background:'rgba(15,23,42,0.6)', borderRadius:10,
         border:'1px solid var(--border)', padding:'12px 16px',
         overflowX:'auto',
       }}>
-        {/* Sources */}
-        <div style={{minWidth:130}}>
-          <div style={{fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6, fontWeight:700}}>Источники</div>
-          <SourceBox icon="💬" label="TG event-чаты" sub={`${pipe.tg_chats || 18} чатов · пуш`} active={isActive} pulse={isActive} ago={pipe.last_event_at ? fmtAgo(pipe.last_event_at)+' назад' : ''} color='#3b82f6' />
-          <SourceBox icon="👁️" label="Browser Walk" sub={`${pipe.bw_chats||18} чатов · авто`} active={pipe.bw_status==='running'} pulse={pipe.bw_status==='running'} ago={pipe.bw_last_at ? fmtAgo(pipe.bw_last_at)+' назад' : ''} color='#60a5fa' style={{marginTop:5}} />
+        {/* ① Sources */}
+        <div>
+          <PipeCol label="Источники" />
+          <SourceBox icon="💬" label="TG event-чаты" sub={`${pipe.tg_chats||18} чатов · пуш`} active={isActive} pulse={isActive} ago={pipe.last_event_at ? fmtAgo(pipe.last_event_at)+' назад':''} color='#3b82f6' />
+          <SourceBox icon="👁️" label="Browser Walk" sub={`${pipe.bw_chats||18} чатов · авто`} active={pipe.bw_status==='running'} pulse={pipe.bw_status==='running'} ago={pipe.bw_last_at ? fmtAgo(pipe.bw_last_at)+' назад':''} color='#60a5fa' style={{marginTop:5}} />
           <SourceBox icon="📩" label="TG DM" sub="входящие · realtime" active color='#38bdf8' style={{marginTop:5}} />
-          <SourceBox icon="🅰️" label="VK" sub={`${pipe.vk_groups || 8} групп + DM`} active color='#4f8ef7' style={{marginTop:5}} />
-          <SourceBox icon="📸" label="Instagram" sub={pipe.ig_stories_seen ? `${pipe.ig_stories_seen} сторис · DM` : 'сторис · DM · outreach'} active ago={pipe.ig_last_at ? fmtAgo(pipe.ig_last_at)+' назад' : ''} color='#e1306c' style={{marginTop:5}} />
-          <SourceBox icon="💚" label="WhatsApp" sub="Baileys · входящие" active={pipe.wa_active !== false} ago={pipe.wa_last_at ? fmtAgo(pipe.wa_last_at)+' назад' : ''} color='#25d366' style={{marginTop:5}} />
+          <SourceBox icon="🅰️" label="VK" sub={`${pipe.vk_groups||8} групп + DM`} active color='#4f8ef7' style={{marginTop:5}} />
+          <SourceBox icon="📸" label="Instagram" sub={pipe.ig_stories_seen ? `${pipe.ig_stories_seen} сторис · DM`:'сторис · DM · outreach'} active ago={pipe.ig_last_at ? fmtAgo(pipe.ig_last_at)+' назад':''} color='#e1306c' style={{marginTop:5}} />
+          <SourceBox icon="💚" label="WhatsApp" sub="Baileys · входящие" active={pipe.wa_active!==false} ago={pipe.wa_last_at ? fmtAgo(pipe.wa_last_at)+' назад':''} color='#25d366' style={{marginTop:5}} />
         </div>
 
-        {/* Arrow 1 */}
         <FlowArrow />
 
-        {/* Classifier */}
-        <div style={{minWidth:120, textAlign:'center'}}>
-          <div style={{fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6, fontWeight:700}}>Классификатор</div>
-          <div style={{background:'rgba(139,92,246,0.12)', border:'1px solid rgba(139,92,246,0.4)', borderRadius:8, padding:'10px 12px'}}>
+        {/* ② Context enrichment */}
+        <div>
+          <PipeCol label="Обогащение" />
+          <PipeBox color='#0ea5e9' title='1. Hard-regex' lines={['музыканты-папка','агрегатор','PAYMENT','refusal']} />
+          <PipeBox color='#8b5cf6' title='2. Картотека' lines={['был ли отказ?','история ответов']} style={{marginTop:5}} />
+          <PipeBox color='#f59e0b' title='3. CRM lookup' lines={['orders.db','договор/предоплата?','переговоры?']} style={{marginTop:5}} />
+          <PipeBox color='#64748b' title='4. Vendor roster' lines={['broker_vendors','подрядчик?']} style={{marginTop:5}} />
+        </div>
+
+        <FlowArrow />
+
+        {/* ③ AI Classifier */}
+        <div>
+          <PipeCol label="AI классификатор" />
+          <div style={{background:'rgba(139,92,246,0.12)', border:'1px solid rgba(139,92,246,0.4)', borderRadius:8, padding:'10px 12px', textAlign:'center'}}>
             <div style={{fontSize:12, fontWeight:700, color:'#a78bfa'}}>🤖 AI 2.0</div>
-            <div style={{fontSize:10, color:'var(--muted)', marginTop:3}}>Gemini Flash</div>
-            <div style={{fontSize:10, color:'var(--muted)'}}>→ L2 Sonnet</div>
-            <div style={{fontSize:10, color:'var(--muted)'}}>→ Opus</div>
+            <div style={{fontSize:10, color:'var(--muted)', marginTop:4}}>Gemini Flash L1</div>
+            <div style={{fontSize:10, color:'var(--muted)'}}>→ Sonnet L2</div>
+            <div style={{fontSize:10, color:'var(--muted)'}}>→ Opus L3</div>
+            <div style={{height:1, background:'var(--border)', margin:'8px 0'}} />
+            <div style={{fontSize:10, color:'var(--muted)', fontStyle:'italic'}}>9 вердиктов</div>
           </div>
         </div>
 
-        {/* Arrow 2 */}
         <FlowArrow />
 
-        {/* Verdicts */}
-        <div style={{minWidth:110, textAlign:'center'}}>
-          <div style={{fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6, fontWeight:700}}>Вердикт</div>
-          {[['music_band','LC Band 🎸','#34d399'],['broker_request','Broker 🤝','#a78bfa'],['drum_show','Drum 🥁','#fbbf24'],['skip','Skip ✗','#475569']].map(([k,l,c]) => (
-            <div key={k} style={{fontSize:11, color:c, padding:'2px 0', fontWeight:600}}>{l}</div>
+        {/* ④ Verdicts */}
+        <div>
+          <PipeCol label="Вердикт" />
+          {[
+            ['event_organizer_active', '🟢 Активный организатор', '#34d399'],
+            ['event_organizer_pending','🟡 Переговоры',           '#fbbf24'],
+            ['lead',                   '🔵 Новый лид',            '#60a5fa'],
+            ['broker',                 '🤝 Брокер',               '#a78bfa'],
+            ['contractor',             '🔧 Подрядчик',            '#94a3b8'],
+            ['tech_crew',              '🎛 Техник',               '#f97316'],
+            ['musician',               '🎵 Музыкант',             '#475569'],
+            ['refusal',                '❌ Отказ',                '#f87171'],
+            ['spam',                   '🚫 Спам',                 '#334155'],
+          ].map(([k,l,c]) => (
+            <div key={k} style={{fontSize:10.5, color:c, padding:'2.5px 0', fontWeight:600, whiteSpace:'nowrap'}}>{l}</div>
           ))}
         </div>
 
-        {/* Arrow 3 */}
         <FlowArrow />
 
-        {/* Agents */}
-        <div style={{minWidth:130}}>
-          <div style={{fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6, fontWeight:700}}>Агент</div>
-          <div style={{fontSize:11, color:'#34d399', padding:'2px 0'}}>→ LC Band → питч</div>
-          <div style={{fontSize:11, color:'#a78bfa', padding:'2px 0'}}>→ Broker → intake</div>
-          <div style={{fontSize:11, color:'#fbbf24', padding:'2px 0'}}>→ Noize Drum → бриф</div>
-          <div style={{fontSize:11, color:'#60a5fa', padding:'2px 0'}}>→ DM ответчик → reply</div>
-          <div style={{fontSize:11, color:'var(--muted)', padding:'2px 0'}}>→ Архив</div>
+        {/* ⑤ Actions */}
+        <div>
+          <PipeCol label="Действие агента" />
+          {[
+            ['#34d399', '🗂 Logistics-промпт',    'детали ивента · без питча'],
+            ['#fbbf24', '💼 Sales-промпт',         'партнёрский тон · пакет'],
+            ['#60a5fa', '📤 Sales-промпт',         'стандартный питч'],
+            ['#a78bfa', '📤 Sales-промпт',         'предложить найти'],
+            ['#94a3b8', '💬 Краткий ответ',        'профессиональный тон'],
+            ['#f97316', '⚠️ Approval-бот',         'форвард · живой разговор'],
+            ['#475569', '🔇 Skip',                 ''],
+            ['#f87171', '🔇 Skip + mark_handled', ''],
+            ['#334155', '🔇 Skip',                 ''],
+          ].map(([c,l,s], i) => (
+            <div key={i} style={{padding:'2.5px 0'}}>
+              <span style={{fontSize:10.5, color:c, fontWeight:600}}>{l}</span>
+              {s && <span style={{fontSize:9.5, color:'var(--muted)', marginLeft:4}}>{s}</span>}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -7438,6 +7476,24 @@ function LeadFlowSection() {
           return null;
         })}
       </div>
+    </div>
+  );
+}
+
+function PipeCol({ label }) {
+  return (
+    <div style={{fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6, fontWeight:700}}>{label}</div>
+  );
+}
+
+function PipeBox({ color, title, lines=[], style={} }) {
+  return (
+    <div style={{
+      background:`rgba(${color==='#0ea5e9'?'14,165,233':color==='#8b5cf6'?'139,92,246':color==='#f59e0b'?'245,158,11':'100,116,139'},0.10)`,
+      border:`1px solid ${color}44`, borderRadius:7, padding:'6px 10px', ...style,
+    }}>
+      <div style={{fontSize:11, fontWeight:700, color}}>{title}</div>
+      {lines.map((l,i) => <div key={i} style={{fontSize:10, color:'var(--muted)', marginTop:1}}>{l}</div>)}
     </div>
   );
 }
