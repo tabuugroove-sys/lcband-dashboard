@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LCB Outreach — Рассылка организаторам</title>
+<link rel="stylesheet" href="_theme.css">
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3;
+    --muted: #8b949e; --accent: #f0c419; --green: #3fb950; --red: #f85149;
+    --blue: #58a6ff; --orange: #ff9b54; --purple: #c074ff;
+  }
+  :root[data-theme="light"] {
+    --bg: #fafbfc; --panel: #ffffff; --border: #d0d7de; --text: #1f2328;
+    --muted: #656d76; --accent: #9a6700; --green: #1a7f37; --red: #cf222e;
+    --blue: #0969da; --orange: #bc4c00; --purple: #8250df;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; }
+
+  header { padding: 16px 24px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 20px; color: var(--accent); }
+  .meta { color: var(--muted); font-size: 12px; }
+  .meta b { color: var(--text); }
+  .nav a { color: var(--blue); text-decoration: none; margin-right: 12px; font-size: 13px; }
+  .nav a:hover { text-decoration: underline; }
+
+  main { padding: 24px; max-width: 1600px; margin: 0 auto; }
+
+  /* ─── Stats banner ─── */
+  .stats-banner {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px; margin-bottom: 24px;
+  }
+  .stat-card { background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; text-align: center; }
+  .stat-card .v { font-size: 32px; font-weight: 700; color: var(--accent); }
+  .stat-card .l { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-card.green .v { color: var(--green); }
+  .stat-card.blue .v { color: var(--blue); }
+  .stat-card.orange .v { color: var(--orange); }
+  .stat-card.purple .v { color: var(--purple); }
+
+  /* ─── Channel summary ─── */
+  .channels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+  @media (max-width: 700px) { .channels { grid-template-columns: 1fr; } }
+  .channel-card { background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; }
+  .channel-card h3 { margin: 0 0 12px 0; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge-tg  { background: #1a3a5c; color: var(--blue); }
+  .badge-vk  { background: #2a1f4a; color: var(--purple); }
+  .badge-wa  { background: #1a3d2b; color: var(--green); }
+  .channel-row { display: flex; justify-content: space-between; padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+  .channel-row .k { color: var(--muted); }
+  .channel-row .v { font-weight: 600; }
+  .channel-row .v.hi { color: var(--green); }
+
+  /* ─── Filters ─── */
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+  .filters input, .filters select {
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    padding: 7px 12px; border-radius: 6px; font-size: 13px; outline: none;
+  }
+  .filters input:focus, .filters select:focus { border-color: var(--accent); }
+  .filters input { min-width: 220px; }
+  .chip { padding: 5px 12px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 16px; cursor: pointer; font-size: 12px; user-select: none; transition: 0.15s; }
+  .chip:hover { border-color: var(--accent); }
+  .chip.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+  .count-badge { margin-left: 4px; opacity: 0.7; font-size: 11px; }
+
+  /* ─── Table ─── */
+  .table-wrap { overflow-x: auto; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel); }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: rgba(0,0,0,0.3); }
+  th { padding: 10px 14px; text-align: left; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--muted); white-space: nowrap; }
+  td { padding: 10px 14px; border-top: 1px solid var(--border); font-size: 13px;
+    vertical-align: middle; }
+  tr:hover td { background: rgba(255,255,255,0.03); }
+
+  /* channel badge in table */
+  .ch { padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .ch-tg  { background: #1a3a5c; color: var(--blue); }
+  .ch-vk  { background: #2a1f4a; color: var(--purple); }
+  .ch-wa  { background: #1a3d2b; color: var(--green); }
+
+  /* type badge */
+  .type { padding: 2px 7px; border-radius: 10px; font-size: 11px; }
+  .type-agency    { background: rgba(63,185,80,0.15); color: var(--green); }
+  .type-organizer { background: rgba(88,166,255,0.15); color: var(--blue); }
+  .type-wedding   { background: rgba(192,116,255,0.15); color: var(--purple); }
+  .type-corporate { background: rgba(255,155,84,0.15); color: var(--orange); }
+
+  /* status badge */
+  .status { padding: 2px 7px; border-radius: 10px; font-size: 11px; }
+  .s-fresh  { background: rgba(63,185,80,0.15); color: var(--green); }
+  .s-sent   { background: rgba(88,166,255,0.15); color: var(--blue); }
+  .s-none   { background: rgba(139,148,158,0.15); color: var(--muted); }
+
+  .link-btn { color: var(--blue); text-decoration: none; font-size: 12px; }
+  .link-btn:hover { text-decoration: underline; }
+
+  .no-data { text-align: center; padding: 60px; color: var(--muted); }
+
+  /* ─── Empty bar ─── */
+  .progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .progress-bar > div { height: 100%; background: var(--green); transition: width 0.5s; }
+
+  /* ─── Footer meta ─── */
+  .footer-meta { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>📤 Outreach — Рассылка организаторам</h1>
+    <div class="meta">Данные: TG + VK + WA &nbsp;·&nbsp; обновляется каждые 30 сек</div>
+  </div>
+  <div>
+    <nav class="nav">
+      <a href="index.html">← Главная</a>
+      <a href="contacts.html">Контакты</a>
+      <a href="broker.html">Broker</a>
+    </nav>
+    <div class="meta" id="last-upd">Загрузка…</div>
+  </div>
+</header>
+
+<main>
+  <!-- Stats -->
+  <div class="stats-banner" id="stats-banner">
+    <div class="stat-card"><div class="v" id="s-total">—</div><div class="l">Всего организаторов</div></div>
+    <div class="stat-card green"><div class="v" id="s-fresh">—</div><div class="l">Ещё не получали питч</div></div>
+    <div class="stat-card blue"><div class="v" id="s-sent">—</div><div class="l">Уже получили питч</div></div>
+    <div class="stat-card orange"><div class="v" id="s-agency">—</div><div class="l">Event-агентства</div></div>
+    <div class="stat-card purple"><div class="v" id="s-wedding">—</div><div class="l">Свадебные</div></div>
+  </div>
+
+  <!-- Channel breakdown -->
+  <div class="channels" id="channels">
+    <div class="channel-card">
+      <h3><span class="badge badge-tg">TG</span> Telegram</h3>
+      <div class="channel-row"><span class="k">Всего</span><span class="v" id="ch-tg-total">—</span></div>
+      <div class="channel-row"><span class="k">Организаторов</span><span class="v" id="ch-tg-org">—</span></div>
+      <div class="channel-row"><span class="k">Не получали питч</span><span class="v hi" id="ch-tg-fresh">—</span></div>
+      <div class="progress-bar"><div id="ch-tg-bar" style="width:0%"></div></div>
+    </div>
+    <div class="channel-card">
+      <h3><span class="badge badge-vk">VK</span> ВКонтакте</h3>
+      <div class="channel-row"><span class="k">Всего</span><span class="v" id="ch-vk-total">—</span></div>
+      <div class="channel-row"><span class="k">Организаторов</span><span class="v" id="ch-vk-org">—</span></div>
+      <div class="channel-row"><span class="k">Не получали питч</span><span class="v hi" id="ch-vk-fresh">—</span></div>
+      <div class="progress-bar"><div id="ch-vk-bar" style="width:0%"></div></div>
+    </div>
+    <div class="channel-card">
+      <h3><span class="badge badge-wa">WA</span> WhatsApp</h3>
+      <div class="channel-row"><span class="k">Всего</span><span class="v" id="ch-wa-total">—</span></div>
+      <div class="channel-row"><span class="k">Организаторов</span><span class="v" id="ch-wa-org">—</span></div>
+      <div class="channel-row"><span class="k">Не получали питч</span><span class="v hi" id="ch-wa-fresh">—</span></div>
+      <div class="progress-bar"><div id="ch-wa-bar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <input type="text" id="q" placeholder="🔍 Поиск по имени / username…" oninput="render()">
+    <select id="f-channel" onchange="render()">
+      <option value="">Все каналы</option>
+      <option value="tg">TG</option>
+      <option value="vk">VK</option>
+      <option value="wa">WA</option>
+    </select>
+    <select id="f-type" onchange="render()">
+      <option value="">Все типы</option>
+      <option value="organizer_agency">Event-агентство</option>
+      <option value="organizer_freelance">Фрилансер</option>
+      <option value="organizer_wedding">Свадебный</option>
+      <option value="organizer_corporate">Корпоративный</option>
+    </select>
+    <select id="f-status" onchange="render()">
+      <option value="">Все статусы</option>
+      <option value="fresh">Не получали питч</option>
+      <option value="sent">Уже получили</option>
+    </select>
+    <span class="chip active" data-flag="organizer" id="chip-org" onclick="toggleChip(this)">
+      🏢 Только организаторы
+    </span>
+    <span id="row-count" style="color:var(--muted);font-size:12px;margin-left:8px"></span>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Канал</th>
+          <th>Имя / Username</th>
+          <th>Тип</th>
+          <th>Статус питча</th>
+          <th>Последний контакт</th>
+          <th>Сообщений</th>
+          <th>Ссылка</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+  <div class="no-data" id="no-data" style="display:none">Нет контактов по фильтру</div>
+  <div class="footer-meta" id="footer-meta"></div>
+</main>
+
+<script src="_theme.js"></script>
+<script src="_nav.js"></script>
+<script>
+const BACKEND_URL = (() => {
+  try {
+    return window._backendUrl || 'http://127.0.0.1:8878';
+  } catch(e) { return 'http://127.0.0.1:8878'; }
+})();
+
+let allContacts = [];
+let chipOrgActive = true;
+
+const VERDICT_LABEL = {
+  organizer_agency:    'event_agency',
+  organizer_freelance: 'client_organizer',
+  organizer_wedding:   'organizer_wedding',
+  organizer_corporate: 'organizer_corporate',
+  organizer_agency_vk: 'organizer_agency',
+};
+
+const TYPE_LABELS = {
+  event_agency:        { label: 'Event-агентство', cls: 'type-agency' },
+  client_organizer:    { label: 'Организатор',     cls: 'type-organizer' },
+  organizer_wedding:   { label: 'Свадебный',       cls: 'type-wedding' },
+  organizer_corporate: { label: 'Корпоративный',   cls: 'type-corporate' },
+};
+
+const VERDICT_TYPE = {
+  organizer_agency:    'event_agency',
+  organizer_freelance: 'client_organizer',
+  organizer_wedding:   'organizer_wedding',
+  organizer_corporate: 'organizer_corporate',
+};
+
+function isOrganizer(c) {
+  const v = c.verdict || '';
+  const r = c.role || '';
+  return v.startsWith('organizer_') || r === 'event_agency' || r === 'client_organizer';
+}
+
+function verdictType(c) {
+  return VERDICT_TYPE[c.verdict] || c.role || 'unknown';
+}
+
+function typeInfo(c) {
+  const t = verdictType(c);
+  return TYPE_LABELS[t] || { label: t, cls: '' };
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('ru-RU', { day:'2-digit', month:'short', year:'2-digit' });
+  } catch(e) { return iso.slice(0,10); }
+}
+
+function profileLink(key, c) {
+  const ch = c.channel || 'tg';
+  if (ch === 'vk') {
+    const sn = c.screen_name || c.vk_url || key.replace('vk:', '');
+    return `<a class="link-btn" href="https://${c.vk_url || 'vk.com/' + sn}" target="_blank">vk.com/${sn}</a>`;
+  }
+  if (ch === 'wa') {
+    const phone = (c.phone || '').replace(/\D/g, '');
+    if (phone) return `<a class="link-btn" href="https://wa.me/${phone}" target="_blank">${c.phone || phone}</a>`;
+    return `<span style="color:var(--muted)">${c.title || c.wa_key || key}</span>`;
+  }
+  // TG
+  const uname = key.replace(/^@/, '');
+  return `<a class="link-btn" href="https://t.me/${uname}" target="_blank">@${uname}</a>`;
+}
+
+function displayName(key, c) {
+  const fn = c.first_name || '';
+  const ln = c.last_name || '';
+  const name = (fn + ' ' + ln).trim();
+  if (c.channel === 'wa') return c.title || name || c.wa_key || key;
+  if (c.channel === 'vk') return name || c.screen_name || key.replace('vk:', '');
+  return name || key.replace(/^@/, '');
+}
+
+function render() {
+  const q = (document.getElementById('q').value || '').toLowerCase();
+  const fCh = document.getElementById('f-channel').value;
+  const fType = document.getElementById('f-type').value;
+  const fStatus = document.getElementById('f-status').value;
+
+  const filtered = allContacts.filter(([key, c]) => {
+    if (chipOrgActive && !isOrganizer(c)) return false;
+    if (fCh && c.channel !== fCh) return false;
+    if (fType && c.verdict !== fType) return false;
+    if (fStatus === 'fresh' && c.our_outreach) return false;
+    if (fStatus === 'sent' && !c.our_outreach) return false;
+    if (q) {
+      const haystack = [key, c.first_name, c.last_name, c.screen_name, c.title, c.phone, c.wa_key]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('row-count').textContent = `${filtered.length} контактов`;
+
+  const tbody = document.getElementById('tbody');
+  const noData = document.getElementById('no-data');
+
+  if (!filtered.length) {
+    tbody.innerHTML = '';
+    noData.style.display = '';
+    return;
+  }
+  noData.style.display = 'none';
+
+  // sort: fresh first, then by channel
+  filtered.sort(([,a], [,b]) => {
+    if (!a.our_outreach && b.our_outreach) return -1;
+    if (a.our_outreach && !b.our_outreach) return 1;
+    return (a.channel || '').localeCompare(b.channel || '');
+  });
+
+  const chBadge = { tg: 'ch-tg', vk: 'ch-vk', wa: 'ch-wa' };
+  const chLabel = { tg: 'TG', vk: 'VK', wa: 'WA' };
+
+  tbody.innerHTML = filtered.map(([key, c]) => {
+    const ch = c.channel || 'tg';
+    const ti = typeInfo(c);
+    const pitched = c.our_outreach;
+    const statusCls = pitched ? 's-sent' : 's-fresh';
+    const statusLbl = pitched ? '✓ Отправлен' : '📬 Не отправлен';
+    const lastDate = c.last_msg_date || c.classified_at || null;
+    const name = displayName(key, c);
+
+    return `<tr>
+      <td><span class="ch ${chBadge[ch]}">${chLabel[ch]}</span></td>
+      <td style="font-weight:500">${name}</td>
+      <td><span class="type ${ti.cls}">${ti.label}</span></td>
+      <td><span class="status ${statusCls}">${statusLbl}</span></td>
+      <td style="color:var(--muted)">${fmtDate(lastDate)}</td>
+      <td style="color:var(--muted)">${c.msg_count || '—'}</td>
+      <td>${profileLink(key, c)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleChip(el) {
+  chipOrgActive = !chipOrgActive;
+  el.classList.toggle('active', chipOrgActive);
+  render();
+}
+
+function updateStats(contacts) {
+  const orgs = contacts.filter(([,c]) => isOrganizer(c));
+  const fresh = orgs.filter(([,c]) => !c.our_outreach);
+  const sent  = orgs.filter(([,c]) => c.our_outreach);
+  const agencies = orgs.filter(([,c]) => c.verdict === 'organizer_agency' || c.role === 'event_agency');
+  const wedding  = orgs.filter(([,c]) => c.verdict === 'organizer_wedding');
+
+  document.getElementById('s-total').textContent   = orgs.length;
+  document.getElementById('s-fresh').textContent   = fresh.length;
+  document.getElementById('s-sent').textContent    = sent.length;
+  document.getElementById('s-agency').textContent  = agencies.length;
+  document.getElementById('s-wedding').textContent = wedding.length;
+
+  // channel breakdown
+  ['tg', 'vk', 'wa'].forEach(ch => {
+    const all  = contacts.filter(([,c]) => c.channel === ch);
+    const org  = orgs.filter(([,c]) => c.channel === ch);
+    const fr   = org.filter(([,c]) => !c.our_outreach);
+    document.getElementById(`ch-${ch}-total`).textContent = all.length;
+    document.getElementById(`ch-${ch}-org`).textContent   = org.length;
+    document.getElementById(`ch-${ch}-fresh`).textContent = fr.length;
+    const pct = org.length ? Math.round(fr.length / org.length * 100) : 0;
+    document.getElementById(`ch-${ch}-bar`).style.width = pct + '%';
+  });
+}
+
+async function load() {
+  try {
+    const backendUrl = await fetch('backend_url.json').then(r => r.json()).then(d => d.url).catch(() => 'http://127.0.0.1:8878');
+    const data = await fetch(`${backendUrl}/api/contact_roles`).then(r => r.json());
+
+    allContacts = Object.entries(data.contacts || {});
+    updateStats(allContacts);
+    render();
+
+    const upd = data.last_updated || data.vk_last_updated || '';
+    document.getElementById('last-upd').textContent = upd ? 'Обновлено: ' + upd.slice(0,16).replace('T',' ') : '';
+    document.getElementById('footer-meta').textContent =
+      `Всего контактов в базе: ${allContacts.length} · TG: ${(data.stats?.by_channel?.tg||0)} · VK: ${(data.stats?.by_channel?.vk||0)} · WA: ${(data.stats?.by_channel?.wa||0)}`;
+  } catch(e) {
+    console.error('Load error:', e);
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="7" style="color:var(--red);padding:20px">Ошибка загрузки: ${e}</td></tr>`;
+  }
+}
+
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>
