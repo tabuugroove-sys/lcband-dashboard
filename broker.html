@@ -52,6 +52,37 @@
   .conv-popup .msg.in { color:var(--fg); }
   .conv-popup .msg .when { color:var(--muted); font-size:10px; margin-right:6px; }
 
+  /* Roster section */
+  .roster-section { margin-bottom:28px; }
+  .roster-section h2 { font-size:16px; font-weight:700; margin:0 0 12px; display:flex; align-items:center; gap:8px; }
+  .roster-cats { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
+  .roster-cat { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:14px; }
+  .roster-cat-header { display:flex; align-items:center; gap:8px; margin-bottom:10px;
+                       padding-bottom:8px; border-bottom:1px solid var(--border); }
+  .roster-cat-header .emoji { font-size:18px; line-height:1; }
+  .roster-cat-header .cat-name { font-weight:600; font-size:14px; }
+  .roster-cat-header .cat-count { margin-left:auto; background:rgba(88,166,255,0.12);
+                                   color:var(--accent); padding:1px 7px; border-radius:10px;
+                                   font-size:11px; font-weight:600; }
+  .roster-vendor { display:flex; flex-direction:column; gap:3px; padding:8px 0;
+                   border-bottom:1px dashed var(--border); }
+  .roster-vendor:last-child { border-bottom:none; padding-bottom:0; }
+  .roster-vendor .v-name { font-weight:600; font-size:13px; }
+  .roster-vendor .v-user { color:var(--accent); font-size:11px; }
+  .roster-vendor .v-rate { color:var(--gold); font-size:12px; }
+  .roster-vendor .v-promo a { color:var(--accent); font-size:11px; text-decoration:none; }
+  .roster-vendor .v-promo a:hover { text-decoration:underline; }
+  .roster-vendor .v-notes { color:var(--muted); font-size:11px; line-height:1.4; }
+  .roster-vendor .v-tags { display:flex; gap:5px; flex-wrap:wrap; margin-top:3px; }
+  .roster-vendor .v-tag { background:rgba(63,185,80,0.1); color:var(--green);
+                          border-radius:4px; padding:1px 6px; font-size:10px; }
+  .roster-vendor .v-std { background:rgba(88,166,255,0.1); color:var(--accent);
+                           border-radius:4px; padding:1px 6px; font-size:10px; }
+  .roster-vendor .v-last { color:var(--muted); font-size:10px; }
+  .roster-empty { color:var(--muted); font-style:italic; font-size:12px; padding:6px 0; }
+  html[data-theme="light"] .roster-cat { background:#fff; border-color:#d0d7de; }
+  html[data-theme="light"] .roster-vendor { border-bottom-color:#d0d7de; }
+
   .casting-section { margin-top:14px; }
   .casting-section h3 { font-size:13px; text-transform:uppercase; letter-spacing:0.5px;
                         color:var(--muted); margin:14px 0 8px; }
@@ -142,6 +173,12 @@
   <div style="background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.25);border-radius:6px;padding:8px 12px">
     <span style="color:var(--accent);font-weight:600">Агенты с контекстом:</span>
     <span style="color:var(--muted);margin-left:6px">contractor_dialog_agent · tg_responder (generate_contextual_response) · _urgent_review_order_context</span>
+  </div>
+</div>
+<div class="roster-section">
+  <h2>📋 Реестр подрядчиков <span id="roster-meta" style="font-weight:400;font-size:12px;color:var(--muted)"></span></h2>
+  <div class="roster-cats" id="roster-cats">
+    <div style="color:var(--muted);font-size:13px">Загрузка реестра…</div>
   </div>
 </div>
 <div id="orders"></div>
@@ -296,8 +333,66 @@ function renderOrder(o) {
   </div>`;
 }
 
+function renderRosterVendor(v) {
+  const promoHtml = v.promo_url
+    ? `<div class="v-promo"><a href="${escHtml(v.promo_url)}" target="_blank">📹 промо</a></div>`
+    : '';
+  const stdHtml = v.has_standard_package
+    ? `<span class="v-std">📦 стандартный пакет${v.standard_price_rub ? ' ' + Number(v.standard_price_rub).toLocaleString('ru-RU') + ' ₽' : ''}</span>`
+    : '';
+  const tagsHtml = (v.service_formats || []).length
+    ? `<div class="v-tags">${v.service_formats.map(f => `<span class="v-tag">${escHtml(f)}</span>`).join('')}</div>`
+    : '';
+  const lastHtml = v.last_contact ? `<div class="v-last">последний контакт: ${escHtml(v.last_contact)}</div>` : '';
+  const notesShort = (v.notes || '').slice(0, 120) + ((v.notes || '').length > 120 ? '…' : '');
+  return `<div class="roster-vendor">
+    <div class="v-name">${escHtml(v.name || '—')}</div>
+    <div class="v-user">@${escHtml(v.username)}</div>
+    ${v.rate_quote ? `<div class="v-rate">💰 ${escHtml(v.rate_quote)}</div>` : ''}
+    ${promoHtml}
+    ${stdHtml ? `<div style="margin-top:3px">${stdHtml}</div>` : ''}
+    ${notesShort ? `<div class="v-notes">${escHtml(notesShort)}</div>` : ''}
+    ${tagsHtml}
+    ${lastHtml}
+  </div>`;
+}
+
+function renderRosterCat(cat) {
+  const vendorsHtml = cat.vendors.length
+    ? cat.vendors.map(renderRosterVendor).join('')
+    : '<div class="roster-empty">пока нет подрядчиков</div>';
+  return `<div class="roster-cat">
+    <div class="roster-cat-header">
+      <span class="emoji">${escHtml(cat.emoji)}</span>
+      <span class="cat-name">${escHtml(cat.label)}</span>
+      <span class="cat-count">${cat.vendors.length}</span>
+    </div>
+    ${vendorsHtml}
+  </div>`;
+}
+
+async function loadRoster(base) {
+  try {
+    const r = await fetch(`${base}/api/broker_roster`, { cache: 'no-store' });
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    const nonEmpty = data.categories.filter(c => c.vendors.length > 0);
+    const empty = data.categories.filter(c => c.vendors.length === 0);
+    // Non-empty first, then empty categories
+    const allCats = [...nonEmpty, ...empty];
+    document.getElementById('roster-cats').innerHTML = allCats.map(renderRosterCat).join('');
+    document.getElementById('roster-meta').textContent =
+      `· ${data.total} подрядчиков в ${nonEmpty.length} категориях` +
+      (data._meta.updated ? ` · обновлено ${data._meta.updated}` : '');
+  } catch (e) {
+    document.getElementById('roster-cats').innerHTML =
+      `<div style="color:var(--red);font-size:13px">Ошибка загрузки реестра: ${escHtml(e.message)}</div>`;
+  }
+}
+
 async function load() {
   const base = await getBackendUrl();
+  loadRoster(base);  // параллельно, не ждём
   try {
     const r = await fetch(`${base}/api/broker_dashboard`, { cache: 'no-store' });
     const data = await r.json();
