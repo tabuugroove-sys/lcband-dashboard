@@ -7309,68 +7309,136 @@ function LeadFlowSection() {
           <div>↓</div><div>↓</div><div>↓</div>
         </div>
 
-        {/* Row 2: Agents + kartotekas */}
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, alignItems:'stretch'}}>
-          {/* Agent 1 */}
-          <div style={{background:'rgba(139,92,246,.1)', border:'1px solid rgba(139,92,246,.35)', borderRadius:9, padding:'8px 10px'}}>
-            <div style={{fontSize:10, fontWeight:700, color:'#a78bfa', marginBottom:6}}>🤖 Agent 1 · Event Classifier</div>
-            <div style={{display:'flex', flexDirection:'column', gap:3, marginBottom:6}}>
-              <div style={{fontSize:9.5, color:'#6ee7b7', background:'rgba(16,185,129,.1)', borderRadius:4, padding:'2px 6px'}}>L1 Gemini Flash · binary</div>
-              <div style={{fontSize:9.5, color:'#c4b5fd', background:'rgba(139,92,246,.1)', borderRadius:4, padding:'2px 6px'}}>L2 Sonnet · classify</div>
-              <div style={{fontSize:9.5, color:'#fde68a', background:'rgba(245,197,24,.08)', borderRadius:4, padding:'2px 6px'}}>L3 Opus · compose pitch</div>
-            </div>
-            <div style={{fontSize:9, color:'#f87171', background:'rgba(239,68,68,.08)', borderRadius:4, padding:'2px 6px', marginBottom:4}}>⚡ hard-regex pre-filter</div>
-            <div style={{fontSize:9, color:'var(--muted)', fontStyle:'italic'}}>картотеки нет — пост холодный</div>
-          </div>
-          {/* Agent 2 + LCB kartoteka */}
-          <div style={{display:'flex', flexDirection:'column', gap:6}}>
-            <div style={{background:'rgba(59,130,246,.08)', border:'1.5px dashed rgba(59,130,246,.4)', borderRadius:8, padding:'6px 8px'}}>
-              <div style={{fontSize:9.5, fontWeight:700, color:'#60a5fa', marginBottom:4}}>📋 Картотека LCB · tg:username</div>
-              {[['client_intent','намерение'],['event_date_confirmed','дата'],['waiting_for_us','ждёт нас'],['refusal_detected','отказ']].map(([k,v]) => (
-                <div key={k} style={{fontSize:9, color:'var(--muted)'}}><span style={{color:'#60a5fa'}}>{k}</span> · {v}</div>
-              ))}
-              <div style={{marginTop:4, fontSize:8.5, color:'var(--muted)', display:'flex', gap:6}}>
-                <span style={{color:'#6ee7b7'}}>← IN · auto</span>
-                <span style={{color:'#d8b4fe'}}>← OUT · record_outgoing</span>
-              </div>
-            </div>
-            <div style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.35)', borderRadius:9, padding:'8px 10px', flex:1}}>
-              <div style={{fontSize:10, fontWeight:700, color:'#60a5fa', marginBottom:5}}>🤖 Agent 2 · LCB DM</div>
-              <div style={{fontSize:9.5, color:'var(--muted)', marginBottom:2}}>unified_dm_responder · Opus</div>
-              <div style={{fontSize:9.5, color:'#fde68a', marginBottom:2}}>get_or_enrich() → читает карточку</div>
-              <div style={{fontSize:9.5, color:'#f87171', marginBottom:4}}>is_refused_any() хард-стоп</div>
-              <div style={{fontSize:9, color:'var(--muted)'}}>approval gate · 8/run · 40/сут</div>
-            </div>
-          </div>
-          {/* Agent 3 + Broker kartoteka */}
-          <div style={{display:'flex', flexDirection:'column', gap:6}}>
-            <div style={{background:'rgba(167,139,250,.07)', border:'1.5px dashed rgba(167,139,250,.4)', borderRadius:8, padding:'6px 8px'}}>
-              <div style={{fontSize:9.5, fontWeight:700, color:'#a78bfa', marginBottom:4}}>📋 Картотека Broker · broker:tg:u</div>
-              {[['client_intent','намерение Broker'],['waiting_for_us','ждёт нас'],['silence_days','молчит Nд'],['key_asks','уточнения']].map(([k,v]) => (
-                <div key={k} style={{fontSize:9, color:'var(--muted)'}}><span style={{color:'#a78bfa'}}>{k}</span> · {v}</div>
-              ))}
-              <div style={{marginTop:4, fontSize:8.5, color:'var(--muted)', display:'flex', gap:6}}>
-                <span style={{color:'#6ee7b7'}}>← IN · auto</span>
-                <span style={{color:'#d8b4fe'}}>← OUT · record_outgoing</span>
-              </div>
-            </div>
-            <div style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.35)', borderRadius:9, padding:'8px 10px', flex:1}}>
-              <div style={{fontSize:10, fontWeight:700, color:'#a78bfa', marginBottom:5}}>🤖 Agent 3 · Broker</div>
-              <div style={{fontSize:9.5, color:'var(--muted)', marginBottom:2}}>broker_pipeline · Opus</div>
-              <div style={{fontSize:9.5, color:'#fde68a', marginBottom:2}}>get_or_enrich(ns="broker")</div>
-              <div style={{fontSize:9.5, color:'#f87171', marginBottom:4}}>is_refused_any() хард-стоп</div>
-              <div style={{fontSize:9, color:'var(--muted)'}}>brief → relay client ↔ vendor</div>
-            </div>
-          </div>
-        </div>
+        {/* Row 2: Agents + context enrichment pipeline */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, alignItems:'start'}}>
 
-        {/* Dual-stream */}
-        <div style={{background:'rgba(20,184,166,.05)', border:'1px solid rgba(20,184,166,.25)', borderRadius:8, padding:'7px 12px'}}>
-          <div style={{fontSize:10, fontWeight:700, color:'#5eead4', marginBottom:4}}>↕ Dual-stream — каждый ответ агента идёт двумя потоками одновременно</div>
-          <div style={{display:'flex', gap:12, flexWrap:'wrap'}}>
-            <div style={{fontSize:9.5, color:'#93c5fd'}}><span style={{fontWeight:700}}>Поток 1 →</span> сообщение доставлено в TG / VK / WA</div>
-            <div style={{fontSize:9.5, color:'#5eead4'}}><span style={{fontWeight:700}}>Поток 2 →</span> <code style={{fontSize:9}}>_record_outgoing_to_cache(out=True)</code> + <code style={{fontSize:9}}>enrich(force=True)</code> → карточка обновлена</div>
+          {/* Agent 1 — no context */}
+          <div style={{background:'rgba(139,92,246,.1)', border:'1px solid rgba(139,92,246,.35)', borderRadius:9, padding:'8px 10px', display:'flex', flexDirection:'column', gap:4}}>
+            <div style={{fontSize:10, fontWeight:700, color:'#a78bfa'}}>🤖 Agent 1 · Classifier</div>
+            <div style={{fontSize:9.5, color:'#6ee7b7', background:'rgba(16,185,129,.1)', borderRadius:4, padding:'2px 6px'}}>L1 Gemini Flash · binary</div>
+            <div style={{fontSize:9.5, color:'#c4b5fd', background:'rgba(139,92,246,.1)', borderRadius:4, padding:'2px 6px'}}>L2 Sonnet · classify</div>
+            <div style={{fontSize:9.5, color:'#fde68a', background:'rgba(245,197,24,.08)', borderRadius:4, padding:'2px 6px'}}>L3 Opus · compose pitch</div>
+            <div style={{fontSize:9, color:'#f87171', background:'rgba(239,68,68,.08)', borderRadius:4, padding:'2px 6px'}}>⚡ hard-regex pre-filter</div>
+            <div style={{marginTop:2, fontSize:9, color:'var(--muted)', fontStyle:'italic'}}>контекста нет — пост холодный</div>
           </div>
+
+          {/* Agent 2 — full enrichment pipeline */}
+          {(() => {
+            const step = (color, bg, label) => (
+              <div style={{background:bg, border:`1px solid ${color}`, borderRadius:6, padding:'4px 8px', fontSize:9.5, color:color, fontWeight:600}}>{label}</div>
+            );
+            const arr = (label) => (
+              <div style={{textAlign:'center', fontSize:9, color:'var(--muted)', lineHeight:1.2, padding:'1px 0'}}>{label}</div>
+            );
+            return (
+              <div style={{display:'flex', flexDirection:'column', gap:3}}>
+                {/* raw log */}
+                <div style={{background:'#0d1117', border:'1px solid rgba(20,184,166,.45)', borderRadius:7, padding:'5px 8px'}}>
+                  <div style={{fontSize:9, fontWeight:700, color:'#5eead4', marginBottom:3}}>📄 conversation_cache/user.jsonl</div>
+                  <div style={{fontSize:8.5, color:'rgba(147,197,253,.55)', marginBottom:1}}>
+                    <span style={{color:'#6ee7b7', fontWeight:700}}>IN</span>{'  '}
+                    <span style={{fontFamily:'monospace'}}>{'{out:false, text:"Хочу 14 июня…"}'}</span>
+                  </div>
+                  <div style={{fontSize:8.5, color:'rgba(147,197,253,.55)'}}>
+                    <span style={{color:'#d8b4fe', fontWeight:700}}>OUT</span>{'  '}
+                    <span style={{fontFamily:'monospace'}}>{'{out:true,  text:"Да, свободно!"}'}</span>
+                  </div>
+                </div>
+                {arr('↓ enrich(force=True) читает ВСЕ записи')}
+                {step('rgba(139,92,246,.9)', 'rgba(139,92,246,.08)', '🔮 Opus AI · анализирует историю')}
+                {arr('↓ обновляет карточку')}
+                {/* context card */}
+                <div style={{background:'rgba(59,130,246,.07)', border:'1.5px dashed rgba(59,130,246,.45)', borderRadius:7, padding:'5px 8px'}}>
+                  <div style={{fontSize:9, fontWeight:700, color:'#60a5fa', marginBottom:3}}>📋 lead_context_store · tg:username</div>
+                  {[['client_intent','намерение'],['event_date_confirmed','дата'],['waiting_for_us','ждёт нас'],['refusal_detected','отказ']].map(([k,v]) => (
+                    <div key={k} style={{fontSize:8.5, color:'var(--muted)', lineHeight:1.4}}>
+                      <span style={{color:'#60a5fa'}}>{k}</span> · {v}
+                    </div>
+                  ))}
+                </div>
+                {arr('↓ get_or_enrich() · читает перед ответом')}
+                {/* agent */}
+                <div style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.35)', borderRadius:7, padding:'5px 8px'}}>
+                  <div style={{fontSize:9.5, fontWeight:700, color:'#60a5fa', marginBottom:2}}>🤖 Agent 2 · LCB DM · Opus</div>
+                  <div style={{fontSize:8.5, color:'#f87171'}}>is_refused_any() · 8/run · 40/сут</div>
+                </div>
+                {arr('↓ отправляет — одновременно два потока')}
+                {/* dual stream */}
+                <div style={{display:'flex', gap:4}}>
+                  <div style={{flex:1, background:'rgba(59,130,246,.07)', border:'1px solid rgba(59,130,246,.3)', borderRadius:6, padding:'4px 6px'}}>
+                    <div style={{fontSize:8.5, fontWeight:700, color:'#93c5fd', marginBottom:1}}>Поток 1</div>
+                    <div style={{fontSize:8, color:'var(--muted)'}}>TG / VK / WA</div>
+                    <div style={{fontSize:8, color:'#6ee7b7'}}>→ клиент видит</div>
+                  </div>
+                  <div style={{flex:1, background:'rgba(20,184,166,.07)', border:'1px solid rgba(20,184,166,.35)', borderRadius:6, padding:'4px 6px'}}>
+                    <div style={{fontSize:8.5, fontWeight:700, color:'#5eead4', marginBottom:1}}>Поток 2</div>
+                    <div style={{fontSize:8, color:'var(--muted)'}}>_record_outgoing</div>
+                    <div style={{fontSize:8, color:'#5eead4'}}>→ OUT в jsonl</div>
+                    <div style={{fontSize:8, color:'#a78bfa'}}>→ enrich(force)</div>
+                    <div style={{fontSize:8, color:'#6ee7b7'}}>→ карточка ↑</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Agent 3 — broker enrichment pipeline */}
+          {(() => {
+            const arr = (label) => (
+              <div style={{textAlign:'center', fontSize:9, color:'var(--muted)', lineHeight:1.2, padding:'1px 0'}}>{label}</div>
+            );
+            return (
+              <div style={{display:'flex', flexDirection:'column', gap:3}}>
+                {/* raw log */}
+                <div style={{background:'#0d1117', border:'1px solid rgba(167,139,250,.45)', borderRadius:7, padding:'5px 8px'}}>
+                  <div style={{fontSize:9, fontWeight:700, color:'#a78bfa', marginBottom:3}}>📄 conversation_cache/user.jsonl</div>
+                  <div style={{fontSize:8.5, color:'rgba(216,180,254,.5)', marginBottom:1}}>
+                    <span style={{color:'#6ee7b7', fontWeight:700}}>IN</span>{'  '}
+                    <span style={{fontFamily:'monospace'}}>{'{out:false, text:"Нужна площадка…"}'}</span>
+                  </div>
+                  <div style={{fontSize:8.5, color:'rgba(216,180,254,.5)'}}>
+                    <span style={{color:'#d8b4fe', fontWeight:700}}>OUT</span>{'  '}
+                    <span style={{fontFamily:'monospace'}}>{'{out:true, text:"Есть вариант…"}'}</span>
+                  </div>
+                </div>
+                {arr('↓ enrich(force=True, ns="broker")')}
+                <div style={{background:'rgba(139,92,246,.08)', border:'1px solid rgba(139,92,246,.3)', borderRadius:6, padding:'4px 8px', fontSize:9.5, color:'#c4b5fd', fontWeight:600, textAlign:'center'}}>🔮 Opus AI · брокер-история</div>
+                {arr('↓ обновляет карточку')}
+                {/* broker context card */}
+                <div style={{background:'rgba(167,139,250,.07)', border:'1.5px dashed rgba(167,139,250,.45)', borderRadius:7, padding:'5px 8px'}}>
+                  <div style={{fontSize:9, fontWeight:700, color:'#a78bfa', marginBottom:3}}>📋 lead_context_store · broker:tg:u</div>
+                  {[['client_intent','намерение'],['waiting_for_us','ждёт нас'],['silence_days','молчит Nд'],['key_asks','уточнения']].map(([k,v]) => (
+                    <div key={k} style={{fontSize:8.5, color:'var(--muted)', lineHeight:1.4}}>
+                      <span style={{color:'#a78bfa'}}>{k}</span> · {v}
+                    </div>
+                  ))}
+                </div>
+                {arr('↓ get_or_enrich(ns="broker") · читает')}
+                {/* agent */}
+                <div style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.35)', borderRadius:7, padding:'5px 8px'}}>
+                  <div style={{fontSize:9.5, fontWeight:700, color:'#a78bfa', marginBottom:2}}>🤖 Agent 3 · Broker · Opus</div>
+                  <div style={{fontSize:8.5, color:'#f87171'}}>is_refused_any() · approval</div>
+                </div>
+                {arr('↓ отправляет — два потока')}
+                {/* dual stream */}
+                <div style={{display:'flex', gap:4}}>
+                  <div style={{flex:1, background:'rgba(167,139,250,.07)', border:'1px solid rgba(167,139,250,.3)', borderRadius:6, padding:'4px 6px'}}>
+                    <div style={{fontSize:8.5, fontWeight:700, color:'#d8b4fe', marginBottom:1}}>Поток 1</div>
+                    <div style={{fontSize:8, color:'var(--muted)'}}>relay → клиент</div>
+                    <div style={{fontSize:8, color:'#6ee7b7'}}>→ доставлено</div>
+                  </div>
+                  <div style={{flex:1, background:'rgba(20,184,166,.07)', border:'1px solid rgba(20,184,166,.35)', borderRadius:6, padding:'4px 6px'}}>
+                    <div style={{fontSize:8.5, fontWeight:700, color:'#5eead4', marginBottom:1}}>Поток 2</div>
+                    <div style={{fontSize:8, color:'var(--muted)'}}>_record_outgoing</div>
+                    <div style={{fontSize:8, color:'#5eead4'}}>→ OUT в jsonl</div>
+                    <div style={{fontSize:8, color:'#a78bfa'}}>→ enrich(force)</div>
+                    <div style={{fontSize:8, color:'#6ee7b7'}}>→ карточка ↑</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
         </div>
 
         {/* Arrows */}
