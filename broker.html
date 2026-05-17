@@ -333,6 +333,53 @@ function renderOrder(o) {
   </div>`;
 }
 
+// Фильтр по городу
+var rosterGeoFilter = 'all';
+
+function renderRosterControls(cats) {
+  // Collect unique cities across all vendors
+  const cities = new Set();
+  cats.forEach(c => c.vendors.forEach(v => {
+    const g = (v.geo || '').trim();
+    if (g && g !== 'уточнить') {
+      g.split('/').forEach(p => { const t = p.trim(); if (t) cities.add(t); });
+    }
+  }));
+  const cityOpts = ['all', ...Array.from(cities).sort()];
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+    <span style="color:var(--muted);font-size:12px">Город:</span>
+    ${cityOpts.map(c => `<button onclick="setGeoFilter('${escHtml(c)}')" id="geo-btn-${escHtml(c)}"
+      style="padding:3px 10px;border-radius:12px;font-size:12px;cursor:pointer;border:1px solid var(--border);
+             background:${c==='all'?'rgba(88,166,255,0.15)':'var(--card)'};
+             color:${c==='all'?'var(--accent)':'var(--muted)'}">${c==='all'?'Все':escHtml(c)}</button>`).join('')}
+  </div>`;
+}
+
+function setGeoFilter(city) {
+  rosterGeoFilter = city;
+  document.querySelectorAll('[id^="geo-btn-"]').forEach(b => {
+    const isActive = b.id === `geo-btn-${city}`;
+    b.style.background = isActive ? 'rgba(88,166,255,0.15)' : 'var(--card)';
+    b.style.color = isActive ? 'var(--accent)' : 'var(--muted)';
+    b.style.borderColor = isActive ? 'rgba(88,166,255,0.4)' : 'var(--border)';
+  });
+  // Re-render all cats
+  if (window._rosterCats) renderRosterCats(window._rosterCats);
+}
+
+function vendorMatchesGeo(v) {
+  if (rosterGeoFilter === 'all') return true;
+  const g = (v.geo || '').toLowerCase();
+  return g.includes(rosterGeoFilter.toLowerCase());
+}
+
+function renderRosterCats(cats) {
+  const nonEmpty = cats.filter(c => c.vendors.filter(vendorMatchesGeo).length > 0);
+  const empty = cats.filter(c => c.vendors.filter(vendorMatchesGeo).length === 0);
+  const target = document.getElementById('roster-cats-inner') || document.getElementById('roster-cats');
+  target.innerHTML = [...nonEmpty, ...empty].map(renderRosterCat).join('');
+}
+
 function renderRosterVendor(v) {
   const promoHtml = v.promo_url
     ? `<div class="v-promo"><a href="${escHtml(v.promo_url)}" target="_blank">📹 промо</a></div>`
@@ -358,14 +405,19 @@ function renderRosterVendor(v) {
 }
 
 function renderRosterCat(cat) {
-  const vendorsHtml = cat.vendors.length
-    ? cat.vendors.map(renderRosterVendor).join('')
-    : '<div class="roster-empty">пока нет подрядчиков</div>';
+  const filtered = cat.vendors.filter(vendorMatchesGeo);
+  const withGeo = filtered.filter(v => v.geo && v.geo !== 'уточнить').length;
+  const withRate = filtered.filter(v => v.rate_quote && v.rate_quote !== 'уточнить').length;
+  const vendorsHtml = filtered.length
+    ? filtered.map(renderRosterVendor).join('')
+    : '<div class="roster-empty">нет подрядчиков по фильтру</div>';
+  const geoHint = filtered.length ? `<span style="font-size:10px;color:var(--muted);margin-left:4px">${withGeo} с городом · ${withRate} с ценой</span>` : '';
   return `<div class="roster-cat">
     <div class="roster-cat-header">
       <span class="emoji">${escHtml(cat.emoji)}</span>
       <span class="cat-name">${escHtml(cat.label)}</span>
-      <span class="cat-count">${cat.vendors.length}</span>
+      <span class="cat-count">${filtered.length}</span>
+      ${geoHint}
     </div>
     ${vendorsHtml}
   </div>`;
@@ -376,13 +428,17 @@ async function loadRoster(base) {
     const r = await fetch(`${base}/api/broker_roster`, { cache: 'no-store' });
     const data = await r.json();
     if (data.error) throw new Error(data.error);
+    window._rosterCats = data.categories;
     const nonEmpty = data.categories.filter(c => c.vendors.length > 0);
-    const empty = data.categories.filter(c => c.vendors.length === 0);
-    // Non-empty first, then empty categories
-    const allCats = [...nonEmpty, ...empty];
-    document.getElementById('roster-cats').innerHTML = allCats.map(renderRosterCat).join('');
+    const withGeoTotal = data.categories.reduce((s,c) => s + c.vendors.filter(v => v.geo && v.geo !== 'уточнить').length, 0);
+    // Inject geo filter controls above cats
+    document.getElementById('roster-cats').innerHTML =
+      renderRosterControls(data.categories) +
+      '<div id="roster-cats-inner"></div>';
+    // re-point render target
+    renderRosterCats(data.categories);
     document.getElementById('roster-meta').textContent =
-      `· ${data.total} подрядчиков в ${nonEmpty.length} категориях` +
+      `· ${data.total} подрядчиков · ${withGeoTotal} с городом · ${nonEmpty.length} категорий` +
       (data._meta.updated ? ` · обновлено ${data._meta.updated}` : '');
   } catch (e) {
     document.getElementById('roster-cats').innerHTML =
