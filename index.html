@@ -7276,87 +7276,134 @@ function LeadFlowSection() {
 
   return (
     <div className="section" style={{marginTop:14}}>
-      {/* Pipeline diagram */}
-      <div style={{
-        display:'grid',
-        gridTemplateColumns:'minmax(130px,1fr) auto minmax(120px,1fr) auto minmax(110px,1fr) auto minmax(140px,1fr) auto minmax(155px,1fr)',
-        gap:0, alignItems:'start', marginBottom:12,
-        background:'rgba(15,23,42,0.6)', borderRadius:10,
-        border:'1px solid var(--border)', padding:'12px 16px',
-        overflowX:'auto',
-      }}>
-        {/* ① Sources */}
-        <div>
-          <PipeCol label="Источники" />
-          <SourceBox icon="💬" label="TG event-чаты" sub={`${pipe.tg_chats||18} чатов · пуш`} active={isActive} pulse={isActive} ago={pipe.last_event_at ? fmtAgo(pipe.last_event_at)+' назад':''} color='#3b82f6' />
-          <SourceBox icon="📩" label="TG DM" sub="входящие · realtime" active color='#38bdf8' style={{marginTop:5}} />
-          <SourceBox icon="🅰️" label="VK чаты" sub={`${pipe.vk_groups||8} event-групп · пуш`} active color='#4f8ef7' style={{marginTop:5}} />
-          <SourceBox icon="✉️" label="VK DM" sub="входящие · longpoll" active color='#5b7fd4' style={{marginTop:5}} />
-          <SourceBox icon="💚" label="WhatsApp" sub="Baileys · входящие" active={pipe.wa_active!==false} ago={pipe.wa_last_at ? fmtAgo(pipe.wa_last_at)+' назад':''} color='#25d366' style={{marginTop:5}} />
-        </div>
+      {/* Pipeline diagram — два пайплайна: event-посты и DM */}
+      <div style={{display:'flex', flexDirection:'column', gap:10, marginBottom:12}}>
 
-        <FlowArrow />
-
-        {/* ② AI Classifier */}
-        <div>
-          <PipeCol label="AI классификатор" />
-          <div style={{background:'rgba(139,92,246,0.12)', border:'1px solid rgba(139,92,246,0.4)', borderRadius:8, padding:'10px 12px', textAlign:'center'}}>
-            <div style={{fontSize:12, fontWeight:700, color:'#a78bfa'}}>🤖 AI 2.0</div>
-            <div style={{fontSize:10, color:'var(--muted)', marginTop:4}}>Gemini Flash L1</div>
-            <div style={{fontSize:10, color:'var(--muted)'}}>→ Sonnet L2</div>
-            <div style={{fontSize:10, color:'var(--muted)'}}>→ Opus L3</div>
-            <div style={{height:1, background:'var(--border)', margin:'8px 0'}} />
-            <div style={{fontSize:10, color:'var(--muted)', fontStyle:'italic'}}>9 вердиктов</div>
+        {/* ─── Ряд 1: Event-посты (чаты) ─── */}
+        <div style={{background:'rgba(15,23,42,0.6)', borderRadius:10, border:'1px solid var(--border)', padding:'10px 14px', overflowX:'auto'}}>
+          <div style={{fontSize:10, fontWeight:700, color:'#3b82f6', textTransform:'uppercase', letterSpacing:0.6, marginBottom:8, opacity:0.8}}>
+            📨 Event-посты — чаты
           </div>
-          <div style={{marginTop:5, background:'rgba(14,165,233,0.08)', border:'1px solid rgba(14,165,233,0.25)', borderRadius:6, padding:'6px 8px'}}>
-            <div style={{fontSize:10, color:'#38bdf8', fontWeight:600}}>⚡ pre-filter</div>
-            <div style={{fontSize:10, color:'var(--muted)'}}>hard-regex · музыканты</div>
-            <div style={{fontSize:10, color:'var(--muted)'}}>агрегатор · отказы</div>
-          </div>
-        </div>
-
-        <FlowArrow />
-
-        {/* ④ Verdicts */}
-        <div>
-          <PipeCol label="Вердикт" />
-          {[
-            ['event_organizer_active', '🟢 Активный организатор', '#34d399'],
-            ['event_organizer_pending','🟡 Переговоры',           '#fbbf24'],
-            ['lead',                   '🔵 Новый лид',            '#60a5fa'],
-            ['broker',                 '🤝 Брокер',               '#a78bfa'],
-            ['contractor',             '🔧 Подрядчик',            '#94a3b8'],
-            ['tech_crew',              '🎛 Техник',               '#f97316'],
-            ['musician',               '🎵 Музыкант',             '#475569'],
-            ['refusal',                '❌ Отказ',                '#f87171'],
-            ['spam',                   '🚫 Спам',                 '#334155'],
-          ].map(([k,l,c]) => (
-            <div key={k} style={{fontSize:10.5, color:c, padding:'2.5px 0', fontWeight:600, whiteSpace:'nowrap'}}>{l}</div>
-          ))}
-        </div>
-
-        <FlowArrow />
-
-        {/* ⑤ Actions */}
-        <div>
-          <PipeCol label="Действие агента" />
-          {[
-            ['#34d399', '🗂 Logistics-промпт',    'детали ивента · без питча'],
-            ['#fbbf24', '💼 Sales-промпт',         'партнёрский тон · пакет'],
-            ['#60a5fa', '📤 Sales-промпт',         'стандартный питч'],
-            ['#a78bfa', '📤 Sales-промпт',         'предложить найти'],
-            ['#94a3b8', '💬 Краткий ответ',        'профессиональный тон'],
-            ['#f97316', '⚠️ Approval-бот',         'форвард · живой разговор'],
-            ['#475569', '🔇 Skip',                 ''],
-            ['#f87171', '🔇 Skip + mark_handled', ''],
-            ['#334155', '🔇 Skip',                 ''],
-          ].map(([c,l,s], i) => (
-            <div key={i} style={{padding:'2.5px 0'}}>
-              <span style={{fontSize:10.5, color:c, fontWeight:600}}>{l}</span>
-              {s && <span style={{fontSize:9.5, color:'var(--muted)', marginLeft:4}}>{s}</span>}
+          <div style={{display:'grid', gridTemplateColumns:'minmax(120px,1fr) auto minmax(120px,1fr) auto minmax(110px,1fr) auto minmax(150px,1fr)', gap:0, alignItems:'start'}}>
+            {/* Источники */}
+            <div>
+              <PipeCol label="Источники" />
+              <SourceBox icon="💬" label="TG event-чаты" sub={`${pipe.tg_chats||18} чатов · пуш`} active={isActive} pulse={isActive} ago={pipe.last_event_at ? fmtAgo(pipe.last_event_at)+' назад':''} color='#3b82f6' />
+              <SourceBox icon="🅰️" label="VK чаты" sub={`${pipe.vk_groups||8} групп · пуш`} active color='#4f8ef7' style={{marginTop:5}} />
             </div>
-          ))}
+            <FlowArrow />
+            {/* AI Classifier */}
+            <div>
+              <PipeCol label="AI классификатор" />
+              <div style={{background:'rgba(139,92,246,0.12)', border:'1px solid rgba(139,92,246,0.4)', borderRadius:8, padding:'8px 10px', textAlign:'center'}}>
+                <div style={{fontSize:11, fontWeight:700, color:'#a78bfa'}}>🤖 AI 2.0</div>
+                <div style={{fontSize:10, color:'var(--muted)', marginTop:3}}>Gemini Flash L1</div>
+                <div style={{fontSize:10, color:'var(--muted)'}}>→ Sonnet L2 → Opus L3</div>
+              </div>
+              <div style={{marginTop:4, background:'rgba(14,165,233,0.08)', border:'1px solid rgba(14,165,233,0.2)', borderRadius:6, padding:'5px 8px'}}>
+                <div style={{fontSize:10, color:'#38bdf8', fontWeight:600}}>⚡ pre-filter: hard-regex</div>
+                <div style={{fontSize:9.5, color:'var(--muted)'}}>музыканты · агрегатор · отказы</div>
+              </div>
+            </div>
+            <FlowArrow />
+            {/* Verdicts */}
+            <div>
+              <PipeCol label="Вердикт" />
+              {[
+                ['🟢 Активный организатор','#34d399'],
+                ['🟡 Переговоры',          '#fbbf24'],
+                ['🔵 Новый лид',           '#60a5fa'],
+                ['🤝 Брокер',              '#a78bfa'],
+                ['🔧 Подрядчик',           '#94a3b8'],
+                ['🎛 Техник',              '#f97316'],
+                ['❌ Отказ / 🚫 Спам',    '#f87171'],
+              ].map(([l,c],i) => (
+                <div key={i} style={{fontSize:10, color:c, padding:'2px 0', fontWeight:600, whiteSpace:'nowrap'}}>{l}</div>
+              ))}
+            </div>
+            <FlowArrow />
+            {/* Actions */}
+            <div>
+              <PipeCol label="Действие агента" />
+              {[
+                ['#34d399','🗂 Logistics-промпт','без питча'],
+                ['#fbbf24','💼 Sales-промпт','партнёрский тон'],
+                ['#60a5fa','📤 Питч','стандартный'],
+                ['#a78bfa','📤 Питч','предложить найти'],
+                ['#f97316','⚠️ Approval-бот','форвард'],
+                ['#94a3b8','💬 Краткий ответ',''],
+                ['#f87171','🔇 Skip',''],
+              ].map(([c,l,s],i) => (
+                <div key={i} style={{padding:'2px 0'}}>
+                  <span style={{fontSize:10, color:c, fontWeight:600}}>{l}</span>
+                  {s && <span style={{fontSize:9, color:'var(--muted)', marginLeft:3}}>{s}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
+
+        {/* ─── Ряд 2: DM / входящие ─── */}
+        <div style={{background:'rgba(15,23,42,0.6)', borderRadius:10, border:'1px solid rgba(56,189,248,0.2)', padding:'10px 14px', overflowX:'auto'}}>
+          <div style={{fontSize:10, fontWeight:700, color:'#38bdf8', textTransform:'uppercase', letterSpacing:0.6, marginBottom:8, opacity:0.8}}>
+            💬 DM / входящие переписки
+          </div>
+          <div style={{display:'grid', gridTemplateColumns:'minmax(110px,1fr) auto minmax(140px,1fr) auto minmax(160px,1fr) auto minmax(140px,1fr)', gap:0, alignItems:'start'}}>
+            {/* DM Источники */}
+            <div>
+              <PipeCol label="DM источники" />
+              <SourceBox icon="📩" label="TG DM" sub="входящие · realtime" active color='#38bdf8' />
+              <SourceBox icon="✉️" label="VK DM" sub="longpoll · входящие" active color='#5b7fd4' style={{marginTop:5}} />
+              <SourceBox icon="💚" label="WhatsApp" sub="Baileys · входящие" active={pipe.wa_active!==false} ago={pipe.wa_last_at ? fmtAgo(pipe.wa_last_at)+' назад':''} color='#25d366' style={{marginTop:5}} />
+            </div>
+            <FlowArrow />
+            {/* Картотека */}
+            <div>
+              <PipeCol label="📋 Картотека контекста" />
+              <div style={{background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.35)', borderRadius:8, padding:'8px 10px'}}>
+                <div style={{fontSize:11, fontWeight:700, color:'#f59e0b'}}>Запись + обогащение</div>
+                <div style={{fontSize:10, color:'var(--muted)', marginTop:4}}>новый текст → enrich(force)</div>
+                <div style={{height:1, background:'rgba(245,158,11,0.2)', margin:'6px 0'}} />
+                <div style={{fontSize:10, color:'var(--muted)'}}>client_intent · отказ?</div>
+                <div style={{fontSize:10, color:'var(--muted)'}}>event_date · budget</div>
+                <div style={{fontSize:10, color:'var(--muted)'}}>waiting_for_us?</div>
+                <div style={{fontSize:10, color:'var(--muted)'}}>silence_days · history</div>
+              </div>
+            </div>
+            <FlowArrow />
+            {/* DM Agent */}
+            <div>
+              <PipeCol label="🤖 DM Агент" />
+              <div style={{background:'rgba(139,92,246,0.12)', border:'1px solid rgba(139,92,246,0.4)', borderRadius:8, padding:'8px 10px'}}>
+                <div style={{fontSize:11, fontWeight:700, color:'#a78bfa'}}>unified_dm_responder</div>
+                <div style={{height:1, background:'rgba(139,92,246,0.2)', margin:'6px 0'}} />
+                <div style={{fontSize:10, color:'#f59e0b', fontWeight:600}}>← читает картотеку</div>
+                <div style={{fontSize:10, color:'var(--muted)', marginTop:2}}>per-reply: get_or_enrich</div>
+                <div style={{height:1, background:'rgba(139,92,246,0.2)', margin:'6px 0'}} />
+                <div style={{fontSize:10, color:'var(--muted)'}}>CRM lookup · vendor check</div>
+                <div style={{fontSize:10, color:'var(--muted)'}}>Opus generate</div>
+                <div style={{fontSize:10, color:'var(--muted)'}}>ai_review · send</div>
+              </div>
+            </div>
+            <FlowArrow />
+            {/* Reply / Follow-up */}
+            <div>
+              <PipeCol label="Ответ / Follow-up" />
+              {[
+                ['#34d399','📤 Авто-ответ', 'Opus draft · ai_review'],
+                ['#fbbf24','⚠️ Approval',  'кнопки бота'],
+                ['#38bdf8','📋 Follow-up',  'silence ≥ 2д → пуш'],
+                ['#f87171','🔇 Skip',       'отказ / handled'],
+              ].map(([c,l,s],i) => (
+                <div key={i} style={{marginBottom:4}}>
+                  <div style={{fontSize:10, color:c, fontWeight:600}}>{l}</div>
+                  <div style={{fontSize:9.5, color:'var(--muted)'}}>{s}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
       </div>
 
       {/* Live events feed */}
