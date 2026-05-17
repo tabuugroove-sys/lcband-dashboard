@@ -7775,6 +7775,24 @@ function App() {
           {activeTab === 'overview' && (
             <>
               <OverviewStatsSection stats={overviewStats} />
+              <ActionButtons />
+              <KPISection kpi={data.kpi} setActiveTab={setActiveTab}
+                          browserWalk={data.browserWalk || {leads:0, refusals:0, chats:0, ranAt:'', hours:48, items:[]}} />
+              <div className="section" style={{ marginTop: 8 }}>
+                <TGLeadsButton
+                  onClick={() => setShowTGModal(true)}
+                  tgWeek={data.tgFunnel?.week}
+                />
+              </div>
+              <FunnelSplitSections
+                allLeads={data.allLeads || []}
+                archived={data.allArchived || []}
+                pendingDrafts={data.pendingDrafts || []}
+                sessionLog={sessionLog || null}
+                fallbackFunnel={data.funnel || []}
+              />
+              <RecentSentMessagesSection data={recentSent} />
+              <FollowupsSection followups={data.followups} />
             </>
           )}
 
