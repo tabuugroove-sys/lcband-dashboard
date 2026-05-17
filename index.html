@@ -7774,35 +7774,7 @@ function App() {
 
           {activeTab === 'overview' && (
             <>
-              <StatusSection
-                status={data.status}
-                activity24h={activity24h}
-                sent24h={recentSent24h}
-                aiDelivery={aiDelivery}
-                aiDeliveryTrend={aiDeliveryTrend}
-                aiTrendRange={aiTrendRange}
-                onAiTrendRangeChange={setAiTrendRange}
-                onProcessClick={setShowProcess}
-              />
-              <ActionButtons />
-              <KPISection kpi={data.kpi} setActiveTab={setActiveTab}
-                          browserWalk={data.browserWalk || {leads:0, refusals:0, chats:0, ranAt:'', hours:48, items:[]}} />
-              <div className="section" style={{ marginTop: 8 }}>
-                <TGLeadsButton
-                  onClick={() => setShowTGModal(true)}
-                  tgWeek={data.tgFunnel?.week}
-                />
-              </div>
-              <FunnelSplitSections
-                allLeads={data.allLeads || []}
-                archived={data.allArchived || []}
-                pendingDrafts={data.pendingDrafts || []}
-                sessionLog={sessionLog || null}
-                fallbackFunnel={data.funnel || []}
-              />
-
-              <RecentSentMessagesSection data={recentSent} />
-              <FollowupsSection followups={data.followups} />
+              <OverviewStatsSection stats={overviewStats} />
             </>
           )}
 
