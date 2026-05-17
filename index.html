@@ -7291,7 +7291,6 @@ function LeadFlowSection() {
           <SourceBox icon="💬" label="TG event-чаты" sub={`${pipe.tg_chats||18} чатов · пуш`} active={isActive} pulse={isActive} ago={pipe.last_event_at ? fmtAgo(pipe.last_event_at)+' назад':''} color='#3b82f6' />
           <SourceBox icon="📩" label="TG DM" sub="входящие · realtime" active color='#38bdf8' style={{marginTop:5}} />
           <SourceBox icon="🅰️" label="VK" sub={`${pipe.vk_groups||8} групп + DM`} active color='#4f8ef7' style={{marginTop:5}} />
-          <SourceBox icon="📸" label="Instagram" sub={pipe.ig_stories_seen ? `${pipe.ig_stories_seen} сторис · DM`:'сторис · DM · outreach'} active ago={pipe.ig_last_at ? fmtAgo(pipe.ig_last_at)+' назад':''} color='#e1306c' style={{marginTop:5}} />
           <SourceBox icon="💚" label="WhatsApp" sub="Baileys · входящие" active={pipe.wa_active!==false} ago={pipe.wa_last_at ? fmtAgo(pipe.wa_last_at)+' назад':''} color='#25d366' style={{marginTop:5}} />
         </div>
 
