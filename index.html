@@ -7273,6 +7273,20 @@ function LeadFlowSection() {
     archive: '📁', follow_up_later: '⏳', approval_needed: '⚠️',
     send_pitch: '📤', send_followup: '📤', wait: '⏸',
   }[a] || '·');
+  const leadFateText = (lead) => {
+    const status = lead?.status || 'без статуса';
+    const action = lead?.next_action ? ` · ${lead.next_action}` : '';
+    const date = lead?.event_date ? ` · ${lead.event_date}` : '';
+    const archived = lead?.archived ? ' · архив' : '';
+    return `${status}${archived}${date}${action}`;
+  };
+  const leadTitle = (lead) => [
+    lead?.client || lead?.username || lead?.contact || 'лид',
+    lead?.source_chat ? `Источник: ${lead.source_chat}` : '',
+    lead?.budget ? `Бюджет: ${lead.budget}` : '',
+    lead?.location ? `Гео: ${lead.location}` : '',
+    lead?.updated_at ? `Обновлено: ${lead.updated_at}` : '',
+  ].filter(Boolean).join('\n');
 
   return (
     <div className="section" style={{marginTop:14}}>
@@ -7496,27 +7510,56 @@ function LeadFlowSection() {
       {!data && <div style={{color:'var(--muted)', fontSize:12, padding:'8px 0'}}>Загрузка…</div>}
       {data && events.length === 0 && <div style={{color:'var(--muted)', fontSize:12, padding:'8px 0'}}>Нет активности — ночное затишье</div>}
 
-      <div style={{display:'flex', flexDirection:'column', gap:3}}>
+      <div style={{
+        display:'flex', flexDirection:'column', gap:3,
+        maxHeight:380, overflowY:'auto', paddingRight:4,
+        scrollbarGutter:'stable',
+      }}>
         {events.map((ev, i) => {
           if (ev.kind === 'monitor_cycle') {
-            const src = ev.source === 'vk' ? 'VK' : ev.inline ? 'TG inline' : 'TG monitor';
-            const srcColor = ev.source === 'vk' ? '#4f8ef7' : ev.inline ? '#34d399' : '#3b82f6';
+            const src = ev.source === 'vk' ? 'VK'
+              : ev.source === 'tg_realtime' ? 'TG realtime'
+              : ev.inline ? 'TG inline' : 'TG monitor';
+            const srcColor = ev.source === 'vk' ? '#4f8ef7'
+              : (ev.inline || ev.source === 'tg_realtime') ? '#34d399' : '#3b82f6';
+            const leads = Array.isArray(ev.leads) ? ev.leads : [];
             return (
               <div key={i} style={{
-                display:'flex', gap:10, alignItems:'center', padding:'4px 8px',
+                display:'flex', flexDirection:'column', gap:4, padding:'4px 8px',
                 borderRadius:6, background:'rgba(15,23,42,0.4)',
                 fontSize:11, fontVariantNumeric:'tabular-nums',
               }}>
-                <span style={{color:'var(--muted)', minWidth:34}}>{fmtTime(ev.ts)}</span>
-                <span style={{color:srcColor, fontWeight:600, minWidth:80}}>{src}</span>
-                <span style={{color:'var(--fg)'}}>
-                  {ev.chat_name ? <span style={{color:'#93c5fd'}}>{ev.chat_name} · </span> : null}
-                  {ev.messages_read} {ev.messages_read === 1 ? 'пост' : 'постов'}
-                </span>
-                {ev.orders > 0
-                  ? <span style={{color:'#34d399', fontWeight:700, marginLeft:'auto'}}>🎯 {ev.orders} лид{ev.orders > 1 ? 'а' : ''}</span>
-                  : <span style={{color:'var(--muted)', marginLeft:'auto', fontSize:10}}>skip</span>
-                }
+                <div style={{display:'flex', gap:10, alignItems:'center'}}>
+                  <span style={{color:'var(--muted)', minWidth:34}}>{fmtTime(ev.ts)}</span>
+                  <span style={{color:srcColor, fontWeight:600, minWidth:80}}>{src}</span>
+                  <span style={{color:'var(--fg)'}}>
+                    {ev.chat_name ? <span style={{color:'#93c5fd'}}>{ev.chat_name} · </span> : null}
+                    {ev.messages_read} {ev.messages_read === 1 ? 'пост' : 'постов'}
+                  </span>
+                  {ev.orders > 0
+                    ? <span style={{color:'#34d399', fontWeight:700, marginLeft:'auto'}}>🎯 {ev.orders} лид{ev.orders > 1 ? 'а' : ''}</span>
+                    : <span style={{color:'var(--muted)', marginLeft:'auto', fontSize:10}}>skip</span>
+                  }
+                </div>
+                {ev.orders > 0 && (
+                  <div style={{display:'flex', flexDirection:'column', gap:3, marginLeft:124}}>
+                    {leads.length > 0 ? leads.map((lead, li) => (
+                      <div key={lead.id || li} title={leadTitle(lead)}
+                           style={{display:'flex', gap:8, alignItems:'center', minWidth:0}}>
+                        <span style={{color:'#93c5fd', fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:240}}>
+                          {lead.username ? `@${String(lead.username).replace(/^@/, '')}` : (lead.client || lead.contact || `#${lead.id}`)}
+                        </span>
+                        <span style={{color:verdictColor(lead.status), fontSize:10, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                          {leadFateText(lead)}
+                        </span>
+                      </div>
+                    )) : (
+                      <div style={{color:'#fbbf24', fontSize:10}}>
+                        судьба: лид найден, CRM ещё не привязалась к этому циклу
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           }

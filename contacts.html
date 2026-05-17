@@ -117,6 +117,12 @@
   .badge { display: inline-block; padding: 2px 6px; border-radius: 3px;
            font-size: 11px; background: rgba(255,255,255,0.05); color: var(--muted); }
   .badge.cb { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+  .badge.ch-tg { background: rgba(64, 164, 234, 0.18); color: #5cb4ff; }
+  .badge.ch-vk { background: rgba(94, 132, 226, 0.22); color: #8ab1ff; }
+  .badge.broker { background: rgba(196, 132, 252, 0.18); color: #c084fc; font-weight: 600; }
+  .badge.bp-high { background: rgba(63, 185, 80, 0.18); color: var(--green); }
+  .badge.bp-medium { background: rgba(214, 154, 89, 0.18); color: var(--accent); }
+  .badge.bp-low { background: rgba(170, 170, 170, 0.15); color: var(--muted); }
   .conf-high { color: var(--green); }
   .conf-medium { color: var(--accent); }
   .conf-low { color: var(--muted); }
@@ -198,25 +204,29 @@
       <span class="chip" data-flag="mentioned_cover_band" id="chip-cb">🎵 Знают нас</span>
       <span class="chip" data-flag="our_outreach" id="chip-our">📤 Cold pitch от нас</span>
       <span class="chip" data-flag="client_first" id="chip-client">📥 Клиент написал первым</span>
+      <span class="chip" data-flag="__broker__" id="chip-broker">🤝 Broker pool (vendor)</span>
+      <span class="chip" data-flag="__vk_only__" id="chip-vk">🟦 Только VK</span>
+      <span class="chip" data-flag="__tg_only__" id="chip-tg">✈️ Только TG</span>
     </div>
 
     <!-- Contacts table -->
     <table>
       <thead>
         <tr>
-          <th>Username</th>
+          <th>Канал</th>
+          <th>Контакт</th>
           <th>Имя</th>
           <th>Роль</th>
+          <th>Broker</th>
           <th>Конф.</th>
-          <th>Город</th>
           <th>Сообщений</th>
           <th>Активность</th>
           <th>Знают нас</th>
-          <th>Evidence / Notes</th>
+          <th>Evidence / Plan</th>
         </tr>
       </thead>
       <tbody id="contacts-tbody">
-        <tr><td colspan="9" class="loading">Загрузка...</td></tr>
+        <tr><td colspan="10" class="loading">Загрузка...</td></tr>
       </tbody>
     </table>
   </main>
@@ -236,9 +246,18 @@ const ROLE_LABELS = {
   contractor_other: '🛠️ Другие услуги',
   musician_competitor: '🎸 Конкурент',
   musician_solo: '🎙️ Солист',
+  lcb_resident_vocalist: '🎤 LCB вокалист',
   personal: '👤 Личное',
   bot_or_spam: '🤖 Бот/спам',
   unknown: '❓ Unknown',
+};
+
+const BROKER_TAG_LABELS = {
+  vendor_musician: '🎙 Musician',
+  vendor_show: '💃 Show',
+  vendor_host_dj: '🎤 Host/DJ',
+  vendor_tech: '🔊 Tech',
+  vendor_other: '🛠 Other',
 };
 
 let allContacts = [];
@@ -273,7 +292,7 @@ async function loadData() {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
   } catch (e) {
     document.getElementById('contacts-tbody').innerHTML =
-      `<tr><td colspan="9" class="empty">⚠️ Backend недоступен: ${e.message}</td></tr>`;
+      `<tr><td colspan="10" class="empty">⚠️ Backend недоступен: ${e.message}</td></tr>`;
     return;
   }
   const data = await resp.json();
@@ -335,14 +354,21 @@ function renderRoleDistribution(data) {
 
 function renderCohorts(data) {
   const contacts = Object.values(data.contacts || {});
+  const ch = (data.stats || {}).by_channel || {};
+  const bt = (data.stats || {}).by_broker_tag || {};
   const cohorts = [
+    { label: '🤝 Broker pool (всего)', n: contacts.filter(c => c.broker_tag).length },
+    { label: '🎙 Broker musician', n: bt.vendor_musician || 0 },
+    { label: '💃 Broker show', n: bt.vendor_show || 0 },
+    { label: '🎤 Broker host/DJ', n: bt.vendor_host_dj || 0 },
+    { label: '🔊 Broker tech', n: bt.vendor_tech || 0 },
+    { label: '🛠 Broker other', n: bt.vendor_other || 0 },
+    { label: '🟦 VK contacts', n: ch.vk || 0 },
+    { label: '✈️ TG contacts', n: ch.tg || 0 },
     { label: '🎵 Знают нас как кавер-группу', n: contacts.filter(c => c.mentioned_cover_band).length },
     { label: '📤 От холодного outreach', n: contacts.filter(c => c.our_outreach).length },
     { label: '📥 Клиент написал первым', n: contacts.filter(c => c.client_first).length },
-    { label: '📍 Москва', n: contacts.filter(c => c.city === 'Москва').length },
-    { label: '🏙️ СПб', n: contacts.filter(c => c.city === 'СПб').length },
     { label: '✓ High confidence', n: contacts.filter(c => c.confidence === 'high').length },
-    { label: '? Low confidence', n: contacts.filter(c => c.confidence === 'low').length },
   ];
   const max = Math.max(...cohorts.map(c => c.n), 1);
   document.getElementById('cohorts').innerHTML = cohorts.map(c => {
@@ -385,11 +411,20 @@ function applyFilters() {
     if (roleF && c.role !== roleF) return false;
     if (cityF && c.city !== cityF) return false;
     for (const flag of activeFlags) {
-      if (!c[flag]) return false;
+      if (flag === '__broker__') {
+        if (!c.broker_tag) return false;
+      } else if (flag === '__vk_only__') {
+        if (c.channel !== 'vk') return false;
+      } else if (flag === '__tg_only__') {
+        if (c.channel === 'vk') return false;
+      } else {
+        if (!c[flag]) return false;
+      }
     }
     if (q) {
-      const haystack = (c.uname + ' ' + c.first_name + ' ' + c.last_name + ' ' +
-                        c.evidence + ' ' + c.notes).toLowerCase();
+      const haystack = (c.uname + ' ' + (c.first_name||'') + ' ' + (c.last_name||'') + ' ' +
+                        (c.evidence||'') + ' ' + (c.notes||'') + ' ' +
+                        (c.services_offered||'') + ' ' + (c.draft_message||'')).toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
@@ -409,27 +444,72 @@ function applyFilters() {
 
   if (!rows.length) {
     document.getElementById('contacts-tbody').innerHTML =
-      '<tr><td colspan="9" class="empty">По фильтрам ничего не найдено</td></tr>';
+      '<tr><td colspan="10" class="empty">По фильтрам ничего не найдено</td></tr>';
     return;
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/"/g, '&quot;').replace(/</g, '&lt;');
   }
 
   document.getElementById('contacts-tbody').innerHTML = rows.slice(0, 500).map(c => {
     const fullName = ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || '—';
     const lastDate = c.last_msg_date ? c.last_msg_date.slice(0, 10) : '—';
     const cb = c.mentioned_cover_band ? '<span class="badge cb">YES</span>' : '<span class="badge">—</span>';
+
+    // Channel badge + clickable link
+    let channelBadge, contactLink;
+    if (c.channel === 'vk') {
+      channelBadge = '<span class="badge ch-vk">VK</span>';
+      const sn = c.screen_name || c.uname.replace(/^vk:/, '');
+      contactLink = `<a href="https://vk.com/${esc(sn)}" target="_blank" class="username">vk.com/${esc(sn)}</a>`;
+    } else {
+      channelBadge = '<span class="badge ch-tg">TG</span>';
+      contactLink = `<a href="https://t.me/${esc(c.uname)}" target="_blank" class="username">@${esc(c.uname)}</a>`;
+    }
+
+    // Broker chip
+    let brokerCell = '—';
+    if (c.broker_tag) {
+      const tagLabel = BROKER_TAG_LABELS[c.broker_tag] || c.broker_tag;
+      const prio = c.broker_priority || 'low';
+      brokerCell = `<span class="badge broker">${tagLabel}</span> <span class="badge bp-${prio}">${prio}</span>`;
+    }
+
+    // Tooltip — plan + draft + last_outreach
+    const tooltipParts = [];
+    if (c.evidence) tooltipParts.push('Evidence: ' + c.evidence);
+    if (c.notes) tooltipParts.push('Notes: ' + c.notes);
+    if (c.services_offered) tooltipParts.push('Offers: ' + c.services_offered);
+    if (c.services_searched) tooltipParts.push('Searches: ' + c.services_searched);
+    if (c.last_outreach_status) tooltipParts.push('Last status: ' + c.last_outreach_status);
+    if (c.plan && c.plan.length) tooltipParts.push('Plan: ' + c.plan.join(' | '));
+    if (c.draft_message) tooltipParts.push('Draft: ' + c.draft_message);
+    if (c.draft_followup_hint) tooltipParts.push('Followup: ' + c.draft_followup_hint);
+    const tooltip = tooltipParts.join('\n\n');
+
+    // Short preview — show plan first step if VK with draft, else evidence
+    let preview;
+    if (c.channel === 'vk' && c.plan && c.plan.length) {
+      preview = '📋 ' + c.plan[0];
+    } else {
+      preview = c.evidence || c.notes || '—';
+    }
+
     return `<tr>
-      <td><span class="username">@${c.uname}</span></td>
-      <td>${fullName}</td>
+      <td>${channelBadge}</td>
+      <td>${contactLink}</td>
+      <td>${esc(fullName)}</td>
       <td class="role ${c.role}">${ROLE_LABELS[c.role] || c.role}</td>
+      <td>${brokerCell}</td>
       <td><span class="conf-${c.confidence}">${c.confidence || '—'}</span></td>
-      <td>${c.city || '—'}</td>
       <td>${c.msg_count || 0}</td>
       <td>${lastDate}</td>
       <td>${cb}</td>
-      <td class="evidence" title="${(c.evidence || '').replace(/"/g, '&quot;')} — ${(c.notes || '').replace(/"/g, '&quot;')}">${c.evidence || c.notes || '—'}</td>
+      <td class="evidence" title="${esc(tooltip)}">${esc(preview)}</td>
     </tr>`;
   }).join('') + (rows.length > 500
-    ? `<tr><td colspan="9" class="empty">... и ещё ${rows.length - 500} (примените фильтры)</td></tr>`
+    ? `<tr><td colspan="10" class="empty">... и ещё ${rows.length - 500} (примените фильтры)</td></tr>`
     : '');
 }
 

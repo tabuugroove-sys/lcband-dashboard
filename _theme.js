@@ -16,6 +16,9 @@
 
   function mountToggle() {
     if (document.querySelector('.lcb-theme-toggle')) return;
+    // Pages with their own header button use the same lcb_theme storage key.
+    // Avoid rendering a second floating switcher there.
+    if (document.querySelector('#theme-toggle.theme-toggle')) return;
     var btn = document.createElement('button');
     btn.className = 'lcb-theme-toggle';
     btn.setAttribute('aria-label', 'Toggle theme');
