@@ -7297,18 +7297,7 @@ function LeadFlowSection() {
 
         <FlowArrow />
 
-        {/* ② Context enrichment */}
-        <div>
-          <PipeCol label="Обогащение" />
-          <PipeBox color='#0ea5e9' title='1. Hard-regex' lines={['музыканты-папка','агрегатор','PAYMENT','refusal']} />
-          <PipeBox color='#8b5cf6' title='2. Картотека' lines={['был ли отказ?','история ответов']} style={{marginTop:5}} />
-          <PipeBox color='#f59e0b' title='3. CRM lookup' lines={['orders.db','договор/предоплата?','переговоры?']} style={{marginTop:5}} />
-          <PipeBox color='#64748b' title='4. Vendor roster' lines={['broker_vendors','подрядчик?']} style={{marginTop:5}} />
-        </div>
-
-        <FlowArrow />
-
-        {/* ③ AI Classifier */}
+        {/* ② AI Classifier */}
         <div>
           <PipeCol label="AI классификатор" />
           <div style={{background:'rgba(139,92,246,0.12)', border:'1px solid rgba(139,92,246,0.4)', borderRadius:8, padding:'10px 12px', textAlign:'center'}}>
@@ -7318,6 +7307,11 @@ function LeadFlowSection() {
             <div style={{fontSize:10, color:'var(--muted)'}}>→ Opus L3</div>
             <div style={{height:1, background:'var(--border)', margin:'8px 0'}} />
             <div style={{fontSize:10, color:'var(--muted)', fontStyle:'italic'}}>9 вердиктов</div>
+          </div>
+          <div style={{marginTop:5, background:'rgba(14,165,233,0.08)', border:'1px solid rgba(14,165,233,0.25)', borderRadius:6, padding:'6px 8px'}}>
+            <div style={{fontSize:10, color:'#38bdf8', fontWeight:600}}>⚡ pre-filter</div>
+            <div style={{fontSize:10, color:'var(--muted)'}}>hard-regex · музыканты</div>
+            <div style={{fontSize:10, color:'var(--muted)'}}>агрегатор · отказы</div>
           </div>
         </div>
 
