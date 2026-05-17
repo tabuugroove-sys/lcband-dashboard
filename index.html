@@ -7279,11 +7279,14 @@ function LeadFlowSection() {
         overflowX:'auto',
       }}>
         {/* Sources */}
-        <div style={{minWidth:100}}>
+        <div style={{minWidth:130}}>
           <div style={{fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6, fontWeight:700}}>Источники</div>
-          <SourceBox icon="💬" label={`TG чаты`} sub={`${pipe.tg_chats || 18} подписок`} active={isActive} pulse={isActive} ago={pipe.last_event_at ? fmtAgo(pipe.last_event_at)+' назад' : ''} color='#3b82f6' />
-          <SourceBox icon="📩" label="TG DM" sub="входящие" active color='#60a5fa' style={{marginTop:6}} />
-          <SourceBox icon="🅰️" label="VK" sub={`${pipe.vk_groups || 8} групп`} active color='#4f8ef7' style={{marginTop:6}} />
+          <SourceBox icon="💬" label="TG event-чаты" sub={`${pipe.tg_chats || 18} чатов · пуш`} active={isActive} pulse={isActive} ago={pipe.last_event_at ? fmtAgo(pipe.last_event_at)+' назад' : ''} color='#3b82f6' />
+          <SourceBox icon="👁️" label="Browser Walk" sub={`${pipe.bw_chats||18} чатов · авто`} active={pipe.bw_status==='running'} pulse={pipe.bw_status==='running'} ago={pipe.bw_last_at ? fmtAgo(pipe.bw_last_at)+' назад' : ''} color='#60a5fa' style={{marginTop:5}} />
+          <SourceBox icon="📩" label="TG DM" sub="входящие · realtime" active color='#38bdf8' style={{marginTop:5}} />
+          <SourceBox icon="🅰️" label="VK" sub={`${pipe.vk_groups || 8} групп + DM`} active color='#4f8ef7' style={{marginTop:5}} />
+          <SourceBox icon="📸" label="Instagram" sub={pipe.ig_stories_seen ? `${pipe.ig_stories_seen} сторис · DM` : 'сторис · DM · outreach'} active ago={pipe.ig_last_at ? fmtAgo(pipe.ig_last_at)+' назад' : ''} color='#e1306c' style={{marginTop:5}} />
+          <SourceBox icon="💚" label="WhatsApp" sub="Baileys · входящие" active={pipe.wa_active !== false} ago={pipe.wa_last_at ? fmtAgo(pipe.wa_last_at)+' назад' : ''} color='#25d366' style={{marginTop:5}} />
         </div>
 
         {/* Arrow 1 */}
@@ -7399,6 +7402,36 @@ function LeadFlowSection() {
                   {ev.chat && <span style={{color:'var(--muted)', fontSize:10}}> · {ev.chat}</span>}
                 </span>
                 <span style={{color:'#34d399', fontWeight:700, marginLeft:'auto', fontSize:10}}>✅ отправлен</span>
+              </div>
+            );
+          }
+          if (ev.kind === 'ig_story') {
+            return (
+              <div key={i} style={{
+                display:'flex', gap:10, alignItems:'center', padding:'4px 8px',
+                borderRadius:6, background:'rgba(15,23,42,0.4)',
+                fontSize:11, fontVariantNumeric:'tabular-nums',
+              }}>
+                <span style={{color:'var(--muted)', minWidth:34}}>{fmtTime(ev.ts)}</span>
+                <span style={{color:'#e1306c', fontWeight:600, minWidth:80}}>📸 IG сторис</span>
+                <span style={{color:'#e2e8f0'}}>@{ev.username || '?'}</span>
+                <span style={{color:'var(--muted)', marginLeft:'auto', fontSize:10}}>{ev.action || 'reply'}</span>
+              </div>
+            );
+          }
+          if (ev.kind === 'wa_message') {
+            return (
+              <div key={i} style={{
+                display:'flex', gap:10, alignItems:'center', padding:'4px 8px',
+                borderRadius:6, background:'rgba(15,23,42,0.4)',
+                fontSize:11, fontVariantNumeric:'tabular-nums',
+              }}>
+                <span style={{color:'var(--muted)', minWidth:34}}>{fmtTime(ev.ts)}</span>
+                <span style={{color:'#25d366', fontWeight:600, minWidth:80}}>💚 WhatsApp</span>
+                <span style={{color:'#e2e8f0', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:260}}>
+                  {ev.username ? <span style={{color:'#93c5fd'}}>@{ev.username} · </span> : null}
+                  {ev.text || '—'}
+                </span>
               </div>
             );
           }
