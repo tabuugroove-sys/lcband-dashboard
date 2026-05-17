@@ -7207,6 +7207,180 @@ function ChatPanel({ target, onClose }) {
   );
 }
 
+// ── Overview Stats Section ────────────────────────────────────────────────────
+function OverviewStatsSection({ stats }) {
+  const [pitchOpen, setPitchOpen] = React.useState(null);
+  const [fuOpen, setFuOpen] = React.useState(null);
+
+  if (!stats) return (
+    <div style={{padding:'16px 16px 0'}}>
+      <div style={{color:'var(--muted)',fontSize:13}}>Загрузка статистики…</div>
+    </div>
+  );
+
+  const S = stats;
+  const time = (S.generated_at || '').slice(11,16);
+
+  const Card = ({children, style={}}) => (
+    <div style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:10,
+                 padding:'14px 18px', ...style}}>
+      {children}
+    </div>
+  );
+  const Label = ({children}) => (
+    <div style={{fontSize:11,color:'var(--muted)',textTransform:'uppercase',
+                 letterSpacing:'0.5px',marginBottom:6}}>{children}</div>
+  );
+  const Big = ({children,color}) => (
+    <span style={{fontSize:28,fontWeight:700,color:color||'var(--fg)',lineHeight:1}}>{children}</span>
+  );
+  const Sub = ({children}) => (
+    <span style={{fontSize:12,color:'var(--muted)',marginLeft:4}}>{children}</span>
+  );
+
+  const LeadList = ({items}) => (
+    <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:4}}>
+      {(items||[]).map((it,i) => (
+        <div key={i} style={{display:'flex',alignItems:'flex-start',gap:8,
+                              background:'rgba(255,255,255,0.03)',borderRadius:6,
+                              padding:'6px 10px',fontSize:12}}>
+          <span style={{color:'var(--accent)',minWidth:120,fontWeight:500}}>
+            @{it.username||'?'}
+          </span>
+          <span style={{color:'var(--muted)',flex:1}}>
+            {it.kind==='broker'
+              ? `${it.service||''} · ${it.event_date||''}`
+              : `${it.status||''} · ${it.source_chat||''}`}
+          </span>
+          {it.next_action && (
+            <span style={{color:'var(--orange)',fontSize:11,whiteSpace:'nowrap'}}>
+              📅 {it.next_action.slice(0,5)}
+            </span>
+          )}
+        </div>
+      ))}
+      {(!items||!items.length) && (
+        <div style={{color:'var(--muted)',fontSize:12,fontStyle:'italic'}}>нет лидов</div>
+      )}
+    </div>
+  );
+
+  const fuRows = [
+    {key:'done_today', label:'Сделано сегодня', icon:'✅'},
+    {key:'tomorrow',   label:'Завтра',          icon:'📅'},
+    {key:'day_after',  label:'Послезавтра',      icon:'📆'},
+  ];
+
+  return (
+    <div style={{padding:'8px 16px 0',display:'flex',flexDirection:'column',gap:12}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+        <Card>
+          <Label>👁 Просмотрено постов {time && <span style={{color:'var(--muted)',fontWeight:400}}>· {time}</span>}</Label>
+          <div style={{display:'flex',gap:24,alignItems:'baseline',flexWrap:'wrap'}}>
+            <div>
+              <Big>{(S.scan&&S.scan.tg_posts)||0}</Big><Sub>TG чатов</Sub>
+            </div>
+            <div>
+              <Big color='var(--accent)'>{(S.scan&&S.scan.vk_posts)||0}</Big><Sub>VK постов</Sub>
+            </div>
+          </div>
+        </Card>
+        <Card>
+          <Label>📤 Питчей сегодня</Label>
+          <div style={{display:'flex',gap:24,alignItems:'baseline',flexWrap:'wrap'}}>
+            <div style={{cursor:'pointer'}} onClick={()=>setPitchOpen(p=>p==='lcb'?null:'lcb')}>
+              <Big color='var(--green)'>{(S.pitches&&S.pitches.lcb)||0}</Big>
+              <Sub>LC Band {pitchOpen==='lcb'?'▲':'▼'}</Sub>
+            </div>
+            <div style={{cursor:'pointer'}} onClick={()=>setPitchOpen(p=>p==='broker'?null:'broker')}>
+              <Big color='var(--purple)'>{(S.pitches&&S.pitches.broker)||0}</Big>
+              <Sub>Broker {pitchOpen==='broker'?'▲':'▼'}</Sub>
+            </div>
+          </div>
+          {pitchOpen==='lcb' && (
+            <div style={{marginTop:10}}>
+              {((S.pitches&&S.pitches.lcb_items)||[]).map((it,i)=>(
+                <div key={i} style={{fontSize:12,borderBottom:'1px solid var(--border)',
+                                      padding:'4px 0',display:'flex',gap:8}}>
+                  <span style={{color:'var(--accent)',minWidth:120}}>@{it.username}</span>
+                  <span style={{color:'var(--muted)',flex:1}}>{it.text||''}</span>
+                </div>
+              ))}
+              {!((S.pitches&&S.pitches.lcb_items)||[]).length && <div style={{color:'var(--muted)',fontSize:12}}>нет питчей</div>}
+            </div>
+          )}
+          {pitchOpen==='broker' && (
+            <div style={{marginTop:10}}>
+              {((S.pitches&&S.pitches.broker_items)||[]).map((it,i)=>(
+                <div key={i} style={{fontSize:12,borderBottom:'1px solid var(--border)',
+                                      padding:'4px 0',display:'flex',gap:8}}>
+                  <span style={{color:'var(--purple)',minWidth:120}}>@{it.username}</span>
+                  <span style={{color:'var(--muted)',flex:1}}>{it.text||''}</span>
+                </div>
+              ))}
+              {!((S.pitches&&S.pitches.broker_items)||[]).length && <div style={{color:'var(--muted)',fontSize:12}}>нет питчей</div>}
+            </div>
+          )}
+        </Card>
+      </div>
+      <Card>
+        <Label>🔄 Follow-up</Label>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+          <thead>
+            <tr style={{color:'var(--muted)',fontSize:11}}>
+              <td style={{paddingBottom:6,width:'40%'}}></td>
+              <td style={{paddingBottom:6,textAlign:'center',fontWeight:600}}>LC Band</td>
+              <td style={{paddingBottom:6,textAlign:'center',fontWeight:600}}>Broker</td>
+              <td style={{paddingBottom:6,width:60}}></td>
+            </tr>
+          </thead>
+          <tbody>
+            {fuRows.map(({key,label,icon})=>{
+              const row = (S.followups&&S.followups[key])||{lcb:0,broker:0,items:[]};
+              const isOpen = fuOpen===key;
+              const canExpand = (row.items||[]).length > 0 && key!=='done_today';
+              return (
+                <React.Fragment key={key}>
+                  <tr style={{borderTop:'1px solid var(--border)'}}>
+                    <td style={{padding:'8px 0',color:'var(--fg)'}}>
+                      <span style={{marginRight:6}}>{icon}</span>{label}
+                    </td>
+                    <td style={{textAlign:'center',fontWeight:600,
+                                color:row.lcb>0?'var(--green)':'var(--muted)'}}>
+                      {row.lcb}
+                    </td>
+                    <td style={{textAlign:'center',fontWeight:600,
+                                color:row.broker>0?'var(--purple)':'var(--muted)'}}>
+                      {row.broker}
+                    </td>
+                    <td style={{textAlign:'right'}}>
+                      {canExpand && (
+                        <button onClick={()=>setFuOpen(p=>p===key?null:key)}
+                          style={{background:'none',border:'1px solid var(--border)',
+                                  borderRadius:4,color:'var(--accent)',cursor:'pointer',
+                                  fontSize:11,padding:'2px 8px'}}>
+                          {isOpen?'▲ скрыть':'▼ лиды'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr>
+                      <td colSpan={4} style={{padding:'0 0 8px'}}>
+                        <LeadList items={row.items} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const [rows,      setRows]      = useState(null);
@@ -7216,7 +7390,7 @@ function App() {
   const [aiDelivery, setAiDelivery] = useState(null);
   const [aiDeliveryTrend, setAiDeliveryTrend] = useState(null);
   const [aiTrendRange, setAiTrendRange] = useState(() => localStorage.getItem('lcb_ai_trend_range') || 'day');
-  const [dmDirectFunnel, setDmDirectFunnel] = useState(null);
+  const [overviewStats, setOverviewStats] = useState(null);
   const [recentSent, setRecentSent] = useState(null);
   const [recentSent24h, setRecentSent24h] = useState(null);
   const [todos,     setTodos]     = useState(null);
@@ -7339,14 +7513,6 @@ function App() {
       }
     } catch { /* backend offline → status rows render without 24h counts */ }
 
-    // ── Separate direct-DM client funnel from local AI audit table ──
-    try {
-      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
-      const r = await fetch(`${bu}/api/dm_direct_funnel`, { cache: 'no-store' });
-      if (r.ok) {
-        setDmDirectFunnel(await r.json());
-      }
-    } catch { /* optional block; main dashboard should stay usable */ }
 
     // ── TODOs (live read of todo_*.md from auto-memory) ──
     try {
@@ -7356,6 +7522,13 @@ function App() {
         setTodos(await r.json());
       }
     } catch { /* backend offline → TODO tab shows "loading…" */ }
+
+    // ── Overview stats (scan + pitches + follow-ups) ──
+    try {
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      const r = await fetch(`${bu}/api/overview_stats`, { cache: 'no-store' });
+      if (r.ok) setOverviewStats(await r.json());
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -7533,13 +7706,7 @@ function App() {
                title="Broker pipeline — посреднические заказы, кастинг подрядчиков, маржа">
               <span>🤝</span><span>Broker</span>
             </a>
-            <a href="./dm-direct-funnel.html"
-               style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
-                       background:'rgba(245,197,24,0.15)', color:'#f5c518', border:'1px solid rgba(245,197,24,0.35)',
-                       display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
-               title="DM-direct funnel — прямые TG лиды">
-              <span>📨</span><span>DM funnel</span>
-            </a>
+
             <a href="./contacts.html"
                style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
                        background:'rgba(88,166,255,0.15)', color:'#58a6ff', border:'1px solid rgba(88,166,255,0.35)',
@@ -7633,10 +7800,7 @@ function App() {
                 sessionLog={sessionLog || null}
                 fallbackFunnel={data.funnel || []}
               />
-              <div className="section" style={{ marginTop: 20 }}>
-                <div className="section-title">Дополнительные воронки</div>
-                <DMDirectFunnelSection data={dmDirectFunnel} />
-              </div>
+
               <RecentSentMessagesSection data={recentSent} />
               <FollowupsSection followups={data.followups} />
             </>
