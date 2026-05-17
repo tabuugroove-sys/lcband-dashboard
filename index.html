@@ -7699,10 +7699,169 @@ function OverviewStatsSection({ stats }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 // ─── CartotekaSection ───────────────────────────────────────────────────────
+const INTENT_COLOR = { active:'#22c55e', interested:'#3b82f6', silent:'#f59e0b', refused:'#ef4444', cold:'#94a3b8' };
+const INTENT_LABEL = { active:'активный', interested:'интересуется', silent:'молчит', refused:'отказ', cold:'холодный' };
+const CH_BADGE     = { tg:{bg:'#2b6cb0',label:'TG'}, wa:{bg:'#16a34a',label:'WA'}, vk:{bg:'#7c3aed',label:'VK'} };
+const THREAD_STATUS_COLOR = { confirmed:'#22c55e', pending:'#f59e0b', no_contact:'#555', issue:'#ef4444', not_related:'#555' };
+const THREAD_STATUS_LABEL = { confirmed:'подтверждён', pending:'ожидаем', no_contact:'нет контакта', issue:'проблема', not_related:'не связано' };
+const TECH_CAT = {
+  our_tech:  { label:'Наш / мы платим', icon:'🔧', color:'#22c55e', bg:'rgba(34,197,94,0.10)' },
+  org_tech:  { label:'Тех орга / орг платит', icon:'🤝', color:'#f59e0b', bg:'rgba(245,158,11,0.10)' },
+  venue_tech:{ label:'Тех площадки', icon:'🏛', color:'#60a5fa', bg:'rgba(96,165,250,0.10)' },
+};
+
+function EventThreads({ threads }) {
+  const [open, setOpen] = React.useState(false);
+  if (!threads || threads.length === 0) return null;
+
+  const musicians = threads.filter(t => t.role === 'musician');
+  const techs     = threads.filter(t => t.role === 'tech');
+
+  const issueCount = threads.filter(t => t.thread_status === 'issue').length;
+  const pendingCount = threads.filter(t => t.thread_status === 'pending').length;
+
+  return (
+    <div style={{ marginTop: 8, borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 8 }}>
+      <div
+        onClick={() => setOpen(v => !v)}
+        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9ca3af', userSelect: 'none' }}
+      >
+        <span>{open ? '▾' : '▸'} Команда мероприятия ({threads.length})</span>
+        {issueCount > 0 && <span style={{ color: '#ef4444', fontWeight: 700 }}>⚠ {issueCount} проблем</span>}
+        {pendingCount > 0 && <span style={{ color: '#f59e0b' }}>⏳ {pendingCount} ожидают</span>}
+      </div>
+      {open && (
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* Musicians */}
+          {musicians.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>🎤 Музыканты</div>
+              {musicians.map(t => {
+                const sc = THREAD_STATUS_COLOR[t.thread_status] || '#888';
+                const sl = THREAD_STATUS_LABEL[t.thread_status] || t.thread_status;
+                return (
+                  <div key={t.username} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 7, marginBottom: 3 }}>
+                    <span style={{ minWidth: 8, height: 8, borderRadius: '50%', background: sc, marginTop: 4, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>{t.name}</span>
+                        <span style={{ fontSize: 10, color: '#6b7280' }}>@{t.username}</span>
+                        <span style={{ fontSize: 10, color: sc }}>{sl}</span>
+                      </div>
+                      {t.thread_summary && (
+                        <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{t.thread_summary}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {/* Tech crew */}
+          {techs.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>🎛 Техники</div>
+              {techs.map(t => {
+                const cat = TECH_CAT[t.tech_category] || { label: t.tech_category || 'неизвестно', icon: '?', color: '#888', bg: 'rgba(255,255,255,0.04)' };
+                const sc  = THREAD_STATUS_COLOR[t.thread_status] || '#888';
+                const sl  = THREAD_STATUS_LABEL[t.thread_status] || t.thread_status;
+                return (
+                  <div key={t.username} style={{ padding: '6px 8px', background: cat.bg, border: `1px solid ${cat.color}22`, borderRadius: 7, marginBottom: 3 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12 }}>{cat.icon}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>{t.name}</span>
+                      <span style={{ fontSize: 10, color: '#6b7280' }}>@{t.username}</span>
+                      <span style={{ fontSize: 10, color: cat.color, fontWeight: 600 }}>{cat.label}</span>
+                      {t.venue && <span style={{ fontSize: 10, color: '#6b7280' }}>· {t.venue}</span>}
+                      {t.tech_specialty && <span style={{ fontSize: 10, color: '#6b7280' }}>· {t.tech_specialty}</span>}
+                      <span style={{ fontSize: 10, color: sc, marginLeft: 'auto' }}>{sl}</span>
+                    </div>
+                    {t.thread_summary && (
+                      <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>{t.thread_summary}</div>
+                    )}
+                    {t.tech_category === 'venue_tech' && (
+                      <div style={{ fontSize: 10, color: '#60a5fa', marginTop: 2 }}>
+                        ℹ Наш техник везёт беклайн, площадка — свои колонки
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KartotekaCard({ card }) {
+  const ch      = CH_BADGE[card.channel] || { bg: '#555', label: (card.channel || 'TG').toUpperCase() };
+  const intentC = INTENT_COLOR[card.client_intent] || '#888';
+  const hasEvent = !!card.event_date_confirmed;
+  const hasThreads = hasEvent && card.event_threads && card.event_threads.length > 0;
+  const threadIssues = hasThreads ? card.event_threads.filter(t => t.thread_status === 'issue').length : 0;
+
+  return (
+    <div style={{
+      background: card.waiting_for_us ? 'rgba(239,68,68,0.07)' : hasEvent ? 'rgba(34,197,94,0.04)' : 'rgba(255,255,255,0.04)',
+      border: card.waiting_for_us ? '1px solid rgba(239,68,68,0.35)' : hasEvent ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(255,255,255,0.09)',
+      borderRadius: 10, padding: '9px 12px', display: 'flex', flexDirection: 'column', gap: 4,
+    }}>
+      {/* Row 1: channel + username + intent + flags + silence */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <span style={{ background: ch.bg, color: '#fff', borderRadius: 5, padding: '1px 6px', fontSize: 10, fontWeight: 700, letterSpacing: 0.5 }}>
+          {ch.label}
+        </span>
+        <span style={{ fontWeight: 600, fontSize: 13 }}>@{card.username}</span>
+        <span style={{ background: intentC + '22', color: intentC, border: `1px solid ${intentC}44`, borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
+          {INTENT_LABEL[card.client_intent] || card.client_intent}
+        </span>
+        {card.waiting_for_us  && <span style={{ color: '#ef4444', fontSize: 11, fontWeight: 700 }}>⚡ ждёт ответа</span>}
+        {card.waiting_for_client && <span style={{ color: '#f59e0b', fontSize: 11 }}>⏳ ждём клиента</span>}
+        {threadIssues > 0 && <span style={{ color: '#ef4444', fontSize: 11 }}>⚠ {threadIssues} проблем в команде</span>}
+        <span style={{ marginLeft: 'auto', color: '#888', fontSize: 11 }}>
+          {card.silence_days < 1 ? `${Math.round(card.silence_days * 24)}ч` : `${card.silence_days.toFixed(1)}д`} молчания
+        </span>
+      </div>
+
+      {/* next_action_hint */}
+      {card.next_action_hint && (
+        <div style={{ fontSize: 12, color: '#d1d5db' }}>→ {card.next_action_hint}</div>
+      )}
+
+      {/* Pills: date, budget, key_asks, refusal */}
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 1 }}>
+        {card.event_date_confirmed && (
+          <span style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
+            📅 {card.event_date_confirmed}
+          </span>
+        )}
+        {card.budget_confirmed && (
+          <span style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
+            💰 {card.budget_confirmed}
+          </span>
+        )}
+        {(card.key_asks || []).slice(0, 3).map((ask, i) => (
+          <span key={i} style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af', borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
+            {ask}
+          </span>
+        ))}
+        {card.refusal_detected && card.refusal_signal && (
+          <span style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
+            ✗ {card.refusal_signal.slice(0, 40)}
+          </span>
+        )}
+      </div>
+
+      {/* Event threads (musicians + tech) — for confirmed events */}
+      <EventThreads threads={card.event_threads} />
+    </div>
+  );
+}
+
 function CartotekaSection({ data }) {
   const [showAll, setShowAll] = React.useState(false);
-  const [includeRefused, setIncludeRefused] = React.useState(false);
-  const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
 
   if (!data) return (
     <div className="section" style={{ marginTop: 14 }}>
@@ -7712,27 +7871,6 @@ function CartotekaSection({ data }) {
   );
 
   const { cards = [], by_intent = {}, needs_action = 0, total_in_store = 0 } = data;
-
-  const intentColor = {
-    active:     '#22c55e',
-    interested: '#3b82f6',
-    silent:     '#f59e0b',
-    refused:    '#ef4444',
-    cold:       '#94a3b8',
-  };
-  const intentLabel = {
-    active:     'активный',
-    interested: 'интересуется',
-    silent:     'молчит',
-    refused:    'отказ',
-    cold:       'холодный',
-  };
-  const channelBadge = {
-    tg:  { bg: '#2b6cb0', label: 'TG' },
-    wa:  { bg: '#16a34a', label: 'WA' },
-    vk:  { bg: '#7c3aed', label: 'VK' },
-  };
-
   const visible = showAll ? cards : cards.slice(0, 8);
 
   return (
@@ -7755,106 +7893,30 @@ function CartotekaSection({ data }) {
           <span key={k} style={{
             display: 'inline-flex', alignItems: 'center', gap: 4,
             background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 8, padding: '3px 10px', fontSize: 12
+            borderRadius: 8, padding: '3px 10px', fontSize: 12,
           }}>
-            {ico} <strong style={{ color: intentColor[k] }}>{by_intent[k] || 0}</strong>
-            <span style={{ color: '#aaa' }}>{intentLabel[k]}</span>
+            {ico} <strong style={{ color: INTENT_COLOR[k] }}>{by_intent[k] || 0}</strong>
+            <span style={{ color: '#aaa' }}>{INTENT_LABEL[k]}</span>
           </span>
         ))}
-        <span
-          onClick={() => setIncludeRefused(v => !v)}
-          style={{ cursor: 'pointer', fontSize: 11, color: '#888', alignSelf: 'center', userSelect: 'none' }}
-        >
-          {includeRefused ? 'скрыть отказы' : '+ с отказами'}
-        </span>
       </div>
 
-      {/* Cards */}
+      {/* Legend for tech categories */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        {Object.entries(TECH_CAT).map(([k, v]) => (
+          <span key={k} style={{ fontSize: 10, color: v.color, display: 'flex', alignItems: 'center', gap: 3 }}>
+            {v.icon} {v.label}
+          </span>
+        ))}
+      </div>
+
       {visible.length === 0 && (
-        <div style={{ color: '#888', fontSize: 13 }}>Карточек нет (store пустой или все свежее 7 дней)</div>
+        <div style={{ color: '#888', fontSize: 13 }}>Карточек нет (store пустой или все старше 7 дней)</div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-        {visible.map(card => {
-          const ch = channelBadge[card.channel] || { bg: '#555', label: card.channel.toUpperCase() };
-          const intentC = intentColor[card.client_intent] || '#888';
-          return (
-            <div key={card.key} style={{
-              background: card.waiting_for_us
-                ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)',
-              border: card.waiting_for_us
-                ? '1px solid rgba(239,68,68,0.35)' : '1px solid rgba(255,255,255,0.09)',
-              borderRadius: 10, padding: '9px 12px',
-              display: 'flex', flexDirection: 'column', gap: 4,
-            }}>
-              {/* Row 1: channel badge + username + intent + silence */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <span style={{
-                  background: ch.bg, color: '#fff', borderRadius: 5,
-                  padding: '1px 6px', fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
-                }}>
-                  {ch.label}
-                </span>
-                <span style={{ fontWeight: 600, fontSize: 13 }}>
-                  @{card.username}
-                </span>
-                <span style={{
-                  background: intentC + '22', color: intentC,
-                  border: `1px solid ${intentC}44`,
-                  borderRadius: 6, padding: '1px 7px', fontSize: 11,
-                }}>
-                  {intentLabel[card.client_intent] || card.client_intent}
-                </span>
-                {card.waiting_for_us && (
-                  <span style={{ color: '#ef4444', fontSize: 11, fontWeight: 700 }}>
-                    ⚡ ждёт ответа
-                  </span>
-                )}
-                {card.waiting_for_client && (
-                  <span style={{ color: '#f59e0b', fontSize: 11 }}>⏳ ждём клиента</span>
-                )}
-                <span style={{ marginLeft: 'auto', color: '#888', fontSize: 11 }}>
-                  {card.silence_days < 1
-                    ? `${Math.round(card.silence_days * 24)}ч молчания`
-                    : `${card.silence_days.toFixed(1)}д молчания`}
-                </span>
-              </div>
-
-              {/* Row 2: next_action_hint */}
-              {card.next_action_hint && (
-                <div style={{ fontSize: 12, color: '#d1d5db' }}>
-                  → {card.next_action_hint}
-                </div>
-              )}
-
-              {/* Row 3: pills — event_date, budget, key_asks */}
-              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 2 }}>
-                {card.event_date_confirmed && (
-                  <span style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
-                    📅 {card.event_date_confirmed}
-                  </span>
-                )}
-                {card.budget_confirmed && (
-                  <span style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
-                    💰 {card.budget_confirmed}
-                  </span>
-                )}
-                {(card.key_asks || []).slice(0, 3).map((ask, i) => (
-                  <span key={i} style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af', borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
-                    {ask}
-                  </span>
-                ))}
-                {card.refusal_detected && card.refusal_signal && (
-                  <span style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
-                    ✗ {card.refusal_signal.slice(0, 40)}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {visible.map(card => <KartotekaCard key={card.key} card={card} />)}
       </div>
 
-      {/* Show more / less */}
       {cards.length > 8 && (
         <div
           onClick={() => setShowAll(v => !v)}
