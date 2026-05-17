@@ -5121,7 +5121,7 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
           deliveryTitle={deliveryTitle}
         />
       </div>
-      <div className="status-list">
+      {false && <div className="status-list">
         {rows.map(s => {
           const hasRules = !!PROCESS_RULES[s.key];
           const a = act[s.key];
@@ -5666,7 +5666,7 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
             </div>
           );
         })}
-      </div>
+      </div>}
     </div>
   );
 }
