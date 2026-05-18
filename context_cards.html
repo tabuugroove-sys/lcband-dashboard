@@ -415,6 +415,59 @@ function renderCardBody(c) {
   (c.key_asks||[]).slice(0,4).forEach(a => { pills += `<span class="pill pill-grey">${e(a)}</span>`; });
   if (pills) parts.push(`<div class="card-section"><div class="pills">${pills}</div></div>`);
 
+  // ── Phase A event-scoped slices ─────────────────────────────────
+  // Если в карточке нет реальных events кроме _unscoped — пропускаем.
+  // Это про multi-event контакты вроде @babelisya (тур из 3 концертов).
+  const eventsObj = c.events || {};
+  const realEvents = Object.entries(eventsObj).filter(([id]) => id !== '_unscoped');
+  if (realEvents.length > 0) {
+    const activeId = c.active_event_id;
+    const conf = c.active_event_confidence || 0;
+    const focusBadge = activeId
+      ? `<span class="pill pill-blue" style="margin-left:6px">🎯 focus: ${e(activeId.slice(0, 40))} (${conf.toFixed(2)})</span>`
+      : (conf > 0
+          ? `<span class="pill pill-grey" style="margin-left:6px">⚠ ambiguous (best=${conf.toFixed(2)} &lt; 0.75)</span>`
+          : '');
+    let evHtml = `<div class="card-section">
+      <div class="card-section-title">Event-scoped срезы (${realEvents.length})${focusBadge}</div>`;
+    for (const [eid, slice] of realEvents) {
+      const isActive = eid === activeId;
+      const dot = isActive ? '🎯' : '·';
+      const intent = slice.client_intent ? `intent=${slice.client_intent}` : '';
+      const date = slice.event_date_confirmed ? `📅 ${slice.event_date_confirmed}` : '';
+      const budget = slice.budget_confirmed ? `💰 ${slice.budget_confirmed}` : '';
+      const asks = (slice.key_asks || []).slice(0, 3).map(a => e(a)).join(' · ');
+      const next = slice.next_action_hint ? `→ ${e(slice.next_action_hint)}` : '';
+      evHtml += `<div style="font-size:11px;padding:6px 8px;margin:3px 0;background:${isActive ? 'rgba(96,165,250,0.08)' : 'rgba(255,255,255,0.02)'};border-left:2px solid ${isActive ? '#60a5fa' : 'var(--border)'};border-radius:3px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:10px;color:var(--muted);font-family:monospace">${dot} ${e(eid.slice(0,60))}</span>
+          ${date ? `<span style="color:#86efac">${e(date)}</span>` : ''}
+          ${intent ? `<span style="color:var(--muted)">${e(intent)}</span>` : ''}
+        </div>
+        ${budget ? `<div style="color:#93c5fd;margin-top:2px">${e(budget)}</div>` : ''}
+        ${asks ? `<div style="color:var(--muted);margin-top:2px;font-style:italic">asks: ${asks}</div>` : ''}
+        ${next ? `<div style="color:#d1d5db;margin-top:2px">${next}</div>` : ''}
+      </div>`;
+    }
+    // _unscoped как fallback
+    const unscoped = eventsObj._unscoped;
+    if (unscoped && (unscoped.client_intent || (unscoped.key_asks || []).length)) {
+      evHtml += `<div style="font-size:11px;padding:6px 8px;margin:3px 0;color:var(--muted);background:rgba(255,255,255,0.02);border-radius:3px">
+        <span style="font-family:monospace">~ _unscoped</span>
+        ${unscoped.client_intent ? ` · intent=${e(unscoped.client_intent)}` : ''}
+        ${(unscoped.key_asks || []).length ? ` · asks: ${unscoped.key_asks.slice(0,3).map(a => e(a)).join(' · ')}` : ''}
+      </div>`;
+    }
+    // anchor warnings (AI hallucination или low confidence)
+    if ((c.event_anchor_warnings || []).length > 0) {
+      evHtml += `<div style="font-size:10px;color:#fbbf24;margin-top:4px;font-style:italic">
+        ⚠ ${c.event_anchor_warnings.map(w => e(w)).join(' · ')}
+      </div>`;
+    }
+    evHtml += `</div>`;
+    parts.push(evHtml);
+  }
+
   // ── Follow-up section ──
   let fuParts = '';
   if (c.next_followup_planned) {
