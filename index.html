@@ -7577,6 +7577,48 @@ function LeadFlowSection() {
       ))}
     </div>
   );
+  const dataStoresBlock = (
+    <div style={{background:'rgba(15,23,42,.5)', border:'1.5px solid rgba(20,184,166,.28)', borderRadius:9, padding:'8px 9px', display:'grid', gap:7}}>
+      <div>
+        <div style={{fontSize:10.5, fontWeight:900, color:'#5eead4', textTransform:'uppercase', letterSpacing:.4}}>Data stores → Context card</div>
+        <div style={{fontSize:8.5, color:'#cbd5e1'}}>две истории данных перед L3 writer layer</div>
+      </div>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))', gap:6}}>
+        <div style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.25)', borderRadius:6, padding:'6px 7px'}}>
+          <div style={{fontSize:9.5, fontWeight:800, color:'#93c5fd', marginBottom:3}}>Public/source store</div>
+          <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>посты и event-чаты</div>
+          <div style={{fontSize:8, color:'var(--muted)', lineHeight:1.35, marginTop:4}}>
+            {sourceLink('tg_seen_posts.jsonl', 'tg_seen_posts', {color:'#93c5fd'})}<br/>
+            {sourceLink('message_events.jsonl', 'message_events', {color:'#93c5fd'})}<br/>
+            VK posts / Browser Walk
+          </div>
+        </div>
+        <div style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.28)', borderRadius:6, padding:'6px 7px'}}>
+          <div style={{fontSize:9.5, fontWeight:800, color:'#d8b4fe', marginBottom:3}}>DM store</div>
+          <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>личные TG / VK / WA</div>
+          <div style={{fontSize:8, color:'var(--muted)', lineHeight:1.35, marginTop:4}}>
+            {sourceLink('conversation_cache/', 'conversation_cache', {color:'#d8b4fe'})}<br/>
+            {sourceLink('vk_conversation_cache/', 'vk_conversation_cache', {color:'#d8b4fe'})}<br/>
+            {sourceLink('wa_cache/', 'wa_cache', {color:'#d8b4fe'})}
+          </div>
+        </div>
+      </div>
+      <div style={{display:'flex', alignItems:'center', gap:5, color:'var(--muted)', fontSize:9, lineHeight:1}}>
+        <span style={{flex:1, height:1, background:'linear-gradient(to right, rgba(20,184,166,.1), rgba(20,184,166,.45))'}}/>
+        <span>↓ enrich / resolve</span>
+        <span style={{flex:1, height:1, background:'linear-gradient(to right, rgba(20,184,166,.45), rgba(20,184,166,.1))'}}/>
+      </div>
+      <div style={{background:'rgba(20,184,166,.09)', border:'1px dashed rgba(20,184,166,.45)', borderRadius:6, padding:'6px 7px'}}>
+        <div style={{fontSize:9.5, fontWeight:800, color:'#5eead4', marginBottom:3}}>Context card / картотека</div>
+        <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>
+          {sourceLink('lead_context_store.json', 'lead_context_store', {color:'#5eead4'})} · event binding · open promises · роли контактов · нюансы заявки
+        </div>
+        <div style={{fontSize:8, color:'var(--muted)', marginTop:3}}>
+          LCB writer и Broker writer должны читать этот слой перед текстом.
+        </div>
+      </div>
+    </div>
+  );
   const l3WritersBlock = (
     <div className="ai-layer-card" onClick={(e) => {
       if (e.target.closest('a,button')) return;
@@ -7780,6 +7822,8 @@ function LeadFlowSection() {
             );
             return (
               <div style={{order:2, display:'flex', flexDirection:'column', gap:3}}>
+                {dataStoresBlock}
+                {arr('↓ context feeds L3')}
                 {l3WritersBlock}
                 {arr('↓ owner выбирает LCB / Broker режим')}
                 {/* Trigger badge — incoming arrow from Agent 1 */}
