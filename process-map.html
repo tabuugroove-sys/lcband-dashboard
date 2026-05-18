@@ -217,18 +217,18 @@
       },
 
       {
-        group:'dm', name:'TG DM Realtime Trigger', label:'com.lcband.tg-dm-realtime',
+        group:'dm', name:'TG DM Realtime Listener', label:'com.lcband.tg-dm-realtime',
         file:'tg_dm_realtime_listener.py', schedule:'daemon / KeepAlive',
-        why:'Сокращает задержку ответа в TG DM: входящее сообщение сразу будит tg_responder.',
-        input:'private TG NewMessage', action:'debounce + run tg_responder', output:'tg_responder run',
-        logic:['слушает только private DM','pending rerun если responder занят','startup catch-up после подключения'],
+        why:'Сокращает задержку ответа в TG DM: входящее сообщение сразу обновляет карточку и идёт в unified_dm_responder.',
+        input:'private TG NewMessage', action:'enrich(force=True) + unified_dm_responder.handle', output:'sent/approval/skip/error log',
+        logic:['слушает только private DM','tg_responder не запускает','error → consultant gap в state/log'],
       },
       {
         group:'dm', name:'TG Responder', label:'com.lcband.tg-responder',
-        file:'tg_responder.py', schedule:'realtime trigger + safety schedule',
-        why:'Главный DM-ответчик: читает переписку, решает статус воронки и отправляет безопасный ответ клиенту.',
-        input:'TG DM history + orders.db', action:'classify_unified + draft + review + send', output:'TG reply, orders.db history, conversation_cache',
-        logic:['AI 2.0 funnel decision через smart_funnel','money intent уходит в alert/approval','anti-ban caps and jitter','перед send делает pre-send review'],
+        file:'tg_responder.py', schedule:'consultant-only schedule',
+        why:'Консультант/legacy слой старого DM-пути; по умолчанию не сканирует и не отправляет.',
+        input:'launchd tick', action:'write consultant state + exit', output:'tg_responder_safety.json',
+        logic:['realtime DM owner = unified_dm_responder','legacy active mode только через env','не конкурирует за один DM'],
       },
       {
         group:'dm', name:'TG Follow-up', label:'com.lcband.tg-followup',
@@ -281,11 +281,18 @@
       },
 
       {
+        group:'broker', name:'Broker Dialog Owner', label:'broker_dialog_agent.py',
+        file:'broker_dialog_agent.py', schedule:'library / invoked by broker agents',
+        why:'Единая точка записи сообщений клиенту и подрядчику в рамках broker_order.',
+        input:'broker task from casting/follow-up', action:'queue pending + auto-send/direct send', output:'broker message + owner metadata',
+        logic:['single writer','dedupe surface','pending_approvals owner','tg_responder не owner'],
+      },
+      {
         group:'broker', name:'Broker Casting', label:'com.lcband.broker-casting',
         file:'broker_casting.py', schedule:'каждые 30 мин',
-        why:'Подбирает подрядчиков под broker_request и ведёт автономный casting без ручной работы.',
-        input:'broker_orders.json + contractor roster/media', action:'rank candidates + relay', output:'client relay / contractor brief',
-        logic:['service-type match','margin viability','media availability','pre-send gates before relay'],
+        why:'Отдельный broker-владелец выбора подрядчика: сначала casting, потом relay.',
+        input:'broker_orders.json + contractor roster/media', action:'rank top-N + assign candidate + relay', output:'client relay / contractor brief',
+        logic:['service-type match','margin viability','media availability','quality score','не смешан с tg_responder'],
       },
       {
         group:'broker', name:'Broker Collect Promo', label:'com.lcband.broker-collect-promo',
@@ -434,7 +441,7 @@
         file:'funnel_stage_classifier.py', schedule:'каждые 6 часов',
         why:'Пакетно классифицирует stage, когда realtime-контур не дал свежую оценку.',
         input:'orders.db + dialog snippets', action:'classify stage', output:'stage labels/log',
-        logic:['batch safety layer','не заменяет tg_responder hot path','полезен для старых/тихих лидов'],
+        logic:['batch safety layer','не заменяет unified_dm_responder hot path','полезен для старых/тихих лидов'],
       },
       {
         group:'funnel', name:'Funnel Stage Watcher', label:'com.lcband.funnel-stage-watcher',
@@ -447,8 +454,8 @@
         group:'funnel', name:'Attention Auto-Action', label:'com.lcband.attention-auto-action',
         file:'attention_auto_action.py', schedule:'каждые 30 мин',
         why:'Находит лиды, где система должна ответить/дожать сама, и готовит действие.',
-        input:'orders.db hot leads', action:'draft + optional auto-send/review', output:'pending_approvals or sent action',
-        logic:['смотрит лиды requiring reply','генерирует draft','для followup_ready может auto-send после review'],
+        input:'orders.db hot leads', action:'draft + optional auto-send/review; followup_ready delegate', output:'pending_approvals or sent action',
+        logic:['смотрит лиды requiring reply','генерирует draft','followup_ready делегирует tg_followup.py'],
       },
       {
         group:'funnel', name:'Attention Classify Cache', label:'com.lcband.attention-classify-cache',

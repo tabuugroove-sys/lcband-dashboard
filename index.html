@@ -1035,15 +1035,15 @@ const PROCESS_RULES = {
     ],
   },
   proc_tg_dm_realtime: {
-    name: 'TG DM Realtime Trigger',
+    name: 'TG DM Realtime Listener',
     interval: 'Постоянно (KeepAlive daemon)',
-    desc: 'Держит отдельную Telethon session-copy и при входящем private DM запускает tg_responder.py',
+    desc: 'Держит отдельную Telethon session-copy, обновляет карточку контекста и вызывает unified_dm_responder.py',
     rules: [
       'Persistent listener: events.NewMessage(incoming=True) только для private DM',
-      'Новый DM → debounce/cooldown 20s → tg_responder.py',
-      'tg_responder.py остаётся единственным владельцем anti-ban, approval, payment/vendor guards',
-      'Если responder уже работает — pending_rerun после завершения',
-      'Startup catch-up запускает tg_responder один раз после подключения',
+      'Новый DM → lead_context_enricher.enrich(force=True) → unified_dm_responder.handle()',
+      'unified_dm_responder.py — единственный realtime-владелец DM ответа',
+      'tg_responder.py понижен до consultant/legacy safety layer и не запускается listener-ом',
+      'На unified error: state/log consultant gap, без второго авто-ответчика',
       'Heartbeat state: tg_dm_realtime_listener_state.json; watchdog рестартит при stale >3 мин',
       'Скрипт: tg_dm_realtime_listener.py | log: /tmp/tg_dm_realtime_listener.log',
     ],
@@ -1073,10 +1073,12 @@ const PROCESS_RULES = {
   },
   proc_tg_responder: {
     name: 'TG Ответчик',
-    interval: 'Realtime-триггер + safety каждые 5 мин',
-    desc: 'Сканирует DM и отвечает; realtime-вход запускается через TG DM Realtime Trigger',
+    interval: 'Consultant-only каждые 5 мин',
+    desc: 'Консультант/legacy слой: по умолчанию стартует и выходит без send; realtime-вход принадлежит unified_dm_responder.py',
     rules: [
-      'Не является постоянным listener: запускается новым tg_dm_realtime_listener.py или schedule fallback',
+      'Не является постоянным listener и больше не запускается tg_dm_realtime_listener.py',
+      'Default mode: LCBAND_TG_RESPONDER_MODE=consultant → no scan/no send',
+      'Emergency legacy mode только явно: LCBAND_TG_RESPONDER_MODE=active',
       'Классифицирует входящие через regex (classify_reply) + AI (classify_with_context для too_short/ambiguous)',
       '🔴 22.04: hard-regex refusal_guard (общий модуль с tg_followup) вызывается ПОСЛЕ classify_reply — override категории на decline если ловит отказные фразы («уже выбрали», «отбой», «передумали» — инцидент @lisitsyna_law 20.04)',
       '🔴 22.04: ТЕКСТ ответа пишет Claude Opus по категории-hint (удалены hardcoded шаблоны)',
@@ -1172,11 +1174,12 @@ const PROCESS_RULES = {
   proc_attention_auto_action: {
     name: 'Attention Auto-Action',
     interval: 'Каждые 30 мин (1800s)',
-    desc: 'Готовит AI-драфт для «горячих» лидов → в бот на approve',
+    desc: 'Готовит/отправляет действия для hot/awaiting_us; followup_ready делегирует tg_followup.py',
     rules: [
       'Сканирует orders.db на лидов требующих reply',
       'Claude Sonnet CLI генерирует draft-ответ с контекстом',
-      'Пишет в pending_approvals.json → бот-командер шлёт тебе',
+      'followup_ready: no-send, mark delegated to tg_followup.py',
+      'hot/awaiting_us остаются в этом агенте',
       'Тёплые лиды: подтвердили дату / задали вопрос',
     ],
   },
@@ -7594,7 +7597,18 @@ function LeadFlowSection() {
             <div style={{display:'flex', alignItems:'center', gap:5, fontSize:8.5, color:'#94a3b8', padding:'0 3px'}}>
               <span style={{whiteSpace:'nowrap'}}>L2→L3</span><span style={{flex:1, height:1, background:'rgba(148,163,184,.25)'}}/><b style={{color:'#fde68a'}}>{fmtPct(layerRates.l2_to_l3_pct)}</b>
             </div>
-            {aiLayerButton('agent1', '_COMPOSE_OPUS_SYSTEM', 'L3 Opus · compose pitch', {fontSize:9.5, color:'#fde68a', background:'rgba(245,197,24,.08)'}, layerCounts.l3)}
+            <div style={{background:'rgba(245,197,24,.07)', border:'1px solid rgba(245,197,24,.24)', borderRadius:5, padding:5, display:'grid', gap:4}}>
+              <div style={{fontSize:8.5, fontWeight:800, color:'#fde68a', textTransform:'uppercase', letterSpacing:.4}}>L3 writers</div>
+              {aiLayerButton('agent1', '_COMPOSE_OPUS_SYSTEM', 'LCB cold pitch prompt · telegram_monitor', {fontSize:9, color:'#fde68a', background:'rgba(245,197,24,.09)'}, layerCounts.l3)}
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:4}}>
+                <div title="LCBand dialogue owner" style={{fontSize:8.5, color:'#93c5fd', background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.22)', borderRadius:4, padding:'3px 5px'}}>
+                  LCB writer · {sourceLink('unified_dm_responder.py', 'unified_dm_responder', {color:'#93c5fd'})}
+                </div>
+                <div title="Broker dialogue owner" style={{fontSize:8.5, color:'#d8b4fe', background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.22)', borderRadius:4, padding:'3px 5px'}}>
+                  Broker writer · {sourceLink('broker_dialog_agent.py', 'broker_dialog_agent', {color:'#d8b4fe'})}
+                </div>
+              </div>
+            </div>
             <div style={{display:'flex', alignItems:'center', gap:5, fontSize:8.5, color:'#94a3b8', padding:'0 3px'}}>
               <span style={{whiteSpace:'nowrap'}}>L3→pre-send review</span><span style={{flex:1, height:1, background:'rgba(148,163,184,.25)'}}/><b style={{color:'#fca5a5'}}>{fmtPct(layerRates.l3_to_presend_pct)}</b>
             </div>
@@ -7604,7 +7618,7 @@ function LeadFlowSection() {
             </div>
             {aiLayerButton('agent1', '_CLASSIFY_SYSTEM', '⚡ hard-regex pre-filter', {fontSize:9, color:'#f87171', background:'rgba(239,68,68,.08)'}, 0)}
             <div style={{marginTop:2, fontSize:9, color:'var(--muted)', fontStyle:'italic'}}>контекста нет — пост холодный</div>
-            {/* broker_request branch — horizontal arrow to Agent 3 */}
+            {/* broker_request branch — horizontal arrow to Broker contour */}
             <div style={{marginTop:4, display:'flex', alignItems:'center', gap:3}}>
               <div style={{fontSize:8, color:'#a78bfa', whiteSpace:'nowrap', background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.3)', borderRadius:3, padding:'1px 5px'}}>broker_request</div>
               <div style={{flex:1, height:1, background:'linear-gradient(to right, rgba(167,139,250,.5), rgba(167,139,250,.15))'}}/>
@@ -7648,7 +7662,7 @@ function LeadFlowSection() {
 	                  <div style={{fontSize:9, fontWeight:700, color:'#60a5fa', marginBottom:3}}>
 	                    📋 {sourceLink('lead_context_store.json', 'lead_context_store · tg:username', {color:'#60a5fa'})}
 	                  </div>
-                  {[['client_intent','намерение'],['event_date_confirmed','дата'],['waiting_for_us','ждёт нас'],['refusal_detected','отказ']].map(([k,v]) => (
+                  {[['client_intent','намерение'],['event_context_events','event binding'],['event_context_open_promises','promises'],['refusal_detected','отказ']].map(([k,v]) => (
                     <div key={k} style={{fontSize:8.5, color:'var(--muted)', lineHeight:1.4}}>
                       <span style={{color:'#60a5fa'}}>{k}</span> · {v}
                     </div>
@@ -7671,10 +7685,10 @@ function LeadFlowSection() {
 	                    ['sent', 'TG direct send'],
 	                    ['approval', 'notify bot'],
 	                    ['skip', 'spam/refusal/musician'],
-	                    ['error', 'fallback tg_responder'],
+	                    ['error', 'log + consultant note'],
 	                  ].map(([k, v]) => (
 	                    <div key={k} style={{background:'rgba(15,23,42,.45)', border:'1px solid rgba(148,163,184,.16)', borderRadius:5, padding:'3px 5px', fontSize:8, color:k === 'error' ? '#fca5a5' : '#94a3b8'}}>
-	                      <b style={{color:k === 'sent' ? '#6ee7b7' : k === 'approval' ? '#fde68a' : k === 'error' ? '#fca5a5' : '#94a3b8'}}>{k}</b> · {k === 'error' ? sourceLink('tg_responder.py', v, {color:'#fca5a5'}) : v}
+	                      <b style={{color:k === 'sent' ? '#6ee7b7' : k === 'approval' ? '#fde68a' : k === 'error' ? '#fca5a5' : '#94a3b8'}}>{k}</b> · {k === 'error' ? sourceLink('tg_dm_realtime_listener.py', v, {color:'#fca5a5'}) : v}
 	                    </div>
 	                  ))}
 	                </div>
@@ -7698,7 +7712,7 @@ function LeadFlowSection() {
             );
           })()}
 
-          {/* Agent 3 — broker enrichment pipeline */}
+          {/* Broker contour — separate casting and relay pipeline */}
           {(() => {
             const arr = (label) => (
               <div style={{textAlign:'center', fontSize:9, color:'var(--muted)', lineHeight:1.2, padding:'1px 0'}}>{label}</div>
@@ -7739,12 +7753,12 @@ function LeadFlowSection() {
                 </div>
                 {arr('↓ get_or_enrich(ns="broker") · читает')}
                 {/* agent */}
-                <div className="ai-layer-card" onClick={() => setAiLayerOpen({ layer: 'agent3' })} title="Показать текущие промпты, source files, context и gates Agent 3" style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.35)', borderRadius:7, padding:'5px 8px'}}>
+                <div className="ai-layer-card" onClick={() => setAiLayerOpen({ layer: 'agent3' })} title="Показать текущие промпты, source files, context и gates Broker контура" style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.35)', borderRadius:7, padding:'5px 8px'}}>
                   <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
-                    <div style={{fontSize:9.5, fontWeight:700, color:'#a78bfa'}}>🤖 Agent 3 · Broker · Opus</div>
-                    {aiInfoButton('agent3', 'Agent 3')}
+                    <div style={{fontSize:9.5, fontWeight:700, color:'#a78bfa'}}>🤝 Broker контур · casting + relay</div>
+                    {aiInfoButton('agent3', 'Broker')}
                   </div>
-                  <div style={{fontSize:8.5, color:'#f87171'}}>is_refused_any() · approval</div>
+                  <div style={{fontSize:8.5, color:'#f87171'}}>broker_casting selects · broker_dialog_agent writes · tg_responder не owner</div>
                 </div>
                 {arr('↓ отправляет — два потока')}
                 {/* dual stream */}
@@ -7788,7 +7802,7 @@ function LeadFlowSection() {
             <div style={{fontSize:9.5, color:'var(--muted)'}}>follow-up · 10:09 · 30м</div>
           </div>
           <div style={{order:2, background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.3)', borderRadius:9, padding:'7px 10px'}}>
-            <div style={{fontSize:10, fontWeight:700, color:'#6ee7b7', marginBottom:4}}>✅ Выход Agent 3</div>
+            <div style={{fontSize:10, fontWeight:700, color:'#6ee7b7', marginBottom:4}}>✅ Выход Broker</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>relay → клиент</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>brief → подрядчик</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>+ картотека Broker обновлена</div>
@@ -7801,7 +7815,7 @@ function LeadFlowSection() {
             🛑 <code style={{fontSize:9}}>is_refused_any()</code> — общий хард-стоп: отказал одному → молчат оба агента (LCB + Broker)
           </div>
           <div style={{flex:1, background:'rgba(245,158,11,.05)', border:'1px solid rgba(245,158,11,.2)', borderRadius:7, padding:'6px 10px', fontSize:9.5, color:'#fde68a', minWidth:180}}>
-            ⏰ Follow-ups: <code style={{fontSize:9}}>tg_followup</code> 10:09 · <code style={{fontSize:9}}>attention_auto_action</code> 30м · <code style={{fontSize:9}}>broker-*-followup</code> — читают <code style={{fontSize:9}}>get_or_enrich()</code>
+            ⏰ Follow-ups: <code style={{fontSize:9}}>tg_followup</code> 10:09 — владелец TG follow-up · <code style={{fontSize:9}}>attention_auto_action</code> 30м delegates followup_ready · <code style={{fontSize:9}}>broker-*-followup</code>
           </div>
         </div>
 

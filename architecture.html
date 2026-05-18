@@ -246,7 +246,7 @@
             <tr>
               <td>AI-выводы поверх текстов</td>
               <td><code>lead_context_store.json</code><br><code>conversation_analysis/tg/*.json</code><br><code>conversation_analysis/ig/*.json</code></td>
-              <td>Enricher пишет карточки; агенты читают перед ответом</td>
+              <td>Enricher пишет карточки, включая <code>event_context_events</code> / promises; агенты читают перед ответом</td>
             </tr>
           </tbody>
         </table>
@@ -266,7 +266,15 @@
             </div>
             <div class="arr">→</div>
             <div class="node node-ai node-sm" style="background:rgba(245,197,24,.1);border-color:rgba(245,197,24,.4);color:var(--gold)">
-              L3 Opus<br><span style="font-size:9px">compose pitch</span>
+              L3 Writers<br><span style="font-size:9px">LCB + Broker</span>
+            </div>
+          </div>
+          <div class="pipe" style="gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap">
+            <div class="node node-out node-sm" style="border-color:rgba(59,130,246,.4);color:#93c5fd">
+              LCB writer<br><span style="font-size:9px"><code>unified_dm_responder.py</code></span>
+            </div>
+            <div class="node node-out node-sm" style="border-color:rgba(168,85,247,.45);color:#d8b4fe">
+              Broker writer<br><span style="font-size:9px"><code>broker_dialog_agent.py</code></span>
             </div>
           </div>
           <div class="anno" style="font-size:10px">Постов НЕТ в картотеке — они холодные, истории нет</div>
@@ -313,7 +321,7 @@
           <b>Картотека обновляется ПЕРВОЙ</b> <span class="badge badge-warn">force=True</span>
 	          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lead_context_enricher.py" target="_blank" rel="noopener"><code>lead_context_enricher.enrich(username, "tg", force=True)</code></a>
 	          — обходит 30-мин freshness check, принудительно включает новое сообщение в карточку.
-	          Выполняется синхронно в треде, <b>до</b> запуска агента.</span>
+	          Выполняется синхронно в треде, <b>до</b> запуска агента. Карточка получает event binding из <code>resolve_context</code>.</span>
 	        </li>
 	        <li>
 	          <b>Запуск агента</b>
@@ -338,7 +346,7 @@
 	            <code>sent</code> → TG direct send ·
 	            <code>approval</code> → notify bot ·
 	            <code>skipped</code> → spam/refusal/musician/unclear ·
-	            <code>error</code> → fallback <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/tg_responder.py" target="_blank" rel="noopener"><code>tg_responder.py</code></a>
+	            <code>error</code> → log/state consultant gap; no second DM sender
 	          </span>
 	        </li>
         <li>
@@ -567,7 +575,7 @@
           — waiting_for_us / silence_days<br>
           — Ценовые ориентиры<br>
           — Подрядчики и статусы<br><br>
-          <b>Читает:</b> Agent 3 — <code>broker_pipeline</code>
+          <b>Читает:</b> Broker контур — <code>broker_casting</code> / <code>contractor_dialog_agent</code>
         </div>
       </div>
     </div>
@@ -640,8 +648,8 @@
     <div class="sec-hdr">
       <div class="sec-num" style="background:rgba(245,197,24,.15);color:var(--gold)">4</div>
       <div>
-        <div class="sec-label">Три AI-агента</div>
-        <div class="sec-desc">Event Classifier · LC Band DM · Broker</div>
+        <div class="sec-label">AI-агенты + отдельный Broker контур</div>
+        <div class="sec-desc">Event Classifier · LC Band DM · Broker без смешивания с tg_responder</div>
       </div>
     </div>
     <div class="grid3">
@@ -652,7 +660,9 @@
           <b>AI-стек:</b><br>
           Gemini Flash → binary (event/skip)<br>
           Sonnet → classify (категория)<br>
-          Opus → compose pitch<br><br>
+          L3 writer split:<br>
+          <code>unified_dm_responder.py</code> для LCBand dialogue<br>
+          <code>broker_dialog_agent.py</code> для broker dialogue<br><br>
           <b>Картотека:</b> <span class="badge badge-err">нет</span><br>
           Посты холодные, истории нет<br><br>
           <b>Выход:</b> orders.db + approval → pitching DM<br><br>
@@ -669,24 +679,44 @@
           <b>Картотека:</b> <span class="badge badge-blue">LCB</span><br>
           Ключ: <code>tg:username</code><br>
           Читает: <code>get_or_enrich()</code><br>
+          Event binding: <code>event_context_events</code><br>
           Пишет: dual-stream<br><br>
           <b>Выход:</b> ответ клиенту в TG/VK/WA<br><br>
           <b>Скрипт:</b> <code>unified_dm_responder.py</code>
         </div>
       </div>
       <div class="card" style="border-top:3px solid rgba(168,85,247,.5)">
-        <div style="font-size:13px;font-weight:700;color:#d8b4fe;margin-bottom:12px">🟣 Agent 3<br>Broker</div>
+        <div style="font-size:13px;font-weight:700;color:#d8b4fe;margin-bottom:12px">🟣 Broker контур<br>casting + relay</div>
         <div class="anno">
           <b>Вход:</b> broker opportunity trigger<br><br>
           <b>AI-стек:</b><br>
-          Opus → first contact draft<br>
-          Opus → relay to client<br><br>
+          Opus → contractor brief / relay<br>
+          Quality scorer → ranking<br><br>
           <b>Картотека:</b> <span class="badge badge-purple">Broker</span><br>
           Ключ: <code>broker:tg:username</code><br>
           Читает: <code>get_or_enrich(ns="broker")</code><br><br>
-          <b>Выход:</b> broker DM + approval + relay<br><br>
-          <b>Скрипт:</b> <code>broker_pipeline.py</code>
+          <b>Выход:</b> client relay / contractor brief / follow-up<br><br>
+          <b>Owner:</b> <code>broker_dialog_agent.py</code> для сообщений; <code>broker_casting.py</code> для выбора
         </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px;border-top:3px solid rgba(168,85,247,.55)">
+      <div style="font-size:13px;font-weight:800;color:#d8b4fe;margin-bottom:12px">Broker отдельно: выбор подрядчика и две переписки</div>
+      <div class="pipe" style="gap:8px;flex-wrap:wrap;align-items:stretch">
+        <div class="node node-src node-sm">broker_order<br><span style="font-size:10px;opacity:.7"><code>broker_orders.json</code></span></div>
+        <div class="arr">→</div>
+        <div class="node node-ai node-sm">Casting<br><span style="font-size:10px;opacity:.7"><code>broker_casting.py</code></span></div>
+        <div class="arr">→</div>
+        <div class="node node-ai node-sm">Top-N / assigned<br><span style="font-size:10px;opacity:.7">service · margin · media · score</span></div>
+        <div class="arr">→</div>
+        <div class="node node-out node-sm">Relay клиенту<br><span style="font-size:10px;opacity:.7"><code>broker_relay_to_client</code></span></div>
+        <div class="arr">↔</div>
+        <div class="node node-out node-sm">Подрядчик<br><span style="font-size:10px;opacity:.7"><code>broker_relay_to_contractor</code></span></div>
+      </div>
+      <div class="anno" style="margin-top:10px">
+        <b>Разделение ownership:</b> <code>broker_casting.py</code> выбирает подрядчика.
+        Переписка идёт через <code>broker_dialog_agent.py</code> и <code>contractor_dialog_agent.py</code>, а не через realtime DM owner.
+        <code>tg_responder.py</code> остаётся consultant-only и не является владельцем broker relay.
       </div>
     </div>
     <div style="margin-top:12px;padding:10px 16px;background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.2);border-radius:10px;text-align:center">
@@ -695,7 +725,7 @@
         <div class="arr">→</div>
         <div class="node node-warn node-sm" style="min-width:130px">is_refused_any()<br><span style="font-size:10px">общий хард-стоп</span></div>
         <div class="arr">←</div>
-        <span style="color:#d8b4fe;font-size:12px">Agent 3 (Broker)</span>
+        <span style="color:#d8b4fe;font-size:12px">Broker контур</span>
       </div>
       <div class="anno" style="margin-top:6px">Оба агента проверяют один стоп-список. Отказал одному — замолкают оба.</div>
     </div>
@@ -723,14 +753,14 @@
             <td>Ежедневно 10:09</td>
             <td>Молчит ≥ 2 дня, статус «Переговоры» / «Follow-up»</td>
             <td><code>get_or_enrich()</code> → LCB картотека</td>
-            <td>Opus драфт → approval bot</td>
+            <td>Единственный TG follow-up owner: Opus драфт → send/approval по своим gates</td>
           </tr>
           <tr>
             <td><code>attention_auto_action.py</code></td>
             <td>Каждые 30 мин</td>
             <td>requires_attention = true в orders.db</td>
             <td><code>ai_review_before_send()</code> pre-send check</td>
-            <td>auto-send или pending approval</td>
+            <td><code>followup_ready</code> → delegate to <code>tg_followup.py</code>; hot/awaiting_us остаются здесь</td>
           </tr>
           <tr>
             <td><code>vk_followup.py</code></td>
@@ -755,17 +785,16 @@
           </tr>
           <tr>
             <td><code>tg_responder.py</code></td>
-            <td>WatchPaths + 5 мин safety</td>
-            <td>Новый DM или pending_rerun</td>
-            <td>conv_cache → картотека</td>
-            <td>Ответ в TG DM</td>
+            <td>Consultant-only</td>
+            <td>launchd tick</td>
+            <td><code>tg_responder_safety.json</code></td>
+            <td>Пишет consultant state и выходит без scan/send; legacy active только через env</td>
           </tr>
         </tbody>
       </table>
       <div class="hl" style="margin-top:14px;font-size:12px">
-        <b>Правило авто-отправки:</b> только если клиент молчит ≥ 2 дня
-        <b>И</b> <code>ai_review_before_send() == "ok"</code>.
-        На <code>skip</code> / <code>adapt</code> / API down → pending approval, никогда вслепую.
+        <b>Правило ownership:</b> TG follow-up отправляет только <code>tg_followup.py</code>.
+        <code>attention_auto_action.py</code> больше не auto-send'ит <code>followup_ready</code>, только делегирует.
       </div>
     </div>
   </div>
@@ -851,14 +880,14 @@
             🔵 Agent 2<br>unified_dm_responder<br><span style="font-size:10px">Opus</span>
           </div>
           <div class="node node-ai" style="text-align:center">
-            🟣 Agent 3<br>broker_pipeline<br><span style="font-size:10px">Opus</span>
+            🟣 Broker контур<br>casting + relay<br><span style="font-size:10px">Opus + scorer</span>
           </div>
         </div>
 
         <!-- Hard-stop -->
         <div style="text-align:center;padding:8px 0">
           <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:6px 20px;font-size:11px;color:#fca5a5">
-            🛑 <code>is_refused_any()</code> — общий хард-стоп для Agent 2 и Agent 3
+            🛑 <code>is_refused_any()</code> — общий хард-стоп для Agent 2 и Broker контура
           </div>
         </div>
 
@@ -885,8 +914,8 @@
         <!-- Follow-up bar -->
         <div style="margin-top:16px;text-align:center">
           <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:7px 18px;font-size:11px;color:var(--warn)">
-            ⏰ Follow-up: <code>tg_followup</code> (10:09) · <code>attention_auto_action</code> (30м) · <code>vk_followup</code> · <code>broker-*-followup</code>
-            — читают <code>get_or_enrich()</code> перед каждым Opus
+            ⏰ Follow-up: <code>tg_followup</code> (10:09) — TG owner · <code>attention_auto_action</code> delegates followup_ready · <code>vk_followup</code> · <code>broker-*-followup</code>
+            — читают <code>get_or_enrich()</code> / event context перед каждым Opus
           </div>
         </div>
 
