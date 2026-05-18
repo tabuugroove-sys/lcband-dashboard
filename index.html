@@ -3317,9 +3317,10 @@ function BrokerSummaryCards({ data, selectedFilter, onFilterByCode }) {
   );
 }
 
-// 16.05.2026 (Phase 3): «💰 Оплата → Михаил» — заказы где клиент готов
-// платить (просит счёт / договор / реквизиты). Единственная категория где
-// нужен Михаил руками, остальное автоном. Оранжевая панель сверху всего.
+// 16.05.2026 (Phase 3): «💰 Оплата → Михаил» — только финальные money-step
+// заказы: форма оплаты/сумма уже согласованы, клиент просит реквизиты/карту,
+// финальный счёт/договор или проверку платежа. Первичное уточнение нал/БН
+// делает contract writer сам. Оранжевая панель сверху всего.
 function BrokerPaymentLane({ data }) {
   const items = (data?.items || []).filter(o => o.block_code === 'payment_intent_needs_user');
   if (items.length === 0) return null;
@@ -3330,8 +3331,8 @@ function BrokerPaymentLane({ data }) {
         <span style={{ color: '#94a3b8', fontWeight: 600, fontSize: 11 }}>· {items.length}</span>
       </div>
       <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
-        Клиент просит счёт / договор / реквизиты / готов к предоплате.
-        Единственный кейс где AI не действует сам — деньги только руками.
+        Money gate только после формы оплаты и финальной суммы: реквизиты, карта,
+        финальный счёт/договор или проверка платежа. Нал/БН уточняет writer.
       </div>
       <div style={{ display: 'grid', gap: 8 }}>
         {items.map(o => (
@@ -7563,7 +7564,7 @@ function LeadFlowSection() {
   const lcbWriterModes = [
     ['1', 'найти / принять лид', 'INTAKE'],
     ['2', 'продать / квалифицировать', 'SALES'],
-    ['3', 'договор / предоплата', 'CONTRACT'],
+    ['3', 'договор / форма оплаты', 'CONTRACT'],
     ['4', 'организация выступления', 'PRODUCTION'],
     ['5', 'день ивента / координация', 'EVENT_DAY'],
     ['6', 'контент / отзыв / съемка', 'CONTENT'],
