@@ -126,9 +126,11 @@
     .side-nav .snb { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; font-size: 11px; color: var(--muted); cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s; }
     .side-nav .snb:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
     .side-nav .snb-gold { border-color: rgba(245,197,24,.3); color: var(--gold); }
-    .hn { color: var(--muted); font-size: 12px; font-weight: 600; text-decoration: none; padding: 5px 9px; border-radius: 7px; background: rgba(255,255,255,.05); border: 1px solid var(--border); white-space: nowrap; transition: color .15s, border-color .15s; }
-    .hn:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
-  </style>
+	    .hn { color: var(--muted); font-size: 12px; font-weight: 600; text-decoration: none; padding: 5px 9px; border-radius: 7px; background: rgba(255,255,255,.05); border: 1px solid var(--border); white-space: nowrap; transition: color .15s, border-color .15s; }
+	    .hn:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
+	    .src-link { color: inherit; text-decoration: none; border-bottom: 1px dotted rgba(147,197,253,.45); cursor: pointer; }
+	    .src-link:hover { color: #fff; border-bottom-color: rgba(255,255,255,.75); }
+	  </style>
 </head>
 <body>
 
@@ -193,6 +195,63 @@
         что TG Monitor уже записал. Оба пишут в один лог: <code>add(chat_id, msg_id, source, verdict)</code>
       </div>
 
+      <div class="card anchor-target" id="raw-archives" style="background:rgba(20,184,166,.05);border-color:rgba(20,184,166,.25);margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:18px">🗄</span>
+          <div>
+            <div style="font-weight:700;color:#5eead4">Raw text archives — посты и переписки</div>
+            <div class="anno">Это файловый слой, откуда AI берёт фактические тексты. Не отдельный источник правды для CRM: CRM остаётся <code>orders.db</code>.</div>
+          </div>
+        </div>
+        <table class="tbl">
+          <thead>
+            <tr><th>Что хранит</th><th>Файлы</th><th>Кто пишет / читает</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Все входящие/исходящие события и тексты постов</td>
+              <td><code>message_events.jsonl</code></td>
+              <td><code>message_event_log.py</code> пишет; dashboard, daily report, event graph читают</td>
+            </tr>
+            <tr>
+              <td>Дедуп TG event-постов</td>
+              <td><code>tg_seen_posts.jsonl</code></td>
+              <td>TG realtime + Browser Walk пишут <code>chat_id/msg_id/source/verdict</code></td>
+            </tr>
+            <tr>
+              <td>Годовой/полный TG архив приватных диалогов и чатов</td>
+              <td><code>tg_full_export/&lt;username_or_id&gt;.jsonl</code><br><code>tg_full_export/_meta.json</code></td>
+              <td><code>tg_full_export.py</code> backfill; <code>thread_transcript.py</code> primary reader</td>
+            </tr>
+            <tr>
+              <td>Оперативный TG cache по лидам</td>
+              <td><code>conversation_cache/&lt;username&gt;.jsonl</code><br><code>conv_cache_last_changed.json</code></td>
+              <td>DM agents пишут <code>out:false/true</code>; enricher и follow-up читают</td>
+            </tr>
+            <tr>
+              <td>VK DM переписки</td>
+              <td><code>vk_conversation_cache/&lt;peer&gt;.jsonl</code></td>
+              <td><code>vk_full_export.py</code>, VK responder/follow-up</td>
+            </tr>
+            <tr>
+              <td>Instagram DM переписки</td>
+              <td><code>ig_conversation_cache/&lt;username&gt;.jsonl</code></td>
+              <td>IG sync/export; context analysis</td>
+            </tr>
+            <tr>
+              <td>WhatsApp переписки</td>
+              <td><code>wa_cache/&lt;phone_or_name&gt;.jsonl</code></td>
+              <td>WA import/sync; responder читает только локальный cache</td>
+            </tr>
+            <tr>
+              <td>AI-выводы поверх текстов</td>
+              <td><code>lead_context_store.json</code><br><code>conversation_analysis/tg/*.json</code><br><code>conversation_analysis/ig/*.json</code></td>
+              <td>Enricher пишет карточки; агенты читают перед ответом</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
       <div class="arr-down">↓</div>
       <div style="margin:12px 0;text-align:center">
         <div class="node node-ai" style="display:inline-flex;flex-direction:column;align-items:center;gap:8px;min-width:340px;padding:14px 18px">
@@ -239,50 +298,55 @@
     <div class="card">
 
       <div class="pipe" style="margin-bottom:14px">
-        <div class="node node-src node-sm">TG DM<br><span style="font-size:10px;opacity:.7">tg_dm_realtime_listener</span></div>
-        <div class="node node-src node-sm" style="margin-left:8px">VK DM<br><span style="font-size:10px;opacity:.7">vk_longpoll_listener</span></div>
-        <div class="node node-src node-sm" style="margin-left:8px">WA<br><span style="font-size:10px;opacity:.7">wa_baileys_webhook</span></div>
+	        <div class="node node-src node-sm">TG DM<br><span style="font-size:10px;opacity:.7"><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/tg_dm_realtime_listener.py" target="_blank" rel="noopener">tg_dm_realtime_listener</a></span></div>
+	        <div class="node node-src node-sm" style="margin-left:8px">VK DM<br><span style="font-size:10px;opacity:.7"><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/vk_longpoll_listener.py" target="_blank" rel="noopener">vk_longpoll_listener</a></span></div>
+	        <div class="node node-src node-sm" style="margin-left:8px">WA<br><span style="font-size:10px;opacity:.7"><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/tree/main/wa_baileys" target="_blank" rel="noopener">wa_baileys</a></span></div>
       </div>
       <div class="arr-down">↓</div>
 
       <ol class="steps" style="margin:12px 0">
         <li>
           <b>Listener ловит событие</b>
-          <span class="anno"><br><code>NewMessage(incoming=True, is_private=True)</code> → запускает тред</span>
-        </li>
+	          <span class="anno"><br><code>NewMessage(incoming=True, is_private=True)</code> → запускает тред. Работает на <b>любой</b> новый private DM, не только первое сообщение.</span>
+	        </li>
         <li>
           <b>Картотека обновляется ПЕРВОЙ</b> <span class="badge badge-warn">force=True</span>
-          <span class="anno"><br><code>lead_context_enricher.enrich(username, "tg", force=True)</code>
-          — обходит 30-мин freshness check, принудительно включает новое сообщение в карточку.
-          Выполняется синхронно в треде, <b>до</b> запуска агента.</span>
-        </li>
-        <li>
-          <b>Запуск агента</b>
-          <span class="anno"><br><code>unified_dm_responder.handle({channel, username, text, ts})</code></span>
-        </li>
-        <li>
-          <b>Агент читает свежую карточку</b>
-          <span class="anno"><br><code>get_or_enrich(username, channel)</code> — если карточка устарела (cron-путь) — обновляет; иначе берёт актуальную из кеша</span>
-        </li>
+	          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lead_context_enricher.py" target="_blank" rel="noopener"><code>lead_context_enricher.enrich(username, "tg", force=True)</code></a>
+	          — обходит 30-мин freshness check, принудительно включает новое сообщение в карточку.
+	          Выполняется синхронно в треде, <b>до</b> запуска агента.</span>
+	        </li>
+	        <li>
+	          <b>Запуск агента</b>
+	          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/unified_dm_responder.py" target="_blank" rel="noopener"><code>unified_dm_responder.handle({channel, username, text, ts})</code></a></span>
+	        </li>
+	        <li>
+	          <b>Агент читает свежую карточку</b>
+	          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lead_context_enricher.py" target="_blank" rel="noopener"><code>get_or_enrich(username, channel)</code></a> — если карточка устарела (cron-путь) — обновляет; иначе берёт актуальную из кеша</span>
+	        </li>
         <li>
           <b>Хард-стоп проверка</b>
-          <span class="anno"><br><code>is_refused_any(username)</code> — проверяет ОБА namespace (lcb + broker). Был отказ хоть от одного → стоп, ответ не отправляется</span>
-        </li>
+	          <span class="anno"><br><code>payment/refusal/musician/aggregator regex</code> + context refusal. Payment → alert, refusal/spam/musician → skip, техсигнал → approval.</span>
+	        </li>
         <li>
           <b>Opus генерирует ответ</b>
           <span class="anno"><br>Полный контекст переписки + карточка + текущий текст → <code>claude_cli.call_opus()</code><br>
           Anti-ban: 8/run · 40/день · jitter 15–35s</span>
         </li>
-        <li>
-          <b>Approval gate / auto-send</b>
-          <span class="anno"><br>Горячие / нестандарт → approval-bot. Холодные ≥2 дней молчания + ai_review=="ok" → авто-отправка</span>
-        </li>
+	        <li>
+	          <b>Routing verdict</b>
+	          <span class="anno"><br>
+	            <code>sent</code> → TG direct send ·
+	            <code>approval</code> → notify bot ·
+	            <code>skipped</code> → spam/refusal/musician/unclear ·
+	            <code>error</code> → fallback <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/tg_responder.py" target="_blank" rel="noopener"><code>tg_responder.py</code></a>
+	          </span>
+	        </li>
         <li>
           <b>Dual-stream после отправки</b> <span class="badge badge-purple">одновременно</span>
           <span class="anno"><br>
           Поток 1 → сообщение отправлено в DM<br>
-          Поток 2 → <code>_record_outgoing_to_cache(out=True)</code> + <code>enrich(force=True)</code> — исходящий текст тоже попадает в картотеку</span>
-        </li>
+	          Поток 2 → <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/unified_dm_responder.py" target="_blank" rel="noopener"><code>_record_outgoing_to_cache(out=True)</code></a> + <code>enrich(force=True)</code> — исходящий текст тоже попадает в картотеку</span>
+	        </li>
       </ol>
 
     </div>
@@ -844,6 +908,7 @@
 <!-- Side nav -->
 <div class="side-nav">
   <a href="#posts"><div class="snb">1 Посты</div></a>
+  <a href="#raw-archives"><div class="snb" style="color:#5eead4;border-color:rgba(20,184,166,.3)">🗄 Архив текстов</div></a>
   <a href="#dm"><div class="snb">2 DM</div></a>
   <a href="#dualstream"><div class="snb" style="color:#5eead4;border-color:rgba(20,184,166,.3)">↕ Dual-stream</div></a>
   <a href="#kartoteka"><div class="snb">3 Картотека</div></a>
