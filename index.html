@@ -7233,7 +7233,7 @@ function ChatPanel({ target, onClose }) {
 }
 
 // ── Lead Flow Section ─────────────────────────────────────────────────────────
-function AILayerDocsModal({ layer, onClose }) {
+function AILayerDocsModal({ layer, promptName, onClose }) {
   const [doc, setDoc] = React.useState(null);
   const [error, setError] = React.useState('');
   const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
@@ -7248,6 +7248,15 @@ function AILayerDocsModal({ layer, onClose }) {
       .catch(e => { if (!cancelled) setError(e?.message || 'Не удалось загрузить AI layer docs'); });
     return () => { cancelled = true; };
   }, [backendUrl, layer]);
+
+  React.useEffect(() => {
+    if (!doc || !promptName) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById(`ai-layer-prompt-${promptName}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+    return () => clearTimeout(t);
+  }, [doc, promptName]);
 
   const promptBlocks = doc?.prompts || [];
   return (
@@ -7283,7 +7292,12 @@ function AILayerDocsModal({ layer, onClose }) {
               Current prompts · read from local files · {doc.generated_at?.slice(11,19)}
             </div>
             {promptBlocks.map((p, i) => (
-              <div key={`${p.file}:${p.name}:${i}`} className="ai-layer-source">
+              <div
+                key={`${p.file}:${p.name}:${i}`}
+                id={`ai-layer-prompt-${p.name}`}
+                className="ai-layer-source"
+                style={p.name === promptName ? {borderColor:'rgba(245,197,24,.65)', boxShadow:'0 0 0 1px rgba(245,197,24,.22)'} : undefined}
+              >
                 <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'baseline'}}>
                   <div style={{fontSize:12,fontWeight:800,color:'#e2e8f0'}}>
                     <code>{p.name}</code>
@@ -7396,9 +7410,12 @@ function LeadFlowSection() {
     lead?.updated_at ? `Обновлено: ${lead.updated_at}` : '',
   ].filter(Boolean).join('\n');
   const aiInfoButton = (layer, label) => (
-    <a
-      href={`./ai-layer.html?layer=${layer}`}
-      onClick={(e) => e.stopPropagation()}
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setAiLayerOpen({ layer });
+      }}
       title={`Показать prompt/context/skills: ${label}`}
       style={{
         display:'inline-flex', alignItems:'center', justifyContent:'center',
@@ -7407,18 +7424,22 @@ function LeadFlowSection() {
         color:'#fde68a', fontSize:11, fontWeight:800, lineHeight:'16px',
         cursor:'pointer', padding:0, flex:'0 0 auto', textDecoration:'none',
       }}
-    >i</a>
+    >i</button>
   );
-  const aiLayerLink = (href, label, style, count) => (
-    <a
-      href={href}
-      onClick={(e) => e.stopPropagation()}
-      title={layerTitle(label, count, href)}
+  const aiLayerButton = (layer, promptName, label, style, count) => (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setAiLayerOpen({ layer, promptName });
+      }}
+      title={layerTitle(label, count, `${layer} · ${promptName}`)}
       style={{
-        display:'block', borderRadius:4, padding:'2px 6px',
+        display:'block', width:'100%', border:'none', textAlign:'left',
+        borderRadius:4, padding:'2px 6px',
         cursor:'pointer', textDecoration:'none', ...style,
       }}
-    >{label}</a>
+    >{label}</button>
   );
   const sourceBase = 'https://github.com/tabuugroove-sys/lcband/blob/main/';
   const flowLink = (href, label, style = {}) => (
@@ -7476,28 +7497,28 @@ function LeadFlowSection() {
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, alignItems:'start'}}>
 
           {/* Agent 1 — no context */}
-          <div className="ai-layer-card" onClick={() => { window.location.href = './ai-layer.html?layer=agent1'; }} title="Показать текущие промпты, source files, context и gates Agent 1" style={{background:'rgba(139,92,246,.1)', border:'1px solid rgba(139,92,246,.35)', borderRadius:9, padding:'8px 10px', display:'flex', flexDirection:'column', gap:4}}>
+          <div className="ai-layer-card" onClick={() => setAiLayerOpen({ layer: 'agent1' })} title="Показать текущие промпты, source files, context и gates Agent 1" style={{background:'rgba(139,92,246,.1)', border:'1px solid rgba(139,92,246,.35)', borderRadius:9, padding:'8px 10px', display:'flex', flexDirection:'column', gap:4}}>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <div style={{fontSize:10, fontWeight:700, color:'#a78bfa'}}>🤖 Agent 1 · Classifier</div>
               {aiInfoButton('agent1', 'Agent 1')}
             </div>
-            {aiLayerLink('./ai-layer.html?layer=agent1&prompt=_CLASSIFY_SYSTEM', 'L1 Gemini Flash · binary', {fontSize:9.5, color:'#6ee7b7', background:'rgba(16,185,129,.1)'}, layerCounts.l1)}
+            {aiLayerButton('agent1', '_CLASSIFY_SYSTEM', 'L1 Gemini Flash · binary', {fontSize:9.5, color:'#6ee7b7', background:'rgba(16,185,129,.1)'}, layerCounts.l1)}
             <div style={{display:'flex', alignItems:'center', gap:5, fontSize:8.5, color:'#94a3b8', padding:'0 3px'}}>
               <span style={{whiteSpace:'nowrap'}}>L1→L2</span><span style={{flex:1, height:1, background:'rgba(148,163,184,.25)'}}/><b style={{color:'#c4b5fd'}}>{fmtPct(layerRates.l1_to_l2_pct)}</b>
             </div>
-            {aiLayerLink('./ai-layer.html?layer=agent1&prompt=_CLASSIFY_V2_SYSTEM', 'L2 Sonnet · classify', {fontSize:9.5, color:'#c4b5fd', background:'rgba(139,92,246,.1)'}, layerCounts.l2)}
+            {aiLayerButton('agent1', '_CLASSIFY_V2_SYSTEM', 'L2 Sonnet · classify', {fontSize:9.5, color:'#c4b5fd', background:'rgba(139,92,246,.1)'}, layerCounts.l2)}
             <div style={{display:'flex', alignItems:'center', gap:5, fontSize:8.5, color:'#94a3b8', padding:'0 3px'}}>
               <span style={{whiteSpace:'nowrap'}}>L2→L3</span><span style={{flex:1, height:1, background:'rgba(148,163,184,.25)'}}/><b style={{color:'#fde68a'}}>{fmtPct(layerRates.l2_to_l3_pct)}</b>
             </div>
-            {aiLayerLink('./ai-layer.html?layer=agent1&prompt=_COMPOSE_OPUS_SYSTEM', 'L3 Opus · compose pitch', {fontSize:9.5, color:'#fde68a', background:'rgba(245,197,24,.08)'}, layerCounts.l3)}
+            {aiLayerButton('agent1', '_COMPOSE_OPUS_SYSTEM', 'L3 Opus · compose pitch', {fontSize:9.5, color:'#fde68a', background:'rgba(245,197,24,.08)'}, layerCounts.l3)}
             <div style={{display:'flex', alignItems:'center', gap:5, fontSize:8.5, color:'#94a3b8', padding:'0 3px'}}>
               <span style={{whiteSpace:'nowrap'}}>L3→pre-send review</span><span style={{flex:1, height:1, background:'rgba(148,163,184,.25)'}}/><b style={{color:'#fca5a5'}}>{fmtPct(layerRates.l3_to_presend_pct)}</b>
             </div>
-            {aiLayerLink('./ai-layer.html?layer=agent1&prompt=_PRESEND_SYSTEM', `pre-send post pipeline · ${layerCounts.presend_post_pipeline || 0}`, {fontSize:9, color:'#fca5a5', background:'rgba(239,68,68,.08)'}, layerCounts.presend_post_pipeline)}
+            {aiLayerButton('agent1', '_PRESEND_SYSTEM', `pre-send post pipeline · ${layerCounts.presend_post_pipeline || 0}`, {fontSize:9, color:'#fca5a5', background:'rgba(239,68,68,.08)'}, layerCounts.presend_post_pipeline)}
             <div title={presendSplitTitle()} style={{fontSize:8.5, color:'#94a3b8', background:'rgba(15,23,42,.42)', border:'1px solid rgba(148,163,184,.14)', borderRadius:4, padding:'2px 6px'}}>
               other pre-send · <b style={{color:'#cbd5e1'}}>{layerCounts.presend_other || 0}</b> / all · <b style={{color:'#cbd5e1'}}>{layerCounts.presend || 0}</b>
             </div>
-            {aiLayerLink('./ai-layer.html?layer=agent1&prompt=_CLASSIFY_SYSTEM', '⚡ hard-regex pre-filter', {fontSize:9, color:'#f87171', background:'rgba(239,68,68,.08)'}, 0)}
+            {aiLayerButton('agent1', '_CLASSIFY_SYSTEM', '⚡ hard-regex pre-filter', {fontSize:9, color:'#f87171', background:'rgba(239,68,68,.08)'}, 0)}
             <div style={{marginTop:2, fontSize:9, color:'var(--muted)', fontStyle:'italic'}}>контекста нет — пост холодный</div>
             {/* broker_request branch — horizontal arrow to Agent 3 */}
             <div style={{marginTop:4, display:'flex', alignItems:'center', gap:3}}>
@@ -7551,7 +7572,7 @@ function LeadFlowSection() {
                 </div>
 	                {arr('↓ get_or_enrich() · читает перед ответом')}
 	                {/* agent */}
-	                <div className="ai-layer-card" onClick={() => { window.location.href = './ai-layer.html?layer=agent2'; }} title="Показать текущие промпты, source files, context и gates Agent 2" style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.35)', borderRadius:7, padding:'5px 8px'}}>
+	                <div className="ai-layer-card" onClick={() => setAiLayerOpen({ layer: 'agent2' })} title="Показать текущие промпты, source files, context и gates Agent 2" style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.35)', borderRadius:7, padding:'5px 8px'}}>
 	                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
 	                    <div style={{fontSize:9.5, fontWeight:700, color:'#60a5fa'}}>
 	                      🤖 {sourceLink('unified_dm_responder.py', 'Agent 2 · unified_dm_responder', {color:'#60a5fa'})}
@@ -7634,7 +7655,7 @@ function LeadFlowSection() {
                 </div>
                 {arr('↓ get_or_enrich(ns="broker") · читает')}
                 {/* agent */}
-                <div className="ai-layer-card" onClick={() => { window.location.href = './ai-layer.html?layer=agent3'; }} title="Показать текущие промпты, source files, context и gates Agent 3" style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.35)', borderRadius:7, padding:'5px 8px'}}>
+                <div className="ai-layer-card" onClick={() => setAiLayerOpen({ layer: 'agent3' })} title="Показать текущие промпты, source files, context и gates Agent 3" style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.35)', borderRadius:7, padding:'5px 8px'}}>
                   <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
                     <div style={{fontSize:9.5, fontWeight:700, color:'#a78bfa'}}>🤖 Agent 3 · Broker · Opus</div>
                     {aiInfoButton('agent3', 'Agent 3')}
@@ -7869,7 +7890,8 @@ function LeadFlowSection() {
       </div>
       {aiLayerOpen && (
         <AILayerDocsModal
-          layer={aiLayerOpen}
+          layer={aiLayerOpen.layer || aiLayerOpen}
+          promptName={aiLayerOpen.promptName}
           onClose={() => setAiLayerOpen(null)}
         />
       )}
