@@ -8185,7 +8185,7 @@ function LeadFlowSection() {
                       ['nested', contextCardStats.nested_stats?.cards_with_nested_schema || 0, 'nested schema'],
                       ['events', contextCardStats.nested_stats?.event_slices_with_context || 0, 'events with context'],
                       ['active', contextCardStats.nested_stats?.cards_with_active_event || 0, 'active_event_id'],
-                      ['unscoped', contextCardStats.nested_stats?.cards_with_unscoped || 0, 'AI не уверен'],
+                      ['unscoped', contextCardStats.nested_stats?.cards_with_unscoped || 0, 'без фокуса (тур / общее / cold)'],
                       ['waiting', contextCardStats.needs_action || 0, 'ждут нас'],
                     ].map(([label, value, sub]) => (
                       <div key={label} style={{background:'rgba(15,23,42,.45)', border:'1px solid rgba(148,163,184,.18)', borderRadius:6, padding:'6px 7px'}}>
@@ -8269,7 +8269,7 @@ function LeadFlowSection() {
                   </div>
                   <div style={{border:'1px dashed rgba(148,163,184,.32)', borderRadius:6, padding:7, background:'rgba(15,23,42,.35)'}}>
                     <div style={{fontSize:9.5, color:'#cbd5e1', fontWeight:800}}>_unscoped</div>
-                    <div style={{fontSize:9, color:'var(--muted)', lineHeight:1.4}}>если AI не уверен, к какому event относится фраза</div>
+                    <div style={{fontSize:9, color:'var(--muted)', lineHeight:1.4}}>сигнал касается тура / общий для нескольких events / нет single focus</div>
                   </div>
                 </div>
               </div>
@@ -8283,7 +8283,7 @@ function LeadFlowSection() {
                   'thread хранит hard facts контакта',
                   'events хранит sparse event slices',
                   'active_event_id подсвечивает L3 writer',
-                  '_unscoped принимает факты если AI не уверен',
+                  '_unscoped — общие сигналы (тур, тех. райдер на серию, не привязано к одному event)',
                 ]).map((rule, idx) => (
                   <div key={idx} style={{display:'flex', gap:6, alignItems:'flex-start', fontSize:9.5, color:'var(--muted)', lineHeight:1.35, marginTop:idx ? 4 : 0}}>
                     <span style={{color:'#5eead4', fontWeight:900}}>{idx + 1}</span>
