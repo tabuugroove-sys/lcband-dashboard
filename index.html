@@ -7321,28 +7321,7 @@ function LeadFlowSection() {
         </div>
 
         {/* Row 2: Agents + context enrichment pipeline */}
-        <div style={{position:'relative', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, alignItems:'start'}}>
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 100 220"
-            preserveAspectRatio="none"
-            style={{position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none', overflow:'visible', zIndex:2}}
-          >
-            <defs>
-              <marker id="broker-flow-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L8,4 L0,8 Z" fill="rgba(167,139,250,.88)" />
-              </marker>
-            </defs>
-            <path
-              d="M 32 150 C 39 150, 40 18, 51.6 18"
-              fill="none"
-              stroke="rgba(167,139,250,.72)"
-              strokeWidth="0.42"
-              strokeLinecap="round"
-              strokeDasharray="1.8 1.2"
-              markerEnd="url(#broker-flow-arrow)"
-            />
-          </svg>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, alignItems:'start'}}>
 
           {/* Agent 1 — no context */}
           <div style={{background:'rgba(139,92,246,.1)', border:'1px solid rgba(139,92,246,.35)', borderRadius:9, padding:'8px 10px', display:'flex', flexDirection:'column', gap:4}}>
