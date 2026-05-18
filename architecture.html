@@ -693,7 +693,8 @@
           <b>Вход:</b> broker opportunity trigger<br><br>
           <b>AI-стек:</b><br>
           Opus → contractor brief / relay<br>
-          Quality scorer → ranking<br><br>
+          Quality scorer → ranking<br>
+          Reference match → closest media top-N<br><br>
           <b>Картотека:</b> <span class="badge badge-purple">Broker</span><br>
           Ключ: <code>broker:tg:username</code><br>
           Читает: <code>get_or_enrich(ns="broker")</code><br><br>
@@ -710,7 +711,7 @@
         <div class="arr">→</div>
         <div class="node node-ai node-sm">Casting<br><span style="font-size:10px;opacity:.7"><code>broker_casting.py</code></span></div>
         <div class="arr">→</div>
-        <div class="node node-ai node-sm">Top-N / assigned<br><span style="font-size:10px;opacity:.7">service · margin · media · score</span></div>
+        <div class="node node-ai node-sm">Top-N / assigned<br><span style="font-size:10px;opacity:.7">service · margin · ref-match · score</span></div>
         <div class="arr">→</div>
         <div class="node node-out node-sm">Relay клиенту<br><span style="font-size:10px;opacity:.7"><code>broker_relay_to_client</code></span></div>
         <div class="arr">↔</div>
