@@ -345,6 +345,10 @@ function toggleCard(key) {
   }
 }
 
+function openContextCard(key) {
+  window.location.href = `./context-card.html?key=${encodeURIComponent(key)}`;
+}
+
 function renderCard(c) {
   const intentC = INTENT_COLOR[c.client_intent] || '#888';
   const intentL = INTENT_LABEL[c.client_intent] || c.client_intent;
@@ -378,11 +382,12 @@ function renderCard(c) {
   let headerExtra = '';
   if (c.waiting_for_us)    headerExtra += `<span style="color:#ef4444;font-size:11px;font-weight:700">⚡ ждёт ответа</span>`;
   if (c.waiting_for_client) headerExtra += `<span style="color:#f59e0b;font-size:11px">⏳ ждём клиента</span>`;
+  if (c.lcb_writer_mode)   headerExtra += `<span style="font-size:10px;color:#bfdbfe;padding:1px 6px;border:1px solid rgba(96,165,250,.35);border-radius:5px">mode=${e(c.lcb_writer_mode)}</span>`;
   if (c.crm_status)        headerExtra += `<span style="font-size:10px;color:var(--muted);padding:1px 6px;border:1px solid var(--border);border-radius:5px">${e(c.crm_status)}</span>`;
 
   const html = `
 <div class="${cardClass}" data-key="${e(c.key)}">
-  <div class="card-header" onclick="toggleCard('${e(c.key)}')">
+  <div class="card-header" onclick="openContextCard(this.closest('.ctx-card').dataset.key)" title="Открыть полную карточку контекста">
     <span class="ch-badge ${chClass}">${chLabel}</span>
     <span class="username">@${e(c.username)}</span>
     ${c.crm_client ? `<span style="font-size:12px;color:var(--muted)">${e(c.crm_client)}</span>` : ''}
@@ -390,7 +395,7 @@ function renderCard(c) {
     ${headerExtra}
     <span style="font-size:11px;color:var(--muted);margin-left:auto">${silLabel}</span>
     ${fuHtml ? `<span style="font-size:10px;color:var(--warn)">⏰</span>` : ''}
-    <span class="chevron">▼</span>
+    <span class="chevron">↗</span>
   </div>
   <div class="card-body">
     ${renderCardBody(c)}
@@ -411,6 +416,16 @@ function renderCardBody(c) {
     parts.push(`<div style="font-size:11px;color:#bfdbfe;background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.22);border-radius:6px;padding:6px 8px">
       ${c.order_status ? `orders.db: ${e(c.order_status)}` : ''}
       ${c.recommended_action ? ` · action: ${e(c.recommended_action)}` : ''}
+      ${c.lcb_writer_mode ? ` · writer_mode: ${e(c.lcb_writer_mode)}` : ''}
+      ${c.lcb_writer_mode_reason ? ` (${e(c.lcb_writer_mode_reason)})` : ''}
+    </div>`);
+  }
+  if (c.latest_message_ts || c.latest_message_preview || c.freshness_warning) {
+    parts.push(`<div style="font-size:10.5px;color:var(--muted);background:rgba(15,23,42,.55);border:1px solid rgba(148,163,184,.18);border-radius:6px;padding:6px 8px">
+      latest: ${e(c.latest_message_ts || '?')} ${c.latest_message_direction ? `· ${e(c.latest_message_direction)}` : ''}
+      ${c.latest_message_preview ? ` · ${e(c.latest_message_preview)}` : ''}
+      ${c.messages_window_start || c.messages_window_end ? `<br>window: ${e(c.messages_window_start || '?')} → ${e(c.messages_window_end || '?')}` : ''}
+      ${c.freshness_warning ? `<br><span style="color:#fbbf24">warning: ${e(c.freshness_warning)}</span>` : ''}
     </div>`);
   }
 

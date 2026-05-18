@@ -18,7 +18,7 @@
     { href: 'broker.html',          emoji: '🤝', label: 'Broker',     color: 'broker' },
     { href: 'dm-direct-funnel.html', emoji: '📨', label: 'DM funnel',  color: 'funnel' },
     { href: 'cost.html',            emoji: '💸', label: 'Расход',     color: 'cost' },
-    { href: 'context_cards.html',   emoji: '🗂', label: 'Карточки',   color: 'cards' },
+    { href: 'context_cards.html',   emoji: '🗂', label: 'Картотека',  color: 'cards' },
   ];
 
   var STYLE_ID = 'lcb-nav-style';
@@ -66,7 +66,9 @@
     PAGES.forEach(function (p) {
       var a = document.createElement('a');
       a.href = p.href;
-      a.className = p.color + (p.href.toLowerCase() === current ? ' active' : '');
+      var isActive = p.href.toLowerCase() === current ||
+        (p.href === 'context_cards.html' && current === 'context-card.html');
+      a.className = p.color + (isActive ? ' active' : '');
       a.textContent = p.emoji + ' ' + p.label;
       nav.appendChild(a);
     });

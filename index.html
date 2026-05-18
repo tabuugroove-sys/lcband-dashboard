@@ -1353,6 +1353,12 @@ function ActionButtons() {
          style={{background: 'rgba(88, 166, 255, 0.15)', color: '#58a6ff', borderColor: 'rgba(88, 166, 255, 0.3)'}}>
         🎭 Contact Roles
       </a>
+      <a href="./context_cards.html"
+         className="action-btn"
+         title="Картотека контекста: что AI присваивает каждому лиду"
+         style={{background: 'rgba(20, 184, 166, 0.14)', color: '#14b8a6', borderColor: 'rgba(20, 184, 166, 0.35)'}}>
+        🗂 Картотека
+      </a>
       <a href="./outreach.html"
          className="action-btn"
          style={{background: 'rgba(63, 185, 80, 0.15)', color: '#3fb950', borderColor: 'rgba(63, 185, 80, 0.3)'}}>
@@ -8545,7 +8551,7 @@ function EventThreads({ threads }) {
   return (
     <div style={{ marginTop: 8, borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 8 }}>
       <div
-        onClick={() => setOpen(v => !v)}
+        onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
         style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9ca3af', userSelect: 'none' }}
       >
         <span>{open ? '▾' : '▸'} Команда мероприятия ({threads.length})</span>
@@ -8623,12 +8629,19 @@ function KartotekaCard({ card }) {
   const hasEvent = !!card.event_date_confirmed;
   const hasThreads = hasEvent && card.event_threads && card.event_threads.length > 0;
   const threadIssues = hasThreads ? card.event_threads.filter(t => t.thread_status === 'issue').length : 0;
+  const openDetail = () => {
+    if (card.key) window.location.href = `./context-card.html?key=${encodeURIComponent(card.key)}`;
+  };
 
   return (
-    <div style={{
+    <div
+      onClick={openDetail}
+      title="Открыть полную карточку контекста"
+      style={{
       background: card.waiting_for_us ? 'rgba(239,68,68,0.07)' : hasEvent ? 'rgba(34,197,94,0.04)' : 'rgba(255,255,255,0.04)',
       border: card.waiting_for_us ? '1px solid rgba(239,68,68,0.35)' : hasEvent ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(255,255,255,0.09)',
       borderRadius: 10, padding: '9px 12px', display: 'flex', flexDirection: 'column', gap: 4,
+      cursor: 'pointer',
     }}>
       {/* Row 1: channel + username + intent + flags + silence */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -8645,6 +8658,7 @@ function KartotekaCard({ card }) {
         <span style={{ marginLeft: 'auto', color: '#888', fontSize: 11 }}>
           {card.silence_days < 1 ? `${Math.round(card.silence_days * 24)}ч` : `${card.silence_days.toFixed(1)}д`} молчания
         </span>
+        <span style={{ color: '#60a5fa', fontSize: 11 }}>↗ контекст</span>
       </div>
 
       {/* next_action_hint */}
@@ -8707,6 +8721,13 @@ function CartotekaSection({ data }) {
         <span style={{ marginLeft: 'auto', fontSize: 11, color: '#888', fontWeight: 400 }}>
           {total_in_store} карточек в базе
         </span>
+        <a
+          href="./context_cards.html"
+          onClick={(e) => e.stopPropagation()}
+          style={{ color: '#60a5fa', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}
+        >
+          вся картотека ↗
+        </a>
       </div>
 
       {/* Intent summary bar */}

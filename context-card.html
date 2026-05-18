@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LC Band — Context Card Detail</title>
+<link rel="stylesheet" href="_theme.css">
+<script src="_theme.js"></script>
+<script src="_nav.js"></script>
+<style>
+  :root {
+    --bg:#08080f; --card:#111120; --card2:#18182a; --border:#252542;
+    --text:#e2e8f0; --muted:#7c8ba1; --gold:#f5c518;
+    --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --blue:#60a5fa; --purple:#a78bfa;
+  }
+  :root[data-theme="light"] {
+    --bg:#f4f6fb; --card:#fff; --card2:#f0f2f8; --border:#d0d7de;
+    --text:#1f2328; --muted:#59636e; --gold:#9a6700;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; font-size:13px; }
+  .app { max-width:1280px; margin:0 auto; padding-top:54px; }
+  .crumb { color:var(--muted); text-decoration:none; font-size:12px; }
+  .crumb:hover { color:var(--text); }
+  .head { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; margin:10px 0 16px; }
+  h1 { margin:0; color:var(--gold); font-size:24px; line-height:1.15; }
+  .sub { color:var(--muted); margin-top:5px; font-size:12px; }
+  .grid { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr); gap:12px; align-items:start; }
+  @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
+  .panel { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px; }
+  .panel h2 { margin:0 0 10px; color:var(--text); font-size:14px; }
+  .section { display:grid; gap:8px; margin-bottom:12px; }
+  .kv { display:grid; grid-template-columns:160px minmax(0,1fr); gap:8px; padding:6px 8px; border-radius:7px; background:rgba(255,255,255,.025); }
+  .k { color:var(--muted); font-size:11px; }
+  .v { color:var(--text); overflow-wrap:anywhere; }
+  .pill { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--border); background:var(--card2); border-radius:7px; padding:3px 7px; font-size:11px; margin:0 5px 5px 0; }
+  .ok { color:var(--ok); border-color:rgba(34,197,94,.3); background:rgba(34,197,94,.08); }
+  .warn { color:var(--warn); border-color:rgba(245,158,11,.3); background:rgba(245,158,11,.08); }
+  .bad { color:var(--bad); border-color:rgba(239,68,68,.3); background:rgba(239,68,68,.08); }
+  .blue { color:var(--blue); border-color:rgba(96,165,250,.3); background:rgba(96,165,250,.08); }
+  .thread { padding:8px 9px; border-radius:8px; background:var(--card2); border:1px solid var(--border); margin-bottom:6px; }
+  .thread-head { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .thread-name { font-weight:700; }
+  .muted { color:var(--muted); }
+  .small { font-size:11px; }
+  pre { white-space:pre-wrap; overflow:auto; margin:0; padding:10px; border-radius:8px; background:#05050a; border:1px solid var(--border); color:#cbd5e1; font-size:12px; line-height:1.45; }
+  :root[data-theme="light"] pre { background:#f6f8fa; color:#24292f; }
+  details { border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,.02); }
+  summary { cursor:pointer; padding:9px 10px; font-weight:700; color:var(--blue); }
+  details > pre, details > .inside { border:0; border-top:1px solid var(--border); border-radius:0 0 8px 8px; }
+  .empty { color:var(--muted); padding:20px; text-align:center; border:1px dashed var(--border); border-radius:10px; }
+  .btn { display:inline-flex; align-items:center; gap:6px; text-decoration:none; border:1px solid var(--border); border-radius:8px; padding:7px 10px; background:var(--card2); color:var(--text); font-weight:700; }
+  .btn:hover { border-color:rgba(96,165,250,.5); color:var(--blue); }
+</style>
+</head>
+<body>
+<div class="app">
+  <a class="crumb" href="./context_cards.html">← Картотека контекста</a>
+  <div id="root"><div class="empty">Загружаю карточку…</div></div>
+</div>
+
+<script>
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function pretty(v) { return JSON.stringify(v || {}, null, 2); }
+async function backendUrl() {
+  try {
+    const r = await fetch('./backend_url.json?_=' + Date.now());
+    if (r.ok) {
+      const j = await r.json();
+      if (j && j.url) return j.url.replace(/\/$/, '');
+    }
+  } catch (_) {}
+  return 'http://127.0.0.1:8878';
+}
+function pill(text, cls='') { return text ? `<span class="pill ${cls}">${esc(text)}</span>` : ''; }
+function renderThreads(title, items, kind) {
+  if (!items.length) return '';
+  return `<div class="panel"><h2>${title} <span class="muted small">(${items.length})</span></h2>` + items.map(t => {
+    const role = t.role || kind;
+    const cat = t.tech_category ? ` · ${t.tech_category}` : '';
+    const spec = t.tech_specialty ? ` · ${t.tech_specialty}` : '';
+    const summary = t.thread_summary || t.last_message_preview || '';
+    return `<div class="thread">
+      <div class="thread-head">
+        <span class="thread-name">${esc(t.name || t.username || '?')}</span>
+        ${t.username ? `<span class="muted small">@${esc(t.username)}</span>` : ''}
+        ${pill(role + cat + spec, role === 'tech' ? 'blue' : '')}
+        ${pill(t.thread_status || '-', t.thread_status === 'issue' ? 'bad' : t.thread_status === 'confirmed' ? 'ok' : 'warn')}
+      </div>
+      ${summary ? `<div class="small muted" style="margin-top:5px">${esc(summary)}</div>` : ''}
+      ${t.near_messages_count !== undefined ? `<div class="small muted" style="margin-top:4px">near messages: ${esc(t.near_messages_count)}</div>` : ''}
+    </div>`;
+  }).join('') + `</div>`;
+}
+function renderEvents(eventsObj) {
+  const entries = Object.entries(eventsObj || {});
+  if (!entries.length) return '';
+  return `<div class="panel"><h2>Event-scoped slices <span class="muted small">(${entries.length})</span></h2>` + entries.map(([id, slice]) => `
+    <details ${id !== '_unscoped' ? 'open' : ''}>
+      <summary>${esc(id)}</summary>
+      <pre>${esc(pretty(slice))}</pre>
+    </details>
+  `).join('<div style="height:8px"></div>') + `</div>`;
+}
+function renderListPanel(title, rows, renderRow) {
+  if (!rows || !rows.length) return '';
+  return `<div class="panel"><h2>${title} <span class="muted small">(${rows.length})</span></h2>${rows.map(renderRow).join('')}</div>`;
+}
+function render(data) {
+  const c = data.card || {};
+  const order = data.order || {};
+  const eg = data.event_graph || {};
+  const threads = c.event_threads || [];
+  const musicians = threads.filter(t => t.role === 'musician');
+  const techs = threads.filter(t => t.role === 'tech');
+  const key = data.key || '';
+  const headerPills = [
+    pill(data.channel?.toUpperCase(), 'blue'),
+    pill(c.client_intent || 'intent?', ''),
+    c.event_date_confirmed ? pill('event ' + c.event_date_confirmed, 'ok') : '',
+    c.waiting_for_us ? pill('waiting for us', 'bad') : '',
+    c.waiting_for_client ? pill('waiting for client', 'warn') : '',
+    c.refusal_detected ? pill('refusal', 'bad') : '',
+  ].join('');
+  document.getElementById('root').innerHTML = `
+    <div class="head">
+      <div>
+        <h1>${esc(key)}</h1>
+        <div class="sub">@${esc(data.username || '')} · generated ${esc(data.generated_at || '')}</div>
+        <div style="margin-top:8px">${headerPills}</div>
+      </div>
+      <a class="btn" href="./context_cards.html">Все карточки</a>
+    </div>
+    <div class="grid">
+      <div class="section">
+        <div class="panel">
+          <h2>Что writer увидит как контекст</h2>
+          <pre>${esc(data.writer_prompt_context_block || '(empty)')}</pre>
+        </div>
+        <div class="panel">
+          <h2>Основные поля карточки</h2>
+          <div class="kv"><div class="k">next_action_hint</div><div class="v">${esc(c.next_action_hint || '')}</div></div>
+          <div class="kv"><div class="k">key_asks</div><div class="v">${(c.key_asks || []).map(x => pill(x)).join('') || '<span class="muted">empty</span>'}</div></div>
+          <div class="kv"><div class="k">budget</div><div class="v">${esc(c.budget_confirmed || '')}</div></div>
+          <div class="kv"><div class="k">silence</div><div class="v">${esc(c.silence_days ?? '')} days</div></div>
+          <div class="kv"><div class="k">enriched_at</div><div class="v">${esc(c.enriched_at || '')}</div></div>
+        </div>
+        ${renderThreads('Состав / музыканты из карточки', musicians, 'musician')}
+        ${renderThreads('Техники / production contacts из карточки', techs, 'tech')}
+        ${renderEvents(c.events)}
+        ${renderListPanel('Event graph events', eg.events || [], ev => `
+          <div class="thread">
+            <div class="thread-head">${pill(ev.status || '-', 'blue')}<b>${esc(ev.event_date || '?')}</b><span>${esc(ev.city || '')}</span><span class="muted">${esc(ev.venue || '')}</span></div>
+            <div class="small muted">${esc([ev.brand, ev.format, ev.budget_text, ev.role].filter(Boolean).join(' · '))}</div>
+          </div>`)}
+      </div>
+      <div class="section">
+        <div class="panel">
+          <h2>orders.db</h2>
+          ${Object.keys(order).length ? `<pre>${esc(pretty(order))}</pre>` : '<div class="empty">Нет связанной orders.db записи</div>'}
+        </div>
+        ${renderListPanel('Promises', eg.promises || [], p => `
+          <div class="thread">
+            <div class="thread-head">${pill(p.direction || '', 'blue')}${pill(p.status || '')}${p.due_at ? pill('due ' + p.due_at, 'warn') : ''}</div>
+            <div style="margin-top:5px">${esc(p.text || '')}</div>
+            ${p.evidence ? `<div class="small muted" style="margin-top:5px">${esc(p.evidence)}</div>` : ''}
+          </div>`)}
+        <details open>
+          <summary>Raw lead_context_store.json card</summary>
+          <pre>${esc(pretty(c))}</pre>
+        </details>
+      </div>
+    </div>`;
+}
+async function main() {
+  const key = new URLSearchParams(location.search).get('key') || '';
+  if (!key) {
+    document.getElementById('root').innerHTML = '<div class="empty">Нет key в URL. Пример: context-card.html?key=tg:username</div>';
+    return;
+  }
+  try {
+    const base = await backendUrl();
+    const r = await fetch(`${base}/api/context_card?key=${encodeURIComponent(key)}`, {cache:'no-store'});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.error) throw new Error(j.error || `HTTP ${r.status}`);
+    render(j);
+  } catch (e) {
+    document.getElementById('root').innerHTML = `<div class="empty">Не удалось загрузить карточку: ${esc(e.message || e)}</div>`;
+  }
+}
+main();
+</script>
+</body>
+</html>
