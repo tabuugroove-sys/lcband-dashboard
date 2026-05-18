@@ -333,7 +333,7 @@
 	        </li>
         <li>
           <b>Хард-стоп проверка</b>
-	          <span class="anno"><br><code>payment/refusal/musician/aggregator regex</code> + context refusal. Payment → alert, refusal/spam/musician → skip, техсигнал → approval.</span>
+		          <span class="anno"><br><code>payment/refusal/musician/aggregator regex</code> + context refusal. Payment → alert, refusal/spam/musician → skip, техсигнал → production mode.</span>
 	        </li>
         <li>
           <b>Opus генерирует ответ</b>
@@ -344,7 +344,7 @@
 	          <b>Routing verdict</b>
 	          <span class="anno"><br>
 	            <code>sent</code> → TG direct send ·
-	            <code>approval</code> → notify bot ·
+		            <code>money</code> → notify bot only ·
 	            <code>skipped</code> → spam/refusal/musician/unclear ·
 	            <code>error</code> → log/state consultant gap; no second DM sender
 	          </span>
@@ -518,7 +518,9 @@
                   <code style="font-size:10px;color:#d8b4fe"> {"out":true, "text":"Да, 14 июня свободно!", "date":"10:02"}</code>
                 </div>
                 → <code>enrich(force=True)</code> снова<br>
+                → <code>promise_extractor.process_thread()</code><br>
                 → карточка: <code style="color:#fde68a">waiting_for_client: true</code>
+                + open promises
               </div>
             </div>
           </div>
@@ -530,7 +532,7 @@
         <span style="color:var(--gold);font-weight:700">Итог:</span>
         после каждого обмена в <code>conversation_cache.jsonl</code> есть <b>все</b> сообщения — и входящие (<code>out:false</code>) и исходящие (<code>out:true</code>).
         Enricher видит полную переписку и строит карточку с актуальным контекстом.
-        Следующий ответ агента будет знать что мы уже написали.
+        <code>outbound_recorder.py</code> закрывает send-paths LCB writer, TG follow-up, approval-bot и broker direct-send; следующий ответ агента будет знать что мы уже написали и что пообещали.
       </div>
     </div>
 
@@ -674,14 +676,14 @@
         <div class="anno">
           <b>Вход:</b> входящий TG/VK/WA DM<br><br>
           <b>AI-стек:</b><br>
-          Opus — classify + compose<br>
-          в едином промпте<br><br>
+          Opus — classify + LCBand writer<br>
+          modes: intake / sales / contract / production / content<br><br>
           <b>Картотека:</b> <span class="badge badge-blue">LCB</span><br>
           Ключ: <code>tg:username</code><br>
           Читает: <code>get_or_enrich()</code><br>
           Event binding: <code>event_context_events</code><br>
           Пишет: dual-stream<br><br>
-          <b>Выход:</b> ответ клиенту в TG/VK/WA<br><br>
+          <b>Выход:</b> ответ клиенту/организатору/технику в TG/VK/WA<br><br>
           <b>Скрипт:</b> <code>unified_dm_responder.py</code>
         </div>
       </div>
