@@ -220,8 +220,8 @@
         group:'dm', name:'TG DM Realtime Listener', label:'com.lcband.tg-dm-realtime',
         file:'tg_dm_realtime_listener.py', schedule:'daemon / KeepAlive',
         why:'Сокращает задержку ответа в TG DM: входящее сообщение сразу обновляет карточку и идёт в unified_dm_responder.',
-        input:'private TG NewMessage', action:'enrich(force=True) + unified_dm_responder.handle', output:'sent/approval/skip/error log',
-        logic:['слушает только private DM','tg_responder не запускает','error → consultant gap в state/log'],
+        input:'private TG NewMessage', action:'enrich(force=True) + unified_dm_responder.handle', output:'sent/skip/error log; money → notify',
+        logic:['слушает только private DM','LCBand writer modes','tg_responder не запускает','error → consultant gap в state/log'],
       },
       {
         group:'dm', name:'TG Responder', label:'com.lcband.tg-responder',
