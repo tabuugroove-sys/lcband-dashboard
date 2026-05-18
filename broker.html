@@ -83,6 +83,13 @@
                                display:flex; align-items:center; gap:8px; }
   .vendors-panel .vp-header .vp-emoji { font-size:20px; }
   .vendors-panel .vp-header .vp-meta { font-size:11px; color:var(--muted); font-weight:400; margin-left:auto; }
+  .subcat-block { margin-top:16px; }
+  .subcat-block:first-of-type { margin-top:0; }
+  .subcat-title { display:flex; align-items:center; gap:7px; color:var(--fg);
+                  font-size:12px; font-weight:700; margin:0 0 6px; }
+  .subcat-title .subcat-meta { color:var(--muted); font-size:11px; font-weight:400; margin-left:auto; }
+  .subcat-empty { color:var(--muted); font-size:12px; font-style:italic;
+                  padding:8px 0 10px; border-bottom:1px dashed var(--border); }
 
   .roster-vendor { display:flex; flex-direction:column; gap:3px; padding:10px 0;
                    border-bottom:1px dashed var(--border); }
@@ -108,6 +115,7 @@
   html[data-theme="light"] .cat-row.active .cr-count { color:#0969da; background:rgba(9,105,218,0.12); }
   html[data-theme="light"] .roster-vendor { border-bottom-color:#d0d7de; }
   html[data-theme="light"] .vendors-panel .vp-header { border-bottom-color:#d0d7de; }
+  html[data-theme="light"] .subcat-empty { border-bottom-color:#d0d7de; }
 
   .casting-section { margin-top:14px; }
   .casting-section h3 { font-size:13px; text-transform:uppercase; letter-spacing:0.5px;
@@ -375,14 +383,31 @@ function selectCat(idx) {
   if (!panel || !cat) return;
   const vendors = cat.vendors || [];
   const withRate = vendors.filter(v => v.rate_quote && v.rate_quote !== 'уточнить').length;
+  const children = cat.children || [];
+  const bodyHtml = children.length
+    ? children.map(renderRosterSubcategory).join('')
+    : (vendors.length ? vendors.map(renderRosterVendor).join('') : '<div class="vp-empty">нет подрядчиков</div>');
   panel.innerHTML = `
     <div class="vp-header">
       <span class="vp-emoji">${escHtml(cat.emoji)}</span>
       <span>${escHtml(cat.label)}</span>
-      <span class="vp-meta">${vendors.length} подрядчиков · ${withRate} с ценой</span>
+      <span class="vp-meta">${vendors.length} подрядчиков · ${withRate} с ценой${children.length ? ' · ' + children.length + ' подкатегории' : ''}</span>
     </div>
-    ${vendors.length ? vendors.map(renderRosterVendor).join('') : '<div class="vp-empty">нет подрядчиков</div>'}
+    ${bodyHtml}
   `;
+}
+
+function renderRosterSubcategory(cat) {
+  const vendors = cat.vendors || [];
+  const withRate = vendors.filter(v => v.rate_quote && v.rate_quote !== 'уточнить').length;
+  return `<div class="subcat-block">
+    <div class="subcat-title">
+      <span>${escHtml(cat.emoji)}</span>
+      <span>${escHtml(cat.label)}</span>
+      <span class="subcat-meta">${vendors.length} · ${withRate} с ценой</span>
+    </div>
+    ${vendors.length ? vendors.map(renderRosterVendor).join('') : '<div class="subcat-empty">нет подрядчиков</div>'}
+  </div>`;
 }
 
 function renderRosterVendor(v) {
