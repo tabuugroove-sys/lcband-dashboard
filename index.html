@@ -7249,24 +7249,21 @@ function AILayerDocsModal({ layer, promptName, onClose }) {
     return () => { cancelled = true; };
   }, [backendUrl, layer]);
 
-  React.useEffect(() => {
-    if (!doc || !promptName) return;
-    const t = setTimeout(() => {
-      const el = document.getElementById(`ai-layer-prompt-${promptName}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 60);
-    return () => clearTimeout(t);
-  }, [doc, promptName]);
-
   const promptBlocks = doc?.prompts || [];
+  const visiblePrompts = promptName
+    ? promptBlocks.filter(p => p.name === promptName)
+    : promptBlocks;
+  const promptOnly = Boolean(promptName);
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-sheet ai-layer-sheet" onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
         <div className="modal-header">
           <div>
-            <div className="modal-title">{doc?.title || 'AI layer'}</div>
-            {doc?.runtime && <div style={{fontSize:12,color:'var(--muted)',marginTop:3}}>{doc.runtime}</div>}
+            <div className="modal-title">{promptOnly ? (promptName || 'Prompt') : (doc?.title || 'AI layer')}</div>
+            {promptOnly && doc
+              ? <div style={{fontSize:12,color:'var(--muted)',marginTop:3}}>{doc.title || layer} · current prompt only</div>
+              : doc?.runtime && <div style={{fontSize:12,color:'var(--muted)',marginTop:3}}>{doc.runtime}</div>}
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
@@ -7274,29 +7271,34 @@ function AILayerDocsModal({ layer, promptName, onClose }) {
         {!doc && !error && <div className="empty">Загружаю текущие промпты из локального repo…</div>}
         {doc && (
           <div style={{display:'grid',gap:12}}>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:10}}>
-              <div className="ai-layer-source">
-                <div style={{fontSize:10,fontWeight:800,color:'var(--gold)',textTransform:'uppercase',letterSpacing:1}}>Source files</div>
-                {(doc.source_files || []).map(f => <code key={f} style={{fontSize:11,color:'#93c5fd'}}>{f}</code>)}
+            {!promptOnly && (
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:10}}>
+                <div className="ai-layer-source">
+                  <div style={{fontSize:10,fontWeight:800,color:'var(--gold)',textTransform:'uppercase',letterSpacing:1}}>Source files</div>
+                  {(doc.source_files || []).map(f => <code key={f} style={{fontSize:11,color:'#93c5fd'}}>{f}</code>)}
+                </div>
+                <div className="ai-layer-source">
+                  <div style={{fontSize:10,fontWeight:800,color:'#6ee7b7',textTransform:'uppercase',letterSpacing:1}}>Context</div>
+                  {(doc.context_sources || []).map((x,i) => <div key={i} style={{fontSize:12,color:'var(--text)',lineHeight:1.35}}>{x}</div>)}
+                </div>
+                <div className="ai-layer-source">
+                  <div style={{fontSize:10,fontWeight:800,color:'#c4b5fd',textTransform:'uppercase',letterSpacing:1}}>Skills / gates</div>
+                  {(doc.skills || []).map((x,i) => <div key={i} style={{fontSize:12,color:'var(--text)',lineHeight:1.35}}>{x}</div>)}
+                </div>
               </div>
-              <div className="ai-layer-source">
-                <div style={{fontSize:10,fontWeight:800,color:'#6ee7b7',textTransform:'uppercase',letterSpacing:1}}>Context</div>
-                {(doc.context_sources || []).map((x,i) => <div key={i} style={{fontSize:12,color:'var(--text)',lineHeight:1.35}}>{x}</div>)}
-              </div>
-              <div className="ai-layer-source">
-                <div style={{fontSize:10,fontWeight:800,color:'#c4b5fd',textTransform:'uppercase',letterSpacing:1}}>Skills / gates</div>
-                {(doc.skills || []).map((x,i) => <div key={i} style={{fontSize:12,color:'var(--text)',lineHeight:1.35}}>{x}</div>)}
-              </div>
-            </div>
+            )}
             <div style={{fontSize:10,fontWeight:800,color:'var(--muted)',textTransform:'uppercase',letterSpacing:1}}>
-              Current prompts · read from local files · {doc.generated_at?.slice(11,19)}
+              {promptOnly ? 'Current prompt' : 'Current prompts'} · read from local files · {doc.generated_at?.slice(11,19)}
             </div>
-            {promptBlocks.map((p, i) => (
+            {promptOnly && visiblePrompts.length === 0 && (
+              <div className="err-box">Prompt <code>{promptName}</code> не найден в {doc.title || layer}</div>
+            )}
+            {visiblePrompts.map((p, i) => (
               <div
                 key={`${p.file}:${p.name}:${i}`}
                 id={`ai-layer-prompt-${p.name}`}
                 className="ai-layer-source"
-                style={p.name === promptName ? {borderColor:'rgba(245,197,24,.65)', boxShadow:'0 0 0 1px rgba(245,197,24,.22)'} : undefined}
+                style={promptOnly ? {borderColor:'rgba(245,197,24,.65)', boxShadow:'0 0 0 1px rgba(245,197,24,.22)'} : undefined}
               >
                 <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'baseline'}}>
                   <div style={{fontSize:12,fontWeight:800,color:'#e2e8f0'}}>
