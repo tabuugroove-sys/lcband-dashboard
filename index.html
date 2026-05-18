@@ -7420,6 +7420,18 @@ function LeadFlowSection() {
       }}
     >{label}</a>
   );
+  const sourceBase = 'https://github.com/tabuugroove-sys/lcband/blob/main/';
+  const flowLink = (href, label, style = {}) => (
+    <a
+      href={href}
+      onClick={(e) => e.stopPropagation()}
+      target={href.startsWith('http') ? '_blank' : undefined}
+      rel={href.startsWith('http') ? 'noopener' : undefined}
+      title={href}
+      style={{ color:'inherit', textDecoration:'none', borderBottom:'1px dotted rgba(147,197,253,.45)', cursor:'pointer', ...style }}
+    >{label}</a>
+  );
+  const sourceLink = (path, label, style = {}) => flowLink(`${sourceBase}${path}`, label || path, style);
 
   return (
     <div className="section" style={{marginTop:14}}>
@@ -7438,10 +7450,18 @@ function LeadFlowSection() {
           </div>
           <div style={{order:3, background:'rgba(96,165,250,.08)', border:'1px solid rgba(96,165,250,.3)', borderRadius:9, padding:'8px 10px'}}>
             <div style={{fontSize:10, fontWeight:700, color:'#60a5fa', textTransform:'uppercase', letterSpacing:.5, marginBottom:6}}>📩 Входящий DM</div>
-            <div style={{fontSize:10, color:'#93c5fd', marginBottom:2}}>TG DM · realtime push</div>
-            <div style={{fontSize:10, color:'#93c5fd', marginBottom:2}}>VK DM · longpoll</div>
-            <div style={{fontSize:10, color:'#93c5fd', marginBottom:6}}>WhatsApp · Baileys</div>
-            <div style={{fontSize:9, color:'#fde68a', background:'rgba(245,197,24,.08)', borderRadius:5, padding:'3px 6px'}}>enrich(force=True) — до агента</div>
+	            <div style={{fontSize:10, color:'#93c5fd', marginBottom:2}}>
+	              {sourceLink('tg_dm_realtime_listener.py', 'TG DM · realtime push')}
+	            </div>
+	            <div style={{fontSize:10, color:'#93c5fd', marginBottom:2}}>
+	              {sourceLink('vk_longpoll_listener.py', 'VK DM · longpoll')}
+	            </div>
+	            <div style={{fontSize:10, color:'#93c5fd', marginBottom:6}}>
+	              {sourceLink('wa_baileys/', 'WhatsApp · Baileys')}
+	            </div>
+	            <div style={{fontSize:9, color:'#fde68a', background:'rgba(245,197,24,.08)', borderRadius:5, padding:'3px 6px'}}>
+	              {sourceLink('lead_context_enricher.py', 'enrich(force=True)')} — до агента
+	            </div>
           </div>
           {/* Col 3: Broker is NOT a source — empty, Agent 1 fires it */}
           <div style={{order:2}}/>
@@ -7499,7 +7519,9 @@ function LeadFlowSection() {
           <div style={{order:3, display:'flex', flexDirection:'column', gap:3}}>
                 {/* raw log */}
                 <div style={{background:'#0d1117', border:'1px solid rgba(20,184,166,.45)', borderRadius:7, padding:'5px 8px'}}>
-                  <div style={{fontSize:9, fontWeight:700, color:'#5eead4', marginBottom:3}}>📄 conversation_cache/user.jsonl</div>
+	                  <div style={{fontSize:9, fontWeight:700, color:'#5eead4', marginBottom:3}}>
+	                    📄 {sourceLink('conversation_cache/', 'conversation_cache/user.jsonl', {color:'#5eead4'})}
+	                  </div>
                   <div style={{fontSize:8.5, color:'rgba(147,197,253,.55)', marginBottom:1}}>
                     <span style={{color:'#6ee7b7', fontWeight:700}}>IN</span>{'  '}
                     <span style={{fontFamily:'monospace'}}>{'{out:false, text:"Хочу 14 июня…"}'}</span>
@@ -7509,38 +7531,59 @@ function LeadFlowSection() {
                     <span style={{fontFamily:'monospace'}}>{'{out:true,  text:"Да, свободно!"}'}</span>
                   </div>
                 </div>
-                {arr('↓ enrich(force=True) читает ВСЕ записи')}
-                {step('rgba(139,92,246,.9)', 'rgba(139,92,246,.08)', '🔮 Opus AI · анализирует историю')}
+	                {arr('↓ enrich(force=True) читает ВСЕ записи')}
+	                <div style={{background:'rgba(245,197,24,.07)', border:'1px solid rgba(245,197,24,.28)', borderRadius:6, padding:'4px 8px', fontSize:9, color:'#fde68a', fontWeight:600, textAlign:'center'}}>
+	                  {sourceLink('lead_context_enricher.py', 'lead_context_enricher.enrich(force=True)', {color:'#fde68a'})}
+	                </div>
+	                {arr('↓ Opus анализирует историю')}
+	                {step('rgba(139,92,246,.9)', 'rgba(139,92,246,.08)', '🔮 Opus AI · context card')}
                 {arr('↓ обновляет карточку')}
                 {/* context card */}
                 <div style={{background:'rgba(59,130,246,.07)', border:'1.5px dashed rgba(59,130,246,.45)', borderRadius:7, padding:'5px 8px'}}>
-                  <div style={{fontSize:9, fontWeight:700, color:'#60a5fa', marginBottom:3}}>📋 lead_context_store · tg:username</div>
+	                  <div style={{fontSize:9, fontWeight:700, color:'#60a5fa', marginBottom:3}}>
+	                    📋 {sourceLink('lead_context_store.json', 'lead_context_store · tg:username', {color:'#60a5fa'})}
+	                  </div>
                   {[['client_intent','намерение'],['event_date_confirmed','дата'],['waiting_for_us','ждёт нас'],['refusal_detected','отказ']].map(([k,v]) => (
                     <div key={k} style={{fontSize:8.5, color:'var(--muted)', lineHeight:1.4}}>
                       <span style={{color:'#60a5fa'}}>{k}</span> · {v}
                     </div>
                   ))}
                 </div>
-                {arr('↓ get_or_enrich() · читает перед ответом')}
-                {/* agent */}
-                <div className="ai-layer-card" onClick={() => { window.location.href = './ai-layer.html?layer=agent2'; }} title="Показать текущие промпты, source files, context и gates Agent 2" style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.35)', borderRadius:7, padding:'5px 8px'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
-                    <div style={{fontSize:9.5, fontWeight:700, color:'#60a5fa'}}>🤖 Agent 2 · LCB DM · Opus</div>
-                    {aiInfoButton('agent2', 'Agent 2')}
-                  </div>
-                  <div style={{fontSize:8.5, color:'#f87171'}}>is_refused_any() · 8/run · 40/сут</div>
-                </div>
-                {arr('↓ отправляет — одновременно два потока')}
+	                {arr('↓ get_or_enrich() · читает перед ответом')}
+	                {/* agent */}
+	                <div className="ai-layer-card" onClick={() => { window.location.href = './ai-layer.html?layer=agent2'; }} title="Показать текущие промпты, source files, context и gates Agent 2" style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.35)', borderRadius:7, padding:'5px 8px'}}>
+	                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+	                    <div style={{fontSize:9.5, fontWeight:700, color:'#60a5fa'}}>
+	                      🤖 {sourceLink('unified_dm_responder.py', 'Agent 2 · unified_dm_responder', {color:'#60a5fa'})}
+	                    </div>
+	                    {aiInfoButton('agent2', 'Agent 2')}
+	                  </div>
+	                  <div style={{fontSize:8.5, color:'#f87171'}}>classify → generate → ai_review_before_send → send/approval/skip</div>
+	                </div>
+	                {arr('↓ routing verdict')}
+	                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:4}}>
+	                  {[
+	                    ['sent', 'TG direct send'],
+	                    ['approval', 'notify bot'],
+	                    ['skip', 'spam/refusal/musician'],
+	                    ['error', 'fallback tg_responder'],
+	                  ].map(([k, v]) => (
+	                    <div key={k} style={{background:'rgba(15,23,42,.45)', border:'1px solid rgba(148,163,184,.16)', borderRadius:5, padding:'3px 5px', fontSize:8, color:k === 'error' ? '#fca5a5' : '#94a3b8'}}>
+	                      <b style={{color:k === 'sent' ? '#6ee7b7' : k === 'approval' ? '#fde68a' : k === 'error' ? '#fca5a5' : '#94a3b8'}}>{k}</b> · {k === 'error' ? sourceLink('tg_responder.py', v, {color:'#fca5a5'}) : v}
+	                    </div>
+	                  ))}
+	                </div>
+	                {arr('↓ если sent — одновременно два потока')}
                 {/* dual stream */}
                 <div style={{display:'flex', gap:4}}>
                   <div style={{flex:1, background:'rgba(59,130,246,.07)', border:'1px solid rgba(59,130,246,.3)', borderRadius:6, padding:'4px 6px'}}>
                     <div style={{fontSize:8.5, fontWeight:700, color:'#93c5fd', marginBottom:1}}>Поток 1</div>
-                    <div style={{fontSize:8, color:'var(--muted)'}}>TG / VK / WA</div>
-                    <div style={{fontSize:8, color:'#6ee7b7'}}>→ клиент видит</div>
+	                    <div style={{fontSize:8, color:'var(--muted)'}}>TG / VK / WA</div>
+	                    <div style={{fontSize:8, color:'#6ee7b7'}}>→ клиент видит</div>
                   </div>
                   <div style={{flex:1, background:'rgba(20,184,166,.07)', border:'1px solid rgba(20,184,166,.35)', borderRadius:6, padding:'4px 6px'}}>
                     <div style={{fontSize:8.5, fontWeight:700, color:'#5eead4', marginBottom:1}}>Поток 2</div>
-                    <div style={{fontSize:8, color:'var(--muted)'}}>_record_outgoing</div>
+	                    <div style={{fontSize:8, color:'var(--muted)'}}>{sourceLink('unified_dm_responder.py', '_record_outgoing', {color:'var(--muted)'})}</div>
                     <div style={{fontSize:8, color:'#5eead4'}}>→ OUT в jsonl</div>
                     <div style={{fontSize:8, color:'#a78bfa'}}>→ enrich(force)</div>
                     <div style={{fontSize:8, color:'#6ee7b7'}}>→ карточка ↑</div>
@@ -8308,6 +8351,7 @@ function App() {
   const [offline,   setOffline]   = useState(!navigator.onLine);
   const [showTGModal, setShowTGModal] = useState(false);
   const [showProcess, setShowProcess] = useState(null);
+  const [showScriptsMenu, setShowScriptsMenu] = useState(false);
   const [chatTarget, setChatTarget] = useState(null);
   const [aiTags, setAiTags] = useState({});
   const [aiLoading, setAiLoading] = useState(false);
@@ -8613,13 +8657,40 @@ function App() {
                title="Архитектура проекта + AI usage breakdown">
               <span>🧠</span><span>Архитектура</span>
             </a>
-            <a href="./process-map.html"
-               style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
-                       background:'rgba(94,234,212,0.13)', color:'#5eead4', border:'1px solid rgba(94,234,212,0.35)',
-                       display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
-               title="Карта всех launchd-скриптов: зачем нужен каждый процесс и что он делает">
-              <span>🗺️</span><span>Скрипты</span>
-            </a>
+            <div style={{position:'relative', display:'inline-flex'}}>
+              <button
+                type="button"
+                onClick={() => setShowScriptsMenu(v => !v)}
+                onBlur={() => setTimeout(() => setShowScriptsMenu(false), 140)}
+                style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
+                        background:'rgba(94,234,212,0.13)', color:'#5eead4', border:'1px solid rgba(94,234,212,0.35)',
+                        display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap', cursor:'pointer'}}
+                title="Карта всех launchd-скриптов: зачем нужен каждый процесс и что он делает">
+                <span>🗺️</span><span>Скрипты</span><span style={{fontSize:10, color:'#94a3b8'}}>▾</span>
+              </button>
+              {showScriptsMenu && (
+                <div style={{position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:1000, minWidth:220,
+                             background:'rgba(13,17,23,.98)', border:'1px solid rgba(94,234,212,.32)',
+                             borderRadius:8, padding:6, boxShadow:'0 18px 48px rgba(0,0,0,.45)'}}>
+                  {[
+                    ['Полная карта', './process-map.html'],
+                    ['Intake · посты', './process-map.html#intake'],
+                    ['DM responders', './process-map.html#dm'],
+                    ['Broker pipeline', './process-map.html#broker'],
+                    ['Paid events', './process-map.html#events'],
+                    ['Funnel / CRM', './process-map.html#funnel'],
+                    ['Infra / health', './process-map.html#infra'],
+                  ].map(([label, href]) => (
+                    <a key={href} href={href}
+                       style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:12,
+                               padding:'8px 9px', borderRadius:6, color:'#cbd5e1', textDecoration:'none',
+                               fontSize:12, fontWeight:700, whiteSpace:'nowrap'}}>
+                      <span>{label}</span><span style={{color:'#5eead4'}}>→</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
             <a href="./broker.html"
                style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
                        background:'rgba(63,185,80,0.15)', color:'#3fb950', border:'1px solid rgba(63,185,80,0.35)',
