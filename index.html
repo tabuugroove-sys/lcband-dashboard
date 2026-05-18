@@ -7540,21 +7540,40 @@ function LeadFlowSection() {
     >{label}</a>
   );
   const sourceLink = (path, label, style = {}) => flowLink(`${sourceBase}${path}`, label || path, style);
-  const writerModes = [
-    ['1', 'найти / принять лид'],
-    ['2', 'продать / квалифицировать'],
-    ['3', 'договор / предоплата'],
-    ['4', 'организация выступления'],
-    ['5', 'день ивента / координация'],
-    ['6', 'контент / отзыв / съемка'],
+  const lcbWriterModes = [
+    ['1', 'найти / принять лид', 'INTAKE'],
+    ['2', 'продать / квалифицировать', 'SALES'],
+    ['3', 'договор / предоплата', 'CONTRACT'],
+    ['4', 'организация выступления', 'PRODUCTION'],
+    ['5', 'день ивента / координация', 'EVENT_DAY'],
+    ['6', 'контент / отзыв / съемка', 'CONTENT'],
   ];
-  const writerModeGrid = (accent) => (
+  const brokerWriterModes = [
+    ['1', 'intake · broker_order', 'INTAKE'],
+    ['2', 'sales · top-N клиенту', 'SALES'],
+    ['3', 'casting · запрос подрядчику', 'CASTING'],
+    ['4', 'negotiation · вопросы сторон', 'NEGOTIATION'],
+    ['5', 'contract · оплата/20%', 'CONTRACT'],
+    ['6', 'production · клиент ↔ подрядчик', 'PRODUCTION'],
+    ['7', 'content · промо/отзыв', 'CONTENT'],
+    ['8', 'sound/light · Excel +20%', 'SOUND_LIGHT_ESTIMATE'],
+  ];
+  const writerModeGrid = (accent, layer, prefix, modes) => (
     <div style={{display:'grid', gridTemplateColumns:'1fr', gap:4, marginTop:6}}>
-      {writerModes.map(([n, label]) => (
-        <div key={`${accent}-${n}`} style={{display:'flex', alignItems:'center', gap:4, minHeight:24, background:'rgba(15,23,42,.48)', border:'1px solid rgba(148,163,184,.16)', borderRadius:4, padding:'3px 5px'}}>
+      {modes.map(([n, label, mode]) => (
+        <button
+          key={`${accent}-${n}`}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setAiLayerOpen({ layer, promptName: `${prefix}_${mode}_PROMPT` });
+          }}
+          title={`Открыть prompt режима: ${label}`}
+          style={{display:'flex', alignItems:'center', gap:4, minHeight:24, background:'rgba(15,23,42,.48)', border:'1px solid rgba(148,163,184,.16)', borderRadius:4, padding:'3px 5px', cursor:'pointer', textAlign:'left'}}
+        >
           <span style={{width:15, height:15, borderRadius:4, display:'inline-flex', alignItems:'center', justifyContent:'center', flex:'0 0 auto', fontSize:8, fontWeight:800, color:accent, background:'rgba(148,163,184,.08)', border:`1px solid ${accent}`}}>{n}</span>
           <span style={{fontSize:8, color:'#cbd5e1', lineHeight:1.15}}>{label}</span>
-        </div>
+        </button>
       ))}
     </div>
   );
@@ -7577,14 +7596,14 @@ function LeadFlowSection() {
           <div style={{fontSize:8.5, color:'#93c5fd'}}>
             {sourceLink('unified_dm_responder.py', 'unified_dm_responder', {color:'#93c5fd'})}
           </div>
-          {writerModeGrid('#93c5fd')}
+          {writerModeGrid('#93c5fd', 'agent2', 'LCB_WRITER', lcbWriterModes)}
         </div>
         <div title="Broker dialogue owner" style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.3)', borderRadius:6, padding:'6px 7px'}}>
           <div style={{fontSize:9.5, fontWeight:800, color:'#d8b4fe', marginBottom:2}}>Broker writer</div>
           <div style={{fontSize:8.5, color:'#d8b4fe'}}>
             {sourceLink('broker_dialog_agent.py', 'broker_dialog_agent', {color:'#d8b4fe'})}
           </div>
-          {writerModeGrid('#d8b4fe')}
+          {writerModeGrid('#d8b4fe', 'agent3', 'BROKER_WRITER', brokerWriterModes)}
         </div>
       </div>
       <div style={{display:'grid', gridTemplateColumns:'1fr', gap:4}}>
@@ -7719,18 +7738,18 @@ function LeadFlowSection() {
 	                    </div>
 	                    {aiInfoButton('agent2', 'Agent 2')}
 	                  </div>
-	                  <div style={{fontSize:8.5, color:'#f87171'}}>classify → generate → ai_review_before_send → send/approval/skip</div>
+		                  <div style={{fontSize:8.5, color:'#f87171'}}>classify → LCB writer modes → review → send/skip</div>
 	                </div>
 	                {arr('↓ routing verdict')}
 	                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:4}}>
 	                  {[
 	                    ['sent', 'TG direct send'],
-	                    ['approval', 'notify bot'],
-	                    ['skip', 'spam/refusal/musician'],
+		                    ['money', 'notify bot only'],
+		                    ['skip', 'spam/refusal/musician'],
 	                    ['error', 'log + consultant note'],
 	                  ].map(([k, v]) => (
 	                    <div key={k} style={{background:'rgba(15,23,42,.45)', border:'1px solid rgba(148,163,184,.16)', borderRadius:5, padding:'3px 5px', fontSize:8, color:k === 'error' ? '#fca5a5' : '#94a3b8'}}>
-	                      <b style={{color:k === 'sent' ? '#6ee7b7' : k === 'approval' ? '#fde68a' : k === 'error' ? '#fca5a5' : '#94a3b8'}}>{k}</b> · {k === 'error' ? sourceLink('tg_dm_realtime_listener.py', v, {color:'#fca5a5'}) : v}
+		                      <b style={{color:k === 'sent' ? '#6ee7b7' : k === 'money' ? '#fde68a' : k === 'error' ? '#fca5a5' : '#94a3b8'}}>{k}</b> · {k === 'error' ? sourceLink('tg_dm_realtime_listener.py', v, {color:'#fca5a5'}) : v}
 	                    </div>
 	                  ))}
 	                </div>
