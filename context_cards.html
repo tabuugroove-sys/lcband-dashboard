@@ -437,6 +437,7 @@ function renderCardBody(c) {
       const date = slice.event_date_confirmed ? `📅 ${slice.event_date_confirmed}` : '';
       const budget = slice.budget_confirmed ? `💰 ${slice.budget_confirmed}` : '';
       const asks = (slice.key_asks || []).slice(0, 3).map(a => e(a)).join(' · ');
+      const coordination = (slice.coordination_requests || []).slice(0, 3);
       const next = slice.next_action_hint ? `→ ${e(slice.next_action_hint)}` : '';
       evHtml += `<div style="font-size:11px;padding:6px 8px;margin:3px 0;background:${isActive ? 'rgba(96,165,250,0.08)' : 'rgba(255,255,255,0.02)'};border-left:2px solid ${isActive ? '#60a5fa' : 'var(--border)'};border-radius:3px">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -446,6 +447,15 @@ function renderCardBody(c) {
         </div>
         ${budget ? `<div style="color:#93c5fd;margin-top:2px">${e(budget)}</div>` : ''}
         ${asks ? `<div style="color:var(--muted);margin-top:2px;font-style:italic">asks: ${asks}</div>` : ''}
+        ${coordination.length ? `<div style="color:#fcd34d;margin-top:3px">
+          coordination: ${coordination.map(cr => {
+            const target = cr.target_name || cr.target_username || '?';
+            const state = cr.action_state || '';
+            const mode = cr.writer_mode_hint || '';
+            const req = cr.request || cr.source_evidence || '';
+            return e([target, mode, state, req].filter(Boolean).join(' · '));
+          }).join('<br>')}
+        </div>` : ''}
         ${next ? `<div style="color:#d1d5db;margin-top:2px">${next}</div>` : ''}
       </div>`;
     }

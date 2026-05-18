@@ -8262,7 +8262,7 @@ function LeadFlowSection() {
                 <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:6}}>
                   <div style={{border:'1px solid rgba(96,165,250,.22)', borderRadius:6, padding:7, background:'rgba(15,23,42,.45)'}}>
                     <div style={{fontSize:9.5, color:'#bfdbfe', fontWeight:800}}>evt_2026-06-14</div>
-                    <div style={{fontSize:9, color:'var(--muted)', lineHeight:1.4}}>свадьба · саксофон · обещали видео</div>
+                    <div style={{fontSize:9, color:'var(--muted)', lineHeight:1.4}}>свадьба · саксофон · coordination: костюм LAZ</div>
                   </div>
                   <div style={{border:'1px solid rgba(96,165,250,.22)', borderRadius:6, padding:7, background:'rgba(15,23,42,.45)'}}>
                     <div style={{fontSize:9.5, color:'#bfdbfe', fontWeight:800}}>evt_2026-12-25</div>
@@ -8275,7 +8275,7 @@ function LeadFlowSection() {
                 </div>
               </div>
               <div style={{fontSize:10, color:'var(--muted)', lineHeight:1.45}}>
-                L3 writer получает thread facts + active event + open promises. Остальные events показываются кратко, чтобы не смешивать июньскую свадьбу с декабрьским корпоративом.
+                L3 writer получает thread facts + active event + open promises + coordination requests. Остальные events показываются кратко, чтобы не смешивать июньскую свадьбу с декабрьским корпоративом.
               </div>
               <div style={{border:'1px solid rgba(148,163,184,.2)', borderRadius:8, padding:9, background:'rgba(30,41,59,.36)'}}>
                 <div style={{fontSize:10.5, fontWeight:800, color:'#cbd5e1', marginBottom:6}}>Rules</div>
@@ -8283,6 +8283,7 @@ function LeadFlowSection() {
                   'key остаётся contact-level: tg:user или broker:tg:user',
                   'thread хранит hard facts контакта',
                   'events хранит sparse event slices',
+                  'coordination_requests связывает organizer request с конкретным performer/tech thread',
                   'active_event_id подсвечивает L3 writer',
                   '_unscoped = не привязано к одному event: tour-wide / общий thread / cold / legacy / low-conf (это лишь один из 5 случаев)',
                 ]).map((rule, idx) => (
