@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LCB — Карта скриптов</title>
+  <style>
+    :root {
+      --bg:#0a0a12; --panel:#111827; --card:#13131f; --card2:#1a1a2a;
+      --border:#23233a; --text:#e2e8f0; --muted:#64748b; --gold:#f5c518;
+      --blue:#60a5fa; --green:#34d399; --purple:#a78bfa; --red:#f87171;
+      --orange:#fb923c; --cyan:#5eead4;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; background:var(--bg); color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Roboto,sans-serif;
+      font-size:14px; line-height:1.45;
+    }
+    .hdr {
+      position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:14px;
+      padding:12px 16px; background:rgba(10,10,18,.94); backdrop-filter:blur(14px);
+      border-bottom:1px solid var(--border);
+    }
+    .hdr-title { font-size:18px; font-weight:800; color:var(--gold); white-space:nowrap; }
+    .hdr-sub { font-size:11px; color:var(--muted); margin-top:2px; }
+    .nav { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; }
+    .nav a {
+      color:var(--muted); text-decoration:none; border:1px solid var(--border);
+      background:rgba(255,255,255,.05); padding:6px 10px; border-radius:7px;
+      font-size:12px; font-weight:700; white-space:nowrap;
+    }
+    .nav a.active { color:var(--gold); border-color:rgba(245,197,24,.45); }
+    .wrap { max-width:1280px; margin:0 auto; padding:18px 16px 42px; }
+    .hero {
+      display:grid; grid-template-columns:1.4fr .8fr; gap:14px; align-items:stretch;
+      margin-bottom:14px;
+    }
+    .hero-main, .stat {
+      border:1px solid var(--border); background:linear-gradient(180deg,rgba(30,41,59,.55),rgba(17,24,39,.5));
+      border-radius:8px; padding:14px;
+    }
+    h1 { margin:0 0 8px; font-size:24px; letter-spacing:0; }
+    .sub { color:var(--muted); font-size:13px; max-width:820px; }
+    .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .stat b { display:block; font-size:22px; color:var(--text); line-height:1.1; }
+    .stat span { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+    .toolbar {
+      display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:12px 0 16px;
+      border:1px solid var(--border); background:rgba(19,19,31,.72); border-radius:8px; padding:10px;
+    }
+    .search {
+      min-width:260px; flex:1; height:34px; border:1px solid var(--border); border-radius:7px;
+      background:#0d1117; color:var(--text); padding:0 10px; font-size:13px;
+    }
+    .chip {
+      border:1px solid rgba(148,163,184,.25); background:rgba(148,163,184,.08);
+      color:#cbd5e1; border-radius:7px; padding:7px 9px; font-size:12px;
+      font-weight:700; cursor:pointer;
+    }
+    .chip.active { color:var(--gold); border-color:rgba(245,197,24,.45); background:rgba(245,197,24,.09); }
+    .section { margin:18px 0; }
+    .section-title {
+      display:flex; align-items:center; gap:8px; margin:0 0 8px;
+      font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.7px; font-weight:900;
+    }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:10px; }
+    .card {
+      min-width:0; border:1px solid var(--border); background:var(--card);
+      border-radius:8px; padding:11px; display:flex; flex-direction:column; gap:8px;
+    }
+    .card:hover { border-color:rgba(245,197,24,.35); }
+    .top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+    .name { font-size:14px; font-weight:900; color:var(--text); }
+    .label { font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; color:#93c5fd; word-break:break-word; }
+    .badge {
+      border:1px solid rgba(148,163,184,.25); background:rgba(148,163,184,.08);
+      color:#cbd5e1; border-radius:999px; padding:3px 7px; font-size:10px; font-weight:900;
+      white-space:nowrap;
+    }
+    .badge.keep { color:var(--green); border-color:rgba(52,211,153,.35); background:rgba(52,211,153,.08); }
+    .badge.timer { color:var(--blue); border-color:rgba(96,165,250,.35); background:rgba(96,165,250,.08); }
+    .badge.daily { color:var(--orange); border-color:rgba(251,146,60,.35); background:rgba(251,146,60,.08); }
+    .why {
+      color:#cbd5e1; font-size:13px; border-left:2px solid rgba(245,197,24,.45);
+      padding-left:8px;
+    }
+    .flow { display:grid; grid-template-columns:1fr auto 1fr auto 1fr; gap:5px; align-items:center; }
+    .box {
+      min-width:0; background:rgba(15,23,42,.55); border:1px solid rgba(148,163,184,.13);
+      border-radius:6px; padding:6px 7px;
+    }
+    .box-title { color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:.5px; font-weight:900; margin-bottom:2px; }
+    .box-text { color:var(--text); font-size:12px; overflow-wrap:anywhere; }
+    .arr { color:var(--muted); font-weight:900; }
+    .logic { margin:0; padding:0; list-style:none; display:grid; gap:4px; }
+    .logic li { color:#94a3b8; font-size:12px; }
+    .logic li::before { content:""; display:inline-block; width:5px; height:5px; border-radius:5px; background:var(--purple); margin-right:7px; vertical-align:1px; }
+    .file { color:#a5f3fc; font:11px ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; }
+    .empty { color:var(--muted); padding:20px; border:1px dashed var(--border); border-radius:8px; text-align:center; }
+    @media (max-width:760px) {
+      .hdr { align-items:flex-start; flex-direction:column; }
+      .hero { grid-template-columns:1fr; }
+      .stats { grid-template-columns:1fr 1fr; }
+      .flow { grid-template-columns:1fr; }
+      .arr { display:none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="hdr">
+    <div>
+      <div class="hdr-title">LCB Script Map</div>
+      <div class="hdr-sub">логика каждого launchd-скрипта и зачем он нужен</div>
+    </div>
+    <nav class="nav" aria-label="Main navigation">
+      <a href="./index.html">Дашборд</a>
+      <a href="./architecture.html">Архитектура</a>
+      <a href="./process-map.html" class="active">Скрипты</a>
+      <a href="./events.html">Events</a>
+      <a href="./broker.html">Broker</a>
+      <a href="./cost.html">Расход</a>
+      <a href="./bw-catchup.html">BW</a>
+    </nav>
+  </div>
+
+  <main class="wrap">
+    <div class="hero">
+      <div class="hero-main">
+        <h1>Карта процессов LCBand</h1>
+        <div class="sub">
+          Это operational map: что запускает launchd, какой файл исполняется, какие данные читает,
+          что меняет и зачем процесс существует. Backend-логика остаётся в локальном repo; эта страница
+          только визуальная навигация по текущей системе.
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><b id="totalCount">0</b><span>скриптов</span></div>
+        <div class="stat"><b id="keepCount">0</b><span>daemon</span></div>
+        <div class="stat"><b id="groupCount">0</b><span>зон</span></div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input id="search" class="search" placeholder="Поиск: tg_responder, broker, followup, orders.db..." />
+      <button class="chip active" data-filter="all">Все</button>
+      <button class="chip" data-filter="intake">Intake</button>
+      <button class="chip" data-filter="dm">DM</button>
+      <button class="chip" data-filter="broker">Broker</button>
+      <button class="chip" data-filter="events">Events</button>
+      <button class="chip" data-filter="funnel">Funnel</button>
+      <button class="chip" data-filter="infra">Infra</button>
+    </div>
+
+    <div id="content"></div>
+  </main>
+
+  <script>
+    const scripts = [
+      {
+        group:'intake', name:'TG Realtime Gateway', label:'com.lcband.realtime-gateway',
+        file:'realtime_gateway.py', schedule:'daemon / KeepAlive',
+        why:'Единая точка realtime-событий, чтобы TG event, TG DM, payment и VK longpoll не жили разрозненными listeners.',
+        input:'TG/VK realtime streams', action:'держит компоненты и heartbeat', output:'triggers downstream agents',
+        logic:['supervises tg_realtime_monitor, tg_dm_realtime_listener, payment_event_handler, vk_longpoll_listener','перезапускается launchd при падении','пишет heartbeat/log для watchdog'],
+      },
+      {
+        group:'intake', name:'TG Event Monitor', label:'com.lcband.tg-monitor component',
+        file:'tg_realtime_monitor.py → telegram_monitor.py', schedule:'daemon component',
+        why:'Ловит новые посты в event-чатах сразу, без ручного обхода и без чтения Sheets.',
+        input:'TG event-чаты + msg_id cursors', action:'classify → compose → pre-send review', output:'orders.db, sent proposal, tg_seen_posts.jsonl',
+        logic:['NewMessage запускает scan_cycle по cursor','dedup по tg_seen_posts.jsonl','verdict music_band/drum/solo/abstract/broker/skip','перед отправкой всегда ai_review_before_send()'],
+      },
+      {
+        group:'intake', name:'Browser Walk', label:'com.lcband.browser-walk',
+        file:'auto_browser_walk.sh', schedule:'каждые 30 мин / fallback',
+        why:'Визуальный safety-net для Telegram Web: догоняет то, что мог пропустить realtime/API контур.',
+        input:'web.telegram.org event-чаты', action:'screenshot/scroll/classify', output:'browser_walk_result.json, monitor_history.jsonl',
+        logic:['берёт lock, чтобы не было двух обходов','классифицирует видимые посты','перед send использует Telethon + pre-send review','показывается в BW catch-up'],
+      },
+      {
+        group:'intake', name:'VK Monitor', label:'com.lcband.vk-monitor',
+        file:'vk_monitor.py', schedule:'каждые 10 мин',
+        why:'Отдельный intake для VK event-групп: VK-посты не проходят через TG monitor.',
+        input:'стены и обсуждения VK-групп', action:'фильтр + AI classify', output:'vk_monitor_results.json, candidates',
+        logic:['читает VK API','ищет event-запросы','передаёт DM/питч в VK responder/auto-pitch контур'],
+      },
+      {
+        group:'intake', name:'VK Longpoll Trigger', label:'com.lcband.vk-longpoll',
+        file:'vk_longpoll_listener.py', schedule:'daemon / KeepAlive',
+        why:'Запускает VK ответчик сразу на входящий DM, а не ждёт расписание.',
+        input:'VK longpoll incoming messages', action:'debounce + run vk_auto_responder', output:'vk responder run',
+        logic:['держит messages.getLongPollServer','если responder уже работает, ставит pending rerun','heartbeat контролирует watchdog'],
+      },
+      {
+        group:'intake', name:'IG Story Responder', label:'com.lcband.ig-story-responder',
+        file:'ig_story_responder.py', schedule:'каждые 30 мин',
+        why:'Прогревает event/wedding organizer profiles в Instagram через сторис без прямого холодного КП.',
+        input:'IG target profiles + stories', action:'personal warm reply', output:'ig_story_reply_history.json',
+        logic:['cooldown по профилю','daily send cap','challenge/login errors stop pipeline'],
+      },
+      {
+        group:'intake', name:'Find Inbound Leads', label:'com.lcband.find-inbound-leads',
+        file:'find_inbound_leads.py --days 30', schedule:'weekly Monday 03:00',
+        why:'Периодически находит входящие лиды, которые могли не попасть в обычные realtime hooks.',
+        input:'recent dialogs/cache', action:'scan inbound signals', output:'candidate leads / logs',
+        logic:['смотрит 30 дней','ищет inbound intent','не заменяет realtime, только аудит-прослойка'],
+      },
+
+      {
+        group:'dm', name:'TG DM Realtime Trigger', label:'com.lcband.tg-dm-realtime',
+        file:'tg_dm_realtime_listener.py', schedule:'daemon / KeepAlive',
+        why:'Сокращает задержку ответа в TG DM: входящее сообщение сразу будит tg_responder.',
+        input:'private TG NewMessage', action:'debounce + run tg_responder', output:'tg_responder run',
+        logic:['слушает только private DM','pending rerun если responder занят','startup catch-up после подключения'],
+      },
+      {
+        group:'dm', name:'TG Responder', label:'com.lcband.tg-responder',
+        file:'tg_responder.py', schedule:'realtime trigger + safety schedule',
+        why:'Главный DM-ответчик: читает переписку, решает статус воронки и отправляет безопасный ответ клиенту.',
+        input:'TG DM history + orders.db', action:'classify_unified + draft + review + send', output:'TG reply, orders.db history, conversation_cache',
+        logic:['AI 2.0 funnel decision через smart_funnel','money intent уходит в alert/approval','anti-ban caps and jitter','перед send делает pre-send review'],
+      },
+      {
+        group:'dm', name:'TG Follow-up', label:'com.lcband.tg-followup',
+        file:'tg_followup.py', schedule:'daily 10:09 MSK',
+        why:'Возвращает молчащих лидов по расписанию, но не трогает тех, кто отказал или близко к event date.',
+        input:'orders.db + DM history', action:'eligible follow-up + review', output:'TG follow-up or skip log',
+        logic:['cooldown 3 дня','hard refusal regex перед AI','стоп за 3 дня до мероприятия','cap 15 sends/run'],
+      },
+      {
+        group:'dm', name:'VK Responder', label:'com.lcband.vk-responder',
+        file:'vk_auto_responder.py', schedule:'longpoll trigger + safety schedule',
+        why:'Отвечает на VK DM, где Telegram responder неприменим.',
+        input:'VK DM dialogs', action:'Opus decision + send + verify', output:'VK reply, orders.db bridge history',
+        logic:['re-read dialog перед send','post-send verify через VK API','drain queue при лимитах','отсекает спам/подрядчиков'],
+      },
+      {
+        group:'dm', name:'VK Auto Pitch', label:'com.lcband.vk-auto-pitch',
+        file:'vk_auto_pitch.py', schedule:'calendar windows',
+        why:'Питчит VK-лиды из мониторинга, когда контакт доступен через VK.',
+        input:'VK lead rows', action:'draft + ai_review_before_send', output:'VK pitch / skip',
+        logic:['готовит first pitch','обязательный pre-send review','логирует skip/adapt/send'],
+      },
+      {
+        group:'dm', name:'VK Follow-up', label:'com.lcband.vk-followup',
+        file:'vk_followup.py', schedule:'calendar windows',
+        why:'Догоняет VK-лиды после тишины отдельным VK-контуром.',
+        input:'VK history + state', action:'follow-up eligibility + review', output:'VK follow-up / state update',
+        logic:['cheap skip до AI','pre-send review перед сообщением','пишет state, чтобы не дублировать'],
+      },
+      {
+        group:'dm', name:'WA Baileys Bridge', label:'com.lcband.wa-baileys',
+        file:'wa_baileys/index.js', schedule:'daemon / KeepAlive',
+        why:'Держит WhatsApp socket и отдаёт события локальному webhook-слою.',
+        input:'WhatsApp session', action:'Baileys connection', output:'WA webhook events',
+        logic:['node daemon','restart by launchd','пишет wa_baileys.log'],
+      },
+      {
+        group:'dm', name:'WA Baileys Webhook', label:'com.lcband.wa-baileys-webhook',
+        file:'wa_baileys_webhook.py', schedule:'daemon / KeepAlive',
+        why:'Принимает WhatsApp события от Baileys и кладёт их в локальный контур обработки.',
+        input:'Baileys webhook payloads', action:'normalize/cache events', output:'WA queue/cache',
+        logic:['локальный Python webhook','не шлёт через WA Web','поддерживает разделение receive/send'],
+      },
+      {
+        group:'dm', name:'WA Responder', label:'com.lcband.wa-responder',
+        file:'wa_responder.py --limit 5', schedule:'каждые 30 мин',
+        why:'Готовит безопасные WhatsApp replies с лимитами и review.',
+        input:'WA cache / queue', action:'draft + presend gate', output:'queued reply / skip',
+        logic:['limit 5 per run','presend_ok перед queue','бан-risk ограничен отдельными cap'],
+      },
+
+      {
+        group:'broker', name:'Broker Casting', label:'com.lcband.broker-casting',
+        file:'broker_casting.py', schedule:'каждые 30 мин',
+        why:'Подбирает подрядчиков под broker_request и ведёт автономный casting без ручной работы.',
+        input:'broker_orders.json + contractor roster/media', action:'rank candidates + relay', output:'client relay / contractor brief',
+        logic:['service-type match','margin viability','media availability','pre-send gates before relay'],
+      },
+      {
+        group:'broker', name:'Broker Collect Promo', label:'com.lcband.broker-collect-promo',
+        file:'broker_collect_promo.py', schedule:'каждый час',
+        why:'Собирает промо подрядчиков, чтобы broker relay мог отправлять клиенту реальные материалы.',
+        input:'contractor chats/media', action:'collect promo assets', output:'broker promo inventory',
+        logic:['не обещает видео если его нет','обновляет media pool','используется broker casting'],
+      },
+      {
+        group:'broker', name:'Broker Client Follow-up', label:'com.lcband.broker-client-followup',
+        file:'broker_client_followup_agent.py', schedule:'каждый час',
+        why:'Догоняет клиента в broker-flow после отправки вариантов или уточняющих вопросов.',
+        input:'broker_orders.json + client history', action:'decide follow-up', output:'client follow-up / skip',
+        logic:['читает историю перед сообщением','уважает refusal hard-stop','не требует ручного approval кроме money-intent'],
+      },
+      {
+        group:'broker', name:'Broker Contractor Follow-up', label:'com.lcband.broker-contractor-followup',
+        file:'broker_contractor_followup_agent.py', schedule:'каждый час',
+        why:'Дожимает подрядчиков по цене/доступности, чтобы клиентский relay не зависал.',
+        input:'broker orders + contractor dialogs', action:'ask price/availability', output:'contractor response or stale status',
+        logic:['проверяет last messages','не шлёт клиенту stale price','обновляет broker state'],
+      },
+      {
+        group:'broker', name:'Broker Quality Scorer', label:'com.lcband.broker-quality-scorer',
+        file:'broker_quality_scorer.py --all', schedule:'каждые 6 часов',
+        why:'Оценивает качество подрядчиков и помогает не предлагать слабые варианты клиентам.',
+        input:'broker roster/media/history', action:'score quality', output:'quality score fields',
+        logic:['пакетный скоринг','используется ranking/casting','не отправляет сообщения'],
+      },
+      {
+        group:'broker', name:'Broker State Repair', label:'com.lcband.broker-state-repair',
+        file:'broker_state_repair.py', schedule:'каждый час',
+        why:'Чинит broker state, если отдельные агенты записали неполный или устаревший статус.',
+        input:'broker_orders.json', action:'validate/repair state', output:'consistent broker_orders.json',
+        logic:['смотрит структурные поля','не заменяет casting','снижает риск зависших broker задач'],
+      },
+      {
+        group:'broker', name:'Contractor Pending Rescanner', label:'com.lcband.contractor-pending-rescanner',
+        file:'contractor_pending_rescanner.py', schedule:'каждые 15 мин',
+        why:'Перепроверяет pending contractor states, чтобы ответы подрядчиков не потерялись.',
+        input:'pending contractor state + dialogs', action:'rescan pending replies', output:'state transition / log',
+        logic:['ищет ответы после последнего запроса','закрывает пропущенные callbacks','кормит broker pipeline'],
+      },
+      {
+        group:'broker', name:'Drum Director Follow-up', label:'com.lcband.drum-director-followup',
+        file:'drum_director_followup.py', schedule:'calendar',
+        why:'Догоняет директора Noize Drum по brief-ответам, когда нужен drum-specific human/vendor signal.',
+        input:'drum brief state', action:'follow-up director', output:'director response / status',
+        logic:['короткий binary brief','без контактов клиента','обновляет drum decision state'],
+      },
+
+      {
+        group:'events', name:'Event Watcher', label:'com.lcband.event-watcher',
+        file:'event_watcher.py', schedule:'каждые 30 мин',
+        why:'Создаёт event card после оплаты, чтобы paid lead стал production-задачей.',
+        input:'orders.db paid future orders', action:'create event_planning card', output:'event_planning.json',
+        logic:['dedup by order/id/date','не пишет клиенту','после создания запускает enrichment best-effort'],
+      },
+      {
+        group:'events', name:'Event Stub Updater', label:'com.lcband.event-stub-updater',
+        file:'event_stub_updater.py', schedule:'каждые 15 мин',
+        why:'Дозаполняет stub event cards свежими данными из CRM/контекста.',
+        input:'event_planning.json + orders.db', action:'fill missing basics', output:'updated event card',
+        logic:['работает с неполными карточками','не трогает runtime secrets','готовит event для ops agents'],
+      },
+      {
+        group:'events', name:'Event Lifecycle', label:'com.lcband.event-lifecycle',
+        file:'event_lifecycle.py', schedule:'каждые 15 мин',
+        why:'Двигает оплаченные events по жизненному циклу: upcoming, active, done, post-event.',
+        input:'event_planning.json + dates', action:'state transition', output:'updated lifecycle status',
+        logic:['учитывает даты event','готовит post-event действия','не меняет клиентскую воронку напрямую'],
+      },
+      {
+        group:'events', name:'Event Ops Logistics', label:'com.lcband.event-ops-logistics',
+        file:'event_ops_logistics_agent.py', schedule:'каждые 10 мин',
+        why:'Закрывает логистические вопросы по оплаченным events без ручного пересказа.',
+        input:'event_ops_log.jsonl + organizer replies', action:'extract logistics delta', output:'event update + band-chat delta',
+        logic:['парсит тайминг/заезд/парковку/contact','отправляет только новые факты','не раскрывает приватные финансы'],
+      },
+      {
+        group:'events', name:'Event Enrich', label:'com.lcband.event-enrich',
+        file:'event_enrich.py', schedule:'каждые 6 часов',
+        why:'Обогащает event cards контекстом, чтобы production не жил в пустых карточках.',
+        input:'event cards + dialogs', action:'AI/context enrichment', output:'filled event fields',
+        logic:['best-effort enrichment','не отправляет сообщения','работает для качества event dashboard'],
+      },
+      {
+        group:'events', name:'Event Field Filler', label:'com.lcband.event-field-filler',
+        file:'event_field_filler.py', schedule:'каждые 6 часов',
+        why:'Заполняет конкретные пропущенные поля event card, которые нужны команде.',
+        input:'event_planning.json', action:'field-level fill', output:'normalized event fields',
+        logic:['узкий дозаполнитель','не дублирует lifecycle','пишет лог в event_field_filler.log'],
+      },
+      {
+        group:'events', name:'Event Daily Audit', label:'com.lcband.event-daily-audit',
+        file:'event_daily_audit.py', schedule:'daily 06:00',
+        why:'Суточная проверка оплаченных events: где не хватает данных или есть риск по подготовке.',
+        input:'event_planning.json', action:'audit completeness/risk', output:'audit log/report',
+        logic:['ежедневный контроль','находит missing fields','не заменяет ops logistics'],
+      },
+      {
+        group:'events', name:'Daily Report', label:'com.lcband.daily-report',
+        file:'lcband_daily_report.py', schedule:'daily calendar',
+        why:'Сводит бизнес-состояние дня: лиды, отправки, follow-up, переговоры, DM-funnel.',
+        input:'orders.db + action logs', action:'aggregate report', output:'bot/report log',
+        logic:['считает daily funnel','поднимает пропуски/активность','не меняет состояние лидов'],
+      },
+      {
+        group:'events', name:'Todo Reminder', label:'com.lcband.todo-reminder',
+        file:'todo_reminder.py', schedule:'daily 18:00',
+        why:'Напоминает о внутренних задачах, которые не являются клиентскими автоответами.',
+        input:'todo state', action:'build reminders', output:'reminder log/bot',
+        logic:['не customer-facing pipeline','закрывает operational follow-ups','ежедневный cadence'],
+      },
+
+      {
+        group:'funnel', name:'Conv Cache Sync + Funnel Keeper', label:'com.lcband.conv-cache-sync',
+        file:'_run_conv_sync_and_funnel_keeper.sh', schedule:'каждые 5 мин',
+        why:'Держит локальный текстовый cache переписок свежим и запускает умное обслуживание воронки.',
+        input:'TG dialogs', action:'sync cache → run funnel keeper', output:'conversation_cache, funnel status updates',
+        logic:['append-only cache','changed dialogs feed AI reclassify','основа для контекстных агентов'],
+      },
+      {
+        group:'funnel', name:'Funnel Autoheal', label:'com.lcband.funnel-autoheal',
+        file:'funnel_autoheal.py', schedule:'daily 02:15',
+        why:'Автоматически чинит stale-stage переходы, чтобы лиды не висели месяцами в неправильной стадии.',
+        input:'orders.db + stage age', action:'apply stale rules', output:'updated statuses/history',
+        logic:['ежедневный maintenance','консервативные переходы','paid/protected stages не понижает'],
+      },
+      {
+        group:'funnel', name:'Funnel Folder Sync', label:'com.lcband.funnel-folder-sync',
+        file:'funnel_folder_sync.py', schedule:'каждые 30 мин',
+        why:'Синхронизирует TG folder semantics с CRM-воронкой.',
+        input:'TG folders + orders.db', action:'map folders to stages', output:'status/folder alignment',
+        logic:['учитывает protected folders','не двигает ОПЛАТИЛА','пишет logs/funnel_folder_sync.log'],
+      },
+      {
+        group:'funnel', name:'Funnel Maintenance', label:'com.lcband.funnel-maintenance',
+        file:'funnel_maintenance.py', schedule:'calendar maintenance',
+        why:'Общий maintenance по обещаниям, отказам, stale follow-ups и служебным флагам.',
+        input:'orders.db + conversation cache', action:'detect obligations and stale states', output:'history/status/flags',
+        logic:['следит за promised media/replies','не должен требовать ручной разбор','работает как cleanup contour'],
+      },
+      {
+        group:'funnel', name:'Funnel Stage Classifier', label:'com.lcband.funnel-stage-classifier',
+        file:'funnel_stage_classifier.py', schedule:'каждые 6 часов',
+        why:'Пакетно классифицирует stage, когда realtime-контур не дал свежую оценку.',
+        input:'orders.db + dialog snippets', action:'classify stage', output:'stage labels/log',
+        logic:['batch safety layer','не заменяет tg_responder hot path','полезен для старых/тихих лидов'],
+      },
+      {
+        group:'funnel', name:'Funnel Stage Watcher', label:'com.lcband.funnel-stage-watcher',
+        file:'funnel_stage_watcher.py', schedule:'daemon / KeepAlive',
+        why:'Следит за stage-событиями в реальном времени и реагирует на изменения воронки.',
+        input:'stage state/logs', action:'watch transitions', output:'watcher actions/log',
+        logic:['KeepAlive daemon','быстрый reaction loop','дополняет batch classifier'],
+      },
+      {
+        group:'funnel', name:'Attention Auto-Action', label:'com.lcband.attention-auto-action',
+        file:'attention_auto_action.py', schedule:'каждые 30 мин',
+        why:'Находит лиды, где система должна ответить/дожать сама, и готовит действие.',
+        input:'orders.db hot leads', action:'draft + optional auto-send/review', output:'pending_approvals or sent action',
+        logic:['смотрит лиды requiring reply','генерирует draft','для followup_ready может auto-send после review'],
+      },
+      {
+        group:'funnel', name:'Attention Classify Cache', label:'com.lcband.attention-classify-cache',
+        file:'attention_classify_cache.py', schedule:'каждые 15 мин',
+        why:'Кэширует AI-классификации attention, чтобы не тратить лишние CLI/API вызовы.',
+        input:'attention candidates', action:'classify/cache', output:'attention_classifications.json',
+        logic:['снижает дубли AI calls','ускоряет attention_auto_action','не отправляет клиентам'],
+      },
+      {
+        group:'funnel', name:'Morning Reconciliation', label:'com.lcband.morning-reconciliation',
+        file:'morning_reconciliation.py 24', schedule:'daily 02:03 local',
+        why:'Суточный аудит post-by-post: доказывает, что monitor/walk не пропустили валидный лид.',
+        input:'event chats + orders.db + session_actions', action:'compare monitor vs walk', output:'morning_reconciliation_result.json + alert',
+        logic:['обходит 24 часа','классифицирует missed candidates','alert если missed >= 1'],
+      },
+      {
+        group:'funnel', name:'Sheets to DB Sync', label:'com.lcband.sheets-to-db-sync',
+        file:'sheets_to_db_sync.py', schedule:'каждую минуту',
+        why:'Держит Google Sheet backup и orders.db согласованными без чтения Sheet как SSoT.',
+        input:'Sheet changes + orders.db', action:'sync deltas', output:'orders.db / sheet backup alignment',
+        logic:['orders.db остаётся SSoT','подхватывает ручные Sheet правки','не должен быть бизнес-логикой'],
+      },
+      {
+        group:'funnel', name:'Dashboard Sync', label:'com.lcband.dashboard-sync',
+        file:'sync_dashboard_data.py', schedule:'каждые 10 мин',
+        why:'Собирает KPI/state в формат, который статический dashboard может быстро показать.',
+        input:'orders.db + state/log files', action:'aggregate dashboard rows', output:'dashboard data / static state',
+        logic:['пишет funnel/channel/process keys','если стоит, KPI freeze','не принимает бизнес-решений'],
+      },
+
+      {
+        group:'infra', name:'Dashboard Backend', label:'com.lcband.dashboard-backend',
+        file:'dashboard_backend.py', schedule:'daemon / KeepAlive',
+        why:'Локальный API для dashboard: live TG chat, lead flow, process status и служебные actions.',
+        input:'orders.db, logs, state files, Telegram session copy', action:'serve Flask API', output:'127.0.0.1:8878 endpoints',
+        logic:['не публичный backend','использует session copy для TG','dashboard static pages читают его APIs'],
+      },
+      {
+        group:'infra', name:'Bot Commander', label:'com.lcband.bot-commander',
+        file:'bot_commander.py', schedule:'daemon / KeepAlive',
+        why:'Телеграм-бот для approval/alerts и operational notifications.',
+        input:'pending_approvals.json + bot updates', action:'send buttons / handle clicks', output:'approved/rejected/edit actions',
+        logic:['long-polling Bot API','approval сейчас не должен быть default для лидов','money/critical alerts remain'],
+      },
+      {
+        group:'infra', name:'Payment Event Handler', label:'com.lcband.payment-handler',
+        file:'payment_event_handler.py', schedule:'daemon component',
+        why:'Отдельно ловит платежные события, потому что деньги — единственный допустимый human-attention boundary.',
+        input:'TG private messages', action:'detect payment/promise/drum events', output:'alerts/state updates',
+        logic:['catch-up replay by cursor','не смешан с generic responder','heartbeat для watchdog'],
+      },
+      {
+        group:'infra', name:'Agent Watchdog', label:'com.lcband.agent-watchdog',
+        file:'agent_watchdog.py', schedule:'каждые 30 мин',
+        why:'Следит, что launchd-агенты живы, и поднимает тревогу/рестартит упавшие.',
+        input:'launchctl status + heartbeat files', action:'detect stale/down agents', output:'restart/alert/log',
+        logic:['проверяет daemon/stale SLA','не заменяет самих агентов','защищает unattended mode'],
+      },
+      {
+        group:'infra', name:'Tunnel Watcher', label:'com.lcband.tunnel-watcher',
+        file:'tunnel_watcher.py', schedule:'daemon / KeepAlive',
+        why:'Держит внешний quick-tunnel/DNS для dashboard/access, когда tunnel меняется.',
+        input:'cloudflared/tunnel state', action:'watch/refresh tunnel URL', output:'current tunnel state',
+        logic:['continuous watcher','restart by launchd','не содержит бизнес-логики'],
+      },
+      {
+        group:'infra', name:'TG Health Check', label:'com.lcband.tg-health-check',
+        file:'tg_health_check_v2.py', schedule:'hourly minute 7',
+        why:'Проверяет Telegram session/аккаунт, чтобы заранее заметить auth/flood/session issues.',
+        input:'TG session', action:'health probe', output:'health state/log',
+        logic:['не шлёт клиентам','служебный probe','кормит dashboard/watchdog'],
+      },
+      {
+        group:'infra', name:'TG SpamBot Check', label:'com.lcband.tg-spambot-check',
+        file:'tg_spambot_check.py', schedule:'calendar checks',
+        why:'Проверяет ограничения @Luxurycover_ru через @SpamBot, чтобы не продолжать sending при риске бана.',
+        input:'TG @SpamBot dialog', action:'ask/check status', output:'spam status log/alert',
+        logic:['safety-only','не customer-facing','важен для anti-ban governor'],
+      },
+      {
+        group:'infra', name:'VK Health Check', label:'com.lcband.vk-health-check',
+        file:'vk_health_check.py', schedule:'hourly minute 11',
+        why:'Проверяет VK tokens/API доступность отдельно от бизнес-ответчика.',
+        input:'VK tokens/API', action:'probe health', output:'vk health state/log',
+        logic:['read-only probe','dashboard connection status','alert surface for VK failures'],
+      },
+      {
+        group:'infra', name:'Claude Usage Probe', label:'com.lcband.claude-usage-probe',
+        file:'claude_usage_probe.py --timeout 40', schedule:'каждые 10 мин',
+        why:'Отслеживает доступность/лимиты Claude CLI, от которого зависят AI agents.',
+        input:'Claude CLI', action:'probe usage/availability', output:'usage state/log',
+        logic:['не бизнес-классификатор','помогает понять AI downtime','кормит cost/health dashboard'],
+      },
+      {
+        group:'infra', name:'TG Full Export', label:'com.lcband.tg-full-export',
+        file:'tg_full_export.py', schedule:'каждые 30 мин',
+        why:'Держит полный TG export/cache для аудита, восстановления и контекстного анализа.',
+        input:'TG dialogs', action:'export messages', output:'tg_full_export/*.jsonl',
+        logic:['read/export contour','не отправляет сообщения','полезен для forensic/debug'],
+      },
+      {
+        group:'infra', name:'IG Conv Cache Sync', label:'com.lcband.ig-conv-cache-sync',
+        file:'ig_conv_cache.py sync-all --amount ...', schedule:'каждые 10 мин',
+        why:'Держит Instagram DM cache локально, чтобы IG follow-up имел историю без live scraping.',
+        input:'IG DM threads', action:'incremental sync', output:'ig_conversation_cache/*.jsonl',
+        logic:['append-only per username','no Sheet writes','source for IG follow-up'],
+      },
+      {
+        group:'infra', name:'WA Backup', label:'com.lcband.wa-backup',
+        file:'wa_backup.py', schedule:'daily 04:10',
+        why:'Снимает snapshot WhatsApp/orders/sent proposals для восстановления.',
+        input:'WA cache + orders + sent state', action:'backup snapshot', output:'backup files/log',
+        logic:['daily backup','не sending path','уменьшает риск потери WA state'],
+      },
+      {
+        group:'infra', name:'Mariakon Dance Collect', label:'com.lcband.mariakon-dance-collect',
+        file:'mariakon_dance_collect.py', schedule:'каждый час',
+        why:'Узкий collector для Mariakon/dance контента, вынесенный из общего контура.',
+        input:'dance-related source', action:'collect/update', output:'mariakon_dance_collect.log/state',
+        logic:['специализированный collector','не влияет на core LCB funnel','периодический maintenance'],
+      },
+      {
+        group:'infra', name:'VK Unclear Recheck', label:'com.lcband.vk-unclear-recheck',
+        file:'vk_unclear_recheck.py', schedule:'daily 09:15',
+        why:'Повторно проверяет VK диалоги/лиды, которые раньше были неуверенно классифицированы.',
+        input:'VK unclear state', action:'reclassify with fresher context', output:'updated decision/state',
+        logic:['не оставляет unclear навсегда','автономный recheck','не требует ручного разбора'],
+      },
+    ];
+
+    const groupMeta = {
+      intake: { title:'Intake: посты и новые события', color:'var(--blue)' },
+      dm: { title:'DM responders и follow-up', color:'var(--green)' },
+      broker: { title:'Broker pipeline', color:'var(--purple)' },
+      events: { title:'Paid events и production ops', color:'var(--orange)' },
+      funnel: { title:'CRM, воронка и синхронизация', color:'var(--cyan)' },
+      infra: { title:'Инфраструктура, health и backup', color:'var(--muted)' },
+    };
+
+    const content = document.getElementById('content');
+    const search = document.getElementById('search');
+    let activeFilter = 'all';
+
+    function kind(schedule) {
+      if (schedule.includes('daemon') || schedule.includes('KeepAlive')) return 'keep';
+      if (schedule.includes('daily') || schedule.includes('calendar')) return 'daily';
+      return 'timer';
+    }
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c => ({
+        '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+      }[c]));
+    }
+
+    function card(s) {
+      const k = kind(s.schedule);
+      return `
+        <article class="card" data-group="${esc(s.group)}">
+          <div class="top">
+            <div>
+              <div class="name">${esc(s.name)}</div>
+              <div class="label">${esc(s.label)}</div>
+            </div>
+            <span class="badge ${k}">${esc(s.schedule)}</span>
+          </div>
+          <div class="file">${esc(s.file)}</div>
+          <div class="why">${esc(s.why)}</div>
+          <div class="flow">
+            <div class="box"><div class="box-title">вход</div><div class="box-text">${esc(s.input)}</div></div>
+            <div class="arr">→</div>
+            <div class="box"><div class="box-title">логика</div><div class="box-text">${esc(s.action)}</div></div>
+            <div class="arr">→</div>
+            <div class="box"><div class="box-title">выход</div><div class="box-text">${esc(s.output)}</div></div>
+          </div>
+          <ul class="logic">${(s.logic || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+        </article>
+      `;
+    }
+
+    function render() {
+      const q = search.value.trim().toLowerCase();
+      const filtered = scripts.filter(s => {
+        const hay = [s.group,s.name,s.label,s.file,s.schedule,s.why,s.input,s.action,s.output,...(s.logic || [])].join(' ').toLowerCase();
+        return (activeFilter === 'all' || s.group === activeFilter) && (!q || hay.includes(q));
+      });
+
+      document.getElementById('totalCount').textContent = scripts.length;
+      document.getElementById('keepCount').textContent = scripts.filter(s => kind(s.schedule) === 'keep').length;
+      document.getElementById('groupCount').textContent = Object.keys(groupMeta).length;
+
+      if (!filtered.length) {
+        content.innerHTML = '<div class="empty">Ничего не найдено</div>';
+        return;
+      }
+
+      content.innerHTML = Object.keys(groupMeta).map(g => {
+        const rows = filtered.filter(s => s.group === g);
+        if (!rows.length) return '';
+        return `
+          <section class="section" id="${g}">
+            <div class="section-title"><span style="color:${groupMeta[g].color}">●</span>${groupMeta[g].title} · ${rows.length}</div>
+            <div class="grid">${rows.map(card).join('')}</div>
+          </section>
+        `;
+      }).join('');
+    }
+
+    search.addEventListener('input', render);
+    document.querySelectorAll('.chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeFilter = btn.dataset.filter;
+        document.querySelectorAll('.chip').forEach(x => x.classList.toggle('active', x === btn));
+        render();
+      });
+    });
+    render();
+  </script>
+</body>
+</html>
