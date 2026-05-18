@@ -8283,7 +8283,7 @@ function LeadFlowSection() {
                   'thread хранит hard facts контакта',
                   'events хранит sparse event slices',
                   'active_event_id подсвечивает L3 writer',
-                  '_unscoped — общие сигналы (тур, тех. райдер на серию, не привязано к одному event)',
+                  '_unscoped = не привязано к одному event: tour-wide / общий thread / cold / legacy / low-conf (это лишь один из 5 случаев)',
                 ]).map((rule, idx) => (
                   <div key={idx} style={{display:'flex', gap:6, alignItems:'flex-start', fontSize:9.5, color:'var(--muted)', lineHeight:1.35, marginTop:idx ? 4 : 0}}>
                     <span style={{color:'#5eead4', fontWeight:900}}>{idx + 1}</span>
