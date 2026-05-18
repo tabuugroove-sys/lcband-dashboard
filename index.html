@@ -7408,6 +7408,8 @@ function LeadFlowSection() {
   const [data, setData] = React.useState(null);
   const [aiLayerOpen, setAiLayerOpen] = React.useState(null);
   const [contextCardHelpOpen, setContextCardHelpOpen] = React.useState(false);
+  const [contextCardStats, setContextCardStats] = React.useState(null);
+  const [contextCardStatsErr, setContextCardStatsErr] = React.useState('');
   const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
 
   React.useEffect(() => {
@@ -7423,6 +7425,23 @@ function LeadFlowSection() {
     const t = setInterval(load, 12000);
     return () => { cancelled = true; clearInterval(t); };
   }, [backendUrl]);
+
+  React.useEffect(() => {
+    if (!contextCardHelpOpen) return;
+    let cancelled = false;
+    setContextCardStatsErr('');
+    const load = async () => {
+      try {
+        const r = await fetch(`${backendUrl}/api/lead_context?include_refused=1&limit=1`, { cache: 'no-store' });
+        const j = await r.json();
+        if (!cancelled) setContextCardStats(j);
+      } catch (e) {
+        if (!cancelled) setContextCardStatsErr('не удалось загрузить /api/lead_context');
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [contextCardHelpOpen, backendUrl]);
 
   const fmtTime = (ts) => {
     if (!ts) return '';
@@ -7609,7 +7628,11 @@ function LeadFlowSection() {
         <span>↓ enrich / resolve</span>
         <span style={{flex:1, height:1, background:'linear-gradient(to right, rgba(20,184,166,.45), rgba(20,184,166,.1))'}}/>
       </div>
-      <div style={{background:'rgba(20,184,166,.09)', border:'1px dashed rgba(20,184,166,.45)', borderRadius:6, padding:'6px 7px'}}>
+      <div
+        onClick={() => setContextCardHelpOpen(true)}
+        title="Открыть картотеку контекста: stats + rules"
+        style={{background:'rgba(20,184,166,.09)', border:'1px dashed rgba(20,184,166,.45)', borderRadius:6, padding:'6px 7px', cursor:'pointer'}}
+      >
         <div style={{display:'flex', alignItems:'center', gap:6, marginBottom:3}}>
           <div style={{fontSize:9.5, fontWeight:800, color:'#5eead4'}}>Context card / картотека</div>
           <button
@@ -7618,7 +7641,7 @@ function LeadFlowSection() {
               e.stopPropagation();
               setContextCardHelpOpen(true);
             }}
-            title="Показать внутреннюю структуру карточки"
+            title="Показать stats/rules карточки"
             style={{
               marginLeft:'auto', border:'1px solid rgba(20,184,166,.38)',
               background:'rgba(15,23,42,.55)', color:'#5eead4', borderRadius:4,
@@ -8138,8 +8161,8 @@ function LeadFlowSection() {
           >
             <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:12}}>
               <div>
-                <div style={{fontSize:14, fontWeight:900, color:'#5eead4'}}>Context card schema</div>
-                <div style={{fontSize:10, color:'var(--muted)'}}>контакт остаётся ключом, события живут внутри карточки</div>
+                <div style={{fontSize:14, fontWeight:900, color:'#5eead4'}}>Context card / картотека</div>
+                <div style={{fontSize:10, color:'var(--muted)'}}>live stats + rules · контакт остаётся ключом, события живут внутри карточки</div>
               </div>
               <button
                 type="button"
@@ -8149,6 +8172,30 @@ function LeadFlowSection() {
               >×</button>
             </div>
             <div style={{display:'grid', gridTemplateColumns:'1fr', gap:8}}>
+              <div style={{border:'1px solid rgba(20,184,166,.32)', borderRadius:8, padding:9, background:'rgba(20,184,166,.06)'}}>
+                <div style={{fontSize:11, fontWeight:800, color:'#5eead4', marginBottom:7}}>Live stats</div>
+                {contextCardStatsErr ? (
+                  <div style={{fontSize:10, color:'#fca5a5'}}>{contextCardStatsErr}</div>
+                ) : !contextCardStats ? (
+                  <div style={{fontSize:10, color:'var(--muted)'}}>loading...</div>
+                ) : (
+                  <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))', gap:6}}>
+                    {[
+                      ['cards', contextCardStats.total_in_store || 0, 'всего карточек'],
+                      ['nested', contextCardStats.nested_stats?.cards_with_nested_schema || 0, 'nested schema'],
+                      ['events', contextCardStats.nested_stats?.event_slices_with_context || 0, 'events with context'],
+                      ['active', contextCardStats.nested_stats?.cards_with_active_event || 0, 'active_event_id'],
+                      ['unscoped', contextCardStats.nested_stats?.cards_with_unscoped || 0, 'AI не уверен'],
+                      ['waiting', contextCardStats.needs_action || 0, 'ждут нас'],
+                    ].map(([label, value, sub]) => (
+                      <div key={label} style={{background:'rgba(15,23,42,.45)', border:'1px solid rgba(148,163,184,.18)', borderRadius:6, padding:'6px 7px'}}>
+                        <div style={{fontSize:15, color:label==='unscoped'?'#cbd5e1':label==='events'?'#93c5fd':'#5eead4', fontWeight:900, lineHeight:1}}>{value}</div>
+                        <div style={{fontSize:8.5, color:'var(--muted)', marginTop:3}}>{sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div style={{border:'1px solid rgba(20,184,166,.32)', borderRadius:8, padding:9, background:'rgba(20,184,166,.07)'}}>
                 <div style={{fontSize:11, fontWeight:800, color:'#5eead4', marginBottom:5}}>key: tg:babelisya</div>
                 <div style={{fontSize:10, color:'#cbd5e1', lineHeight:1.45}}>
@@ -8184,6 +8231,21 @@ function LeadFlowSection() {
               </div>
               <div style={{fontSize:10, color:'var(--muted)', lineHeight:1.45}}>
                 L3 writer получает thread facts + active event + open promises. Остальные events показываются кратко, чтобы не смешивать июньскую свадьбу с декабрьским корпоративом.
+              </div>
+              <div style={{border:'1px solid rgba(148,163,184,.2)', borderRadius:8, padding:9, background:'rgba(30,41,59,.36)'}}>
+                <div style={{fontSize:10.5, fontWeight:800, color:'#cbd5e1', marginBottom:6}}>Rules</div>
+                {(contextCardStats?.context_rules || [
+                  'key остаётся contact-level: tg:user или broker:tg:user',
+                  'thread хранит hard facts контакта',
+                  'events хранит sparse event slices',
+                  'active_event_id подсвечивает L3 writer',
+                  '_unscoped принимает факты если AI не уверен',
+                ]).map((rule, idx) => (
+                  <div key={idx} style={{display:'flex', gap:6, alignItems:'flex-start', fontSize:9.5, color:'var(--muted)', lineHeight:1.35, marginTop:idx ? 4 : 0}}>
+                    <span style={{color:'#5eead4', fontWeight:900}}>{idx + 1}</span>
+                    <span>{rule}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
