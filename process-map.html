@@ -284,8 +284,8 @@
         group:'broker', name:'Broker Dialog Owner', label:'broker_dialog_agent.py',
         file:'broker_dialog_agent.py', schedule:'library / invoked by broker agents',
         why:'Единая точка записи сообщений клиенту и подрядчику в рамках broker_order.',
-        input:'broker task from casting/follow-up', action:'queue pending + auto-send/direct send', output:'broker message + owner metadata',
-        logic:['single writer','dedupe surface','pending_approvals owner','tg_responder не owner'],
+        input:'broker task from casting/follow-up', action:'client queue when gated; contractor bypass → auto-send', output:'broker message + owner metadata',
+        logic:['single writer','contractor-side bypass approval','client-side guardrails','dedupe surface','tg_responder не owner'],
       },
       {
         group:'broker', name:'Broker Casting', label:'com.lcband.broker-casting',

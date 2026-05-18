@@ -697,7 +697,8 @@
           <b>Картотека:</b> <span class="badge badge-purple">Broker</span><br>
           Ключ: <code>broker:tg:username</code><br>
           Читает: <code>get_or_enrich(ns="broker")</code><br><br>
-          <b>Выход:</b> client relay / contractor brief / follow-up<br><br>
+          <b>Выход:</b> client relay / contractor brief / follow-up<br>
+          Contractor-side: bypass approval → auto-send; client-side: gated when needed<br><br>
           <b>Owner:</b> <code>broker_dialog_agent.py</code> для сообщений; <code>broker_casting.py</code> для выбора
         </div>
       </div>
@@ -718,6 +719,7 @@
       <div class="anno" style="margin-top:10px">
         <b>Разделение ownership:</b> <code>broker_casting.py</code> выбирает подрядчика.
         Переписка идёт через <code>broker_dialog_agent.py</code> и <code>contractor_dialog_agent.py</code>, а не через realtime DM owner.
+        Broker → contractor сообщения обходят approval queue и отправляются сразу; broker → client остаётся с клиентскими guardrails.
         <code>tg_responder.py</code> остаётся consultant-only и не является владельцем broker relay.
       </div>
     </div>
