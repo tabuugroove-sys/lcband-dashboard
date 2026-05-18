@@ -97,6 +97,15 @@
     .logic li { color:#94a3b8; font-size:12px; }
     .logic li::before { content:""; display:inline-block; width:5px; height:5px; border-radius:5px; background:var(--purple); margin-right:7px; vertical-align:1px; }
     .file { color:#a5f3fc; font:11px ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; }
+    .cli {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:5px;
+      border:1px solid rgba(245,197,24,.18); background:rgba(245,197,24,.05);
+      border-radius:7px; padding:6px;
+    }
+    .cli-cell { min-width:0; }
+    .cli-cell b { display:block; color:var(--gold); font-size:16px; line-height:1.1; }
+    .cli-cell span { color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:.4px; }
+    .cli-purpose { color:#94a3b8; font-size:11px; overflow-wrap:anywhere; }
     .empty { color:var(--muted); padding:20px; border:1px dashed var(--border); border-radius:8px; text-align:center; }
     @media (max-width:760px) {
       .hdr { align-items:flex-start; flex-direction:column; }
@@ -582,6 +591,8 @@
     const content = document.getElementById('content');
     const search = document.getElementById('search');
     let activeFilter = 'all';
+    let cliUsage = {};
+    const apiBase = (typeof CHAT_BACKEND !== 'undefined' && CHAT_BACKEND) ? CHAT_BACKEND : '';
 
     function kind(schedule) {
       if (schedule.includes('daemon') || schedule.includes('KeepAlive')) return 'keep';
@@ -593,6 +604,27 @@
       return String(s ?? '').replace(/[&<>"']/g, c => ({
         '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
       }[c]));
+    }
+
+    function cliBlock(s) {
+      const u = cliUsage[s.label] || {};
+      const purposes = u.purposes || {};
+      const purposeText = Object.entries(purposes).slice(0, 4).map(([k,v]) => `${k}: ${v}`).join(' · ');
+      const downstream = u.downstream_cli || 0;
+      const title = [
+        `direct CLI: ${u.direct_cli || 0}`,
+        `triggered pre-send: ${u.triggered_presend || 0}`,
+        `downstream via children: ${downstream}`,
+        purposeText ? `purposes: ${purposeText}` : '',
+      ].filter(Boolean).join('\n');
+      return `
+        <div class="cli" title="${esc(title)}">
+          <div class="cli-cell"><b>${u.direct_cli || 0}</b><span>direct CLI</span></div>
+          <div class="cli-cell"><b>${u.triggered_presend || 0}</b><span>pre-send</span></div>
+          <div class="cli-cell"><b>${downstream}</b><span>downstream</span></div>
+          ${purposeText ? `<div class="cli-purpose" style="grid-column:1/-1">${esc(purposeText)}</div>` : ''}
+        </div>
+      `;
     }
 
     function card(s) {
@@ -607,6 +639,7 @@
             <span class="badge ${k}">${esc(s.schedule)}</span>
           </div>
           <div class="file">${esc(s.file)}</div>
+          ${cliBlock(s)}
           <div class="why">${esc(s.why)}</div>
           <div class="flow">
             <div class="box"><div class="box-title">вход</div><div class="box-text">${esc(s.input)}</div></div>
@@ -657,6 +690,16 @@
       });
     });
     render();
+    fetch(`${apiBase}/api/process_cli_usage?hours=24`, { cache:'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(j => {
+        cliUsage = j.by_label || {};
+        render();
+      })
+      .catch(() => {
+        cliUsage = {};
+        render();
+      });
   </script>
 </body>
 </html>
