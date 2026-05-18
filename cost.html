@@ -761,6 +761,7 @@ function combinedUsageRowHtml(rows, data) {
   const appWidth = clampPct(appUsed);
   const cliWidth = clampPct(Math.min(cliUsed, Math.max(0, 100 - appWidth)));
   const marker = clampPct(total.budget_by_now_pct ?? total.display_allowance_pct ?? total.today_allowance_pct ?? total.daily_budget_pct ?? 0);
+  const markerLeft = Math.max(0.4, Math.min(99.6, marker));
   const over = totalUsed > marker + 0.1 ? ' over' : '';
   return `
     <div class="budget-row">
@@ -771,7 +772,7 @@ function combinedUsageRowHtml(rows, data) {
       <div class="budget-meter" title="App + CLI usage from weekly limit. Белая черта = лимит к концу текущего budget-day">
         <div class="budget-meter-segment app" style="width:${appWidth}%"></div>
         <div class="budget-meter-segment cli${over}" style="left:${appWidth}%;width:${cliWidth}%"></div>
-        <div class="budget-marker" style="left:${marker}%"></div>
+        <div class="budget-marker" style="left:${markerLeft}%" title="лимит: ${limitPct(marker)}"></div>
       </div>
       <div class="budget-split-legend">
         <span><span class="sq app-sq"></span>Приложение <strong>${limitPct(appUsed)}</strong></span>
