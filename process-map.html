@@ -292,7 +292,7 @@
         file:'broker_dialog_agent.py', schedule:'library / invoked by broker agents',
         why:'Единая точка записи сообщений клиенту и подрядчику в рамках broker_order.',
         input:'event-centric broker card: event + organizer + contractors + negotiation stage', action:'client queue + presend; contractor bypass → auto-send', output:'broker message + owner metadata',
-        logic:['broker_order_context строит event entity','direct/private DM → LCB writer','active broker client reply → broker_orders before LCB writer','simple actor/dancer lowcost → skip до broker_order','first_contact with budget question → waiting_client_budget','budget reply → intake/casting','single writer','contractor-side bypass approval','client-side presend + context','dedupe surface','tg_responder не owner'],
+        logic:['broker_order_context строит event entity','direct/private DM → LCB writer','active broker client reply → broker_orders before LCB writer','simple actor/dancer lowcost → skip до broker_order','first_contact with budget question → waiting_client_budget','budget reply → urgent client hold + contractor fanout','single writer','contractor-side bypass approval','client-side presend + context','dedupe surface','tg_responder не owner'],
       },
       {
         group:'dm', name:'LCB Event SSoT', label:'lcb_orders.json → lcb_event_context.py',
