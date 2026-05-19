@@ -7471,6 +7471,7 @@ function LeadFlowSection() {
   const layerConv = pipe.layer_conversions || {};
   const layerCounts = layerConv.counts || {};
   const layerRates = layerConv.rates || {};
+  const presendFlow = layerConv.presend_flow || {};
   const fmtPct = (v) => (v === null || v === undefined) ? 'нет данных' : `${v}%`;
   const layerTitle = (label, count, href) => `${label}\nВызовов за ${layerConv.window_hours || 24}ч: ${count || 0}\n${href}`;
   const presendSplitTitle = () => [
@@ -7479,6 +7480,32 @@ function LeadFlowSection() {
     `All presend: ${layerCounts.presend || 0}`,
     `Raw all/L3: ${fmtPct(layerRates.raw_l3_to_presend_call_pct)}`,
   ].join('\n');
+  const flowMetricTitle = (name, flow = {}) => [
+    `${name} · окно ${layerConv.window_hours || 24}ч`,
+    `L3 outputs: ${flow.l3_outputs || 0}`,
+    `pre-send calls: ${flow.presend || 0}`,
+    `blocked by pre-send: ${flow.blocked || 0}`,
+    `L3→pre-send: ${fmtPct(flow.l3_to_presend_pct)}`,
+    `blocked/pre-send: ${fmtPct(flow.blocked_pct)}`,
+    flow.raw_l3_to_presend_pct > 100 ? `raw L3→pre-send: ${fmtPct(flow.raw_l3_to_presend_pct)} (retries/reviews)` : '',
+    flow.raw_blocked_pct > 100 ? `raw blocked: ${fmtPct(flow.raw_blocked_pct)} (logs may overlap)` : '',
+  ].filter(Boolean).join('\n');
+  const flowMetricRow = (label, flow = {}, accent = '#fca5a5') => (
+    <div
+      title={flowMetricTitle(label, flow)}
+      style={{
+        display:'grid', gridTemplateColumns:'48px repeat(3,minmax(34px,1fr))',
+        alignItems:'center', gap:4, fontSize:8.2, color:'#cbd5e1',
+        background:'rgba(15,23,42,.42)', border:'1px solid rgba(148,163,184,.14)',
+        borderRadius:4, padding:'3px 5px',
+      }}
+    >
+      <b style={{color:accent}}>{label}</b>
+      <span><b style={{color:'#e2e8f0'}}>{flow.l3_outputs || 0}</b> L3</span>
+      <span><b style={{color:'#e2e8f0'}}>{flow.presend || 0}</b> pre</span>
+      <span><b style={{color:'#fca5a5'}}>{fmtPct(flow.blocked_pct)}</b> block</span>
+    </div>
+  );
 
   const verdictColor = (v) => {
     if (!v) return 'var(--muted)';
@@ -7697,11 +7724,16 @@ function LeadFlowSection() {
       </div>
       <div style={{display:'grid', gridTemplateColumns:'1fr', gap:4}}>
         <div style={{display:'flex', alignItems:'center', gap:5, fontSize:8.5, color:'#94a3b8', padding:'0 3px'}}>
-          <span style={{whiteSpace:'nowrap'}}>L3→pre-send review</span><span style={{flex:1, height:1, background:'rgba(148,163,184,.25)'}}/><b style={{color:'#fca5a5'}}>{fmtPct(layerRates.l3_to_presend_pct)}</b>
+          <span style={{whiteSpace:'nowrap'}}>после L3 → pre-send review</span><span style={{flex:1, height:1, background:'rgba(148,163,184,.25)'}}/><b style={{color:'#fca5a5'}}>{fmtPct(layerRates.l3_to_presend_pct)}</b>
         </div>
-        {aiLayerButton('agent1', '_PRESEND_SYSTEM', `pre-send post pipeline · ${layerCounts.presend_post_pipeline || 0}`, {fontSize:9, color:'#fca5a5', background:'rgba(239,68,68,.08)'}, layerCounts.presend_post_pipeline)}
+        <div style={{display:'grid', gridTemplateColumns:'48px repeat(3,minmax(34px,1fr))', gap:4, fontSize:7.5, color:'#94a3b8', padding:'0 5px'}}>
+          <span></span><span>L3 msg</span><span>pre-send</span><span>blocked</span>
+        </div>
+        {flowMetricRow('Posts', presendFlow.posts || {}, '#fca5a5')}
+        {flowMetricRow('DM', presendFlow.dm || {}, '#93c5fd')}
+        {aiLayerButton('agent1', '_PRESEND_SYSTEM', `pre-send prompts · posts ${layerCounts.presend_post_pipeline || 0} / dm ${layerCounts.presend_other || 0}`, {fontSize:9, color:'#fca5a5', background:'rgba(239,68,68,.08)'}, layerCounts.presend)}
         <div title={presendSplitTitle()} style={{fontSize:8.5, color:'#94a3b8', background:'rgba(15,23,42,.42)', border:'1px solid rgba(148,163,184,.14)', borderRadius:4, padding:'2px 6px'}}>
-          other pre-send · <b style={{color:'#cbd5e1'}}>{layerCounts.presend_other || 0}</b> / all · <b style={{color:'#cbd5e1'}}>{layerCounts.presend || 0}</b>
+          raw all pre-send · <b style={{color:'#cbd5e1'}}>{layerCounts.presend || 0}</b> · split avoids 450% funnel confusion
         </div>
       </div>
     </div>
