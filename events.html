@@ -56,6 +56,14 @@
   .event-card .title { font-weight: 600; font-size: 13px; }
   .event-card .date { font-size: 11px; color: var(--muted); margin-top: 2px; }
   .event-card .stats { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .event-card.paid { border-left: 3px solid var(--red); }
+  .event-card.contract { border-left: 3px solid var(--orange); }
+  .event-card.negotiating { border-left: 3px solid var(--green); }
+  .event-card.lead { border-left: 3px dotted var(--purple); }
+  .sidebar-group-title {
+    margin: 12px 0 6px; font-size: 10px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.45px;
+  }
   .new-event-btn {
     width: 100%; padding: 10px;
     background: rgba(63,185,80,0.15); color: var(--green);
@@ -472,20 +480,87 @@
 
   async function loadEventList() {
     try {
-      const d = await api('/events');
+      const [d, stubsResp, leadsResp] = await Promise.all([
+        api('/events'),
+        api('/event_stubs?with_date_only=1').catch(() => ({stubs: []})),
+        api('/leads_with_dates').catch(() => ({leads: []})),
+      ]);
       const list = document.getElementById('events-list');
-      if (!d.events || d.events.length === 0) {
+      const events = (d.events || []).map(ev => ({
+        kind: 'event',
+        group: 'paid',
+        rank: 0,
+        id: ev.id,
+        title: ev.title || '(без названия)',
+        date: ev.date || '',
+        stats: `${ev.members_count || 0} участников · ${fmtRu(ev.members_total_fee || 0)} ₽`,
+        onclick: `loadEvent('${String(ev.id || '').replace(/'/g, "\\'")}')`,
+      }));
+      const stubs = (stubsResp.stubs || []).map(s => {
+        const isContract = s.stage === 'confirmed';
+        return {
+          kind: 'stub',
+          group: isContract ? 'contract' : 'negotiating',
+          rank: isContract ? 1 : 2,
+          id: s.stub_id,
+          title: s.title || s.client_thread || '(stub)',
+          date: s.hint_date || '',
+          stats: isContract ? 'договор / ждём предоплату' : 'переговоры',
+          onclick: '',
+        };
+      });
+      const leads = (leadsResp.leads || []).map(l => {
+        const stage = l.stage || 'lead';
+        const rank = (stage === 'contract' || stage === 'prepayment') ? 1
+          : (stage === 'negotiating' ? 2 : 3);
+        const chRaw = String(l.channel || '').toUpperCase();
+        const ch = chRaw.startsWith('WA') ? 'WA' : (chRaw.startsWith('VK') ? 'VK' : 'TG');
+        const href = l.username
+          ? `./index.html?chat=${encodeURIComponent(l.username)}&channel=${ch}`
+          : './index.html';
+        return {
+          kind: stage === 'lead' ? 'lead' : stage,
+          group: rank === 1 ? 'contract' : (rank === 2 ? 'negotiating' : 'lead'),
+          rank,
+          id: `lead${l.order_id}`,
+          title: l.client || l.username || `order ${l.order_id}`,
+          date: l.event_date_iso || l.event_date_raw || '',
+          stats: `${stage === 'prepayment' ? 'ждём предоплату' : stage === 'contract' ? 'договор отправлен' : stage === 'negotiating' ? 'переговоры' : 'заявка'} · ${l.status || ''}`,
+          href,
+        };
+      });
+      const rows = [...events, ...stubs, ...leads].sort((a, b) =>
+        (a.rank - b.rank) || String(a.date || '9999-99-99').localeCompare(String(b.date || '9999-99-99'))
+      );
+      if (!rows.length) {
         list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">Нет events</div>';
         return;
       }
       const activeId = CURRENT_EVENT?.id;
-      list.innerHTML = d.events.map(ev => `
-        <div class="event-card ${ev.id === activeId ? 'active' : ''}" onclick="loadEvent('${ev.id}')">
-          <div class="title">${escapeHtml(ev.title || '(без названия)')}</div>
-          <div class="date">${ev.date || '—'}</div>
-          <div class="stats">${ev.members_count || 0} участников · ${fmtRu(ev.members_total_fee || 0)} ₽</div>
-        </div>
-      `).join('');
+      const labels = {
+        paid: 'Оплаченные',
+        contract: 'Договор отправлен / ждём предоплату',
+        negotiating: 'Переговоры',
+        lead: 'Заявки',
+      };
+      let lastGroup = '';
+      list.innerHTML = rows.map(row => {
+        const groupTitle = row.group !== lastGroup
+          ? `<div class="sidebar-group-title">${labels[row.group] || row.group}</div>`
+          : '';
+        lastGroup = row.group;
+        const cls = row.kind === 'event' ? 'paid'
+          : (row.group === 'contract' ? 'contract' : row.group === 'negotiating' ? 'negotiating' : 'lead');
+        const open = row.href
+          ? `onclick="window.open('${row.href.replace(/'/g, "\\'")}', '_blank')"`
+          : (row.onclick ? `onclick="${row.onclick}"` : '');
+        return `${groupTitle}
+          <div class="event-card ${cls} ${row.id === activeId ? 'active' : ''}" ${open}>
+            <div class="title">${escapeHtml(row.title)}</div>
+            <div class="date">${row.date || '—'}</div>
+            <div class="stats">${escapeHtml(row.stats || '')}</div>
+          </div>`;
+      }).join('');
     } catch (e) {
       document.getElementById('events-list').innerHTML =
         '<div style="color:var(--red);font-size:12px">err: ' + e.message + '</div>';
@@ -1095,6 +1170,7 @@
   let CAL_EVENTS = [];
   let CAL_STUBS = [];
   let CAL_LEADS = [];
+  let LAST_AUTO_REFRESH_AT = 0;
 
   function _ymd(d) {
     return d.getFullYear() + '-' +
@@ -1270,17 +1346,29 @@
     loadEventList();
   }
 
+  async function refreshEventsDashboard({force = false} = {}) {
+    const now = Date.now();
+    if (!force && now - LAST_AUTO_REFRESH_AT < 55000) return;
+    LAST_AUTO_REFRESH_AT = now;
+    await Promise.all([
+      _fetchCalendarData(),
+      loadEventList(),
+    ]);
+    if (!CURRENT_EVENT) _paintCalendar();
+  }
+
   // Init
-  loadEventList();
   (async () => {
-    await _fetchCalendarData();
+    await refreshEventsDashboard({force: true});
     renderCalendarView();
-    // Refresh data every 60s while idle (no event selected)
+    // Refresh data every 60s. If an event is open, don't replace the editor,
+    // but still refresh the left sidebar so newly materialized orders appear.
     setInterval(async () => {
-      if (CURRENT_EVENT) return;
-      await _fetchCalendarData();
-      _paintCalendar();
+      await refreshEventsDashboard();
     }, 60000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) refreshEventsDashboard({force: true});
+    });
   })();
 </script>
 
