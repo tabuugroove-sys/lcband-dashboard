@@ -493,7 +493,7 @@
         id: ev.id,
         title: ev.title || '(без названия)',
         date: ev.date || '',
-        stats: `${ev.members_count || 0} участников · ${fmtRu(ev.members_total_fee || 0)} ₽`,
+        stats: `${ev.linked_order_status || 'оплачен'} · ${ev.members_count || 0} участников · ${fmtRu(ev.members_total_fee || 0)} ₽`,
         onclick: `loadEvent('${String(ev.id || '').replace(/'/g, "\\'")}')`,
       }));
       const stubs = (stubsResp.stubs || []).map(s => {

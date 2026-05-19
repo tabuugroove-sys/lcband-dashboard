@@ -109,10 +109,31 @@ function renderListPanel(title, rows, renderRow) {
   if (!rows || !rows.length) return '';
   return `<div class="panel"><h2>${title} <span class="muted small">(${rows.length})</span></h2>${rows.map(renderRow).join('')}</div>`;
 }
+function renderActionProtocol(ap) {
+  if (!ap || !Object.keys(ap).length) return '';
+  const checks = Array.isArray(ap.required_tool_check) ? ap.required_tool_check : [];
+  return `<div class="panel">
+    <h2>Action protocol</h2>
+    <div class="kv"><div class="k">action_type</div><div class="v">${esc(ap.action_type || '')}</div></div>
+    <div class="kv"><div class="k">owner</div><div class="v">${esc(ap.action_owner || '')}</div></div>
+    <div class="kv"><div class="k">autonomy</div><div class="v">${esc(ap.autonomy || '')}</div></div>
+    <div class="kv"><div class="k">reason</div><div class="v">${esc(ap.reason || '')}</div></div>
+    <div class="kv"><div class="k">allowed without evidence</div><div class="v">${esc(ap.allowed_without_evidence || '')}</div></div>
+    ${checks.length ? `<h2 style="margin-top:12px">Required tool checks</h2>${checks.map(ch => `
+      <div class="thread">
+        <div class="thread-head">${pill(ch.kind || 'check', 'warn')}<span class="muted">${esc(ch.source || '')}</span></div>
+        <div style="margin-top:5px">${esc(ch.fact || '')}</div>
+        ${ch.on_missing ? `<div class="small muted" style="margin-top:5px">if missing: ${esc(ch.on_missing)}</div>` : ''}
+      </div>
+    `).join('')}` : ''}
+  </div>`;
+}
 function render(data) {
   const c = data.card || {};
   const order = data.order || {};
   const eg = data.event_graph || {};
+  const isBroker = c.context_namespace === 'broker' || !!data.broker_order;
+  const lcbCtx = data.lcb_event_context || {};
   const threads = c.event_threads || [];
   const musicians = threads.filter(t => t.role === 'musician');
   const techs = threads.filter(t => t.role === 'tech');
@@ -140,6 +161,7 @@ function render(data) {
           <h2>Что writer увидит как контекст</h2>
           <pre>${esc(data.writer_prompt_context_block || '(empty)')}</pre>
         </div>
+        ${renderActionProtocol(c.action_protocol)}
         <div class="panel">
           <h2>Основные поля карточки</h2>
           <div class="kv"><div class="k">next_action_hint</div><div class="v">${esc(c.next_action_hint || '')}</div></div>
@@ -169,9 +191,13 @@ function render(data) {
             ${p.evidence ? `<div class="small muted" style="margin-top:5px">${esc(p.evidence)}</div>` : ''}
           </div>`)}
         <details open>
-          <summary>Raw lead_context_store.json card</summary>
+          <summary>${isBroker ? 'Raw broker_order_context card' : 'Raw source context card'}</summary>
           <pre>${esc(pretty(c))}</pre>
         </details>
+        ${!isBroker ? `<details>
+          <summary>Raw lcb_orders.json via lcb_event_context.py</summary>
+          <pre>${esc(pretty(lcbCtx))}</pre>
+        </details>` : ''}
       </div>
     </div>`;
 }

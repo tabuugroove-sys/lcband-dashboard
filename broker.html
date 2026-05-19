@@ -202,11 +202,11 @@
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;font-size:12px">
   <div style="background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.3);border-radius:6px;padding:8px 12px">
     <span style="color:var(--green);font-weight:600">🗂 broker_order_context.py</span>
-    <span style="color:var(--muted);margin-left:8px">SSoT карточек — все агенты тянут отсюда</span>
+    <span style="color:var(--muted);margin-left:8px">event-centric SSoT: event → organizer → contractors → negotiation stage</span>
   </div>
   <div style="background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.25);border-radius:6px;padding:8px 12px">
     <span style="color:var(--accent);font-weight:600">Агенты с контекстом:</span>
-    <span style="color:var(--muted);margin-left:6px">broker_dialog_agent · broker_casting · contractor_dialog_agent · broker-client/contractor-followup · _urgent_review_order_context</span>
+    <span style="color:var(--muted);margin-left:6px">broker_dialog_agent (writer) · broker_casting · broker-client/contractor-followup · contractor_dialog_agent legacy contractor handler · _urgent_review_order_context</span>
   </div>
 </div>
 <div class="roster-section">
@@ -411,8 +411,22 @@ function renderRosterSubcategory(cat) {
 }
 
 function renderRosterVendor(v) {
-  const promoHtml = v.promo_url
-    ? `<div class="v-promo"><a href="${escHtml(v.promo_url)}" target="_blank">📹 промо</a></div>`
+  const media = v.media_summary || {};
+  const firstMessageRef = (v.message_refs || []).find(x => (x.source_msg_ids || []).length);
+  const firstMediaLink = (v.media_links || []).find(x => x.url);
+  const promoUrl = !firstMessageRef && (v.promo_url || (firstMediaLink && firstMediaLink.url) || '');
+  const promoHtml = firstMessageRef
+    ? `<div class="v-promo"><span title="${escHtml(firstMessageRef.source_peer || '')} #${escHtml((firstMessageRef.source_msg_ids || []).join(','))}">📹 TG promo ref</span></div>`
+    : promoUrl
+    ? `<div class="v-promo"><a href="${escHtml(promoUrl)}" target="_blank">📹 промо</a></div>`
+    : '';
+  const mediaHtml = media.has_media
+    ? `<div class="v-tags">
+        ${media.local_files ? `<span class="v-std">📎 файлов ${media.local_files}</span>` : ''}
+        ${media.message_refs ? `<span class="v-std">📹 TG refs ${media.message_refs}</span>` : ''}
+        ${media.links ? `<span class="v-std">🔗 ссылок ${media.links}</span>` : ''}
+        ${media.unresolved_media ? `<span class="v-std" title="Есть вложения в переписке, но они ещё не скачаны в broker_promo">📥 TG media ${media.unresolved_media}</span>` : ''}
+      </div>`
     : '';
   const stdHtml = v.has_standard_package
     ? `<span class="v-std">📦 стандартный пакет${v.standard_price_rub ? ' ' + Number(v.standard_price_rub).toLocaleString('ru-RU') + ' ₽' : ''}</span>`
@@ -427,6 +441,7 @@ function renderRosterVendor(v) {
     <div class="v-user">@${escHtml(v.username)}${v.geo && v.geo !== 'уточнить' ? `<span style="color:var(--muted);margin-left:8px">📍 ${escHtml(v.geo)}</span>` : ''}</div>
     ${v.rate_quote ? `<div class="v-rate">💰 ${escHtml(v.rate_quote)}</div>` : ''}
     ${promoHtml}
+    ${mediaHtml}
     ${stdHtml ? `<div style="margin-top:3px">${stdHtml}</div>` : ''}
     ${notesShort ? `<div class="v-notes">${escHtml(notesShort)}</div>` : ''}
     ${tagsHtml}
@@ -464,9 +479,12 @@ async function loadRoster(base) {
     window._rosterCats = data.categories;
     const nonEmpty = data.categories.filter(c => c.vendors.length > 0);
     const withGeoTotal = data.categories.reduce((s,c) => s + c.vendors.filter(v => v.geo && v.geo !== 'уточнить').length, 0);
+    const media = data._meta?.media || {};
     renderRosterSplit(data.categories);
     document.getElementById('roster-meta').textContent =
       `· ${data.total} подрядчиков · ${withGeoTotal} с городом · ${nonEmpty.length} категорий` +
+      ` · media ${media.vendors_with_any_media || 0}/${media.vendors_total || 0}` +
+      ` · files ${media.local_files || 0} · links ${media.links || 0}` +
       (data._meta.updated ? ` · обновлено ${data._meta.updated}` : '');
   } catch (e) {
     document.getElementById('roster-cats').innerHTML =

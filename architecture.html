@@ -241,12 +241,12 @@
             <tr>
               <td>WhatsApp переписки</td>
               <td><code>wa_cache/&lt;phone_or_name&gt;.jsonl</code></td>
-              <td>WA import/sync; responder читает только локальный cache</td>
+              <td>Baileys пишет inbound и ручные outbound Михаила; inbound проходит <code>wa_direct_inbound_sync.py</code> и актуальные заявки попадают в <code>orders.db</code>; <code>wa_responder.py</code> читает cache и кладёт draft в <code>wa_computer_use_queue.json</code>; финальный Send только через WhatsApp Desktop/computer-use</td>
             </tr>
             <tr>
               <td>AI-выводы поверх текстов</td>
-              <td><code>lead_context_store.json</code><br><code>conversation_analysis/tg/*.json</code><br><code>conversation_analysis/ig/*.json</code></td>
-              <td>Enricher пишет карточки, включая <code>event_context_events</code> / promises; агенты читают перед ответом</td>
+              <td><code>lead_context_store.json</code> primary fallback<br><code>orders.db.contact_context/event_context</code><br><code>conversation_analysis/tg/*.json</code></td>
+              <td>Enricher пишет карточки в JSON и dual-write в SQL; агенты пока читают JSON/read-layer перед ответом</td>
             </tr>
           </tbody>
         </table>
@@ -300,7 +300,7 @@
       <div class="sec-num" style="background:rgba(168,85,247,.2);color:#d8b4fe">2</div>
       <div>
         <div class="sec-label">Входящий DM</div>
-        <div class="sec-desc">Listener → enrich(force) синхронно → агент читает свежую карточку → dual-stream ответ</div>
+        <div class="sec-desc">Listener → cache inbound → enrich(force) синхронно → event-card → агент читает свежую карточку</div>
       </div>
     </div>
     <div class="card">
@@ -318,15 +318,19 @@
 	          <span class="anno"><br><code>NewMessage(incoming=True, is_private=True)</code> → запускает тред. Работает на <b>любой</b> новый private DM, не только первое сообщение.</span>
 	        </li>
         <li>
-          <b>Картотека обновляется ПЕРВОЙ</b> <span class="badge badge-warn">force=True</span>
-	          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lead_context_enricher.py" target="_blank" rel="noopener"><code>lead_context_enricher.enrich(username, "tg", force=True)</code></a>
-	          — обходит 30-мин freshness check, принудительно включает новое сообщение в карточку.
-	          Выполняется синхронно в треде, <b>до</b> запуска агента. Карточка получает event binding из <code>resolve_context</code>.</span>
+	          <b>Входящее фиксируется в cache, потом обновляется картотека</b> <span class="badge badge-warn">force=True</span>
+		          <span class="anno"><br><code>_record_incoming_to_cache(out=False)</code> → <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lead_context_enricher.py" target="_blank" rel="noopener"><code>lead_context_enricher.enrich(username, "tg", force=True)</code></a>.
+		          Enricher обходит 30-мин freshness check, читает <code>conversation_cache</code> + <code>tg_full_export</code> + live TG fallback.
+			          Если клиент ответил хотя бы один раз, минимальная context-card сохраняется до AI. Если known events пустой, но thread явно про одно мероприятие, создаёт event через <code>event_graph.py</code> в <code>orders.db.eg_*</code> и переносит key asks в event-card.</span>
 	        </li>
 	        <li>
 	          <b>Запуск агента</b>
 	          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/unified_dm_responder.py" target="_blank" rel="noopener"><code>unified_dm_responder.handle({channel, username, text, ts})</code></a></span>
 	        </li>
+        <li>
+          <b>LCB band-member route</b>
+          <span class="anno"><br>LAZ/Ира/Стас/Лео/Teddy из <code>tg_whitelist.json</code> идут в <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/band_member_reply.py" target="_blank" rel="noopener"><code>band_member_reply.py</code></a>: только факты по подтверждённым event'ам; payment/new-gig/personal → silent.</span>
+        </li>
 	        <li>
 	          <b>Агент читает свежую карточку</b>
 	          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lead_context_enricher.py" target="_blank" rel="noopener"><code>get_or_enrich(username, channel)</code></a> — если карточка устарела (cron-путь) — обновляет; иначе берёт актуальную из кеша</span>
@@ -343,7 +347,7 @@
 	        <li>
 	          <b>Routing verdict</b>
 	          <span class="anno"><br>
-	            <code>sent</code> → TG direct send ·
+	            <code>sent</code> → TG/VK direct send; WA → <code>funnel_maintenance.py</code> queues <code>wa_computer_use_queue.json</code> for WhatsApp Desktop path ·
 		            <code>money</code> → notify bot only ·
 	            <code>skipped</code> → spam/refusal/musician/unclear ·
 	            <code>error</code> → log/state consultant gap; no second DM sender
@@ -353,7 +357,7 @@
           <b>Dual-stream после отправки</b> <span class="badge badge-purple">одновременно</span>
           <span class="anno"><br>
           Поток 1 → сообщение отправлено в DM<br>
-	          Поток 2 → <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/unified_dm_responder.py" target="_blank" rel="noopener"><code>_record_outgoing_to_cache(out=True)</code></a> + <code>enrich(force=True)</code> — исходящий текст тоже попадает в картотеку</span>
+	          Поток 2 → <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/unified_dm_responder.py" target="_blank" rel="noopener"><code>_record_outgoing_to_cache(out=True)</code></a> + <code>enrich(force=True)</code> — исходящий текст тоже попадает в картотеку и активный event</span>
 	        </li>
       </ol>
 
@@ -457,7 +461,7 @@
       <div style="background:#0d1117;border:1.5px solid rgba(245,197,24,.4);border-radius:10px;overflow:hidden">
         <div style="background:rgba(245,197,24,.07);padding:7px 14px;border-bottom:1px solid rgba(245,197,24,.2);display:flex;align-items:center;gap:8px">
           <span style="font-size:16px">🗂</span>
-          <code style="font-size:12px;color:var(--gold);font-weight:700">lead_context_store.json → "tg:username"</code>
+          <code style="font-size:12px;color:var(--gold);font-weight:700">lead_context_store.json → dual-write → orders.db.contact_context/event_context</code>
           <span class="badge badge-warn" style="margin-left:auto">карточка</span>
         </div>
         <div style="padding:10px 14px;display:flex;flex-direction:column;gap:3px">
@@ -519,6 +523,7 @@
                 </div>
                 → <code>enrich(force=True)</code> снова<br>
                 → <code>promise_extractor.process_thread()</code><br>
+                → durable tech/contractor dependencies stay open until explicit resolution<br>
                 → карточка: <code style="color:#fde68a">waiting_for_client: true</code>
                 + open promises
               </div>
@@ -548,36 +553,38 @@
       <div class="sec-num" style="background:rgba(20,184,166,.2);color:#5eead4">3</div>
       <div>
         <div class="sec-label">Картотека контекста</div>
-        <div class="sec-desc">lead_context_store.json · два namespace · что пишется · что читается</div>
+        <div class="sec-desc">LCB read-layer + Broker SSoT · что пишется · что читается</div>
       </div>
     </div>
 
     <div class="grid2" style="margin-bottom:12px">
       <div class="card" style="border:1.5px dashed rgba(59,130,246,.5)">
-        <div style="font-weight:700;color:#93c5fd;margin-bottom:10px">📘 LCB Картотека</div>
+        <div style="font-weight:700;color:#93c5fd;margin-bottom:10px">📘 LCB Event SSoT</div>
         <div class="anno">
-          <b>Ключ:</b> <code>tg:username</code><br>
-          <b>Namespace:</b> <code>lcb</code> (дефолт)<br><br>
+          <b>Файл:</b> <code>lcb_orders.json</code><br>
+          <b>Read-layer:</b> <code>lcb_event_context.py</code><br><br>
           <b>Хранит:</b><br>
-          — История переписки (вх + исх)<br>
-          — Тип клиента, этап воронки<br>
-          — Стиль общения (ты/Вы)<br>
-          — Сигналы интереса / отказа<br>
-          — Дата события, формат, бюджет<br><br>
-          <b>Читает:</b> Agent 2 — <code>unified_dm_responder</code>
+          — Event как сущность<br>
+          — Organizer + performers/tech<br>
+          — Stage / next_action / waiting flags<br>
+          — lcb_writer_mode + history, синхронно с CRM funnel stage<br>
+          — Promises, roles, active_event; тех/contractor dependencies не stale по отсутствию в compact AI output<br>
+          — Internal subrequests: например DJ → <code>broker_pipeline</code> для цены/видео/style-match<br><br>
+	          <b>Обновляют:</b> inbound/outbound context, CRM status/history, event graph owners (<code>orders.db.eg_*</code>)
         </div>
       </div>
       <div class="card" style="border:1.5px dashed rgba(168,85,247,.5)">
-        <div style="font-weight:700;color:#d8b4fe;margin-bottom:10px">📙 Broker Картотека</div>
+        <div style="font-weight:700;color:#d8b4fe;margin-bottom:10px">📙 Broker Event SSoT</div>
         <div class="anno">
-          <b>Ключ:</b> <code>broker:tg:username</code><br>
-          <b>Namespace:</b> <code>broker</code><br><br>
+          <b>Файл:</b> <code>broker_orders.json</code><br>
+          <b>Read-layer:</b> <code>broker_order_context.py</code><br><br>
           <b>Хранит:</b><br>
-          — История брокер-переговоров<br>
-          — waiting_for_us / silence_days<br>
-          — Ценовые ориентиры<br>
-          — Подрядчики и статусы<br><br>
-          <b>Читает:</b> Broker контур — <code>broker_casting</code> / <code>contractor_dialog_agent</code>
+          — Event как сущность<br>
+          — Organizer + contractors/candidates<br>
+          — Stage / status / history<br>
+          — Смысл переговоров, цены, медиа<br>
+          — Vendor promo/media read-model: <code>broker_vendor_media.json</code> из roster + переписок + <code>broker_promo/</code><br><br>
+          <b>Читает:</b> Broker контур — <code>broker_casting</code> / <code>broker_dialog_agent</code>
         </div>
       </div>
     </div>
@@ -589,8 +596,8 @@
         <code style="font-size:11px;background:rgba(239,68,68,.1);padding:2px 8px;border-radius:4px;color:#fca5a5">is_refused_any(username)</code>
       </div>
       <div class="anno">
-        Проверяет <b>оба</b> namespace. Если человек отказал LCB или Broker — <b>оба</b> агента замолкают.
-        Один общий регулятор на двух агентов.
+        Читает LCB contact-card как общий contact hard-stop. Broker-specific статус/отказ живёт в
+        <code>broker_orders.json</code>, без второй broker-картотеки.
       </div>
     </div>
 
@@ -602,19 +609,19 @@
         </thead>
         <tbody>
           <tr>
-            <td><span class="badge badge-blue">ЗАПИСЬ</span> Входящее DM</td>
-            <td><code>enrich(force=True)</code></td>
-            <td>Синхронно в listener-треде, <b>до</b> запуска агента</td>
+	            <td><span class="badge badge-blue">ЗАПИСЬ</span> Входящее DM</td>
+	            <td><code>_record_incoming_to_cache()</code> + <code>enrich(force=True)</code> + <code>lcb_orders.refresh_contact()</code></td>
+	            <td>Синхронно в listener-треде, <b>до</b> запуска агента; затем <code>lcb_event_context.py</code> читает <code>lcb_orders.json</code></td>
           </tr>
           <tr>
             <td><span class="badge badge-green">ЗАПИСЬ</span> Исходящее DM</td>
-            <td><code>_record_outgoing_to_cache()</code> + <code>enrich(force=True)</code></td>
-            <td>Сразу после успешной отправки (dual-stream)</td>
+            <td><code>outbound_recorder.record_outbound(namespace=lcb)</code></td>
+            <td>Сразу после успешной отправки: cache → <code>lead_context_enricher</code> → <code>lcb_orders.refresh_contact()</code> → <code>promise_extractor</code></td>
           </tr>
           <tr>
             <td><span class="badge badge-purple">ЧТЕНИЕ</span> Генерация ответа</td>
-            <td><code>get_or_enrich(username, channel)</code></td>
-            <td>Внутри агента, перед каждым Opus-вызовом</td>
+            <td><code>lcb_event_context.card_by_contact()</code></td>
+            <td>Read-only карточка из <code>lcb_orders.json</code> перед Opus-вызовом; writer видит <code>subrequests</code> как отдельные зависимости</td>
           </tr>
           <tr>
             <td><span class="badge badge-purple">ЧТЕНИЕ</span> Follow-up</td>
@@ -635,8 +642,12 @@
       </table>
       <div style="margin-top:14px" class="anno">
         <b>Файлы:</b><br>
-        <code>lead_context_store.json</code> — хранилище (ключ = <code>namespace:channel:username</code>)<br>
-        <code>conversation_cache/&lt;username&gt;.jsonl</code> — TG история (вх + исх)<br>
+        <code>lcb_orders.json</code> — физический LCB event/context SSoT<br>
+        <code>lcb_event_context.py</code> — единый LCB read-layer поверх <code>lcb_orders.json</code><br>
+        <code>lead_context_store.json</code> — upstream LCB AI read-model и primary fallback (ключ = <code>channel:username</code>)<br>
+        <code>orders.db.contact_context/event_context</code> — Phase 2A SQL dual-write для будущего read switch<br>
+	        <code>conversation_cache/&lt;username&gt;.jsonl</code> — TG история (вх + исх), <code>tg_full_export</code> и live TG fallback закрывают stale cache<br>
+	        <code>orders.db.eg_*</code> — event graph: event-card и связь organizer/performer/tech; <code>event_graph.py</code> — compatibility API<br>
         <code>vk_conversation_cache/&lt;peer&gt;.jsonl</code> · <code>wa_cache/&lt;phone&gt;.jsonl</code><br>
         Запись: <code>{"id": -ts, "date": "...", "out": true/false, "text": "...", "media": false}</code>
       </div>
@@ -667,7 +678,7 @@
           <code>broker_dialog_agent.py</code> для broker dialogue<br><br>
           <b>Картотека:</b> <span class="badge badge-err">нет</span><br>
           Посты холодные, истории нет<br><br>
-          <b>Выход:</b> orders.db + approval → pitching DM<br><br>
+          <b>Выход:</b> orders.db + pre-send gates → pitching DM / skip<br><br>
           <b>Скрипт:</b> <code>tg_realtime_monitor.py</code>
         </div>
       </div>
@@ -678,10 +689,10 @@
           <b>AI-стек:</b><br>
           Opus — classify + LCBand writer<br>
           modes: intake / sales / contract / production / content<br><br>
-          <b>Картотека:</b> <span class="badge badge-blue">LCB</span><br>
-          Ключ: <code>tg:username</code><br>
-          Читает: <code>get_or_enrich()</code><br>
+          <b>Контекст:</b> <span class="badge badge-blue">LCB event read-layer</span><br>
+          Читает: <code>lcb_event_context.py</code><br>
           Event binding: <code>event_context_events</code><br>
+          Coordination: <code>coordination_requests</code> → <code>event_ops_logistics_agent.py</code> для performer check с source media<br>
           Пишет: dual-stream<br><br>
           <b>Выход:</b> ответ клиенту/организатору/технику в TG/VK/WA<br><br>
           <b>Скрипт:</b> <code>unified_dm_responder.py</code>
@@ -690,16 +701,18 @@
       <div class="card" style="border-top:3px solid rgba(168,85,247,.5)">
         <div style="font-size:13px;font-weight:700;color:#d8b4fe;margin-bottom:12px">🟣 Broker контур<br>casting + relay</div>
         <div class="anno">
-          <b>Вход:</b> broker opportunity trigger<br><br>
+          <b>Вход:</b> broker opportunity trigger из event/group chat<br>
+          Direct/private DM → <code>unified_dm_responder.py</code>, не broker<br><br>
           <b>AI-стек:</b><br>
           Opus → contractor brief / relay<br>
           Quality scorer → ranking<br>
           Reference match → closest media top-N<br><br>
-          <b>Картотека:</b> <span class="badge badge-purple">Broker</span><br>
-          Ключ: <code>broker:tg:username</code><br>
-          Читает: <code>get_or_enrich(ns="broker")</code><br><br>
+          <b>Контекст:</b> <span class="badge badge-purple">Broker event SSoT</span><br>
+          Источник: <code>broker_orders.json</code><br>
+          Читает: <code>broker_order_context.py</code><br>
+          Vendor media: <code>broker_vendor_media.py</code> → <code>broker_vendor_media.json</code><br><br>
           <b>Выход:</b> client relay / contractor brief / follow-up<br>
-          Contractor-side: bypass approval → auto-send; client-side: gated when needed<br><br>
+          Contractor-side: bypass client review → auto-send; client-side: presend + context + duplicate guard<br><br>
           <b>Owner:</b> <code>broker_dialog_agent.py</code> для сообщений; <code>broker_casting.py</code> для выбора
         </div>
       </div>
@@ -719,9 +732,11 @@
       </div>
       <div class="anno" style="margin-top:10px">
         <b>Разделение ownership:</b> <code>broker_casting.py</code> выбирает подрядчика.
-        Переписка идёт через <code>broker_dialog_agent.py</code> и <code>contractor_dialog_agent.py</code>, а не через realtime DM owner.
-        Broker → contractor сообщения обходят approval queue и отправляются сразу; broker → client остаётся с клиентскими guardrails.
-        <code>tg_responder.py</code> остаётся consultant-only и не является владельцем broker relay.
+        <code>broker_order_context.py</code> отдаёт broker event как сущность: event, organizer, подрядчики/candidates, смысл переговоров и текущий stage.
+        Входящие DM от broker-linked contractors/candidates realtime-шлюз отдаёт broker handler’у до LCB writer, чтобы не терять ответы без <code>conversation_cache</code>.
+        Broker создаётся только из внешнего event/group chat source. Direct/private DM (`TG`, `TG_DIRECT`, `TG DM ...`) автоматически остаётся LCBand lead.
+        Broker → contractor сообщения обходят client review и отправляются сразу; broker → client идёт через presend, context и duplicate guard.
+        <code>tg_responder.py</code> hard-disabled для общего DM send; в broker-контуре он только маршрутизирует contractor inbound в <code>broker_dialog_agent.py</code>.
       </div>
     </div>
     <div style="margin-top:12px;padding:10px 16px;background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.2);border-radius:10px;text-align:center">
@@ -732,7 +747,7 @@
         <div class="arr">←</div>
         <span style="color:#d8b4fe;font-size:12px">Broker контур</span>
       </div>
-      <div class="anno" style="margin-top:6px">Оба агента проверяют один стоп-список. Отказал одному — замолкают оба.</div>
+      <div class="anno" style="margin-top:6px">LCB contact hard-stop читается из LCB card; broker-specific closed/cancelled живёт в <code>broker_orders.json</code> и тоже учитывается helper'ом.</div>
     </div>
   </div>
 
@@ -757,7 +772,7 @@
             <td><code>tg_followup.py</code></td>
             <td>Ежедневно 10:09</td>
             <td>Молчит ≥ 2 дня, статус «Переговоры» / «Follow-up»</td>
-            <td><code>get_or_enrich()</code> → LCB картотека</td>
+            <td><code>lcb_event_context.py</code> → LCB event-card</td>
             <td>Единственный TG follow-up owner: Opus драфт → send/approval по своим gates</td>
           </tr>
           <tr>
@@ -771,21 +786,21 @@
             <td><code>vk_followup.py</code></td>
             <td>По расписанию</td>
             <td>VK лид без ответа N дней</td>
-            <td>VK conv cache → <code>get_or_enrich()</code></td>
+            <td>VK conv cache → <code>lcb_event_context.py</code></td>
             <td>VK DM reply</td>
           </tr>
           <tr>
             <td><code>broker-client-followup</code></td>
             <td>По расписанию</td>
             <td>Broker: клиент молчит N дней</td>
-            <td><code>get_or_enrich(ns="broker")</code></td>
-            <td>Broker DM → Opus → approval</td>
+            <td><code>broker_order_context.py</code></td>
+            <td>Broker DM → Opus → broker_dialog_agent; auto-send по gates, money/risk → notify</td>
           </tr>
           <tr>
             <td><code>broker-contractor-followup</code></td>
             <td>По расписанию</td>
             <td>Подрядчик не ответил</td>
-            <td>Broker картотека</td>
+            <td><code>broker_orders.json</code></td>
             <td>DM подрядчику</td>
           </tr>
           <tr>
@@ -793,7 +808,7 @@
             <td>Consultant-only</td>
             <td>launchd tick</td>
             <td><code>tg_responder_safety.json</code></td>
-            <td>Пишет consultant state и выходит без scan/send; legacy active только через env</td>
+            <td>Пишет consultant state и выходит без scan/send; legacy active mode отключён в коде</td>
           </tr>
         </tbody>
       </table>
@@ -863,12 +878,12 @@
             — нет картотеки —<br>пост холодный
           </div>
           <div class="node node-store" style="text-align:center;font-size:11px">
-            enrich(force=True)<br>
-            <span style="font-size:10px;opacity:.7">картотека СИНХРОННО</span>
+            lcb_orders.json<br>
+            <span style="font-size:10px;opacity:.7">LCB event/context SSoT → lcb_event_context.py</span>
           </div>
           <div class="node node-store" style="text-align:center;font-size:11px">
-            get_or_enrich(ns="broker")<br>
-            <span style="font-size:10px;opacity:.7">broker картотека</span>
+            broker_order_context<br>
+            <span style="font-size:10px;opacity:.7">broker_orders.json SSoT</span>
           </div>
         </div>
 
@@ -892,7 +907,7 @@
         <!-- Hard-stop -->
         <div style="text-align:center;padding:8px 0">
           <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:6px 20px;font-size:11px;color:#fca5a5">
-            🛑 <code>is_refused_any()</code> — общий хард-стоп для Agent 2 и Broker контура
+            🛑 <code>is_refused_any()</code> — LCB contact hard-stop; broker статус живёт в broker_orders.json
           </div>
         </div>
 
@@ -904,15 +919,15 @@
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:center">
           <div class="node node-out" style="text-align:center;font-size:11px">
             orders.db<br>
-            <span style="font-size:10px;opacity:.7">+ approval → pitch DM</span>
+            <span style="font-size:10px;opacity:.7">+ pre-send gates → pitch/skip</span>
           </div>
           <div class="node node-out" style="text-align:center;font-size:11px">
             TG/VK/WA reply<br>
-            <span style="font-size:10px;opacity:.7">+ dual-stream → картотека</span>
+            <span style="font-size:10px;opacity:.7">+ outbound_recorder → stores</span>
           </div>
           <div class="node node-out" style="text-align:center;font-size:11px">
             Broker DM<br>
-            <span style="font-size:10px;opacity:.7">+ approval → client relay</span>
+            <span style="font-size:10px;opacity:.7">+ presend/context → client relay</span>
           </div>
         </div>
 
@@ -920,7 +935,7 @@
         <div style="margin-top:16px;text-align:center">
           <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:7px 18px;font-size:11px;color:var(--warn)">
             ⏰ Follow-up: <code>tg_followup</code> (10:09) — TG owner · <code>attention_auto_action</code> delegates followup_ready · <code>vk_followup</code> · <code>broker-*-followup</code>
-            — читают <code>get_or_enrich()</code> / event context перед каждым Opus
+            — LCB читает <code>lcb_event_context.py</code>, broker читает <code>broker_order_context.py</code>
           </div>
         </div>
 

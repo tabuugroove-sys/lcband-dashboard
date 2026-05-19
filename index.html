@@ -951,13 +951,15 @@ const PROCESS_RULES = {
   proc_event_ops_logistics: {
     name: 'Event Ops Logistics (10m)',
     interval: 'Каждые 10 мин',
-    desc: 'Закрывает обещания event_ops по логистике: если организатор ответил на вопрос про тайминг/заезд, обновляет event и отправляет в band-чат только короткий delta-апдейт',
+    desc: 'Закрывает обещания event_ops по логистике и performer-coordination: организаторские факты идут в event/band-chat, запросы к участникам (например костюм LAZ) уходят performer-у с дедупом',
     rules: [
       'Источник: event_ops_log.jsonl — ищет последний ask-organizer-logistics и ответы организатора после него',
       'Парсит только прямые факты: сет-тайминги, перерыв, сдвиг, парковку, оплату парковочного талона, контакт на площадке',
       'Обновляет event_planning.json без финансов и приватных сумм',
       'Отправляет только новые/изменившиеся факты, без повторения всего адреса, состава и старого тайминга',
       'Если есть новая схема подъезда — пересылает вложение следом',
+      'Performer-coordination: lead_context_store coordination_requests → target performer thread; требует source media из conversation_cache',
+      'Пример: @alenkakashparova просит костюм LAZ → @larzyy получает текст + фото; клиенту отвечает LCB writer после факта',
       'Дедуп: event_ops_state.json по source_msg_id + semantic sent_facts — похожие повторы организатора не дублируют отправку',
       'Скрипты: event_ops_logistics_agent.py → event_ops_bot.py | log: /tmp/event_ops_logistics.log',
     ],
@@ -1042,7 +1044,8 @@ const PROCESS_RULES = {
       'Persistent listener: events.NewMessage(incoming=True) только для private DM',
       'Новый DM → lead_context_enricher.enrich(force=True) → unified_dm_responder.handle()',
       'unified_dm_responder.py — единственный realtime-владелец DM ответа',
-      'tg_responder.py понижен до consultant/legacy safety layer и не запускается listener-ом',
+      'LCB band-members (LAZ/Ира/Стас/Лео/Teddy) → band_member_reply.py, не client/broker writer',
+      'tg_responder.py hard-disabled для DM send и не запускается listener-ом',
       'На unified error: state/log consultant gap, без второго авто-ответчика',
       'Heartbeat state: tg_dm_realtime_listener_state.json; watchdog рестартит при stale >3 мин',
       'Скрипт: tg_dm_realtime_listener.py | log: /tmp/tg_dm_realtime_listener.log',
@@ -1074,11 +1077,11 @@ const PROCESS_RULES = {
   proc_tg_responder: {
     name: 'TG Ответчик',
     interval: 'Consultant-only каждые 5 мин',
-    desc: 'Консультант/legacy слой: по умолчанию стартует и выходит без send; realtime-вход принадлежит unified_dm_responder.py',
+    desc: 'Консультант/legacy слой: стартует и выходит без send; realtime-вход принадлежит unified_dm_responder.py',
     rules: [
       'Не является постоянным listener и больше не запускается tg_dm_realtime_listener.py',
-      'Default mode: LCBAND_TG_RESPONDER_MODE=consultant → no scan/no send',
-      'Emergency legacy mode только явно: LCBAND_TG_RESPONDER_MODE=active',
+      'send-owner disabled in code: no scan/no send',
+      'LCBAND_TG_RESPONDER_MODE=active больше не включает отправку',
       'Классифицирует входящие через regex (classify_reply) + AI (classify_with_context для too_short/ambiguous)',
       '🔴 22.04: hard-regex refusal_guard (общий модуль с tg_followup) вызывается ПОСЛЕ classify_reply — override категории на decline если ловит отказные фразы («уже выбрали», «отбой», «передумали» — инцидент @lisitsyna_law 20.04)',
       '🔴 22.04: ТЕКСТ ответа пишет Claude Opus по категории-hint (удалены hardcoded шаблоны)',
@@ -1095,9 +1098,10 @@ const PROCESS_RULES = {
   proc_tg_followup: {
     name: 'TG Follow-up',
     interval: 'Ежедневно в 10:09 MSK',
-    desc: 'По расписанию отправляет follow-up только тем лидам, где пора писать после тишины; входящие ответы обрабатывает TG Ответчик',
+    desc: 'TG-only scheduled follow-up. Общий cross-channel follow-up для TG/VK/WA живёт в funnel_maintenance.py и читает orders.db + channel cache.',
     rules: [
       'Cooldown: 3 дня от последнего исходящего',
+      'WA_DIRECT не обрабатывает: WA follow-up queue создаёт funnel_maintenance.py через wa_computer_use_queue.json',
       '🔴 22.04: hard-regex pre-check через refusal_guard.scan_history_for_refusal (общий модуль с tg_responder) — инцидент @lisitsyna_law 20.04, регекс теперь единый в refusal_guard.py',
       'Стоп: за 3 дня до мероприятия',
       'AI-классификация: declined → закрывающее, client → skip',
@@ -1249,6 +1253,7 @@ function _fmtAgo(lastCheck) {
   if (!lastCheck || lastCheck === '—') return '';
   try {
     const d = new Date(lastCheck);
+    if (Number.isNaN(d.getTime())) return lastCheck;
     const mins = Math.round((Date.now() - d.getTime()) / 60000);
     if (mins < 1) return 'только что';
     if (mins < 60) return mins + ' мин назад';
@@ -3036,6 +3041,7 @@ function BrokerOrderCard({ order }) {
 // Hover на ячейку или на линию подсвечивает связанный заказ полностью.
 const BROKER_ORG_STAGES = [
   { key: 'incoming',   label: 'Поступил',     statuses: ['intake', 'brief_pending'] },
+  { key: 'budget_wait', label: 'Ждём бюджет', statuses: ['waiting_client_budget'] },
   { key: 'brief_sent', label: 'Бриф ушёл',    statuses: ['brief_sent', 'contractor_replied'] },
   { key: 'pitched',    label: 'Питч клиенту', statuses: ['client_relayed', 'contractor_relayed'] },
   { key: 'thinking',   label: 'Думает',       statuses: ['client_replied'] },
@@ -7439,11 +7445,11 @@ function LeadFlowSection() {
     setContextCardStatsErr('');
     const load = async () => {
       try {
-        const r = await fetch(`${backendUrl}/api/lead_context?include_refused=1&limit=1`, { cache: 'no-store' });
+        const r = await fetch(`${backendUrl}/api/context_cards?include_refused=1&limit=1`, { cache: 'no-store' });
         const j = await r.json();
         if (!cancelled) setContextCardStats(j);
       } catch (e) {
-        if (!cancelled) setContextCardStatsErr('не удалось загрузить /api/lead_context');
+        if (!cancelled) setContextCardStatsErr('не удалось загрузить /api/context_cards');
       }
     };
     load();
@@ -7550,6 +7556,49 @@ function LeadFlowSection() {
     lead?.location ? `Гео: ${lead.location}` : '',
     lead?.updated_at ? `Обновлено: ${lead.updated_at}` : '',
   ].filter(Boolean).join('\n');
+  const monitorOutcome = (ev) => {
+    const leads = Array.isArray(ev?.leads) ? ev.leads : [];
+    const blob = [
+      ev?.candidate_status,
+      ev?.candidate_reason,
+      ...leads.flatMap(l => [l?.status, l?.next_action, l?.lead_source]),
+    ].filter(Boolean).join(' ').toLowerCase();
+    if (blob.includes('duplicate_candidate') || blob.includes('дубл')) {
+      return {
+        key: 'duplicate',
+        label: 'дубль',
+        color: '#fbbf24',
+        bg: 'rgba(245,158,11,.05)',
+        border: 'rgba(245,158,11,.18)',
+      };
+    }
+    if (blob.includes('skip') || blob.includes('отсеян') || blob.includes('low_margin')) {
+      return {
+        key: 'skip',
+        label: 'skip',
+        color: '#94a3b8',
+        bg: 'rgba(100,116,139,.06)',
+        border: 'rgba(100,116,139,.16)',
+      };
+    }
+    if ((ev?.orders || 0) > 0) {
+      const n = Number(ev.orders || 0);
+      return {
+        key: 'lead',
+        label: `${n} лид${n > 1 ? 'а' : ''}`,
+        color: '#34d399',
+        bg: 'rgba(16,185,129,.06)',
+        border: 'rgba(16,185,129,.18)',
+      };
+    }
+    return {
+      key: 'empty',
+      label: 'нет лида',
+      color: 'var(--muted)',
+      bg: 'rgba(15,23,42,0.4)',
+      border: 'rgba(148,163,184,.08)',
+    };
+  };
   const aiInfoButton = (layer, label) => (
     <button
       type="button"
@@ -7634,13 +7683,13 @@ function LeadFlowSection() {
   const dataStoresBlock = (
     <div style={{background:'rgba(15,23,42,.5)', border:'1.5px solid rgba(20,184,166,.28)', borderRadius:9, padding:'8px 9px', display:'grid', gap:7}}>
       <div>
-        <div style={{fontSize:10.5, fontWeight:900, color:'#5eead4', textTransform:'uppercase', letterSpacing:.4}}>Data stores → Context card</div>
-        <div style={{fontSize:8.5, color:'#cbd5e1'}}>две истории данных перед L3 writer layer</div>
+        <div style={{fontSize:10.5, fontWeight:900, color:'#5eead4', textTransform:'uppercase', letterSpacing:.4}}>Raw archives → orders SSoT → context</div>
+        <div style={{fontSize:8.5, color:'#cbd5e1'}}>archives хранят тексты; CRM/event truth живёт в orders.db + lcb_orders.json</div>
       </div>
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))', gap:6}}>
         <div style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.25)', borderRadius:6, padding:'6px 7px'}}>
-          <div style={{fontSize:9.5, fontWeight:800, color:'#93c5fd', marginBottom:3}}>Public/source store</div>
-          <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>посты и event-чаты</div>
+          <div style={{fontSize:9.5, fontWeight:800, color:'#93c5fd', marginBottom:3}}>Raw public archives</div>
+          <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>фактические тексты, не CRM truth</div>
           <div style={{fontSize:8, color:'var(--muted)', lineHeight:1.35, marginTop:4}}>
             {sourceLink('tg_seen_posts.jsonl', 'tg_seen_posts', {color:'#93c5fd'})}<br/>
             {sourceLink('message_events.jsonl', 'message_events', {color:'#93c5fd'})}<br/>
@@ -7648,8 +7697,8 @@ function LeadFlowSection() {
           </div>
         </div>
         <div style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.28)', borderRadius:6, padding:'6px 7px'}}>
-          <div style={{fontSize:9.5, fontWeight:800, color:'#d8b4fe', marginBottom:3}}>DM store</div>
-          <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>личные TG / VK / WA</div>
+          <div style={{fontSize:9.5, fontWeight:800, color:'#d8b4fe', marginBottom:3}}>Raw DM archives</div>
+          <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>история переписки, не owner заявок</div>
           <div style={{fontSize:8, color:'var(--muted)', lineHeight:1.35, marginTop:4}}>
             {sourceLink('conversation_cache/', 'conversation_cache', {color:'#d8b4fe'})}<br/>
             {sourceLink('vk_conversation_cache/', 'vk_conversation_cache', {color:'#d8b4fe'})}<br/>
@@ -7659,8 +7708,17 @@ function LeadFlowSection() {
       </div>
       <div style={{display:'flex', alignItems:'center', gap:5, color:'var(--muted)', fontSize:9, lineHeight:1}}>
         <span style={{flex:1, height:1, background:'linear-gradient(to right, rgba(20,184,166,.1), rgba(20,184,166,.45))'}}/>
-        <span>↓ enrich / resolve</span>
+        <span>↓ normalize / enrich</span>
         <span style={{flex:1, height:1, background:'linear-gradient(to right, rgba(20,184,166,.45), rgba(20,184,166,.1))'}}/>
+      </div>
+      <div style={{background:'rgba(245,197,24,.08)', border:'1px solid rgba(245,197,24,.28)', borderRadius:6, padding:'6px 7px'}}>
+        <div style={{fontSize:9.5, fontWeight:800, color:'#fde68a', marginBottom:3}}>Orders source of truth</div>
+        <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>
+          {sourceLink('orders.db', 'orders.db', {color:'#fde68a'})} = CRM + event graph; {sourceLink('lcb_orders.json', 'lcb_orders.json', {color:'#fde68a'})} = LCB event/context entity store
+        </div>
+        <div style={{fontSize:8, color:'var(--muted)', marginTop:3}}>
+          lead_context_store.json remains AI read-model/fallback during migration, not a separate truth source.
+        </div>
       </div>
       <div
         onClick={() => setContextCardHelpOpen(true)}
@@ -7668,7 +7726,7 @@ function LeadFlowSection() {
         style={{background:'rgba(20,184,166,.09)', border:'1px dashed rgba(20,184,166,.45)', borderRadius:6, padding:'6px 7px', cursor:'pointer'}}
       >
         <div style={{display:'flex', alignItems:'center', gap:6, marginBottom:3}}>
-          <div style={{fontSize:9.5, fontWeight:800, color:'#5eead4'}}>Context card / картотека</div>
+        <div style={{fontSize:9.5, fontWeight:800, color:'#5eead4'}}>Context read-layer</div>
           <button
             type="button"
             onClick={(e) => {
@@ -7685,10 +7743,10 @@ function LeadFlowSection() {
           >schema</button>
         </div>
         <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>
-          {sourceLink('lead_context_store.json', 'lead_context_store', {color:'#5eead4'})} · event binding · open promises · роли контактов · нюансы заявки
+          {sourceLink('lcb_event_context.py', 'lcb_event_context.py', {color:'#5eead4'})} собирает карточку из orders-backed LCB store для writers/dashboard
         </div>
         <div style={{fontSize:8, color:'var(--muted)', marginTop:3}}>
-          LCB writer и Broker writer должны читать этот слой перед текстом.
+          LCB writer читает lcb_event_context.py; Broker writer читает broker_order_context.py.
         </div>
       </div>
     </div>
@@ -7838,7 +7896,7 @@ function LeadFlowSection() {
 	                </div>
 	                {arr('↓ Opus анализирует историю')}
 	                {step('rgba(139,92,246,.9)', 'rgba(139,92,246,.08)', '🔮 Opus AI · context card')}
-                {arr('↓ обновляет карточку')}
+	                {arr('↓ обновляет thread/context')}
                 {/* context card */}
                 <div style={{background:'rgba(59,130,246,.07)', border:'1.5px dashed rgba(59,130,246,.45)', borderRadius:7, padding:'5px 8px'}}>
 	                  <div style={{fontSize:9, fontWeight:700, color:'#60a5fa', marginBottom:3}}>
@@ -7850,7 +7908,11 @@ function LeadFlowSection() {
                     </div>
                   ))}
                 </div>
-	                {arr('↓ get_or_enrich() · читает перед ответом')}
+	                {arr('↓ lcb_orders.refresh_contact()')}
+	                <div style={{background:'rgba(20,184,166,.08)', border:'1px solid rgba(20,184,166,.32)', borderRadius:6, padding:'4px 8px', fontSize:9, color:'#5eead4', fontWeight:700, textAlign:'center'}}>
+	                  lcb_orders.json · event SSoT
+	                </div>
+	                {arr('↓ unified_dm_responder читает перед ответом')}
 	                {/* agent */}
 	                <div className="ai-layer-card" onClick={() => setAiLayerOpen({ layer: 'agent2' })} title="Показать текущие промпты, source files, context и gates Agent 2" style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.35)', borderRadius:7, padding:'5px 8px'}}>
 	                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
@@ -7925,26 +7987,26 @@ function LeadFlowSection() {
                     <span style={{fontFamily:'monospace'}}>{'{out:true, text:"Есть вариант…"}'}</span>
                   </div>
                 </div>
-                {arr('↓ enrich(force=True, ns="broker")')}
-                <div style={{background:'rgba(139,92,246,.08)', border:'1px solid rgba(139,92,246,.3)', borderRadius:6, padding:'4px 8px', fontSize:9.5, color:'#c4b5fd', fontWeight:600, textAlign:'center'}}>🔮 Opus AI · брокер-история</div>
-                {arr('↓ обновляет карточку')}
+                {arr('↓ broker_order_context.py')}
+                <div style={{background:'rgba(139,92,246,.08)', border:'1px solid rgba(139,92,246,.3)', borderRadius:6, padding:'4px 8px', fontSize:9.5, color:'#c4b5fd', fontWeight:600, textAlign:'center'}}>broker_orders.json · event SSoT</div>
+                {arr('↓ строит read-model')}
                 {/* broker context card */}
                 <div style={{background:'rgba(167,139,250,.07)', border:'1.5px dashed rgba(167,139,250,.45)', borderRadius:7, padding:'5px 8px'}}>
-                  <div style={{fontSize:9, fontWeight:700, color:'#a78bfa', marginBottom:3}}>📋 lead_context_store · broker:tg:u</div>
-                  {[['client_intent','намерение'],['waiting_for_us','ждёт нас'],['silence_days','молчит Nд'],['key_asks','уточнения']].map(([k,v]) => (
+                  <div style={{fontSize:9, fontWeight:700, color:'#a78bfa', marginBottom:3}}>broker event card</div>
+                  {[['event','сущность'],['organizer','организатор'],['contractors','подрядчики'],['stage','этап']].map(([k,v]) => (
                     <div key={k} style={{fontSize:8.5, color:'var(--muted)', lineHeight:1.4}}>
                       <span style={{color:'#a78bfa'}}>{k}</span> · {v}
                     </div>
                   ))}
                 </div>
-                {arr('↓ get_or_enrich(ns="broker") · читает')}
+                {arr('↓ broker_dialog_agent читает')}
                 {/* agent */}
                 <div className="ai-layer-card" onClick={() => setAiLayerOpen({ layer: 'agent3' })} title="Показать текущие промпты, source files, context и gates Broker контура" style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.35)', borderRadius:7, padding:'5px 8px'}}>
                   <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
                     <div style={{fontSize:9.5, fontWeight:700, color:'#a78bfa'}}>🤝 Broker контур · casting + relay</div>
                     {aiInfoButton('agent3', 'Broker')}
                   </div>
-                  <div style={{fontSize:8.5, color:'#f87171'}}>broker_casting selects · broker_dialog_agent writes · tg_responder не owner</div>
+                  <div style={{fontSize:8.5, color:'#f87171'}}>event/group only · direct DM→LCB · broker_dialog_agent writes · client presend</div>
                 </div>
                 {arr('↓ отправляет — два потока')}
                 {/* dual stream */}
@@ -7978,30 +8040,30 @@ function LeadFlowSection() {
           <div style={{order:1, background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.3)', borderRadius:9, padding:'7px 10px'}}>
             <div style={{fontSize:10, fontWeight:700, color:'#6ee7b7', marginBottom:4}}>✅ Выход Agent 1</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>orders.db → воронка</div>
-            <div style={{fontSize:9.5, color:'var(--muted)'}}>approval bot → pitch DM</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>pre-send gates → pitch/skip</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>skip → mark-read</div>
           </div>
           <div style={{order:3, background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.3)', borderRadius:9, padding:'7px 10px'}}>
             <div style={{fontSize:10, fontWeight:700, color:'#6ee7b7', marginBottom:4}}>✅ Выход Agent 2</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>ответ → TG / VK / WA</div>
-            <div style={{fontSize:9.5, color:'var(--muted)'}}>+ картотека LCB обновлена</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>+ outbound_recorder обновляет stores</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>follow-up · 10:09 · 30м</div>
           </div>
           <div style={{order:2, background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.3)', borderRadius:9, padding:'7px 10px'}}>
             <div style={{fontSize:10, fontWeight:700, color:'#6ee7b7', marginBottom:4}}>✅ Выход Broker</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>relay → клиент</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>brief → подрядчик</div>
-            <div style={{fontSize:9.5, color:'var(--muted)'}}>+ картотека Broker обновлена</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>+ broker_orders.json обновлен</div>
           </div>
         </div>
 
         {/* Hard-stop + followup */}
         <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
           <div style={{flex:1, background:'rgba(239,68,68,.06)', border:'1px solid rgba(239,68,68,.2)', borderRadius:7, padding:'6px 10px', fontSize:9.5, color:'#fca5a5', minWidth:180}}>
-            🛑 <code style={{fontSize:9}}>is_refused_any()</code> — общий хард-стоп: отказал одному → молчат оба агента (LCB + Broker)
+            🛑 <code style={{fontSize:9}}>is_refused_any()</code> — LCB contact hard-stop; broker статус живёт в broker_orders.json
           </div>
           <div style={{flex:1, background:'rgba(245,158,11,.05)', border:'1px solid rgba(245,158,11,.2)', borderRadius:7, padding:'6px 10px', fontSize:9.5, color:'#fde68a', minWidth:180}}>
-            ⏰ Follow-ups: <code style={{fontSize:9}}>tg_followup</code> 10:09 — владелец TG follow-up · <code style={{fontSize:9}}>attention_auto_action</code> 30м delegates followup_ready · <code style={{fontSize:9}}>broker-*-followup</code>
+            ⏰ Follow-ups: <code style={{fontSize:9}}>funnel_maintenance</code> — TG/VK/WA по orders.db · <code style={{fontSize:9}}>tg_followup</code> TG structured due · <code style={{fontSize:9}}>broker-*-followup</code>
           </div>
         </div>
 
@@ -8020,11 +8082,28 @@ function LeadFlowSection() {
               ['VK DM cache', 'vk_conversation_cache/<peer>.jsonl'],
               ['IG DM cache', 'ig_conversation_cache/<user>.jsonl'],
               ['WA cache', 'wa_cache/<phone>.jsonl'],
-              ['AI context cards', 'lead_context_store.json'],
             ].map(([label, path]) => (
               <div key={path} style={{background:'rgba(15,23,42,.34)', border:'1px solid rgba(148,163,184,.12)', borderRadius:6, padding:'5px 7px', minWidth:0}}>
                 <div style={{fontSize:8.5, color:'var(--muted)', marginBottom:2}}>{label}</div>
                 <code style={{fontSize:8.5, color:'#a5f3fc', wordBreak:'break-word'}}>{path}</code>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{background:'rgba(245,197,24,.055)', border:'1px solid rgba(245,197,24,.24)', borderRadius:8, padding:'8px 10px'}}>
+          <div style={{fontSize:10, fontWeight:800, color:'#fde68a', textTransform:'uppercase', letterSpacing:.5, marginBottom:6}}>Canonical stores and read-layers</div>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:5}}>
+            {[
+              ['CRM + event graph SSoT', 'orders.db'],
+              ['LCB event/entity store', 'lcb_orders.json'],
+              ['LCB read-layer', 'lcb_event_context.py'],
+              ['LCB AI read-model fallback', 'lead_context_store.json'],
+              ['Broker event SSoT', 'broker_orders.json'],
+              ['Broker read-layer', 'broker_order_context.py'],
+            ].map(([label, path]) => (
+              <div key={path} style={{background:'rgba(15,23,42,.34)', border:'1px solid rgba(245,197,24,.14)', borderRadius:6, padding:'5px 7px', minWidth:0}}>
+                <div style={{fontSize:8.5, color:'var(--muted)', marginBottom:2}}>{label}</div>
+                <code style={{fontSize:8.5, color:'#fde68a', wordBreak:'break-word'}}>{path}</code>
               </div>
             ))}
           </div>
@@ -8061,10 +8140,12 @@ function LeadFlowSection() {
             const srcColor = ev.source === 'vk' ? '#4f8ef7'
               : (ev.inline || ev.source === 'tg_realtime') ? '#34d399' : '#3b82f6';
             const leads = Array.isArray(ev.leads) ? ev.leads : [];
+            const outcome = monitorOutcome(ev);
             return (
               <div key={i} style={{
                 display:'flex', flexDirection:'column', gap:4, padding:'4px 8px',
-                borderRadius:6, background:'rgba(15,23,42,0.4)',
+                borderRadius:6, background:outcome.bg, border:`1px solid ${outcome.border}`,
+                opacity: outcome.key === 'duplicate' || outcome.key === 'skip' ? .86 : 1,
                 fontSize:11, fontVariantNumeric:'tabular-nums',
               }}>
                 <div style={{display:'flex', gap:10, alignItems:'center'}}>
@@ -8074,12 +8155,12 @@ function LeadFlowSection() {
                     {ev.chat_name ? <span style={{color:'#93c5fd'}}>{ev.chat_name} · </span> : null}
                     {ev.messages_read} {ev.messages_read === 1 ? 'пост' : 'постов'}
                   </span>
-                  {ev.orders > 0
-                    ? <span style={{color:'#34d399', fontWeight:700, marginLeft:'auto'}}>🎯 {ev.orders} лид{ev.orders > 1 ? 'а' : ''}</span>
-                    : <span style={{color:'var(--muted)', marginLeft:'auto', fontSize:10}}>skip</span>
-                  }
+                  <span style={{color:outcome.color, fontWeight:700, marginLeft:'auto'}}>
+                    {outcome.key === 'lead' ? '🎯 ' : outcome.key === 'duplicate' ? '↔ ' : outcome.key === 'skip' ? '⏭ ' : ''}
+                    {outcome.label}
+                  </span>
                 </div>
-                {ev.orders > 0 && (
+                {(ev.orders > 0 || leads.length > 0 || ev.candidate_status) && (
                   <div style={{display:'flex', flexDirection:'column', gap:3, marginLeft:124}}>
                     {leads.length > 0 ? leads.map((lead, li) => (
                       <div key={lead.id || li} title={leadTitle(lead)}
@@ -8200,8 +8281,8 @@ function LeadFlowSection() {
           >
             <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:12}}>
               <div>
-                <div style={{fontSize:14, fontWeight:900, color:'#5eead4'}}>Context card / картотека</div>
-                <div style={{fontSize:10, color:'var(--muted)'}}>live stats + rules · контакт остаётся ключом, события живут внутри карточки</div>
+                <div style={{fontSize:14, fontWeight:900, color:'#5eead4'}}>Context read-layers</div>
+                <div style={{fontSize:10, color:'var(--muted)'}}>LCB: lcb_event_context.py · Broker: broker_order_context.py</div>
               </div>
               <button
                 type="button"
@@ -8221,10 +8302,10 @@ function LeadFlowSection() {
                   <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))', gap:6}}>
                     {[
                       ['cards', contextCardStats.total_in_store || 0, 'всего карточек'],
-                      ['nested', contextCardStats.nested_stats?.cards_with_nested_schema || 0, 'nested schema'],
-                      ['events', contextCardStats.nested_stats?.event_slices_with_context || 0, 'events with context'],
-                      ['active', contextCardStats.nested_stats?.cards_with_active_event || 0, 'active_event_id'],
-                      ['unscoped', contextCardStats.nested_stats?.cards_with_unscoped || 0, 'без фокуса (тур / общее / cold)'],
+                      ['lcb', contextCardStats.total_lcb_store || 0, 'LCB store cards'],
+                      ['broker', contextCardStats.total_broker_orders_cards || 0, 'broker event cards'],
+                      ['active', contextCardStats.cards?.filter?.(c => c.active_event_id)?.length || 0, 'active_event_id'],
+                      ['unscoped', contextCardStats.cards?.filter?.(c => c.has_unscoped_context)?.length || 0, 'без фокуса'],
                       ['waiting', contextCardStats.needs_action || 0, 'ждут нас'],
                     ].map(([label, value, sub]) => (
                       <div key={label} style={{background:'rgba(15,23,42,.45)', border:'1px solid rgba(148,163,184,.18)', borderRadius:6, padding:'6px 7px'}}>
@@ -8236,16 +8317,16 @@ function LeadFlowSection() {
                 )}
               </div>
               <div style={{border:'1px solid rgba(245,197,24,.28)', borderRadius:8, padding:9, background:'rgba(245,197,24,.055)'}}>
-                <div style={{fontSize:11, fontWeight:800, color:'#fde68a', marginBottom:7}}>How card updates</div>
+                <div style={{fontSize:11, fontWeight:800, color:'#fde68a', marginBottom:7}}>How orders-backed context updates</div>
                 <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))', gap:8}}>
                   <div style={{border:'1px solid rgba(96,165,250,.22)', borderRadius:7, padding:8, background:'rgba(15,23,42,.48)'}}>
                     <div style={{fontSize:10, fontWeight:800, color:'#93c5fd', marginBottom:5}}>Inbound path</div>
                     {[
                       ['1', 'new DM', 'TG/VK/WA входящее сообщение'],
-                      ['2', 'DM store', 'conversation_cache / vk_cache / wa_cache'],
-                      ['3', 'enrich(force=True)', 'AI читает known events + последние сообщения'],
-                      ['4', 'events_delta', 'обновляет только затронутые event slices'],
-                      ['5', 'context card', 'thread facts + active_event_id + _unscoped'],
+                      ['2', 'raw archive', 'conversation_cache / vk_cache / wa_cache сохраняют текст'],
+                      ['3', 'enrich(force=True)', 'AI читает orders-backed context + последние сообщения'],
+                      ['4', 'orders/event update', 'orders.db graph + затронутые event slices'],
+                      ['5', 'lcb_orders refresh', 'обновляет LCB event/entity read store'],
                     ].map(([n, title, sub]) => (
                       <div key={n} style={{display:'grid', gridTemplateColumns:'16px 1fr', gap:6, alignItems:'start', marginTop:n==='1'?0:5}}>
                         <span style={{width:16, height:16, borderRadius:5, display:'inline-flex', alignItems:'center', justifyContent:'center', background:'rgba(96,165,250,.14)', border:'1px solid rgba(96,165,250,.32)', color:'#93c5fd', fontSize:8, fontWeight:900}}>{n}</span>
@@ -8260,10 +8341,10 @@ function LeadFlowSection() {
                     <div style={{fontSize:10, fontWeight:800, color:'#5eead4', marginBottom:5}}>Outbound path</div>
                     {[
                       ['1', 'L3 sends / approval sends', 'writer или approval-bot реально отправил текст'],
-                      ['2', 'outbound_recorder', 'добавляет out:true в DM store'],
+                      ['2', 'outbound_recorder', 'добавляет out:true в raw DM archive'],
                       ['3', 'enrich(force=True)', 'обновляет thread/events после нашего текста'],
-                      ['4', 'promise_extractor', 'достаёт что мы пообещали и пишет event_graph.promises'],
-                      ['5', 'next writer run', 'resolve_context отдаёт active event + open promises'],
+                      ['4', 'orders/lcb_orders refresh', 'синхронизирует CRM/event graph и LCB store'],
+                      ['5', 'next writer run', 'lcb_event_context отдаёт active event + open promises'],
                     ].map(([n, title, sub]) => (
                       <div key={n} style={{display:'grid', gridTemplateColumns:'16px 1fr', gap:6, alignItems:'start', marginTop:n==='1'?0:5}}>
                         <span style={{width:16, height:16, borderRadius:5, display:'inline-flex', alignItems:'center', justifyContent:'center', background:'rgba(20,184,166,.13)', border:'1px solid rgba(20,184,166,.34)', color:'#5eead4', fontSize:8, fontWeight:900}}>{n}</span>
@@ -8276,13 +8357,13 @@ function LeadFlowSection() {
                   </div>
                 </div>
                 <div style={{fontSize:9, color:'var(--muted)', lineHeight:1.35, marginTop:7}}>
-                  Коротко: входящие обновляют понимание клиента, исходящие обновляют память о том, что мы уже написали и пообещали.
+                  Коротко: входящие, исходящие и CRM пишут в свои owner stores и сразу обновляют lcb_orders.json; read-layer только отдаёт готовую карточку.
                 </div>
               </div>
               <div style={{border:'1px solid rgba(20,184,166,.32)', borderRadius:8, padding:9, background:'rgba(20,184,166,.07)'}}>
-                <div style={{fontSize:11, fontWeight:800, color:'#5eead4', marginBottom:5}}>key: tg:babelisya</div>
+                <div style={{fontSize:11, fontWeight:800, color:'#5eead4', marginBottom:5}}>LCB key: tg:babelisya</div>
                 <div style={{fontSize:10, color:'#cbd5e1', lineHeight:1.45}}>
-                  Одна карточка на контакт. Внутри есть общий слой по человеку и отдельные срезы по мероприятиям.
+                  LCB карточка хранится в lcb_orders.json и читается через lcb_event_context.py. Broker карточка читается через broker_order_context.py из broker_orders.json.
                 </div>
               </div>
               <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:8}}>
@@ -8313,17 +8394,18 @@ function LeadFlowSection() {
                 </div>
               </div>
               <div style={{fontSize:10, color:'var(--muted)', lineHeight:1.45}}>
-                L3 writer получает thread facts + active event + open promises + coordination requests. Остальные events показываются кратко, чтобы не смешивать июньскую свадьбу с декабрьским корпоративом.
+                LCB writer получает event-card из lcb_orders.json через lcb_event_context.py; Broker writer получает broker event-card из broker_order_context.py.
               </div>
               <div style={{border:'1px solid rgba(148,163,184,.2)', borderRadius:8, padding:9, background:'rgba(30,41,59,.36)'}}>
                 <div style={{fontSize:10.5, fontWeight:800, color:'#cbd5e1', marginBottom:6}}>Rules</div>
                 {(contextCardStats?.context_rules || [
-                  'key остаётся contact-level: tg:user или broker:tg:user',
-                  'thread хранит hard facts контакта',
-                  'events хранит sparse event slices',
-                  'coordination_requests связывает organizer request с конкретным performer/tech thread',
-                  'active_event_id подсвечивает L3 writer',
-                  '_unscoped = не привязано к одному event: tour-wide / общий thread / cold / legacy / low-conf (это лишь один из 5 случаев)',
+                  'LCB: физический store lcb_orders.json; читает lcb_event_context.py',
+                  'Broker: пишет broker_orders.json; читает broker_order_context.py',
+                  'read-layer не запускает AI и не отправляет сообщения',
+                  'inbound обновляет через lead_context_enricher + lcb_orders.refresh_contact',
+                  'outbound от Михаила обновляет через outbound_recorder + lcb_orders.refresh_contact',
+                  'CRM status/history обновляет через orders_db + lcb_orders.refresh_order',
+                  'lcb_writer_mode_history фиксирует смену writer mode вместе с CRM stage',
                 ]).map((rule, idx) => (
                   <div key={idx} style={{display:'flex', gap:6, alignItems:'flex-start', fontSize:9.5, color:'var(--muted)', lineHeight:1.35, marginTop:idx ? 4 : 0}}>
                     <span style={{color:'#5eead4', fontWeight:900}}>{idx + 1}</span>
@@ -8415,36 +8497,52 @@ function OverviewStatsSection({ stats }) {
   );
 
   const LeadList = ({items}) => (
-    <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:4}}>
-      {(items||[]).map((it,i) => (
-        <div key={i} style={{display:'flex',alignItems:'flex-start',gap:8,
-                              background:'rgba(255,255,255,0.03)',borderRadius:6,
-                              padding:'6px 10px',fontSize:12}}>
-          <span style={{color:'var(--accent)',minWidth:120,fontWeight:500}}>
-            @{it.username||'?'}
-          </span>
-          <span style={{color:'var(--muted)',flex:1}}>
-            {it.kind==='broker'
-              ? `${it.service||''} · ${it.event_date||''}`
-              : `${it.status||''} · ${it.source_chat||''}`}
-          </span>
-          {it.next_action && (
-            <span style={{color:'var(--orange)',fontSize:11,whiteSpace:'nowrap'}}>
-              📅 {it.next_action.slice(0,5)}
-            </span>
-          )}
-        </div>
-      ))}
+    <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:7}}>
+      {(items||[]).map((it,i) => {
+        const name = it.username || it.name || it.contact || '?';
+        const due = it.due_date ? it.due_date.slice(5,10).split('-').reverse().join('.') : '';
+        const accent = it.kind === 'broker' ? 'var(--purple)' : (it.channel||'').startsWith('WA') ? '#25d366' : 'var(--accent)';
+        return (
+          <div key={i} style={{
+            background:'rgba(255,255,255,0.035)', border:'1px solid rgba(148,163,184,.12)',
+            borderRadius:7, padding:'8px 10px', fontSize:12, display:'grid', gap:5,
+          }}>
+            <div style={{display:'flex', gap:8, alignItems:'center', minWidth:0}}>
+              <span style={{color:accent,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:190}}>
+                {String(name).startsWith('@') ? name : `@${name}`}
+              </span>
+              <span style={{color:'var(--muted)',fontSize:10,border:'1px solid rgba(148,163,184,.22)',borderRadius:5,padding:'1px 5px'}}>
+                {it.kind === 'broker' ? 'Broker' : 'LCB'} · {it.channel || 'TG'}
+              </span>
+              <span style={{color:'var(--muted)',fontSize:11,marginLeft:'auto',whiteSpace:'nowrap'}}>
+                {due ? `due ${due}` : it.last_ping ? `last ${it.last_ping.slice(5,10)}` : ''}
+              </span>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'minmax(90px,.35fr) 1fr',gap:'4px 10px',color:'var(--muted)',lineHeight:1.35}}>
+              <span>Владелец</span><span style={{color:'#cbd5e1'}}>{it.owner || (it.kind==='broker' ? 'broker follow-up' : 'funnel_maintenance')}</span>
+              <span>План</span><span style={{color:'#e2e8f0'}}>{it.plan || 'проверить тишину и отправить follow-up по gates'}</span>
+              <span>Причина</span><span>{it.reason || it.next_action || it.service || it.status || 'stale dialog'}</span>
+              <span>Контекст</span><span>{it.kind==='broker'
+                ? `${it.service||'service'}${it.event_date ? ` · ${it.event_date}` : ''}${it.attempts!=null ? ` · attempt ${it.attempts}` : ''}`
+                : `${it.status||''}${it.source_chat ? ` · ${it.source_chat}` : ''}${it.days_silent!=null ? ` · ${it.days_silent}д тишины` : ''}`}</span>
+              {it.draft && <><span>Текст</span><span style={{color:'#cbd5e1'}}>{it.draft}</span></>}
+              {it.blocker && <><span style={{color:'#f87171'}}>Blocker</span><span style={{color:'#fca5a5'}}>{it.blocker}</span></>}
+            </div>
+          </div>
+        );
+      })}
       {(!items||!items.length) && (
-        <div style={{color:'var(--muted)',fontSize:12,fontStyle:'italic'}}>нет лидов</div>
+        <div style={{color:'var(--muted)',fontSize:12,fontStyle:'italic'}}>нет запланированных follow-up</div>
       )}
     </div>
   );
 
   const fuRows = [
     {key:'done_today', label:'Сделано сегодня', icon:'✅'},
+    {key:'due_now',    label:'К проверке сегодня', icon:'⏱'},
     {key:'tomorrow',   label:'Завтра',          icon:'📅'},
     {key:'day_after',  label:'Послезавтра',      icon:'📆'},
+    {key:'blocked',    label:'Блокеры',          icon:'⛔'},
   ];
 
   return (
@@ -8517,7 +8615,7 @@ function OverviewStatsSection({ stats }) {
             {fuRows.map(({key,label,icon})=>{
               const row = (S.followups&&S.followups[key])||{lcb:0,broker:0,items:[]};
               const isOpen = fuOpen===key;
-              const canExpand = (row.items||[]).length > 0 && key!=='done_today';
+              const canExpand = (row.items||[]).length > 0;
               return (
                 <React.Fragment key={key}>
                   <tr style={{borderTop:'1px solid var(--border)'}}>
@@ -8538,7 +8636,7 @@ function OverviewStatsSection({ stats }) {
                           style={{background:'none',border:'1px solid var(--border)',
                                   borderRadius:4,color:'var(--accent)',cursor:'pointer',
                                   fontSize:11,padding:'2px 8px'}}>
-                          {isOpen?'▲ скрыть':'▼ лиды'}
+                          {isOpen?'▲ скрыть':'▼ план'}
                         </button>
                       )}
                     </td>
@@ -8662,8 +8760,13 @@ function KartotekaCard({ card }) {
   const ch      = CH_BADGE[card.channel] || { bg: '#555', label: (card.channel || 'TG').toUpperCase() };
   const intentC = INTENT_COLOR[card.client_intent] || '#888';
   const hasEvent = !!card.event_date_confirmed;
+  const isBroker = card.source === 'broker_orders' || !!card.broker_id;
   const hasThreads = hasEvent && card.event_threads && card.event_threads.length > 0;
   const threadIssues = hasThreads ? card.event_threads.filter(t => t.thread_status === 'issue').length : 0;
+  const ap = card.action_protocol || {};
+  const actionType = ap.action_type || card.action_type || '';
+  const actionOwner = ap.action_owner || card.action_owner || '';
+  const actionAutonomy = ap.autonomy || card.action_autonomy || '';
   const openDetail = () => {
     if (card.key) window.location.href = `./context-card.html?key=${encodeURIComponent(card.key)}`;
   };
@@ -8684,6 +8787,7 @@ function KartotekaCard({ card }) {
           {ch.label}
         </span>
         <span style={{ fontWeight: 600, fontSize: 13 }}>@{card.username}</span>
+        {isBroker && <span style={{ background: 'rgba(167,139,250,0.14)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>broker</span>}
         <span style={{ background: intentC + '22', color: intentC, border: `1px solid ${intentC}44`, borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>
           {INTENT_LABEL[card.client_intent] || card.client_intent}
         </span>
@@ -8695,6 +8799,16 @@ function KartotekaCard({ card }) {
         </span>
         <span style={{ color: '#60a5fa', fontSize: 11 }}>↗ контекст</span>
       </div>
+
+      {actionType && (
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', fontSize: 11 }}>
+          <span style={{ color: '#93c5fd', background: 'rgba(96,165,250,0.10)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: 6, padding: '1px 7px' }}>
+            action={actionType}
+          </span>
+          {actionOwner && <span style={{ color: '#9ca3af' }}>owner={actionOwner}</span>}
+          {actionAutonomy && <span style={{ color: actionAutonomy === 'auto' ? '#22c55e' : actionAutonomy === 'tool_gated' ? '#f59e0b' : '#a78bfa' }}>autonomy={actionAutonomy}</span>}
+        </div>
+      )}
 
       {/* next_action_hint */}
       {card.next_action_hint && (
@@ -8805,7 +8919,7 @@ function CartotekaSection({ data }) {
       )}
 
       <div style={{ fontSize: 10, color: '#555', marginTop: 6, textAlign: 'right' }}>
-        обновляется при каждом входящем сообщении · {data.generated_at?.slice(11, 16) || ''}
+        LCB обновляется при входящих; broker читается live из broker_orders.json · {data.generated_at?.slice(11, 16) || ''}
       </div>
     </div>
   );
@@ -8961,10 +9075,10 @@ function App() {
       if (r.ok) setOverviewStats(await r.json());
     } catch {}
 
-    // ── Картотека лидов (lead_context_store) ──
+    // ── Картотека лидов: LCB read-model + live broker_orders cards ──
     try {
       const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
-      const r = await fetch(`${bu}/api/lead_context?limit=100`, { cache: 'no-store' });
+      const r = await fetch(`${bu}/api/context_cards?limit=100`, { cache: 'no-store' });
       if (r.ok) setLeadContext(await r.json());
     } catch { /* backend offline → section shows empty state */ }
   }, []);
@@ -9185,6 +9299,13 @@ function App() {
                        display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
                title="Contact Roles — классификация всех TG-контактов по ролям">
               <span>🎭</span><span>Contacts</span>
+            </a>
+            <a href="./context_cards.html"
+               style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
+                       background:'rgba(20,184,166,0.14)', color:'#14b8a6', border:'1px solid rgba(20,184,166,0.35)',
+                       display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
+               title="Картотека контекста — что AI присваивает каждому лиду">
+              <span>🗂</span><span>Картотека</span>
             </a>
             <a href="./cost.html"
                style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',

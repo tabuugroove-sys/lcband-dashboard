@@ -134,6 +134,7 @@
   .tl-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 3px; flex-shrink: 0; }
   .tl-date { color: var(--muted); min-width: 80px; flex-shrink: 0; }
   .tl-note { color: var(--text); flex: 1; line-height: 1.35; }
+  .tl-note .muted { color: var(--muted); }
 
   /* ── Next followup countdown ── */
   .followup-box {
@@ -143,6 +144,13 @@
   .followup-box.overdue { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); color: var(--warn); }
   .followup-box.soon    { background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.2); color: var(--info); }
   .followup-box.future  { background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--muted); }
+  .followup-outcome {
+    margin-bottom: 8px; padding: 6px 9px; border-radius: 7px;
+    font-size: 11px; border: 1px solid var(--border);
+    background: rgba(255,255,255,0.035); color: var(--text);
+  }
+  .followup-outcome.sent { border-color: rgba(34,197,94,.35); color: var(--ok); background: rgba(34,197,94,.08); }
+  .followup-outcome.blocked { border-color: rgba(245,158,11,.35); color: var(--warn); background: rgba(245,158,11,.08); }
 
   /* ── Event graph event row ── */
   .eg-event {
@@ -277,7 +285,7 @@ function renderStats(data) {
   ).join('');
   const t = data.generated_at || '';
   document.getElementById('meta-line').textContent =
-    `${data.total_shown} из ${data.total_in_store} карточек · ${t.slice(11,16)}`;
+    `${data.total_shown} из ${data.total_in_store} карточек · LCB ${data.total_lcb_store ?? '—'} + broker ${data.total_broker_orders_cards ?? 0} · ${t.slice(11,16)}`;
 }
 
 function setIntent(btn, val) {
@@ -358,6 +366,7 @@ function renderCard(c) {
   const isNeedsAction = c.waiting_for_us;
   const hasEvent = c.event_date_confirmed || (c.eg_events && c.eg_events.length > 0);
   const isOverdue = c.days_until_followup !== null && c.days_until_followup < 0;
+  const isBroker = c.source === 'broker_orders' || !!c.broker_id;
 
   let cardClass = 'ctx-card';
   if (isNeedsAction) cardClass += ' needs-action';
@@ -390,6 +399,7 @@ function renderCard(c) {
   <div class="card-header" onclick="openContextCard(this.closest('.ctx-card').dataset.key)" title="Открыть полную карточку контекста">
     <span class="ch-badge ${chClass}">${chLabel}</span>
     <span class="username">@${e(c.username)}</span>
+    ${isBroker ? `<span style="font-size:10px;color:#c4b5fd;padding:1px 6px;border:1px solid rgba(167,139,250,.35);border-radius:5px;background:rgba(167,139,250,.12)">broker</span>` : ''}
     ${c.crm_client ? `<span style="font-size:12px;color:var(--muted)">${e(c.crm_client)}</span>` : ''}
     <span class="intent-badge" style="background:${intentC}22;color:${intentC};border:1px solid ${intentC}44">${intentL}</span>
     ${headerExtra}
@@ -406,10 +416,24 @@ function renderCard(c) {
 
 function renderCardBody(c) {
   const parts = [];
+  const ap = c.action_protocol || {};
 
   if (c.do_not_touch) {
     parts.push(`<div style="font-size:12px;color:#fecaca;background:rgba(248,113,113,.10);border:1px solid rgba(248,113,113,.35);border-radius:6px;padding:7px 9px">
       DO NOT TOUCH${c.do_not_touch_reason ? ` · ${e(c.do_not_touch_reason)}` : ''} — только ручное решение
+    </div>`);
+  }
+  if (ap.action_type || c.action_type) {
+    const actionType = ap.action_type || c.action_type || '';
+    const owner = ap.action_owner || c.action_owner || '';
+    const autonomy = ap.autonomy || c.action_autonomy || '';
+    const checks = Array.isArray(ap.required_tool_check) ? ap.required_tool_check : [];
+    const color = autonomy === 'auto' ? '#22c55e' : autonomy === 'tool_gated' ? '#f59e0b' : autonomy === 'policy_gated' ? '#a78bfa' : '#94a3b8';
+    parts.push(`<div style="font-size:11px;color:#cbd5e1;background:${color}12;border:1px solid ${color}55;border-radius:6px;padding:6px 8px">
+      <strong style="color:${color}">${e(actionType)}</strong>
+      ${owner ? ` · owner=${e(owner)}` : ''}
+      ${autonomy ? ` · autonomy=${e(autonomy)}` : ''}
+      ${checks.length ? `<br><span style="color:var(--warn)">tool-check: ${checks.map(ch => e(ch.fact || ch.kind || '?')).join(' · ')}</span>` : ''}
     </div>`);
   }
   if (c.recommended_action || c.order_status) {
@@ -419,6 +443,20 @@ function renderCardBody(c) {
       ${c.lcb_writer_mode ? ` · writer_mode: ${e(c.lcb_writer_mode)}` : ''}
       ${c.lcb_writer_mode_reason ? ` (${e(c.lcb_writer_mode_reason)})` : ''}
     </div>`);
+  }
+  if ((c.funnel_timeline || []).length > 0) {
+    const recent = c.funnel_timeline.slice(-6).reverse();
+    const rows = recent.map(h => {
+      const move = h.from || h.to
+        ? `<strong>${h.from ? e(h.from) + ' → ' : ''}${e(h.to || '')}</strong>`
+        : '';
+      return `<div class="tl-row">
+        <div class="tl-dot" style="background:#60a5fa"></div>
+        <div class="tl-date">${e(h.date || '')}</div>
+        <div class="tl-note">${move}${h.note ? ` <span class="muted">· ${e(h.note).slice(0,180)}</span>` : ''}</div>
+      </div>`;
+    }).join('');
+    parts.push(`<div class="card-section"><div class="card-section-title">Движение по воронке</div><div class="timeline">${rows}</div></div>`);
   }
   if (c.latest_message_ts || c.latest_message_preview || c.freshness_warning) {
     parts.push(`<div style="font-size:10.5px;color:var(--muted);background:rgba(15,23,42,.55);border:1px solid rgba(148,163,184,.18);border-radius:6px;padding:6px 8px">
@@ -507,6 +545,15 @@ function renderCardBody(c) {
 
   // ── Follow-up section ──
   let fuParts = '';
+  const fuOutcome = c.followup_outcome || {};
+  if (fuOutcome.status && fuOutcome.status !== 'none') {
+    const cls = fuOutcome.status === 'sent' ? 'sent' : fuOutcome.status === 'blocked' ? 'blocked' : '';
+    fuParts += `<div class="followup-outcome ${cls}">
+      Итог follow-up: <strong>${e(fuOutcome.label || fuOutcome.status)}</strong>
+      · отправлено ${Number(fuOutcome.sent_count || 0)}
+      · блоков/skip ${Number(fuOutcome.skip_count || 0)}
+    </div>`;
+  }
   if (c.next_followup_planned) {
     const d = c.days_until_followup;
     const cls = d < 0 ? 'overdue' : d <= 3 ? 'soon' : 'future';
@@ -524,6 +571,19 @@ function renderCardBody(c) {
         <div class="tl-date">${e(h.date)}</div>
         <div class="tl-note">${e(h.note)}</div>
       </div>`).join('')}</div>`;
+  }
+  if ((c.followup_events||[]).length > 0) {
+    const recentEvents = c.followup_events.slice(-8).reverse();
+    fuParts += `<div class="timeline" style="margin-top:8px">${recentEvents.map(ev => {
+      const action = ev.action || '';
+      const dot = action.includes('sent') ? '#22c55e' : action.includes('skip') || action.includes('blocked') ? '#f59e0b' : '#94a3b8';
+      const note = ev.reason || ev.msg_preview || ev.label || '';
+      return `<div class="tl-row">
+        <div class="tl-dot" style="background:${dot}"></div>
+        <div class="tl-date">${e((ev.ts || '').slice(0,16).replace('T',' '))}</div>
+        <div class="tl-note"><strong>${e(action)}</strong>${note ? ` <span class="muted">· ${e(note).slice(0,180)}</span>` : ''}</div>
+      </div>`;
+    }).join('')}</div>`;
   }
   if (fuParts) {
     parts.push(`<div class="card-section"><div class="card-section-title">Follow-up</div>${fuParts}</div>`);
