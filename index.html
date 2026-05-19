@@ -8419,13 +8419,16 @@ function OverviewStatsSection({ stats }) {
     <div style={{padding:'8px 16px 0',display:'flex',flexDirection:'column',gap:12}}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
         <Card>
-          <Label>👁 Просмотрено постов {time && <span style={{color:'var(--muted)',fontWeight:400}}>· {time}</span>}</Label>
+          <Label>👁 Источники сообщений {time && <span style={{color:'var(--muted)',fontWeight:400}}>· {time}</span>}</Label>
           <div style={{display:'flex',gap:24,alignItems:'baseline',flexWrap:'wrap'}}>
             <div>
-              <Big>{(S.scan&&S.scan.tg_posts)||0}</Big><Sub>TG чатов</Sub>
+              <Big>{(S.scan&&S.scan.tg_posts)||0}</Big><Sub>TG постов</Sub>
             </div>
             <div>
               <Big color='var(--accent)'>{(S.scan&&S.scan.vk_posts)||0}</Big><Sub>VK постов</Sub>
+            </div>
+            <div title={`${(S.scan&&S.scan.wa_threads)||0} WA тредов с входящими за сегодня`}>
+              <Big color='#25d366'>{(S.scan&&S.scan.wa_messages)||0}</Big><Sub>WA входящих</Sub>
             </div>
           </div>
         </Card>
