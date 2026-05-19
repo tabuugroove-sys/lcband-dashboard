@@ -734,7 +734,7 @@
       <div class="anno" style="margin-top:10px">
         <b>Разделение ownership:</b> <code>broker_casting.py</code> выбирает подрядчика.
         <code>broker_order_context.py</code> отдаёт broker event как сущность: event, organizer, подрядчики/candidates, смысл переговоров и текущий stage.
-        Входящие DM от broker-linked contractors/candidates realtime-шлюз отдаёт broker handler’у до LCB writer, чтобы не терять ответы без <code>conversation_cache</code>.
+        Входящие DM от broker-linked clients/contractors/candidates realtime-шлюз отдаёт broker handler’у до LCB writer: budget replies обновляют <code>broker_orders.json</code> и возвращают заказ в casting, contractor replies фиксируются как broker-side state.
         Broker создаётся только из внешнего event/group chat source. Direct/private DM (`TG`, `TG_DIRECT`, `TG DM ...`) автоматически остаётся LCBand lead.
         Broker → contractor сообщения обходят client review и отправляются сразу; broker → client идёт через presend, context и duplicate guard.
         <code>tg_responder.py</code> hard-disabled для общего DM send; в broker-контуре он только маршрутизирует contractor inbound в <code>broker_dialog_agent.py</code>.
