@@ -1027,6 +1027,7 @@ const PROCESS_RULES = {
       '  • music_band → full КП + AI-review (native-speaker fork для IT/DE, complex events)',
       'Запись: orders.db (SSoT) + Google Sheet (write-through через update_status_by_username)',
       'Питч: compose_* → ai_review_before_send (CLI Opus, retry) → send только automatic',
+      'specific_media_required → не молчание: orders.db next_action MEDIA_REQUEST → lcb_event_context subrequest → broker/media ищет точный ролик/media_bundle',
       '🔴 22.04: _PRESEND_SYSTEM знает ОБА бренда — LCB (поп/рок/джаз cover) и Noize Drum (drum-show, LED-барабаны, этно, перкуссия). Drum-запросы НЕ skip\'аются критериями LCB (инцидент LINA_SOUL 21.04)',
       'AI-review НЕ skip на: зарубежный контракт (adapt→опросник), native-speaker (adapt→fork), комплекс (adapt→upsell со светом/DJ/звуком), drum-show (adapt→Noize Drum)',
       'Post-send: status Новый→Написал + добавление в TG-папку «Отправлен» 📤',
@@ -7683,41 +7684,56 @@ function LeadFlowSection() {
   const dataStoresBlock = (
     <div style={{background:'rgba(15,23,42,.5)', border:'1.5px solid rgba(20,184,166,.28)', borderRadius:9, padding:'8px 9px', display:'grid', gap:7}}>
       <div>
-        <div style={{fontSize:10.5, fontWeight:900, color:'#5eead4', textTransform:'uppercase', letterSpacing:.4}}>Raw archives → orders SSoT → context</div>
-        <div style={{fontSize:8.5, color:'#cbd5e1'}}>archives хранят тексты; CRM/event truth живёт в orders.db + lcb_orders.json</div>
+        <div style={{fontSize:10.5, fontWeight:900, color:'#5eead4', textTransform:'uppercase', letterSpacing:.4}}>Orders.db SSoT → context read-layer</div>
+        <div style={{fontSize:8.5, color:'#cbd5e1'}}>один главный truth owner; raw archives только evidence для обновлений</div>
       </div>
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))', gap:6}}>
-        <div style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.25)', borderRadius:6, padding:'6px 7px'}}>
-          <div style={{fontSize:9.5, fontWeight:800, color:'#93c5fd', marginBottom:3}}>Raw public archives</div>
-          <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>фактические тексты, не CRM truth</div>
-          <div style={{fontSize:8, color:'var(--muted)', lineHeight:1.35, marginTop:4}}>
-            {sourceLink('tg_seen_posts.jsonl', 'tg_seen_posts', {color:'#93c5fd'})}<br/>
-            {sourceLink('message_events.jsonl', 'message_events', {color:'#93c5fd'})}<br/>
-            VK posts / Browser Walk
-          </div>
+      <div style={{background:'rgba(245,197,24,.1)', border:'1.5px solid rgba(245,197,24,.42)', borderRadius:7, padding:'8px 9px', boxShadow:'0 0 0 1px rgba(245,197,24,.08) inset'}}>
+        <div style={{display:'flex', alignItems:'center', gap:6, marginBottom:4}}>
+          <div style={{fontSize:11, fontWeight:900, color:'#fde68a'}}>Main source of truth</div>
+          <span style={{marginLeft:'auto', fontSize:7.5, fontWeight:900, color:'#fde68a', border:'1px solid rgba(245,197,24,.36)', borderRadius:4, padding:'1px 5px', textTransform:'uppercase'}}>SSoT</span>
         </div>
-        <div style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.28)', borderRadius:6, padding:'6px 7px'}}>
-          <div style={{fontSize:9.5, fontWeight:800, color:'#d8b4fe', marginBottom:3}}>Raw DM archives</div>
-          <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>история переписки, не owner заявок</div>
-          <div style={{fontSize:8, color:'var(--muted)', lineHeight:1.35, marginTop:4}}>
-            {sourceLink('conversation_cache/', 'conversation_cache', {color:'#d8b4fe'})}<br/>
-            {sourceLink('vk_conversation_cache/', 'vk_conversation_cache', {color:'#d8b4fe'})}<br/>
-            {sourceLink('wa_cache/', 'wa_cache', {color:'#d8b4fe'})}
-          </div>
+        <div style={{fontSize:8.5, color:'#e2e8f0', lineHeight:1.35}}>
+          {sourceLink('orders.db', 'orders.db', {color:'#fde68a'})} = CRM status, funnel, event graph, promises, contact/event context SQL
+        </div>
+        <div style={{fontSize:8, color:'var(--muted)', marginTop:4, lineHeight:1.35}}>
+          Writers should not decide from raw caches. They read a context layer backed by orders-owned stores.
         </div>
       </div>
       <div style={{display:'flex', alignItems:'center', gap:5, color:'var(--muted)', fontSize:9, lineHeight:1}}>
         <span style={{flex:1, height:1, background:'linear-gradient(to right, rgba(20,184,166,.1), rgba(20,184,166,.45))'}}/>
-        <span>↓ normalize / enrich</span>
+        <span>↓ materialized read-model</span>
         <span style={{flex:1, height:1, background:'linear-gradient(to right, rgba(20,184,166,.45), rgba(20,184,166,.1))'}}/>
       </div>
-      <div style={{background:'rgba(245,197,24,.08)', border:'1px solid rgba(245,197,24,.28)', borderRadius:6, padding:'6px 7px'}}>
-        <div style={{fontSize:9.5, fontWeight:800, color:'#fde68a', marginBottom:3}}>Orders source of truth</div>
-        <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>
-          {sourceLink('orders.db', 'orders.db', {color:'#fde68a'})} = CRM + event graph; {sourceLink('lcb_orders.json', 'lcb_orders.json', {color:'#fde68a'})} = LCB event/context entity store
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))', gap:6}}>
+        <div style={{background:'rgba(20,184,166,.08)', border:'1px solid rgba(20,184,166,.28)', borderRadius:6, padding:'6px 7px'}}>
+          <div style={{fontSize:9.5, fontWeight:800, color:'#5eead4', marginBottom:3}}>LCB event-card store</div>
+          <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>
+            {sourceLink('lcb_orders.json', 'lcb_orders.json', {color:'#5eead4'})} is refreshed from owner stores
+          </div>
+          <div style={{fontSize:8, color:'var(--muted)', marginTop:3, lineHeight:1.35}}>
+            transitional physical card store for writers/dashboard
+          </div>
         </div>
-        <div style={{fontSize:8, color:'var(--muted)', marginTop:3}}>
-          lead_context_store.json remains AI read-model/fallback during migration, not a separate truth source.
+        <div style={{background:'rgba(245,197,24,.055)', border:'1px solid rgba(245,197,24,.20)', borderRadius:6, padding:'6px 7px'}}>
+          <div style={{fontSize:9.5, fontWeight:800, color:'#fde68a', marginBottom:3}}>Migration fallback</div>
+          <div style={{fontSize:8, color:'var(--muted)', lineHeight:1.35}}>
+            lead_context_store.json remains AI read-model/fallback during Phase 2B shadow, not a separate truth source.
+          </div>
+        </div>
+      </div>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))', gap:6, opacity:.76}}>
+        <div style={{background:'rgba(59,130,246,.07)', border:'1px solid rgba(59,130,246,.18)', borderRadius:6, padding:'5px 7px'}}>
+          <div style={{fontSize:8.8, fontWeight:800, color:'#93c5fd', marginBottom:3}}>Evidence: public archives</div>
+          <div style={{fontSize:7.8, color:'var(--muted)', lineHeight:1.35}}>
+            {sourceLink('tg_seen_posts.jsonl', 'tg_seen_posts', {color:'#93c5fd'})}<br/>
+            {sourceLink('message_events.jsonl', 'message_events', {color:'#93c5fd'})}
+          </div>
+        </div>
+        <div style={{background:'rgba(167,139,250,.07)', border:'1px solid rgba(167,139,250,.18)', borderRadius:6, padding:'5px 7px'}}>
+          <div style={{fontSize:8.8, fontWeight:800, color:'#d8b4fe', marginBottom:3}}>Evidence: DM archives</div>
+          <div style={{fontSize:7.8, color:'var(--muted)', lineHeight:1.35}}>
+            {sourceLink('conversation_cache/', 'conversation_cache', {color:'#d8b4fe'})} · {sourceLink('vk_conversation_cache/', 'vk_cache', {color:'#d8b4fe'})} · {sourceLink('wa_cache/', 'wa_cache', {color:'#d8b4fe'})}
+          </div>
         </div>
       </div>
       <div
@@ -7743,10 +7759,10 @@ function LeadFlowSection() {
           >schema</button>
         </div>
         <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>
-          {sourceLink('lcb_event_context.py', 'lcb_event_context.py', {color:'#5eead4'})} собирает карточку из orders-backed LCB store для writers/dashboard
+          {sourceLink('lcb_event_context.py', 'lcb_event_context.py', {color:'#5eead4'})} reads the LCB event-card; Broker writer reads broker_order_context.py.
         </div>
         <div style={{fontSize:8, color:'var(--muted)', marginTop:3}}>
-          LCB writer читает lcb_event_context.py; Broker writer читает broker_order_context.py.
+          This is the only layer L3 should use for response context.
         </div>
       </div>
     </div>
@@ -8045,6 +8061,7 @@ function LeadFlowSection() {
           </div>
           <div style={{order:3, background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.3)', borderRadius:9, padding:'7px 10px'}}>
             <div style={{fontSize:10, fontWeight:700, color:'#6ee7b7', marginBottom:4}}>✅ Выход Agent 2</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>LCB writer + legacy TG challenger → arbiter</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>ответ → TG / VK / WA</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>+ outbound_recorder обновляет stores</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>follow-up · 10:09 · 30м</div>
