@@ -1465,16 +1465,26 @@ function AwakeGuardButton() {
     return () => clearInterval(t);
   }, [backendUrl]);
 
-  const AWAKE_CMD = 'bash ~/lcband/mac_awake_guard.sh';
-  const [copied, setCopied] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
 
-  function copyCmd() {
-    navigator.clipboard.writeText(AWAKE_CMD).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    }).catch(() => {
-      prompt('Скопируй команду:', AWAKE_CMD);
-    });
+  async function toggle() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const action = state?.enabled ? 'disable' : 'enable';
+      const r = await fetch(`${backendUrl}/api/awake_guard`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action}),
+      });
+      const j = await r.json();
+      if (r.ok) setState(j);
+      else alert(j.error || `HTTP ${r.status}`);
+    } catch (e) {
+      alert(String(e).slice(0, 180));
+    } finally {
+      setBusy(false);
+    }
   }
 
   const enabled = !!state?.enabled;
@@ -1483,23 +1493,17 @@ function AwakeGuardButton() {
       <div className="awake-guard-main">
         <span className={`awake-guard-dot ${enabled ? 'is-on' : ''}`} />
         <div>
-          <div className="awake-guard-title">Mac awake guard: {enabled ? 'активен' : 'не запущен'}</div>
+          <div className="awake-guard-title">Mac awake guard: {enabled ? 'активен' : 'выключен'}</div>
           <div className="awake-guard-sub">
-            {enabled && state?.pid ? `caffeinate PID ${state.pid}` : 'запусти в терминале, Ctrl+C чтобы остановить'}
+            {enabled && state?.pid ? `caffeinate PID ${state.pid}` : 'Не даёт Mac заснуть, пока идут агенты'}
           </div>
         </div>
       </div>
       <div className="awake-guard-actions">
-        <button type="button" className="awake-guard-btn is-primary" onClick={copyCmd}>
-          {copied ? 'Скопировано!' : 'Копировать команду'}
-        </button>
-        <button type="button" className="awake-guard-btn" onClick={() => setExpanded(v => !v)}>
-          Скрипт
+        <button type="button" className={`awake-guard-btn ${enabled ? '' : 'is-primary'}`} onClick={toggle} disabled={busy}>
+          {busy ? '...' : enabled ? 'Выключить' : 'Включить'}
         </button>
       </div>
-      {expanded && (
-        <pre className="awake-guard-code">{AWAKE_CMD}{'\n\n# или напрямую:\n/usr/bin/caffeinate -dimsu'}</pre>
-      )}
     </div>
   );
 }
@@ -9553,13 +9557,13 @@ function App() {
                 activity24h={activity24h}
                 sent24h={recentSent24h}
                 aiDelivery={aiDelivery}
-	                aiDeliveryTrend={aiDeliveryTrend}
-	                aiTrendRange={aiTrendRange}
-	                onAiTrendRangeChange={setAiTrendRange}
-	                aiTrendLoading={aiTrendLoading}
-	                aiTrendError={aiTrendError}
-	                onProcessClick={setShowProcess}
-	              />
+                aiDeliveryTrend={aiDeliveryTrend}
+                aiTrendRange={aiTrendRange}
+                onAiTrendRangeChange={setAiTrendRange}
+                aiTrendLoading={aiTrendLoading}
+                aiTrendError={aiTrendError}
+                onProcessClick={setShowProcess}
+              />
               <ActionButtons />
               <KPISection kpi={data.kpi} setActiveTab={setActiveTab}
                           browserWalk={data.browserWalk || {leads:0, refusals:0, chats:0, ranAt:'', hours:48, items:[]}} />

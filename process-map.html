@@ -385,10 +385,10 @@
         group:'events', name:'Event Ops Logistics', label:'com.lcband.event-ops-logistics',
         file:'event_ops_logistics_agent.py', schedule:'каждые 10 мин',
         why:'Закрывает логистические и performer-coordination вопросы по оплаченным events без ручного пересказа.',
-        input:'event_ops_log.jsonl + organizer replies + lead_context_store coordination_requests',
+        input:'event_ops_log.jsonl + organizer replies + lcb_orders.json event_slice.coordination_requests',
         action:'extract logistics delta / send performer check',
         output:'event update + band-chat delta / performer DM with source media',
-        logic:['парсит тайминг/заезд/парковку/contact','coordination_requests → performer thread','source media required','event_ops_state dedupe','не раскрывает приватные финансы'],
+        logic:['парсит тайминг/заезд/парковку/contact','lcb_event_context → coordination_requests → performer thread','source media required','event_ops_state dedupe','не раскрывает приватные финансы'],
       },
       {
         group:'events', name:'Event Enrich', label:'com.lcband.event-enrich',
