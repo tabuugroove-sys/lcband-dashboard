@@ -188,8 +188,8 @@
 <div class="app">
   <h1>📅 Календарь событий</h1>
   <div class="subtitle">
-    События и заявки из LCB event/context store. Оплаченные карточки открываются
-    в <code>events.html</code>, заявки ведут в чат/воронку.
+    Все события из <code>event_planning.json</code>. Каждая ячейка с событием
+    кликабельна — открывает карточку в <code>events.html</code>.
   </div>
 
   <div class="controls">
@@ -221,8 +221,9 @@
   </div>
 
   <div class="note">
-    Источник: <code>GET /api/events</code> для production-карточек и
-    <code>GET /api/event_stubs</code> из <code>lcb_orders.json</code> для заявок.
+    Источник: <code>GET /api/events</code> → <code>event_planning.json</code>.
+    Когда §3c.2 event_stub приземлится — здесь же будут показаны pre-paid stubs
+    другим цветом.
   </div>
 </div>
 
@@ -373,7 +374,7 @@
         a.className = 'event-pill';
         let stateLabel = '';
         if (ev._kind === 'stub') {
-          // Pre-paid заявки из lcb_orders: negotiation = 🟢 переговоры, confirmed = 🟡 договор
+          // event_stub: negotiation = 🟢 переговоры, confirmed = 🟡 договор
           if (ev._stage === 'confirmed') {
             a.classList.add('stage-contract');
             stateLabel = 'договор готовится';
@@ -384,7 +385,7 @@
             a.textContent = '💬 ' + (ev.title || ev.id);
           }
           a.href = `./events.html`;
-          a.title = `Pre-paid заявка (${ev._stage}): ${ev._client_thread}\n${stateLabel}\nИсточник: lcb_orders.json`;
+          a.title = `Stub (${ev._stage}): ${ev._client_thread}\n${stateLabel}`;
         } else if (ev._kind === 'lead') {
           // lead с расширенным stage: negotiating / contract / prepayment / lead
           const stageMap = {

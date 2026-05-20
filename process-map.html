@@ -464,11 +464,9 @@
       {
         group:'funnel', name:'Funnel Stage Watcher', label:'com.lcband.funnel-stage-watcher',
         file:'funnel_stage_watcher.py', schedule:'daemon / KeepAlive',
-        why:'Следит за raw cache изменениями и запускает owner-пути, чтобы WA/TG/VK не требовали ручной проталкивания.',
-        input:'conversation_cache + vk_conversation_cache + wa_cache + tg_full_export',
-        action:'debounced trigger: WA materializer + stage classifier + field filler',
-        output:'orders.db / lcb_orders refresh + stage labels/log',
-        logic:['KeepAlive daemon','wa_cache change → wa_direct_inbound_sync --slug --apply','точный WA slug сохраняется включая @lid/русские имена','status@broadcast skipped','дополняет batch classifier'],
+        why:'Следит за stage-событиями в реальном времени и реагирует на изменения воронки.',
+        input:'stage state/logs', action:'watch transitions', output:'watcher actions/log',
+        logic:['KeepAlive daemon','быстрый reaction loop','дополняет batch classifier'],
       },
       {
         group:'funnel', name:'Attention Auto-Action', label:'com.lcband.attention-auto-action',

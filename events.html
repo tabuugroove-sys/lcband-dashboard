@@ -1162,8 +1162,9 @@
   }
 
   // ── Inline month calendar (replaces the empty-state placeholder) ────
-  // Calendar sources: production cards from /api/events and pre-paid LCB
-  // event/context stubs from /api/event_stubs (lcb_orders.json owner).
+  // Two sources: real events from /api/events and event_stubs from §3c.2.
+  // Click on a pill → loadEvent(id); stub pills don't open since there's
+  // no full card yet, they just show what's coming.
   let CAL_VIEW = new Date();   // 1st day of the visible month
   CAL_VIEW.setDate(1);
   let CAL_EVENTS = [];
@@ -1260,7 +1261,7 @@
         _kind: 'stub', _stage: s.stage, _thread: s.client_thread,
       });
     }
-    // Leads: ранние заявки с датой, ещё не materialized в lcb_orders. Кликабельны →
+    // Leads: ранние заявки с датой, ещё не event_stub'ы. Кликабельны →
     // открывают чат с клиентом через index.html (мы знаем username/channel).
     for (const l of CAL_LEADS) {
       const d = _parseYmd(l.event_date_iso);
@@ -1304,7 +1305,7 @@
         if (ev._kind === 'stub') {
           pcls += ' stub';
           stateLabel = 'ждём предоплату';
-          tip = `Pre-paid заявка (${ev._stage}): ${ev._thread || ''}\n${stateLabel}\nИсточник: lcb_orders.json`;
+          tip = `Stub (${ev._stage}): ${ev._thread || ''}\n${stateLabel}\nПолной карточки ещё нет — bridges работают по stub_id.`;
         } else if (ev._kind === 'lead') {
           pcls += ' lead';
           stateLabel = `заявка · ${ev._status}`;
@@ -1332,7 +1333,7 @@
 
     const stamp = document.getElementById('cal-stamp');
     if (stamp) {
-      stamp.textContent = `events: ${CAL_EVENTS.length} · pre-paid: ${CAL_STUBS.length} · заявки: ${CAL_LEADS.length}`;
+      stamp.textContent = `events: ${CAL_EVENTS.length} · stubs: ${CAL_STUBS.length} · заявки: ${CAL_LEADS.length}`;
     }
   }
 
