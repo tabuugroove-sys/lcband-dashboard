@@ -961,7 +961,7 @@ const PROCESS_RULES = {
       'Обновляет event_planning.json без финансов и приватных сумм',
       'Отправляет только новые/изменившиеся факты, без повторения всего адреса, состава и старого тайминга',
       'Если есть новая схема подъезда — пересылает вложение следом',
-      'Performer-coordination: lead_context_store coordination_requests → target performer thread; требует source media из conversation_cache',
+      'Performer-coordination: lcb_orders.json → lcb_event_context.iter_performer_coordination_requests → target performer thread; требует source media из conversation_cache',
       'Пример: @alenkakashparova просит костюм LAZ → @larzyy получает текст + фото; клиенту отвечает LCB writer после факта',
       'Дедуп: event_ops_state.json по source_msg_id + semantic sent_facts — похожие повторы организатора не дублируют отправку',
       'Скрипты: event_ops_logistics_agent.py → event_ops_bot.py | log: /tmp/event_ops_logistics.log',
@@ -1393,7 +1393,6 @@ function ActionButtons() {
 function AwakeGuardButton() {
   const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
   const [state, setState] = React.useState(null);
-  const [busy, setBusy] = React.useState(false);
   const [expanded, setExpanded] = React.useState(false);
 
   React.useEffect(() => {
@@ -1466,43 +1465,16 @@ function AwakeGuardButton() {
     return () => clearInterval(t);
   }, [backendUrl]);
 
-  async function getToken() {
-    let t = localStorage.getItem('lcband_admin_token') || '';
-    if (!t) {
-      t = (window.prompt('Admin token (DASHBOARD_ADMIN_TOKEN):') || '').trim();
-      if (!t) return null;
-      localStorage.setItem('lcband_admin_token', t);
-    }
-    return t;
-  }
+  const AWAKE_CMD = 'bash ~/lcband/mac_awake_guard.sh';
+  const [copied, setCopied] = React.useState(false);
 
-  async function toggle() {
-    if (busy) return;
-    const token = await getToken();
-    if (!token) return;
-    setBusy(true);
-    try {
-      const action = state?.enabled ? 'disable' : 'enable';
-      const r = await fetch(`${backendUrl}/api/awake_guard`, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json', 'X-Admin-Token': token},
-        body: JSON.stringify({action}),
-      });
-      const j = await r.json();
-      if (r.status === 403) {
-        localStorage.removeItem('lcband_admin_token');
-        alert('Неверный токен — удалён. Попробуй ещё раз.');
-      } else if (!r.ok) {
-        alert(j.error || `HTTP ${r.status}`);
-      } else {
-        setState(j);
-        setExpanded(true);
-      }
-    } catch (e) {
-      alert(String(e).slice(0, 180));
-    } finally {
-      setBusy(false);
-    }
+  function copyCmd() {
+    navigator.clipboard.writeText(AWAKE_CMD).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }).catch(() => {
+      prompt('Скопируй команду:', AWAKE_CMD);
+    });
   }
 
   const enabled = !!state?.enabled;
@@ -1511,22 +1483,22 @@ function AwakeGuardButton() {
       <div className="awake-guard-main">
         <span className={`awake-guard-dot ${enabled ? 'is-on' : ''}`} />
         <div>
-          <div className="awake-guard-title">Mac awake guard: {enabled ? 'включён' : 'выключен'}</div>
+          <div className="awake-guard-title">Mac awake guard: {enabled ? 'активен' : 'не запущен'}</div>
           <div className="awake-guard-sub">
-            {enabled && state?.pid ? `PID ${state.pid}` : 'Не даёт Mac заснуть, пока идут агенты'}
+            {enabled && state?.pid ? `caffeinate PID ${state.pid}` : 'запусти в терминале, Ctrl+C чтобы остановить'}
           </div>
         </div>
       </div>
       <div className="awake-guard-actions">
-        <button type="button" className={`awake-guard-btn ${enabled ? '' : 'is-primary'}`} onClick={toggle} disabled={busy}>
-          {busy ? '...' : enabled ? 'Выключить' : 'Включить'}
+        <button type="button" className="awake-guard-btn is-primary" onClick={copyCmd}>
+          {copied ? 'Скопировано!' : 'Копировать команду'}
         </button>
         <button type="button" className="awake-guard-btn" onClick={() => setExpanded(v => !v)}>
           Скрипт
         </button>
       </div>
       {expanded && (
-        <pre className="awake-guard-code">{state?.script || '# loading...'}</pre>
+        <pre className="awake-guard-code">{AWAKE_CMD}{'\n\n# или напрямую:\n/usr/bin/caffeinate -dimsu'}</pre>
       )}
     </div>
   );
@@ -4461,7 +4433,7 @@ function SingleAgentRestartButton({endpoint, label, why, backendUrl, getOrPrompt
   );
 }
 
-function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h, aiDelivery, aiDeliveryTrend, aiTrendRange = 'day', onAiTrendRangeChange, deliveryOutcomes = {}, deliveryTitle}) {
+function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h, aiDelivery, aiDeliveryTrend, aiTrendRange = 'day', onAiTrendRangeChange, aiTrendLoading = false, aiTrendError = '', deliveryOutcomes = {}, deliveryTitle}) {
   if (!aiCalls24h) return null;
   const RANGE_TABS = [
     {key: 'day',   label: 'день'},
@@ -4473,7 +4445,8 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
 
   // New shape: aiDeliveryTrend = {series:[...], sent_per_ai_pct, ai_calls, sent_total, hours, bucket_hours}
   // Old fallback: 24h-only data.
-  const bundle = (aiDeliveryTrend && Array.isArray(aiDeliveryTrend.series) && aiDeliveryTrend.series.length)
+  const trendRange = aiDeliveryTrend?._range || 'day';
+  const bundle = (aiDeliveryTrend && trendRange === aiTrendRange && Array.isArray(aiDeliveryTrend.series) && aiDeliveryTrend.series.length)
     ? aiDeliveryTrend
     : null;
   const trend = (bundle ? bundle.series : [
@@ -4521,6 +4494,8 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
         <div className="delivery-counts">
           <span>🤖 {headlineCalls}</span>
           <span>📩 {headlineSent}</span>
+          {aiTrendLoading && <span style={{color:'#93c5fd'}}>↻ load</span>}
+          {aiTrendError && <span title={aiTrendError} style={{color:'#fbbf24'}}>⚠ api</span>}
           {truncated && (
             <span title="Логи длиннее окна чтения — старые bucket'ы могут недосчитывать" style={{color:'#fbbf24'}}>⚠ trunc</span>
           )}
@@ -5113,7 +5088,7 @@ function HeartbeatFlowViz({ beats = [] }) {
   );
 }
 
-function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTrend, aiTrendRange, onAiTrendRangeChange, onProcessClick }) {
+function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTrend, aiTrendRange, onAiTrendRangeChange, aiTrendLoading, aiTrendError, onProcessClick }) {
   const [bwExpanded, setBwExpanded] = React.useState(false);
   const [bwFeed, setBwFeed] = React.useState(null);
   // 🔴 23.04: универсальный expand для любого процесса (не только Browser Walk).
@@ -5322,6 +5297,8 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
           aiDeliveryTrend={aiDeliveryTrend}
           aiTrendRange={aiTrendRange}
           onAiTrendRangeChange={onAiTrendRangeChange}
+          aiTrendLoading={aiTrendLoading}
+          aiTrendError={aiTrendError}
           deliveryOutcomes={deliveryOutcomes}
           deliveryTitle={deliveryTitle}
         />
@@ -9115,7 +9092,12 @@ function App() {
   const [activity24h, setActivity24h] = useState(null);
   const [aiDelivery, setAiDelivery] = useState(null);
   const [aiDeliveryTrend, setAiDeliveryTrend] = useState(null);
-  const [aiTrendRange, setAiTrendRange] = useState(() => localStorage.getItem('lcb_ai_trend_range') || 'day');
+  const [aiTrendRange, setAiTrendRange] = useState(() => {
+    const saved = localStorage.getItem('lcb_ai_trend_range') || 'day';
+    return ['day', 'week', 'month', '3m'].includes(saved) ? saved : 'day';
+  });
+  const [aiTrendLoading, setAiTrendLoading] = useState(false);
+  const [aiTrendError, setAiTrendError] = useState('');
   const [overviewStats, setOverviewStats] = useState(null);
   const [followupPlan, setFollowupPlan] = useState(null);
   const [recentSent, setRecentSent] = useState(null);
@@ -9367,16 +9349,23 @@ function App() {
     const cfg = RANGE_CFG[aiTrendRange] || RANGE_CFG.day;
     let alive = true;
     async function load() {
+      setAiTrendLoading(true);
+      setAiTrendError('');
       try {
+        try { await BACKEND_READY; } catch {}
         const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
         const r = await fetch(
-          `${bu}/api/ai_delivery_buckets?hours=${cfg.hours}&buckets=${cfg.buckets}`,
+          `${bu}/api/ai_delivery_buckets?hours=${cfg.hours}&buckets=${cfg.buckets}&range=${encodeURIComponent(aiTrendRange)}`,
           { cache: 'no-store' }
         );
-        if (!r.ok) return;
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const j = await r.json();
-        if (alive) setAiDeliveryTrend(j);
-      } catch { /* keep previous trend */ }
+        if (alive) setAiDeliveryTrend({ ...j, _range: aiTrendRange });
+      } catch (e) {
+        if (alive) setAiTrendError(String(e?.message || e).slice(0, 80));
+      } finally {
+        if (alive) setAiTrendLoading(false);
+      }
     }
     load();
     const periodMs = aiTrendRange === 'day' ? 30000 : aiTrendRange === 'week' ? 120000 : 300000;
@@ -9564,11 +9553,13 @@ function App() {
                 activity24h={activity24h}
                 sent24h={recentSent24h}
                 aiDelivery={aiDelivery}
-                aiDeliveryTrend={aiDeliveryTrend}
-                aiTrendRange={aiTrendRange}
-                onAiTrendRangeChange={setAiTrendRange}
-                onProcessClick={setShowProcess}
-              />
+	                aiDeliveryTrend={aiDeliveryTrend}
+	                aiTrendRange={aiTrendRange}
+	                onAiTrendRangeChange={setAiTrendRange}
+	                aiTrendLoading={aiTrendLoading}
+	                aiTrendError={aiTrendError}
+	                onProcessClick={setShowProcess}
+	              />
               <ActionButtons />
               <KPISection kpi={data.kpi} setActiveTab={setActiveTab}
                           browserWalk={data.browserWalk || {leads:0, refusals:0, chats:0, ranAt:'', hours:48, items:[]}} />
