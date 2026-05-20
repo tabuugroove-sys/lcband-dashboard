@@ -301,7 +301,7 @@
         input:'lcb_orders.json',
         action:'read event, organizer, roles, promises, stage, writer-mode history, waiting flags',
         output:'LCB event-card / prompt block',
-        logic:['lcb_orders.py владеет JSON persistence','lead_context_enricher dual-write → orders.db.contact_context/event_context','lcb_writer_mode_history пишется только при смене mode или CRM stage','lcb_event_context.py не пишет и не запускает AI','promise_extractor не гасит durable tech/contractor dependencies без явного resolution','обновляется через owners: inbound enricher, outbound_recorder, orders_db, event_graph.py → orders.db.eg_*','аналог broker_orders.json + broker_order_context для LCB'],
+        logic:['lcb_orders.py владеет JSON persistence','lead_context_enricher dual-write → orders.db.contact_context/event_context','lcb_writer_mode_history пишется только при смене mode или CRM stage','lcb_event_context.py не пишет и не запускает AI','thread_context_extract через promise_extractor одним AI-запросом пишет event graph + promises + refs','promise_extractor не гасит durable tech/contractor dependencies без явного resolution','обновляется через owners: inbound enricher, outbound_recorder, orders_db, event_graph.py → orders.db.eg_*','аналог broker_orders.json + broker_order_context для LCB'],
       },
       {
         group:'broker', name:'Broker Casting', label:'com.lcband.broker-casting',
@@ -431,9 +431,9 @@
       {
         group:'funnel', name:'Conv Cache Sync + Funnel Keeper', label:'com.lcband.conv-cache-sync',
         file:'_run_conv_sync_and_funnel_keeper.sh', schedule:'каждые 5 мин',
-        why:'Держит локальный текстовый cache переписок свежим и запускает умное обслуживание воронки.',
-        input:'TG dialogs', action:'sync cache → run funnel keeper', output:'conversation_cache, funnel status updates',
-        logic:['append-only cache','changed dialogs feed AI reclassify','основа для контекстных агентов'],
+        why:'Держит canonical raw-message store свежим и запускает умное обслуживание воронки.',
+        input:'TG dialogs', action:'sync live messages → orders.db.message_events → run funnel keeper', output:'message_events, funnel status updates',
+        logic:['orders.db.message_events = source of truth','conversation_cache остаётся legacy export','changed dialogs feed AI reclassify'],
       },
       {
         group:'funnel', name:'Funnel Autoheal', label:'com.lcband.funnel-autoheal',
@@ -453,8 +453,8 @@
         group:'funnel', name:'Funnel Maintenance', label:'com.lcband.funnel-maintenance',
         file:'funnel_maintenance.py', schedule:'calendar maintenance',
         why:'Общий maintenance по обещаниям, отказам, stale follow-ups и служебным флагам.',
-        input:'orders.db + conversation cache', action:'detect obligations and stale states', output:'history/status/flags',
-        logic:['следит за promised media/replies','cross-channel TG/TG_DIRECT/VK/WA follow-up owner для orders.db stale leads','считает тишину по реальной conversation cache, а не CRM service updates','overdue leads идут первыми; unchanged chat не блокирует audit после due date','21+d тишины после нашего сообщения = stale-lost, follow-up не отправлять','не должен требовать ручной разбор','работает как cleanup contour'],
+        input:'orders.db + message_events', action:'detect obligations and stale states', output:'history/status/flags',
+        logic:['следит за promised media/replies','cross-channel TG/TG_DIRECT/VK/WA follow-up owner для orders.db stale leads','считает тишину по реальной raw-переписке из orders.db.message_events, а не CRM service updates','overdue leads идут первыми; unchanged chat не блокирует audit после due date','21+d тишины после нашего сообщения = stale-lost, follow-up не отправлять','не должен требовать ручной разбор','работает как cleanup contour'],
       },
       {
         group:'funnel', name:'Funnel Stage Classifier', label:'com.lcband.funnel-stage-classifier',
@@ -467,7 +467,7 @@
         group:'funnel', name:'Funnel Stage Watcher', label:'com.lcband.funnel-stage-watcher',
         file:'funnel_stage_watcher.py', schedule:'daemon / KeepAlive',
         why:'Следит за raw cache изменениями и запускает owner-пути, чтобы WA/TG/VK не требовали ручной проталкивания.',
-        input:'conversation_cache + vk_conversation_cache + wa_cache + tg_full_export',
+        input:'orders.db.message_events + legacy cache change signals',
         action:'debounced trigger: WA materializer + stage classifier + field filler',
         output:'orders.db / lcb_orders refresh + stage labels/log',
         logic:['KeepAlive daemon','wa_cache change → wa_direct_inbound_sync --slug --apply','точный WA slug сохраняется включая @lid/русские имена','status@broadcast skipped','дополняет batch classifier'],

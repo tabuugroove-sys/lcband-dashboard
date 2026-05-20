@@ -199,8 +199,8 @@
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <span style="font-size:18px">🗄</span>
           <div>
-            <div style="font-weight:700;color:#5eead4">Raw text archives — посты и переписки</div>
-            <div class="anno">Это файловый слой, откуда AI берёт фактические тексты. Не отдельный источник правды для CRM: CRM остаётся <code>orders.db</code>.</div>
+            <div style="font-weight:700;color:#5eead4">Raw text store — посты и переписки</div>
+            <div class="anno">Canonical raw-переписка живёт в <code>orders.db.message_events</code>. JSONL-кэши ниже — legacy/export слои и не должны быть source of truth.</div>
           </div>
         </div>
         <table class="tbl">
@@ -210,8 +210,8 @@
           <tbody>
             <tr>
               <td>Все входящие/исходящие события и тексты постов</td>
-              <td><code>message_events.jsonl</code></td>
-              <td><code>message_event_log.py</code> пишет; dashboard, daily report, event graph читают</td>
+              <td><code>orders.db.message_events</code><br><code>message_events.jsonl</code> legacy mirror</td>
+              <td><code>message_event_log.py</code> пишет в SQLite; <code>unified_message_store.py</code> читает DB-first</td>
             </tr>
             <tr>
               <td>Дедуп TG event-постов</td>
@@ -221,7 +221,7 @@
             <tr>
               <td>Годовой/полный TG архив приватных диалогов и чатов</td>
               <td><code>tg_full_export/&lt;username_or_id&gt;.jsonl</code><br><code>tg_full_export/_meta.json</code></td>
-              <td><code>tg_full_export.py</code> backfill; <code>thread_transcript.py</code> primary reader</td>
+              <td><code>tg_full_export.py</code> legacy backfill/export; <code>thread_transcript.py</code> читает DB-first</td>
             </tr>
             <tr>
               <td>Оперативный TG cache по лидам</td>
@@ -246,7 +246,7 @@
             <tr>
               <td>Единый read-layer raw-переписок</td>
               <td><code>unified_message_store.py</code></td>
-              <td>Нормализует TG/WA/VK/IG JSONL в один формат <code>channel/thread_id/ts/direction/text/source_path</code>; agents читают через него, а смысл всё равно пишут в <code>orders.db</code> / event-card</td>
+              <td>Нормализует <code>orders.db.message_events</code> в один формат <code>channel/thread_id/ts/direction/text/source_path</code>; JSONL читает только как legacy fallback при явном включении</td>
             </tr>
             <tr>
               <td>AI-выводы поверх текстов</td>
@@ -325,7 +325,7 @@
         <li>
 	          <b>Входящее фиксируется в cache, потом обновляется картотека</b> <span class="badge badge-warn">force=True</span>
 		          <span class="anno"><br><code>_record_incoming_to_cache(out=False)</code> → <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lead_context_enricher.py" target="_blank" rel="noopener"><code>lead_context_enricher.enrich(username, "tg", force=True)</code></a>.
-		          Enricher обходит 30-мин freshness check, читает <code>conversation_cache</code> + <code>tg_full_export</code> + live TG fallback.
+		          Enricher обходит 30-мин freshness check, читает <code>orders.db.message_events</code> через <code>unified_message_store</code>; legacy cache fallback включается только явно.
 			          Если клиент ответил хотя бы один раз, минимальная context-card сохраняется до AI. Если known events пустой, но thread явно про одно мероприятие, создаёт event через <code>event_graph.py</code> в <code>orders.db.eg_*</code> и переносит key asks в event-card.</span>
 	        </li>
 	        <li>
@@ -381,7 +381,7 @@
       <div class="sec-num" style="background:rgba(20,184,166,.2);color:#5eead4">↕</div>
       <div>
         <div class="sec-label">Как сообщения попадают в картотеку</div>
-        <div class="sec-desc">conversation_cache.jsonl — общий лог входящих и исходящих → enrich → context card</div>
+        <div class="sec-desc">orders.db.message_events — общий лог входящих и исходящих → enrich → context card</div>
       </div>
     </div>
 
@@ -398,7 +398,7 @@
       <div style="background:#0d1117;border:1.5px solid rgba(20,184,166,.5);border-radius:10px;padding:0;overflow:hidden">
         <div style="background:rgba(20,184,166,.08);padding:7px 14px;border-bottom:1px solid rgba(20,184,166,.2);display:flex;align-items:center;gap:8px">
           <span style="font-size:16px">📄</span>
-          <code style="font-size:12px;color:#5eead4;font-weight:700">conversation_cache/username.jsonl</code>
+          <code style="font-size:12px;color:#5eead4;font-weight:700">orders.db.message_events</code>
         </div>
         <div style="padding:10px 14px;display:flex;flex-direction:column;gap:5px" id="cache-log">
           <!-- entry 1 — incoming old -->
@@ -531,8 +531,8 @@
                   <code style="font-size:10px;color:#d8b4fe"> {"out":true, "text":"Да, 14 июня свободно!", "date":"10:02"}</code>
                 </div>
                 → <code>enrich(force=True)</code> снова<br>
-                → <code>promise_extractor.process_thread()</code><br>
-                → durable tech/contractor dependencies stay open until explicit resolution<br>
+                → <code>promise_extractor.process_thread()</code> / <code>purpose=thread_context_extract</code><br>
+                → one AI request writes event graph + promises + refs; durable tech/contractor dependencies stay open until explicit resolution<br>
                 → карточка: <code style="color:#fde68a">waiting_for_client: true</code>
                 + open promises
               </div>
@@ -544,7 +544,7 @@
 
       <div style="margin-top:16px;background:rgba(245,197,24,.04);border:1px solid rgba(245,197,24,.15);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--muted)">
         <span style="color:var(--gold);font-weight:700">Итог:</span>
-        после каждого обмена в <code>conversation_cache.jsonl</code> есть <b>все</b> сообщения — и входящие (<code>out:false</code>) и исходящие (<code>out:true</code>).
+        после каждого обмена в <code>orders.db.message_events</code> есть <b>все</b> реальные сообщения — и входящие (<code>direction=in</code>) и исходящие (<code>direction=out</code>).
         Enricher видит полную переписку и строит карточку с актуальным контекстом.
         <code>outbound_recorder.py</code> закрывает send-paths LCB writer, TG follow-up, approval-bot и broker direct-send; следующий ответ агента будет знать что мы уже написали и что пообещали.
       </div>
@@ -626,7 +626,7 @@
           <tr>
             <td><span class="badge badge-green">ЗАПИСЬ</span> Исходящее DM</td>
             <td><code>outbound_recorder.record_outbound(namespace=lcb)</code></td>
-            <td>Сразу после успешной отправки: cache → <code>lead_context_enricher</code> → <code>lcb_orders.refresh_contact()</code> → <code>promise_extractor</code></td>
+            <td>Сразу после успешной отправки: cache → <code>lead_context_enricher</code> → <code>lcb_orders.refresh_contact()</code> → <code>thread_context_extract</code> через <code>promise_extractor</code></td>
           </tr>
           <tr>
             <td><span class="badge badge-purple">ЧТЕНИЕ</span> Генерация ответа</td>
@@ -656,8 +656,8 @@
         <code>lcb_event_context.py</code> — единый LCB read-layer поверх <code>lcb_orders.json</code><br>
         <code>lead_context_store.json</code> — upstream LCB AI read-model и primary fallback (ключ = <code>channel:username</code>)<br>
         <code>orders.db.contact_context/event_context</code> — Phase 2A SQL dual-write для будущего read switch<br>
-	        <code>conversation_cache/&lt;username&gt;.jsonl</code> — TG история (вх + исх), <code>tg_full_export</code> и live TG fallback закрывают stale cache<br>
-	        <code>orders.db.eg_*</code> — event graph: event-card и связь organizer/performer/tech; <code>event_graph.py</code> — compatibility API<br>
+	        <code>orders.db.message_events</code> — canonical raw история (вх + исх); JSONL-кэши только legacy/export<br>
+	        <code>orders.db.eg_*</code> — event graph + promises + refs из одного <code>thread_context_extract</code>; <code>event_graph.py</code> — compatibility API<br>
         <code>vk_conversation_cache/&lt;peer&gt;.jsonl</code> · <code>wa_cache/&lt;phone&gt;.jsonl</code><br>
         Запись: <code>{"id": -ts, "date": "...", "out": true/false, "text": "...", "media": false}</code>
       </div>
@@ -792,7 +792,7 @@
             <td><code>funnel_maintenance.py</code></td>
             <td>Calendar ticks, send window 10:00-20:00 MSK</td>
             <td>orders.db active leads: overdue by real dialog last-message date, not CRM service updates</td>
-            <td><code>conversation_cache</code> / <code>tg_full_export</code> / channel cache + strategist + AI-review</td>
+            <td><code>orders.db.message_events</code> / channel legacy cache + strategist + AI-review</td>
             <td>Cross-channel TG/TG_DIRECT/VK/WA follow-up owner; overdue leads are scanned first, unchanged chats are still audited after due date; 21+d silence after our message is stale-lost, not a follow-up</td>
           </tr>
           <tr>

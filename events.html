@@ -539,9 +539,11 @@
     const rawThread = String(thread || '');
     const rawUsername = String(username || '');
     const userMatch = rawThread.match(/@([A-Za-z0-9_]{3,32})/) || rawUsername.match(/^@?([A-Za-z0-9_]{3,32})$/);
-    const q = userMatch ? userMatch[1] : '';
     const chRaw = rawThread.split(':')[0].toUpperCase();
-    const channel = chRaw.startsWith('VK') ? 'VK' : 'TG';
+    const channel = chRaw.startsWith('WA') ? 'WA' : (chRaw.startsWith('VK') ? 'VK' : 'TG');
+    const q = channel === 'WA'
+      ? rawThread.replace(/^[^:]+:@?/, '').trim()
+      : (userMatch ? userMatch[1] : '');
     return q ? { q, channel } : null;
   }
 
@@ -582,7 +584,7 @@
     if (!q) return;
     const panel = document.getElementById('chat-panel');
     const err = document.getElementById('chat-error');
-    const sub = channel === 'VK' ? `VK · ${q}` : `@${q}`;
+    const sub = channel === 'WA' ? `WA · ${q}` : (channel === 'VK' ? `VK · ${q}` : `@${q}`);
     CHAT_ACTIVE_Q = `${channel}:${q}`;
     panel.classList.add('open');
     err.style.display = 'none';
@@ -599,7 +601,7 @@
     CHAT_ABORT = ctrl;
     try {
       const base = await getBackendUrl();
-      const ep = channel === 'VK' ? 'vk_chat' : 'chat';
+      const ep = channel === 'WA' ? 'wa_chat' : (channel === 'VK' ? 'vk_chat' : 'chat');
       const r = await fetch(`${base}/api/${ep}?q=${encodeURIComponent(q)}&limit=40`, { signal: ctrl.signal, cache: 'no-store' });
       const payload = await r.json();
       if (CHAT_ACTIVE_Q !== `${channel}:${q}`) return;
@@ -659,16 +661,17 @@
         onclick: `loadEvent('${String(ev.id || '').replace(/'/g, "\\'")}')`,
       }));
       const stubs = (stubsResp.stubs || []).map(s => {
-        const isContract = s.stage === 'confirmed';
         const chat = chatTargetFromThread(s.client_thread, '');
+        const statusGroup = s.status_group || (s.stage === 'confirmed' ? 'contract' : 'negotiation');
+        const isContract = statusGroup === 'contract' || statusGroup === 'prepayment';
         return {
           kind: 'stub',
-          group: isContract ? 'contract' : 'negotiating',
-          rank: isContract ? 1 : 2,
+          group: statusGroup === 'released' ? 'released' : (isContract ? 'contract' : 'negotiating'),
+          rank: statusGroup === 'released' ? 4 : (isContract ? 1 : 2),
           id: s.stub_id,
           title: s.title || s.client_thread || '(stub)',
           date: s.hint_date || '',
-          stats: isContract ? 'договор / ждём предоплату' : 'переговоры',
+          stats: s.status_label || (isContract ? 'договор / ждём предоплату' : 'переговоры'),
           onclick: '',
           chatQ: chat?.q || '',
           chatChannel: chat?.channel || 'TG',
@@ -706,8 +709,9 @@
       const activeId = CURRENT_EVENT?.id;
       const labels = {
         paid: 'Оплаченные',
-        contract: 'Договор отправлен / ждём предоплату',
+        contract: 'Договор / предоплата',
         negotiating: 'Переговоры',
+        released: 'Снято / освобождено',
         lead: 'Заявки',
       };
       let lastGroup = '';
@@ -717,7 +721,8 @@
           : '';
         lastGroup = row.group;
         const cls = row.kind === 'event' ? 'paid'
-          : (row.group === 'contract' ? 'contract' : row.group === 'negotiating' ? 'negotiating' : 'lead');
+          : (row.group === 'released' ? 'lead'
+          : (row.group === 'contract' ? 'contract' : row.group === 'negotiating' ? 'negotiating' : 'lead'));
         const open = row.href
           ? `onclick="window.open('${row.href.replace(/'/g, "\\'")}', '_blank')"`
           : (row.onclick ? `onclick="${row.onclick}"` : '');

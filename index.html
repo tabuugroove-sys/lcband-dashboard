@@ -2164,11 +2164,18 @@ function computePipeline(allLeads, archived, branchSpec, awaitingPrepayEvents) {
   const st = (o) => (o.status || '').trim();
   const eq = (s) => (o) => st(o).toLowerCase() === s.toLowerCase();
   const any = (re) => (o) => re.test(st(o));
+  const isContractDocSent = (o) => {
+    const marker = String(o.last_doc_sent || '').trim().toLowerCase();
+    if (!marker) return false;
+    const docType = marker.split(':', 1)[0];
+    if (['invoice', 'contract', 'offer', 'act', 'bill'].includes(docType)) return true;
+    return /^\d{4}-\d{2}-\d{2}$/.test(marker);
+  };
   const isAwaitingPrepayment = (o) => {
     const s = st(o).toUpperCase();
     if (s.includes('ОПЛАТ')) return false;
     const step = String(o.payment_step || '').toLowerCase();
-    return Boolean(o.last_doc_sent) || ['invoice_seen', 'awaiting_prepayment', 'prepaid_partial'].includes(step);
+    return isContractDocSent(o) || ['awaiting_prepayment', 'prepaid_partial'].includes(step);
   };
 
   // 15.05.2026: broker (status="Посредник") leads — раньше не подбирались ни
@@ -4479,14 +4486,21 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
     bucketIdx: i,
     bucketsTotal: arr.length,
     pct: Number(p.sent_per_ai_pct || 0),
+    funnelPct: Number(p.funnel_stage_per_cli_pct || 0),
     sent: Number(p.sent_total || 0),
     calls: Number(p.ai_calls || 0),
+    funnelCli: Number(p.funnel_cli_calls || 0),
+    funnelMoves: Number(p.funnel_stage_moves || 0),
   }));
 
   // Headline pct/counts follow the selected range when bucketed data is available
   const headlinePct = bundle ? bundle.sent_per_ai_pct : sentConversion24h;
   const headlineCalls = bundle ? bundle.ai_calls : aiCalls24h;
   const headlineSent = bundle ? bundle.sent_total : sentMessages24h;
+  const headlineFunnelCli = Number((bundle ? bundle.funnel_cli_calls : aiDelivery?.funnel_cli_calls) || 0);
+  const headlineFunnelMoves = Number((bundle ? bundle.funnel_stage_moves : aiDelivery?.funnel_stage_moves) || 0);
+  const headlineFunnelPct = Number((bundle ? bundle.funnel_stage_per_cli_pct : aiDelivery?.funnel_stage_per_cli_pct) || 0);
+  const geminiQuota = (bundle && bundle.gemini_free_quota) || (aiDelivery && aiDelivery.gemini_free_quota) || null;
   const truncated = !!(bundle && bundle.truncated);
   // Axis labels: show 4-5 tick marks, formatted relative to range
   const totalHours = bundle ? bundle.hours : 24;
@@ -4498,10 +4512,15 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
     if (ago <= 0.5) return 'сейчас';
     return `−${fmtHours(Math.round(ago))}`;
   };
-  const maxPct = Math.max(5, ...trend.map(p => p.pct));
+  const maxPct = Math.max(5, ...trend.map(p => p.pct), ...trend.map(p => p.funnelPct));
   const points = trend.map((p, i) => {
     const x = trend.length === 1 ? 100 : (i / (trend.length - 1)) * 100;
     const y = 42 - Math.min(1, p.pct / maxPct) * 34;
+    return `${x},${y}`;
+  }).join(' ');
+  const funnelPoints = trend.map((p, i) => {
+    const x = trend.length === 1 ? 100 : (i / (trend.length - 1)) * 100;
+    const y = 42 - Math.min(1, p.funnelPct / maxPct) * 34;
     return `${x},${y}`;
   }).join(' ');
   const outPct = Math.min(100, Number(headlinePct || 0));
@@ -4517,6 +4536,14 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
         <div className="delivery-counts">
           <span>🤖 {headlineCalls}</span>
           <span>📩 {headlineSent}</span>
+          {geminiQuota && (
+            <span title={`Gemini Code Assist free: ${geminiQuota.used_today || 0}/${geminiQuota.limit_24h || 0} today. Excluded from AI → messages denominator.`}>
+              Gemini {geminiQuota.used_today || 0}/{geminiQuota.limit_24h || 0}
+            </span>
+          )}
+          <span title={`Lead funnel CLI: ${headlineFunnelCli}; stage moves: ${headlineFunnelMoves}; ${headlineFunnelPct.toFixed(1)}%`}>
+            funnel {headlineFunnelMoves}/{headlineFunnelCli}
+          </span>
           {aiTrendLoading && <span style={{color:'#93c5fd'}}>↻ load</span>}
           {aiTrendError && <span title={aiTrendError} style={{color:'#fbbf24'}}>⚠ api</span>}
           {truncated && (
@@ -4546,12 +4573,22 @@ function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h,
       <svg className="delivery-spark" viewBox="0 0 100 48" preserveAspectRatio="none" aria-hidden="true">
         <line x1="0" y1="42" x2="100" y2="42" stroke="rgba(148,163,184,0.22)" strokeWidth="1" />
         <polyline points={points} fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points={funnelPoints} fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 2" />
         {trend.map((p, i) => {
           const x = trend.length === 1 ? 100 : (i / (trend.length - 1)) * 100;
           const y = 42 - Math.min(1, p.pct / maxPct) * 34;
           return <circle key={`${p.hours}-${i}`} cx={x} cy={y} r="2.2" fill="#93c5fd" />;
         })}
+        {trend.map((p, i) => {
+          const x = trend.length === 1 ? 100 : (i / (trend.length - 1)) * 100;
+          const y = 42 - Math.min(1, p.funnelPct / maxPct) * 34;
+          return <circle key={`funnel-${i}`} cx={x} cy={y} r="1.8" fill="#fbbf24" />;
+        })}
       </svg>
+      <div className="delivery-axis" style={{marginTop:2}}>
+        <span style={{color:'#93c5fd'}}>send/AI</span>
+        <span style={{color:'#fbbf24'}}>stage/CLI {headlineFunnelPct.toFixed(1)}%</span>
+      </div>
       <div className="delivery-axis">
         {Array.from({length: tickCount}, (_, k) => {
           const idx = Math.round(k * tickStep);
@@ -5260,6 +5297,12 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
   const deliveryTitle = aiDelivery
     ? [
         `Факт TG out: ${aiDelivery.sent_total || 0}`,
+        `AI denominator: ${aiDelivery.ai_calls || 0} (Claude CLI + Codex/GPT CLI + API)`,
+        `Gemini excluded: ${aiDelivery.gemini_calls_excluded || 0}`,
+        `Gemini free today: ${aiDelivery.gemini_free_quota?.used_today || 0}/${aiDelivery.gemini_free_quota?.limit_24h || 0}`,
+        `Lead funnel CLI: ${aiDelivery.funnel_cli_calls || 0}`,
+        `Lead funnel stage moves: ${aiDelivery.funnel_stage_moves || 0}`,
+        `Lead funnel stage/CLI: ${aiDelivery.funnel_stage_per_cli_pct || 0}%`,
         `Текст: ${aiDelivery.sent_text || 0}`,
         `Медиа: ${aiDelivery.sent_media || 0}`,
         `Новые лиды ждут питча: ${deliveryOutcomes.new_leads_waiting_pitch || 0}`,
@@ -5270,7 +5313,7 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
         `Codex fail: ${deliveryOutcomes.codex_fail || 0}`,
         ...(aiDelivery.sent_by_source || []).map(([src, n]) => `${src}: ${n}`),
       ].join('\n')
-    : 'Конверсия = реально отправленные сообщения за 24ч / AI-вызовы за 24ч';
+    : 'Конверсия = реально отправленные сообщения / AI-вызовы без Gemini CLI';
 
   // Browser Walk row — предпочитаем row из Google Sheet (sync_dashboard_data.py),
   // потому что он уже стоит в правильной позиции (после TG Monitor).
@@ -9404,7 +9447,10 @@ function App() {
       d.dbSync = dbSnapshot.sync;
     }
     if (eventStubs && Array.isArray(eventStubs.stubs)) {
-      d.awaitingPrepayEvents = eventStubs.stubs.map(s => {
+      d.awaitingPrepayEvents = eventStubs.stubs.filter(s => {
+        const group = String(s.status_group || '').toLowerCase();
+        return group === 'contract' || group === 'prepayment';
+      }).map(s => {
         const thread = String(s.client_thread || '');
         const username = (thread.match(/@([A-Za-z0-9_]{3,32})/) || [])[1] || '';
         return {
