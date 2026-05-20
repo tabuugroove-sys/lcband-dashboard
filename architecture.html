@@ -244,6 +244,11 @@
               <td>Baileys пишет inbound и ручные outbound Михаила; inbound проходит <code>wa_direct_inbound_sync.py</code> и актуальные заявки попадают в <code>orders.db</code>; <code>wa_responder.py</code> читает cache и кладёт draft в <code>wa_computer_use_queue.json</code>; финальный Send только через WhatsApp Desktop/computer-use</td>
             </tr>
             <tr>
+              <td>Единый read-layer raw-переписок</td>
+              <td><code>unified_message_store.py</code></td>
+              <td>Нормализует TG/WA/VK/IG JSONL в один формат <code>channel/thread_id/ts/direction/text/source_path</code>; agents читают через него, а смысл всё равно пишут в <code>orders.db</code> / event-card</td>
+            </tr>
+            <tr>
               <td>AI-выводы поверх текстов</td>
               <td><code>lead_context_store.json</code> primary fallback<br><code>orders.db.contact_context/event_context</code><br><code>conversation_analysis/tg/*.json</code></td>
               <td>Enricher пишет карточки в JSON и dual-write в SQL; агенты пока читают JSON/read-layer перед ответом</td>
@@ -329,9 +334,13 @@
 	        </li>
         <li>
           <b>LCB band-member route</b>
-          <span class="anno"><br>LAZ/Ира/Стас/Лео/Teddy из <code>tg_whitelist.json</code> идут в <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/band_member_reply.py" target="_blank" rel="noopener"><code>band_member_reply.py</code></a>: только факты по подтверждённым event'ам; payment/new-gig/personal → silent.</span>
+          <span class="anno"><br>LAZ/Ира/Стас/Лео/Teddy из <code>tg_whitelist.json</code> идут в <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/band_member_reply.py" target="_blank" rel="noopener"><code>band_member_reply.py</code></a>: только факты по подтверждённым event'ам, performer-safe репертуар и runtime-поиск конкретных файлов в promo-папке; payment/new-gig/personal → silent.</span>
         </li>
-	        <li>
+        <li>
+          <b>LCB promo material resolver</b>
+          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lcb_promo_materials.py" target="_blank" rel="noopener"><code>lcb_promo_materials.py</code></a> раскрывает promo-папку Я.Диска и даёт writer'у отдельные ссылки по смыслу запроса: видео, фото/костюмы, райдер/репертуар, LAZ/TEDDY; общая promo-ссылка остаётся fallback.</span>
+        </li>
+		        <li>
 	          <b>Агент читает свежую карточку</b>
 	          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lead_context_enricher.py" target="_blank" rel="noopener"><code>get_or_enrich(username, channel)</code></a> — если карточка устарела (cron-путь) — обновляет; иначе берёт актуальную из кеша</span>
 	        </li>
@@ -570,7 +579,8 @@
           — lcb_writer_mode + history, синхронно с CRM funnel stage<br>
           — Promises, roles, active_event; тех/contractor dependencies не stale по отсутствию в compact AI output<br>
           — Internal subrequests: например DJ → <code>broker_pipeline</code> для цены/видео/style-match<br><br>
-	          <b>Обновляют:</b> inbound/outbound context, CRM status/history, event graph owners (<code>orders.db.eg_*</code>)
+	          <b>Обновляют:</b> inbound/outbound context, CRM status/history, event graph owners (<code>orders.db.eg_*</code>)<br>
+	          <b>Читает календарь:</b> <code>/api/event_stubs</code> строит pre-paid заявки напрямую отсюда, без отдельного SQL/date push.
         </div>
       </div>
       <div class="card" style="border:1.5px dashed rgba(168,85,247,.5)">
@@ -688,6 +698,7 @@
           <b>Вход:</b> входящий TG/VK/WA DM<br><br>
           <b>AI-стек:</b><br>
           Opus — classify + LCBand writer<br>
+          Legacy TG writer challenger → arbiter выбирает primary/challenger/adapt/block<br>
           modes: intake / sales / contract / production / content<br><br>
           <b>Контекст:</b> <span class="badge badge-blue">LCB event read-layer</span><br>
           Читает: <code>lcb_event_context.py</code><br>

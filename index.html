@@ -935,17 +935,20 @@ const PROCESS_RULES = {
     ],
   },
   proc_event_watcher: {
-    name: 'Event Watcher (paid → карточка event)',
-    interval: 'Каждые 30 мин',
-    desc: 'Создаёт event-карточку в event_planning.json, когда orders.db получает оплаченный будущий заказ',
+    name: 'Event Watcher / Pre-paid',
+    interval: 'Каждые 15 мин',
+    desc: 'Pre-paid calendar читает lcb_orders.json; после оплаты event_watcher поднимает full card в event_planning.json',
     rules: [
-      'Триггер: orders.status = ОПЛАТИЛА/Концерт или ОПЛАТИЛА/Оплачен + event_date в будущем',
-      'Проверяет, что event ещё не создан по orders.db id, lead_username или дате',
-      'Создаёт карточку через POST /api/events с шаблоном состава/финансов/заказчика',
-      'После создания запускает auto_enrich и resolve_venue best-effort',
+      'Pre-paid: event_stub_updater.py каждые 15 мин refresh active orders.db → lcb_orders.json',
+      'WA: funnel_stage_watcher на wa_cache change запускает wa_direct_inbound_sync --slug --apply, затем orders_db refresh обновляет lcb_orders',
+      'Paid: event_watcher.py создаёт full event-карточку в event_planning.json для ОПЛАТИЛА/Концерт',
+      'Проверяет, что full event ещё не создан по orders.db id, lead_username, phone или дате',
+      'Full card создаётся через POST /api/events с шаблоном состава/финансов/заказчика',
+      'После создания запускает auto_enrich: unified_message_store читает TG/WA/VK/IG raw JSONL + contract artifacts и заполняет event fields/evidence',
+      'Если auto_enrich подтверждает другую дату по договору/переписке — синхронизирует event_date обратно в orders.db',
       'НЕ создаёт band-chat, НЕ добавляет артистов, НЕ отправляет клиенту/команде сообщения',
       'Логирует в session_actions: event создан, нужно дозаполнить гонорары/договор/финансы',
-      'Скрипт: event_watcher.py | log: /tmp/event_watcher.log',
+      'Скрипты: event_stub_updater.py / event_watcher.py | logs: /tmp/event_stub_updater.log, /tmp/event_watcher.log',
     ],
   },
   proc_event_ops_logistics: {
@@ -1332,54 +1335,199 @@ function ConnectionStatus({ connection, vkConnection, waConnection }) {
 
 function ActionButtons() {
   return (
-    <div className="action-btns">
-      <a href="https://t.me/lcband_notify_bot?text=/restart"
-         className="action-btn action-btn-restart"
-         target="_blank" rel="noopener">
-        🔄 Перезапуск
-      </a>
-      <a href="https://t.me/lcband_notify_bot?text=/status"
-         className="action-btn action-btn-status"
-         target="_blank" rel="noopener">
-        📊 Статус
-      </a>
-      <a href="./architecture.html"
-         className="action-btn"
-         style={{background: 'rgba(188, 140, 255, 0.15)', color: '#bc8cff', borderColor: 'rgba(188, 140, 255, 0.3)'}}>
-        🧠 Архитектура & AI
-      </a>
-      <a href="./architecture.html#ai-20-coverage"
-         className="action-btn"
-         title="AI 2.0 (unified Opus classifier) — где работает с пониманием контекста vs где ещё legacy"
-         style={{background: 'rgba(63, 185, 80, 0.15)', color: '#3fb950', borderColor: 'rgba(63, 185, 80, 0.4)'}}>
-        🟢 AI 2.0 coverage
-      </a>
-      <a href="./contacts.html"
-         className="action-btn"
-         style={{background: 'rgba(88, 166, 255, 0.15)', color: '#58a6ff', borderColor: 'rgba(88, 166, 255, 0.3)'}}>
-        🎭 Contact Roles
-      </a>
-      <a href="./context_cards.html"
-         className="action-btn"
-         title="Картотека контекста: что AI присваивает каждому лиду"
-         style={{background: 'rgba(20, 184, 166, 0.14)', color: '#14b8a6', borderColor: 'rgba(20, 184, 166, 0.35)'}}>
-        🗂 Картотека
-      </a>
-      <a href="./outreach.html"
-         className="action-btn"
-         style={{background: 'rgba(63, 185, 80, 0.15)', color: '#3fb950', borderColor: 'rgba(63, 185, 80, 0.3)'}}>
-        📤 Рассылка
-      </a>
-      <a href="./cost.html"
-         className="action-btn"
-         style={{background: 'rgba(255, 159, 10, 0.15)', color: '#ff9f0a', borderColor: 'rgba(255, 159, 10, 0.3)'}}>
-        💰 Расход
-      </a>
-      <a href="https://t.me/lcband_notify_bot?text=/help"
-         className="action-btn"
-         target="_blank" rel="noopener">
-        ❓ Команды
-      </a>
+    <>
+      <div className="action-btns">
+        <a href="https://t.me/lcband_notify_bot?text=/restart"
+           className="action-btn action-btn-restart"
+           target="_blank" rel="noopener">
+          🔄 Перезапуск
+        </a>
+        <a href="https://t.me/lcband_notify_bot?text=/status"
+           className="action-btn action-btn-status"
+           target="_blank" rel="noopener">
+          📊 Статус
+        </a>
+        <a href="./architecture.html"
+           className="action-btn"
+           style={{background: 'rgba(188, 140, 255, 0.15)', color: '#bc8cff', borderColor: 'rgba(188, 140, 255, 0.3)'}}>
+          🧠 Архитектура & AI
+        </a>
+        <a href="./architecture.html#ai-20-coverage"
+           className="action-btn"
+           title="AI 2.0 (unified Opus classifier) — где работает с пониманием контекста vs где ещё legacy"
+           style={{background: 'rgba(63, 185, 80, 0.15)', color: '#3fb950', borderColor: 'rgba(63, 185, 80, 0.4)'}}>
+          🟢 AI 2.0 coverage
+        </a>
+        <a href="./contacts.html"
+           className="action-btn"
+           style={{background: 'rgba(88, 166, 255, 0.15)', color: '#58a6ff', borderColor: 'rgba(88, 166, 255, 0.3)'}}>
+          🎭 Contact Roles
+        </a>
+        <a href="./context_cards.html"
+           className="action-btn"
+           title="Картотека контекста: что AI присваивает каждому лиду"
+           style={{background: 'rgba(20, 184, 166, 0.14)', color: '#14b8a6', borderColor: 'rgba(20, 184, 166, 0.35)'}}>
+          🗂 Картотека
+        </a>
+        <a href="./outreach.html"
+           className="action-btn"
+           style={{background: 'rgba(63, 185, 80, 0.15)', color: '#3fb950', borderColor: 'rgba(63, 185, 80, 0.3)'}}>
+          📤 Рассылка
+        </a>
+        <a href="./cost.html"
+           className="action-btn"
+           style={{background: 'rgba(255, 159, 10, 0.15)', color: '#ff9f0a', borderColor: 'rgba(255, 159, 10, 0.3)'}}>
+          💰 Расход
+        </a>
+        <a href="https://t.me/lcband_notify_bot?text=/help"
+           className="action-btn"
+           target="_blank" rel="noopener">
+          ❓ Команды
+        </a>
+      </div>
+      <AwakeGuardButton />
+    </>
+  );
+}
+
+function AwakeGuardButton() {
+  const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+  const [state, setState] = React.useState(null);
+  const [busy, setBusy] = React.useState(false);
+  const [expanded, setExpanded] = React.useState(false);
+
+  React.useEffect(() => {
+    const css = `
+      .awake-guard {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border: 1px solid rgba(56, 189, 248, 0.26);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.42);
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .awake-guard-main { display: flex; align-items: center; gap: 10px; min-width: 260px; }
+      .awake-guard-dot { width: 8px; height: 8px; border-radius: 50%; background: #64748b; flex: 0 0 auto; }
+      .awake-guard-dot.is-on { background: #22c55e; box-shadow: 0 0 10px rgba(34,197,94,.8); }
+      .awake-guard-title { font-size: 12px; font-weight: 800; color: #e2e8f0; }
+      .awake-guard-sub { margin-top: 2px; font-size: 11px; color: #94a3b8; }
+      .awake-guard-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+      .awake-guard-btn {
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.8);
+        color: #cbd5e1;
+        font-size: 12px;
+        font-weight: 800;
+        padding: 7px 10px;
+        cursor: pointer;
+      }
+      .awake-guard-btn.is-primary {
+        border-color: rgba(34, 197, 94, 0.42);
+        background: rgba(34, 197, 94, 0.16);
+        color: #86efac;
+      }
+      .awake-guard-code {
+        width: 100%;
+        margin: 2px 0 0;
+        padding: 9px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        background: rgba(2, 6, 23, 0.78);
+        color: #bae6fd;
+        font-size: 11px;
+        line-height: 1.5;
+        overflow-x: auto;
+        white-space: pre;
+      }
+    `;
+    if (!document.getElementById('awake-guard-style')) {
+      const s = document.createElement('style');
+      s.id = 'awake-guard-style';
+      s.textContent = css;
+      document.head.appendChild(s);
+    }
+  }, []);
+
+  async function refresh() {
+    try {
+      const r = await fetch(`${backendUrl}/api/awake_guard`, {cache: 'no-store'});
+      if (r.ok) setState(await r.json());
+    } catch {}
+  }
+
+  React.useEffect(() => {
+    refresh();
+    const t = setInterval(refresh, 15000);
+    return () => clearInterval(t);
+  }, [backendUrl]);
+
+  async function getToken() {
+    let t = localStorage.getItem('lcband_admin_token') || '';
+    if (!t) {
+      t = (window.prompt('Admin token (DASHBOARD_ADMIN_TOKEN):') || '').trim();
+      if (!t) return null;
+      localStorage.setItem('lcband_admin_token', t);
+    }
+    return t;
+  }
+
+  async function toggle() {
+    if (busy) return;
+    const token = await getToken();
+    if (!token) return;
+    setBusy(true);
+    try {
+      const action = state?.enabled ? 'disable' : 'enable';
+      const r = await fetch(`${backendUrl}/api/awake_guard`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json', 'X-Admin-Token': token},
+        body: JSON.stringify({action}),
+      });
+      const j = await r.json();
+      if (r.status === 403) {
+        localStorage.removeItem('lcband_admin_token');
+        alert('Неверный токен — удалён. Попробуй ещё раз.');
+      } else if (!r.ok) {
+        alert(j.error || `HTTP ${r.status}`);
+      } else {
+        setState(j);
+        setExpanded(true);
+      }
+    } catch (e) {
+      alert(String(e).slice(0, 180));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const enabled = !!state?.enabled;
+  return (
+    <div className="awake-guard">
+      <div className="awake-guard-main">
+        <span className={`awake-guard-dot ${enabled ? 'is-on' : ''}`} />
+        <div>
+          <div className="awake-guard-title">Mac awake guard: {enabled ? 'включён' : 'выключен'}</div>
+          <div className="awake-guard-sub">
+            {enabled && state?.pid ? `PID ${state.pid}` : 'Не даёт Mac заснуть, пока идут агенты'}
+          </div>
+        </div>
+      </div>
+      <div className="awake-guard-actions">
+        <button type="button" className={`awake-guard-btn ${enabled ? '' : 'is-primary'}`} onClick={toggle} disabled={busy}>
+          {busy ? '...' : enabled ? 'Выключить' : 'Включить'}
+        </button>
+        <button type="button" className="awake-guard-btn" onClick={() => setExpanded(v => !v)}>
+          Скрипт
+        </button>
+      </div>
+      {expanded && (
+        <pre className="awake-guard-code">{state?.script || '# loading...'}</pre>
+      )}
     </div>
   );
 }
@@ -4438,8 +4586,23 @@ function AiEfficiencyTile({backendUrl}) {
     let alive = true;
     async function load() {
       try {
-        const r = await fetch(`${backendUrl}/api/ai_efficiency?hours=6`);
-        const j = await r.json();
+        const candidates = [
+          backendUrl,
+          'http://127.0.0.1:8878',
+        ].filter((url, idx, arr) => arr.indexOf(url) === idx);
+        let j = null;
+        let lastErr = null;
+        for (const base of candidates) {
+          try {
+            const r = await fetch(`${base}/api/ai_efficiency?hours=6`, { cache: 'no-store' });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            j = await r.json();
+            break;
+          } catch (e) {
+            lastErr = e;
+          }
+        }
+        if (!j) throw lastErr || new Error('failed to fetch');
         if (alive) { setData(j); setErr(null); }
       } catch (e) {
         if (alive) setErr(String(e.message || e).slice(0, 80));
@@ -8483,7 +8646,7 @@ function FlowArrow() {
 }
 
 // ── Overview Stats Section ────────────────────────────────────────────────────
-function OverviewStatsSection({ stats }) {
+function OverviewStatsSection({ stats, followupPlan }) {
   const [pitchOpen, setPitchOpen] = React.useState(null);
   const [fuOpen, setFuOpen] = React.useState(null);
 
@@ -8493,8 +8656,11 @@ function OverviewStatsSection({ stats }) {
     </div>
   );
 
-  const S = stats;
+  const S = followupPlan
+    ? {...stats, followups: followupPlan.followups || stats.followups, followup_plan_generated_at: followupPlan.generated_at}
+    : stats;
   const time = (S.generated_at || '').slice(11,16);
+  const planTime = (S.followup_plan_generated_at || '').slice(11,16);
 
   const Card = ({children, style={}}) => (
     <div style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:10,
@@ -8618,7 +8784,7 @@ function OverviewStatsSection({ stats }) {
         </Card>
       </div>
       <Card>
-        <Label>🔄 Follow-up</Label>
+        <Label>🔄 Follow-up {planTime && <span style={{color:'var(--muted)',fontWeight:400}}>· план {planTime}</span>}</Label>
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
           <thead>
             <tr style={{color:'var(--muted)',fontSize:11}}>
@@ -8951,6 +9117,7 @@ function App() {
   const [aiDeliveryTrend, setAiDeliveryTrend] = useState(null);
   const [aiTrendRange, setAiTrendRange] = useState(() => localStorage.getItem('lcb_ai_trend_range') || 'day');
   const [overviewStats, setOverviewStats] = useState(null);
+  const [followupPlan, setFollowupPlan] = useState(null);
   const [recentSent, setRecentSent] = useState(null);
   const [recentSent24h, setRecentSent24h] = useState(null);
   const [todos,     setTodos]     = useState(null);
@@ -9090,6 +9257,12 @@ function App() {
       const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
       const r = await fetch(`${bu}/api/overview_stats`, { cache: 'no-store' });
       if (r.ok) setOverviewStats(await r.json());
+    } catch {}
+
+    try {
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      const r = await fetch(`${bu}/api/followup_plan`, { cache: 'no-store' });
+      if (r.ok) setFollowupPlan(await r.json());
     } catch {}
 
     // ── Картотека лидов: LCB read-model + live broker_orders cards ──
@@ -9384,7 +9557,7 @@ function App() {
 
           {activeTab === 'overview' && (
             <>
-              <OverviewStatsSection stats={overviewStats} />
+              <OverviewStatsSection stats={overviewStats} followupPlan={followupPlan} />
               <LeadFlowSection />
               <StatusSection
                 status={data.status}

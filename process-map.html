@@ -370,9 +370,9 @@
       {
         group:'events', name:'Event Stub Updater', label:'com.lcband.event-stub-updater',
         file:'event_stub_updater.py', schedule:'каждые 15 мин',
-        why:'Дозаполняет stub event cards свежими данными из CRM/контекста.',
-        input:'event_planning.json + orders.db', action:'fill missing basics', output:'updated event card',
-        logic:['работает с неполными карточками','не трогает runtime secrets','готовит event для ops agents'],
+        why:'Backstop-refresh для pre-paid календаря: обновляет единый lcb_orders.json, не отдельную SQL-базу.',
+        input:'orders.db active leads + existing context stores', action:'lcb_orders.refresh_order', output:'lcb_orders.json',
+        logic:['dashboard calendar читает lcb_orders.json','SQL event_stubs больше не обновляет','full card создаёт event_watcher только после оплаты'],
       },
       {
         group:'events', name:'Event Lifecycle', label:'com.lcband.event-lifecycle',
@@ -392,10 +392,12 @@
       },
       {
         group:'events', name:'Event Enrich', label:'com.lcband.event-enrich',
-        file:'event_enrich.py', schedule:'каждые 6 часов',
-        why:'Обогащает event cards контекстом, чтобы production не жил в пустых карточках.',
-        input:'event cards + dialogs', action:'AI/context enrichment', output:'filled event fields',
-        logic:['best-effort enrichment','не отправляет сообщения','работает для качества event dashboard'],
+        file:'dashboard_backend.py / unified_message_store.py', schedule:'on event_watcher + вручную из карточки',
+        why:'Обогащает event cards контекстом из одного raw-read слоя, чтобы production не жил в пустых карточках.',
+        input:'event card + unified TG/WA/VK/IG raw messages + contract artifacts',
+        action:'AI/context enrichment + sync confirmed event_date back to orders.db',
+        output:'filled event fields + context/evidence rows',
+        logic:['unified_message_store нормализует все соцсети','orders.db остаётся operational SSoT','event_planning — production-карточка после оплаты','pre-paid calendar читает lcb_orders.json','не отправляет сообщения','не создаёт второй source of truth'],
       },
       {
         group:'events', name:'Event Field Filler', label:'com.lcband.event-field-filler',
@@ -445,7 +447,7 @@
         file:'funnel_folder_sync.py', schedule:'каждые 30 мин',
         why:'Синхронизирует TG folder semantics с CRM-воронкой.',
         input:'TG folders + orders.db', action:'map folders to stages', output:'status/folder alignment',
-        logic:['учитывает protected folders','не двигает ОПЛАТИЛА','пишет logs/funnel_folder_sync.log'],
+        logic:['учитывает protected folders','не двигает ОПЛАТИЛА','активный лид снимается из Отмены','пишет logs/funnel_folder_sync.log'],
       },
       {
         group:'funnel', name:'Funnel Maintenance', label:'com.lcband.funnel-maintenance',
@@ -464,9 +466,11 @@
       {
         group:'funnel', name:'Funnel Stage Watcher', label:'com.lcband.funnel-stage-watcher',
         file:'funnel_stage_watcher.py', schedule:'daemon / KeepAlive',
-        why:'Следит за stage-событиями в реальном времени и реагирует на изменения воронки.',
-        input:'stage state/logs', action:'watch transitions', output:'watcher actions/log',
-        logic:['KeepAlive daemon','быстрый reaction loop','дополняет batch classifier'],
+        why:'Следит за raw cache изменениями и запускает owner-пути, чтобы WA/TG/VK не требовали ручной проталкивания.',
+        input:'conversation_cache + vk_conversation_cache + wa_cache + tg_full_export',
+        action:'debounced trigger: WA materializer + stage classifier + field filler',
+        output:'orders.db / lcb_orders refresh + stage labels/log',
+        logic:['KeepAlive daemon','wa_cache change → wa_direct_inbound_sync --slug --apply','точный WA slug сохраняется включая @lid/русские имена','status@broadcast skipped','дополняет batch classifier'],
       },
       {
         group:'funnel', name:'Attention Auto-Action', label:'com.lcband.attention-auto-action',
@@ -535,9 +539,9 @@
       {
         group:'infra', name:'Tunnel Watcher', label:'com.lcband.tunnel-watcher',
         file:'tunnel_watcher.py', schedule:'daemon / KeepAlive',
-        why:'Держит внешний quick-tunnel/DNS для dashboard/access, когда tunnel меняется.',
+        why:'Держит внешний quick-tunnel/DNS для dashboard/access, когда tunnel меняется. Это временный best-effort контур: quick tunnels нестабильны, durable fix = named tunnel + stable hostname.',
         input:'cloudflared/tunnel state', action:'watch/refresh tunnel URL', output:'current tunnel state',
-        logic:['continuous watcher','restart by launchd','не содержит бизнес-логики'],
+        logic:['continuous watcher','restart by launchd','quick tunnel has no uptime guarantee','named tunnel требует Cloudflare account + DNS setup','не содержит бизнес-логики'],
       },
       {
         group:'infra', name:'TG Health Check', label:'com.lcband.tg-health-check',
