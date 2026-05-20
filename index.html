@@ -685,7 +685,7 @@ function processRows(rows) {
   const refusalCategories = {};  // { low_budget: 15, format_mismatch: 1, ... }
   const channels = {};  // { TG: 91, VK: 5, ... }
   const tgFunnel = {};  // { day: {sent,leads,paid,earned}, week: {…}, … }
-  const connection = { status: 'unknown', lastCheck: null, sessions: {} };
+  const connection = { status: 'unknown', lastCheck: null, sessions: {}, realtime: null };
   const vkConnection = { status: 'unknown', lastCheck: null, reason: '', tokens: {} };
   const waConnection = { status: 'unknown', lastCheck: null, detail: '' };
   // scan state removed 16.05.2026 — TG-scan widget удалён
@@ -758,6 +758,9 @@ function processRows(rows) {
         connection.reason = reason || '';
       } else if (row.key === 'conn_last_check') {
         connection.lastCheck = row.value;
+      } else if (row.key === 'conn_tg_realtime') {
+        const [st, reason] = (row.value || '').split('|');
+        connection.realtime = { status: st || 'unknown', reason: reason || '', label: row.label };
       } else if (row.key?.startsWith('conn_')) {
         const sessName = row.label || row.key.replace('conn_', '');
         const [st, reason] = (row.value || '').split('|');
@@ -1014,9 +1017,10 @@ const PROCESS_RULES = {
   proc_tg_monitor: {
     name: 'TG Realtime Monitor',
     interval: 'Постоянно: Telethon NewMessage + heartbeat 120s',
-    desc: 'Держит Telethon подключение к event-чатам, ловит новые посты сразу и запускает cursor scan существующего pipeline',
+    desc: 'Единственный persistent TG realtime client: event-чаты + private DM на одном Telethon подключении',
     rules: [
       'Persistent listener: events.NewMessage по всем event-чатам из telegram_monitor.CHATS',
+      'Private DM на том же client → lead_context_enricher.enrich(force=True) → unified_dm_responder.handle()',
       'Новый пост → debounce 3s → telegram_monitor.scan_cycle по msg_id-курсорам',
       'Heartbeat scan каждые 120s ловит reconnect gaps и любые пропущенные socket events',
       'Только дельта: msg_id-курсор per chat (iter_messages min_id=N), до 5000 новых за цикл',
@@ -1034,25 +1038,10 @@ const PROCESS_RULES = {
       '🔴 22.04: _PRESEND_SYSTEM знает ОБА бренда — LCB (поп/рок/джаз cover) и Noize Drum (drum-show, LED-барабаны, этно, перкуссия). Drum-запросы НЕ skip\'аются критериями LCB (инцидент LINA_SOUL 21.04)',
       'AI-review НЕ skip на: зарубежный контракт (adapt→опросник), native-speaker (adapt→fork), комплекс (adapt→upsell со светом/DJ/звуком), drum-show (adapt→Noize Drum)',
       'Post-send: status Новый→Написал + добавление в TG-папку «Отправлен» 📤',
-      'Акк @Luxurycover_ru, отдельная session-copy tg_session_monitor; responder/followup используют свои копии',
+      'Акк @Luxurycover_ru, один realtime session-copy tg_session_monitor для TG event + TG DM',
       'Error path: курсор НЕ advance-ится — следующий цикл перечитает с прошлого успеха',
       'Скрипт: tg_realtime_monitor.py; бизнес-логика остаётся в telegram_monitor.py',
       '🗑 Deprecated 22.04: Haiku API ($$), hybrid Sonnet+Haiku+arbiter (3× compute)',
-    ],
-  },
-  proc_tg_dm_realtime: {
-    name: 'TG DM Realtime Listener',
-    interval: 'Постоянно (KeepAlive daemon)',
-    desc: 'Держит отдельную Telethon session-copy, обновляет карточку контекста и вызывает unified_dm_responder.py',
-    rules: [
-      'Persistent listener: events.NewMessage(incoming=True) только для private DM',
-      'Новый DM → lead_context_enricher.enrich(force=True) → unified_dm_responder.handle()',
-      'unified_dm_responder.py — единственный realtime-владелец DM ответа',
-      'LCB band-members (LAZ/Ира/Стас/Лео/Teddy) → band_member_reply.py, не client/broker writer',
-      'tg_responder.py hard-disabled для DM send и не запускается listener-ом',
-      'На unified error: state/log consultant gap, без второго авто-ответчика',
-      'Heartbeat state: tg_dm_realtime_listener_state.json; watchdog рестартит при stale >3 мин',
-      'Скрипт: tg_dm_realtime_listener.py | log: /tmp/tg_dm_realtime_listener.log',
     ],
   },
   proc_payment_handler: {
@@ -1313,6 +1302,14 @@ function ConnectionStatus({ connection, vkConnection, waConnection }) {
         reason={tgReason}
         lastCheck={connection?.lastCheck}
       />
+      {connection?.realtime && (
+        <ConnectionRow
+          title="TG realtime"
+          status={connection.realtime.status}
+          reason={connection.realtime.reason}
+          lastCheck={connection?.lastCheck}
+        />
+      )}
       {vkConnection && vkConnection.status !== 'unknown' && (
         <ConnectionRow
           title="🌐 VK (Kate Mobile + Service)"
@@ -5365,7 +5362,6 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
 
   const heartbeatLabels = {
     proc_tg_monitor: 'tg chats',
-    proc_tg_dm_realtime: 'tg dm',
     proc_payment_handler: 'payment',
     proc_vk_longpoll: 'vk lp',
     proc_bot_commander: 'bot',
@@ -8104,7 +8100,7 @@ function LeadFlowSection() {
           <div style={{order:3, background:'rgba(96,165,250,.08)', border:'1px solid rgba(96,165,250,.3)', borderRadius:9, padding:'8px 10px'}}>
             <div style={{fontSize:10, fontWeight:700, color:'#60a5fa', textTransform:'uppercase', letterSpacing:.5, marginBottom:6}}>📩 Входящий DM</div>
 	            <div style={{fontSize:10, color:'#93c5fd', marginBottom:2}}>
-	              {sourceLink('tg_dm_realtime_listener.py', 'TG DM · realtime push')}
+	              {sourceLink('tg_realtime_monitor.py', 'TG DM · realtime push')}
 	            </div>
 	            <div style={{fontSize:10, color:'#93c5fd', marginBottom:2}}>
 	              {sourceLink('vk_longpoll_listener.py', 'VK DM · longpoll')}

@@ -226,7 +226,7 @@
             <tr>
               <td>Оперативный TG cache по лидам</td>
               <td><code>conversation_cache/&lt;username&gt;.jsonl</code><br><code>conv_cache_last_changed.json</code></td>
-              <td>DM agents пишут <code>out:false/true</code>; enricher и follow-up читают</td>
+              <td>Legacy mirror/export; hot-path agents читают <code>orders.db.message_events</code> через <code>unified_message_store.py</code></td>
             </tr>
             <tr>
               <td>VK DM переписки</td>
@@ -241,7 +241,7 @@
             <tr>
               <td>WhatsApp переписки</td>
               <td><code>wa_cache/&lt;phone_or_name&gt;.jsonl</code></td>
-              <td>Baileys пишет inbound и ручные outbound Михаила; inbound проходит <code>wa_direct_inbound_sync.py</code> и актуальные заявки попадают в <code>orders.db</code>; <code>wa_responder.py</code> читает cache и кладёт draft в <code>wa_computer_use_queue.json</code>; финальный Send только через WhatsApp Desktop/computer-use</td>
+              <td>Baileys пишет legacy mirror и <code>orders.db.message_events</code>; <code>wa_responder.py</code> читает active WA orders + <code>message_events</code> и кладёт draft в <code>wa_computer_use_queue.json</code>; финальный Send только через WhatsApp Desktop/computer-use</td>
             </tr>
             <tr>
               <td>Единый read-layer raw-переписок</td>
@@ -250,8 +250,8 @@
             </tr>
             <tr>
               <td>AI-выводы поверх текстов</td>
-              <td><code>lead_context_store.json</code> primary fallback<br><code>orders.db.contact_context/event_context</code><br><code>conversation_analysis/tg/*.json</code></td>
-              <td>Enricher пишет карточки в JSON и dual-write в SQL; агенты пока читают JSON/read-layer перед ответом</td>
+              <td><code>orders.db.contact_context/event_context</code><br><code>lead_context_store.json</code> legacy mirror/read-through<br><code>conversation_analysis/tg/*.json</code></td>
+              <td>Enricher читает raw из <code>message_events</code>, primary карточки пишет/читает из SQL; JSON только legacy mirror/fallback по env</td>
             </tr>
           </tbody>
         </table>
@@ -311,7 +311,7 @@
     <div class="card">
 
       <div class="pipe" style="margin-bottom:14px">
-	        <div class="node node-src node-sm">TG DM<br><span style="font-size:10px;opacity:.7"><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/tg_dm_realtime_listener.py" target="_blank" rel="noopener">tg_dm_realtime_listener</a></span></div>
+	        <div class="node node-src node-sm">TG DM<br><span style="font-size:10px;opacity:.7"><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/tg_realtime_monitor.py" target="_blank" rel="noopener">tg_realtime_monitor</a></span></div>
 	        <div class="node node-src node-sm" style="margin-left:8px">VK DM<br><span style="font-size:10px;opacity:.7"><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/vk_longpoll_listener.py" target="_blank" rel="noopener">vk_longpoll_listener</a></span></div>
 	        <div class="node node-src node-sm" style="margin-left:8px">WA<br><span style="font-size:10px;opacity:.7"><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/tree/main/wa_baileys" target="_blank" rel="noopener">wa_baileys</a></span></div>
       </div>
@@ -470,7 +470,7 @@
       <div style="background:#0d1117;border:1.5px solid rgba(245,197,24,.4);border-radius:10px;overflow:hidden">
         <div style="background:rgba(245,197,24,.07);padding:7px 14px;border-bottom:1px solid rgba(245,197,24,.2);display:flex;align-items:center;gap:8px">
           <span style="font-size:16px">🗂</span>
-          <code style="font-size:12px;color:var(--gold);font-weight:700">lead_context_store.json → dual-write → orders.db.contact_context/event_context</code>
+          <code style="font-size:12px;color:var(--gold);font-weight:700">orders.db.contact_context/event_context → legacy mirror lead_context_store.json</code>
           <span class="badge badge-warn" style="margin-left:auto">карточка</span>
         </div>
         <div style="padding:10px 14px;display:flex;flex-direction:column;gap:3px">
@@ -620,13 +620,13 @@
         <tbody>
           <tr>
 	            <td><span class="badge badge-blue">ЗАПИСЬ</span> Входящее DM</td>
-	            <td><code>_record_incoming_to_cache()</code> + <code>enrich(force=True)</code> + <code>lcb_orders.refresh_contact()</code></td>
+	            <td><code>message_event_log.log_*()</code> + <code>enrich(force=True)</code> + <code>lcb_orders.refresh_contact()</code></td>
 	            <td>Синхронно в listener-треде, <b>до</b> запуска агента; затем <code>lcb_event_context.py</code> читает <code>lcb_orders.json</code></td>
           </tr>
           <tr>
             <td><span class="badge badge-green">ЗАПИСЬ</span> Исходящее DM</td>
             <td><code>outbound_recorder.record_outbound(namespace=lcb)</code></td>
-            <td>Сразу после успешной отправки: cache → <code>lead_context_enricher</code> → <code>lcb_orders.refresh_contact()</code> → <code>thread_context_extract</code> через <code>promise_extractor</code></td>
+            <td>Сразу после успешной отправки: <code>orders.db.message_events</code> → <code>lead_context_enricher</code> → <code>lcb_orders.refresh_contact()</code> → <code>thread_context_extract</code> через <code>promise_extractor</code></td>
           </tr>
           <tr>
             <td><span class="badge badge-purple">ЧТЕНИЕ</span> Генерация ответа</td>
@@ -654,11 +654,11 @@
         <b>Файлы:</b><br>
         <code>lcb_orders.json</code> — физический LCB event/context SSoT<br>
         <code>lcb_event_context.py</code> — единый LCB read-layer поверх <code>lcb_orders.json</code><br>
-        <code>lead_context_store.json</code> — upstream LCB AI read-model и primary fallback (ключ = <code>channel:username</code>)<br>
-        <code>orders.db.contact_context/event_context</code> — Phase 2A SQL dual-write для будущего read switch<br>
+        <code>orders.db.contact_context/event_context</code> — primary LCB AI read-model (ключ = <code>channel:username</code>)<br>
+        <code>lead_context_store.json</code> — legacy mirror/read-through только при явном fallback<br>
 	        <code>orders.db.message_events</code> — canonical raw история (вх + исх); JSONL-кэши только legacy/export<br>
 	        <code>orders.db.eg_*</code> — event graph + promises + refs из одного <code>thread_context_extract</code>; <code>event_graph.py</code> — compatibility API<br>
-        <code>vk_conversation_cache/&lt;peer&gt;.jsonl</code> · <code>wa_cache/&lt;phone&gt;.jsonl</code><br>
+        <code>vk_conversation_cache/&lt;peer&gt;.jsonl</code> · <code>wa_cache/&lt;phone&gt;.jsonl</code> — legacy mirrors<br>
         Запись: <code>{"id": -ts, "date": "...", "out": true/false, "text": "...", "media": false}</code>
       </div>
     </div>
@@ -792,7 +792,7 @@
             <td><code>funnel_maintenance.py</code></td>
             <td>Calendar ticks, send window 10:00-20:00 MSK</td>
             <td>orders.db active leads: overdue by real dialog last-message date, not CRM service updates</td>
-            <td><code>orders.db.message_events</code> / channel legacy cache + strategist + AI-review</td>
+            <td><code>orders.db.message_events</code> + strategist + AI-review</td>
             <td>Cross-channel TG/TG_DIRECT/VK/WA follow-up owner; event_date in the past archives the lead as Неактуально before the send window so folder sync moves it to Отмены without sending; price/payment-form pre-send blocks are logged with reason, rewritten into money-free follow-up, then reviewed again; overdue leads are scanned first, unchanged chats are still audited after due date; 21+d silence after our message is stale-lost, not a follow-up</td>
           </tr>
           <tr>
