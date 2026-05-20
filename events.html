@@ -60,9 +60,47 @@
   .event-card.contract { border-left: 3px solid var(--orange); }
   .event-card.negotiating { border-left: 3px solid var(--green); }
   .event-card.lead { border-left: 3px dotted var(--purple); }
+  .event-card[data-chat-q] { cursor: pointer; }
+  .event-card[data-chat-q]:hover { background: rgba(88,166,255,0.08); }
   .sidebar-group-title {
     margin: 12px 0 6px; font-size: 10px; color: var(--muted);
     text-transform: uppercase; letter-spacing: 0.45px;
+  }
+  .chat-panel {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(440px, 100vw); background: #0e0e18;
+    border-left: 1px solid var(--border); box-shadow: -6px 0 24px rgba(0,0,0,.4);
+    display: flex; flex-direction: column; z-index: 90;
+    transform: translateX(100%); transition: transform .22s ease;
+  }
+  .chat-panel.open { transform: translateX(0); }
+  .chat-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.02);
+  }
+  .chat-title { font-weight: 700; font-size: 15px; }
+  .chat-sub { font-size: 11px; color: var(--muted); }
+  .chat-close {
+    background: transparent; border: none; color: var(--muted);
+    font-size: 22px; cursor: pointer; padding: 0 6px; line-height: 1;
+  }
+  .chat-close:hover { color: var(--text); }
+  .chat-body {
+    flex: 1; overflow-y: auto; padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .chat-msg {
+    max-width: 82%; padding: 7px 10px; border-radius: 12px;
+    font-size: 13px; line-height: 1.35; word-wrap: break-word; white-space: pre-wrap;
+  }
+  .chat-msg-in { align-self: flex-start; background: rgba(255,255,255,.06); border-top-left-radius: 4px; }
+  .chat-msg-out { align-self: flex-end; background: rgba(34,197,94,.18); border-top-right-radius: 4px; }
+  .chat-msg-time { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .chat-loading { padding: 30px; text-align: center; color: var(--muted); font-size: 12px; }
+  .chat-error {
+    padding: 8px 12px; background: rgba(239,68,68,.15);
+    color: #fca5a5; font-size: 12px; margin: 8px 14px; border-radius: 6px;
   }
   .new-event-btn {
     width: 100%; padding: 10px;
@@ -384,6 +422,20 @@
   </section>
 </main>
 
+<aside id="chat-panel" class="chat-panel" aria-live="polite">
+  <div class="chat-header">
+    <div>
+      <div id="chat-title" class="chat-title">Переписка</div>
+      <div id="chat-sub" class="chat-sub"></div>
+    </div>
+    <button class="chat-close" onclick="closeChatPanel()" title="Закрыть">×</button>
+  </div>
+  <div id="chat-error" class="chat-error" style="display:none"></div>
+  <div id="chat-body" class="chat-body">
+    <div class="chat-loading">Наведи на карточку с контактом</div>
+  </div>
+</aside>
+
 <div id="toast-container"></div>
 
 <!-- New event modal -->
@@ -478,6 +530,116 @@
     el.style.color = color;
   }
 
+  let CHAT_HOVER_TIMER = null;
+  let CHAT_ABORT = null;
+  let CHAT_ACTIVE_Q = '';
+  const CHAT_CACHE = new Map();
+
+  function chatTargetFromThread(thread, username) {
+    const rawThread = String(thread || '');
+    const rawUsername = String(username || '');
+    const userMatch = rawThread.match(/@([A-Za-z0-9_]{3,32})/) || rawUsername.match(/^@?([A-Za-z0-9_]{3,32})$/);
+    const q = userMatch ? userMatch[1] : '';
+    const chRaw = rawThread.split(':')[0].toUpperCase();
+    const channel = chRaw.startsWith('VK') ? 'VK' : 'TG';
+    return q ? { q, channel } : null;
+  }
+
+  function fmtChatTime(iso) {
+    try {
+      return new Date(iso).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch (_) {
+      return String(iso || '').slice(0, 16).replace('T', ' ');
+    }
+  }
+
+  function renderChatMessages(payload, title, sub) {
+    document.getElementById('chat-title').textContent = title || 'Переписка';
+    document.getElementById('chat-sub').textContent = sub || '';
+    const body = document.getElementById('chat-body');
+    const msgs = payload?.messages || [];
+    if (!msgs.length) {
+      body.innerHTML = '<div class="chat-loading">Нет сообщений</div>';
+      return;
+    }
+    body.innerHTML = msgs.map(m => `
+      <div style="display:flex;flex-direction:column;align-items:${m.out ? 'flex-end' : 'flex-start'}">
+        <div class="chat-msg ${m.out ? 'chat-msg-out' : 'chat-msg-in'}">${escapeHtml(m.text || (m.media ? 'медиа' : ''))}</div>
+        <div class="chat-msg-time">${fmtChatTime(m.date)}</div>
+      </div>
+    `).join('');
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function closeChatPanel() {
+    clearTimeout(CHAT_HOVER_TIMER);
+    if (CHAT_ABORT) CHAT_ABORT.abort();
+    CHAT_ACTIVE_Q = '';
+    document.getElementById('chat-panel').classList.remove('open');
+  }
+
+  async function openChatPanel(q, channel, title) {
+    if (!q) return;
+    const panel = document.getElementById('chat-panel');
+    const err = document.getElementById('chat-error');
+    const sub = channel === 'VK' ? `VK · ${q}` : `@${q}`;
+    CHAT_ACTIVE_Q = `${channel}:${q}`;
+    panel.classList.add('open');
+    err.style.display = 'none';
+    err.textContent = '';
+    document.getElementById('chat-title').textContent = title || q;
+    document.getElementById('chat-sub').textContent = sub;
+    if (CHAT_CACHE.has(CHAT_ACTIVE_Q)) {
+      renderChatMessages(CHAT_CACHE.get(CHAT_ACTIVE_Q), title || q, sub);
+      return;
+    }
+    document.getElementById('chat-body').innerHTML = '<div class="chat-loading">Загружаю переписку...</div>';
+    if (CHAT_ABORT) CHAT_ABORT.abort();
+    const ctrl = new AbortController();
+    CHAT_ABORT = ctrl;
+    try {
+      const base = await getBackendUrl();
+      const ep = channel === 'VK' ? 'vk_chat' : 'chat';
+      const r = await fetch(`${base}/api/${ep}?q=${encodeURIComponent(q)}&limit=40`, { signal: ctrl.signal, cache: 'no-store' });
+      const payload = await r.json();
+      if (CHAT_ACTIVE_Q !== `${channel}:${q}`) return;
+      if (!r.ok || payload.error) throw new Error(payload.error || `${r.status}`);
+      CHAT_CACHE.set(CHAT_ACTIVE_Q, payload);
+      renderChatMessages(payload, title || q, sub);
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      err.textContent = `Не удалось открыть переписку: ${e.message}`;
+      err.style.display = 'block';
+      document.getElementById('chat-body').innerHTML = '';
+    }
+  }
+
+  function scheduleChatPanel(el) {
+    const q = el.dataset.chatQ;
+    if (!q) return;
+    const channel = el.dataset.chatChannel || 'TG';
+    const title = el.dataset.chatTitle || q;
+    clearTimeout(CHAT_HOVER_TIMER);
+    CHAT_HOVER_TIMER = setTimeout(() => openChatPanel(q, channel, title), 250);
+  }
+
+  function cancelChatPanelOpen() {
+    clearTimeout(CHAT_HOVER_TIMER);
+  }
+
+  function bindEventCardChatHandlers() {
+    document.querySelectorAll('.event-card[data-chat-q]').forEach(card => {
+      card.addEventListener('mouseenter', () => scheduleChatPanel(card));
+      card.addEventListener('mouseleave', cancelChatPanelOpen);
+      if (!card.getAttribute('onclick')) {
+        card.addEventListener('click', () => openChatPanel(card.dataset.chatQ, card.dataset.chatChannel || 'TG', card.dataset.chatTitle || card.dataset.chatQ));
+      }
+    });
+  }
+  window.closeChatPanel = closeChatPanel;
+  window.scheduleChatPanel = scheduleChatPanel;
+  window.cancelChatPanelOpen = cancelChatPanelOpen;
+
   async function loadEventList() {
     try {
       const [d, stubsResp, leadsResp] = await Promise.all([
@@ -498,6 +660,7 @@
       }));
       const stubs = (stubsResp.stubs || []).map(s => {
         const isContract = s.stage === 'confirmed';
+        const chat = chatTargetFromThread(s.client_thread, '');
         return {
           kind: 'stub',
           group: isContract ? 'contract' : 'negotiating',
@@ -507,6 +670,8 @@
           date: s.hint_date || '',
           stats: isContract ? 'договор / ждём предоплату' : 'переговоры',
           onclick: '',
+          chatQ: chat?.q || '',
+          chatChannel: chat?.channel || 'TG',
         };
       });
       const leads = (leadsResp.leads || []).map(l => {
@@ -527,6 +692,8 @@
           date: l.event_date_iso || l.event_date_raw || '',
           stats: `${stage === 'prepayment' ? 'ждём предоплату' : stage === 'contract' ? 'договор отправлен' : stage === 'negotiating' ? 'переговоры' : 'заявка'} · ${l.status || ''}`,
           href,
+          chatQ: l.username || '',
+          chatChannel: ch,
         };
       });
       const rows = [...events, ...stubs, ...leads].sort((a, b) =>
@@ -554,13 +721,17 @@
         const open = row.href
           ? `onclick="window.open('${row.href.replace(/'/g, "\\'")}', '_blank')"`
           : (row.onclick ? `onclick="${row.onclick}"` : '');
+        const chatAttrs = row.chatQ
+          ? `data-chat-q="${escapeAttr(row.chatQ)}" data-chat-channel="${escapeAttr(row.chatChannel || 'TG')}" data-chat-title="${escapeAttr(row.title || row.chatQ)}"`
+          : '';
         return `${groupTitle}
-          <div class="event-card ${cls} ${row.id === activeId ? 'active' : ''}" ${open}>
+          <div class="event-card ${cls} ${row.id === activeId ? 'active' : ''}" ${open} ${chatAttrs}>
             <div class="title">${escapeHtml(row.title)}</div>
             <div class="date">${row.date || '—'}</div>
             <div class="stats">${escapeHtml(row.stats || '')}</div>
           </div>`;
       }).join('');
+      bindEventCardChatHandlers();
     } catch (e) {
       document.getElementById('events-list').innerHTML =
         '<div style="color:var(--red);font-size:12px">err: ' + e.message + '</div>';

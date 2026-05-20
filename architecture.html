@@ -578,7 +578,7 @@
           — Stage / next_action / waiting flags<br>
           — lcb_writer_mode + history, синхронно с CRM funnel stage<br>
           — Promises, roles, active_event; тех/contractor dependencies не stale по отсутствию в compact AI output<br>
-          — Internal subrequests: например DJ → <code>broker_pipeline</code> для цены/видео/style-match<br><br>
+          — Internal subrequests: например DJ или folk cover-band (баян/балалайка/народный элемент) → <code>broker_pipeline</code> для цены/видео/style-match<br><br>
 	          <b>Обновляют:</b> inbound/outbound context, CRM status/history, event graph owners (<code>orders.db.eg_*</code>)<br>
 	          <b>Читает календарь:</b> <code>/api/event_stubs</code> строит pre-paid заявки напрямую отсюда, без отдельного SQL/date push.
         </div>
@@ -721,8 +721,9 @@
           <b>Контекст:</b> <span class="badge badge-purple">Broker event SSoT</span><br>
           Источник: <code>broker_orders.json</code><br>
           Читает: <code>broker_order_context.py</code><br>
-          Vendor media: <code>broker_vendor_media.py</code> → <code>broker_vendor_media.json</code><br><br>
-          <b>Skip до broker_order:</b> simple actor/dancer lowcost — одиночный актёр/танцор/персонаж, простой костюмированный номер, детский/школьный/дворовый мини-бюджет<br><br>
+          Vendor media: <code>broker_vendor_media.py</code> → <code>broker_vendor_media.json</code><br>
+          Folk cover-band pool: <code>cover_band_folk</code> в <code>broker_vendor_roster.json</code> для запросов с баяном/балалайкой/народным элементом<br><br>
+          <b>Skip до fanout:</b> contractor-side работа только после подтверждённого бюджета; simple actor/dancer lowcost и любой budget reply ниже broker margin floor закрываются до client-hold и contractor brief<br><br>
           <b>Выход:</b> client relay / contractor brief / follow-up<br>
           Contractor-side: bypass client review → auto-send; client-side: presend + context + duplicate guard<br><br>
           <b>Owner:</b> <code>broker_dialog_agent.py</code> для сообщений; <code>broker_casting.py</code> для выбора
@@ -745,7 +746,7 @@
       <div class="anno" style="margin-top:10px">
         <b>Разделение ownership:</b> <code>broker_casting.py</code> выбирает подрядчика.
         <code>broker_order_context.py</code> отдаёт broker event как сущность: event, organizer, подрядчики/candidates, смысл переговоров и текущий stage.
-        Входящие DM от broker-linked clients/contractors/candidates realtime-шлюз отдаёт broker handler’у до LCB writer: budget replies обновляют <code>broker_orders.json</code> и возвращают заказ в casting, contractor replies фиксируются как broker-side state.
+        Входящие DM от broker-linked clients/contractors/candidates realtime-шлюз отдаёт broker handler’у до LCB writer: budget replies обновляют <code>broker_orders.json</code>; только подтверждённый бюджет выше margin floor возвращает заказ в casting, contractor replies фиксируются как broker-side state.
         Broker создаётся только из внешнего event/group chat source. Direct/private DM (`TG`, `TG_DIRECT`, `TG DM ...`) автоматически остаётся LCBand lead.
         Broker → contractor сообщения обходят client review и отправляются сразу; broker → client идёт через presend, context и duplicate guard.
         <code>tg_responder.py</code> hard-disabled для общего DM send; в broker-контуре он только маршрутизирует contractor inbound в <code>broker_dialog_agent.py</code>.
@@ -785,7 +786,14 @@
             <td>Ежедневно 10:09</td>
             <td>Молчит ≥ 1 день, статус «Переговоры» / «Follow-up»</td>
             <td><code>lcb_event_context.py</code> → LCB event-card</td>
-            <td>Единственный TG follow-up owner: Opus драфт → send/skip по gates</td>
+            <td>TG context-card follow-up: Opus драфт → send/skip по gates</td>
+          </tr>
+          <tr>
+            <td><code>funnel_maintenance.py</code></td>
+            <td>Calendar ticks, send window 10:00-20:00 MSK</td>
+            <td>orders.db active leads: overdue by real dialog last-message date, not CRM service updates</td>
+            <td><code>conversation_cache</code> / <code>tg_full_export</code> / channel cache + strategist + AI-review</td>
+            <td>Cross-channel TG/TG_DIRECT/VK/WA follow-up owner; overdue leads are scanned first, unchanged chats are still audited after due date; 21+d silence after our message is stale-lost, not a follow-up</td>
           </tr>
           <tr>
             <td><code>attention_auto_action.py</code></td>
@@ -825,7 +833,8 @@
         </tbody>
       </table>
       <div class="hl" style="margin-top:14px;font-size:12px">
-        <b>Правило ownership:</b> TG follow-up отправляет только <code>tg_followup.py</code>.
+        <b>Правило ownership:</b> structured TG follow-up владеет <code>tg_followup.py</code>,
+        общий cross-channel stale follow-up по <code>orders.db</code> владеет <code>funnel_maintenance.py</code>.
         <code>attention_auto_action.py</code> больше не auto-send'ит <code>followup_ready</code>, только делегирует.
       </div>
     </div>

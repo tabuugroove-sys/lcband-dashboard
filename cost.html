@@ -73,6 +73,20 @@ tr:last-child td { border-bottom: none; }
 .process-popover .sec-title { color: var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.35px; font-weight:700; margin-bottom:3px; }
 .process-popover .sec-body { font-size:12px; line-height:1.45; }
 .process-popover .pill { display:inline-block; border:1px solid var(--border); border-radius:999px; padding:1px 7px; margin:2px 4px 2px 0; font-size:11px; color:var(--muted); }
+.heavy-thread-row.blocked { background: rgba(255,59,48,.045); }
+.heavy-thread-row.approved { background: rgba(52,199,89,.04); }
+.thread-path { font: 11px/1.35 'SF Mono','Menlo','Consolas',monospace; color: var(--muted); word-break: break-word; }
+.thread-status { display:inline-block; border-radius:999px; padding:2px 7px; font-size:11px; font-weight:700; }
+.thread-status.blocked { background: rgba(255,59,48,.12); color: var(--danger); }
+.thread-status.approved { background: rgba(52,199,89,.12); color: var(--ok); }
+.thread-action {
+  border:1px solid var(--border); border-radius:6px; background:transparent;
+  color:var(--fg); padding:4px 8px; cursor:pointer; font-size:11px; font-weight:600;
+}
+.thread-action:hover { border-color: var(--accent); color: var(--accent); }
+.thread-preview { color: var(--muted); font-size:11px; max-width:360px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.heavy-mode { color: var(--danger); font-weight: 700; }
+.heavy-mode.ok { color: var(--ok); }
 .routing-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(280px, 1fr));
@@ -454,6 +468,35 @@ a:hover { text-decoration: underline; }
     <div class="big" id="codex-5h">—</div>
     <div class="bar"><span id="codex-5h-bar" style="width:0%"></span></div>
     <div class="label" id="codex-windows"></div>
+  </div>
+
+  <div class="card">
+    <h2>Heavy Desktop · work mode</h2>
+    <div class="big" id="heavy-blocked">—</div>
+    <div class="bar danger"><span id="heavy-blocked-bar" style="width:0%"></span></div>
+    <div class="label" id="heavy-work-mode">loading…</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>🧯 Heavy Codex Desktop threads</span>
+    <span style="font-size:11px;color:var(--muted);" id="heavy-thread-status">loading…</span>
+  </h2>
+  <table id="heavy-threads" style="width:100%;">
+    <thead><tr>
+      <th>Thread</th>
+      <th style="text-align:right">Tokens</th>
+      <th style="text-align:right">Conversation</th>
+      <th style="text-align:right">Tool output</th>
+      <th>Status</th>
+      <th></th>
+    </tr></thead>
+    <tbody><tr><td colspan="6" class="muted">loading…</td></tr></tbody>
+  </table>
+  <div class="label" style="margin-top:6px;">
+    Мониторинг дорогих Desktop-тредов: оригинальный heavy thread считается read-only.
+    После approve разрешён только lightweight handoff из user/assistant переписки; tool outputs/log dumps не считаются рабочим контекстом.
   </div>
 </div>
 
@@ -1120,6 +1163,7 @@ async function load() {
     const r = await fetch(url, { cache: 'no-store' });
     const d = await r.json();
     render(d);
+    loadHeavyCodexThreads();
     document.getElementById('ts').textContent = new Date().toLocaleTimeString('ru-RU').slice(0,5) + ' MSK';
   } catch (e) {
     document.getElementById('ts').textContent = 'ошибка: ' + e.message;
@@ -1609,6 +1653,110 @@ function renderBurn(d) {
     }
   }
 }
+
+function fmtTokens(n) {
+  n = Number(n || 0);
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+  return String(Math.round(n));
+}
+
+function heavyPreview(thread) {
+  const msgs = thread.conversation_preview || [];
+  const last = msgs[msgs.length - 1] || {};
+  return (last.role ? last.role + ': ' : '') + (last.text || 'conversation-only preview empty');
+}
+
+function renderHeavyCodexThreads(data) {
+  const tbody = document.querySelector('#heavy-threads tbody');
+  const status = document.getElementById('heavy-thread-status');
+  const blockedEl = document.getElementById('heavy-blocked');
+  const modeEl = document.getElementById('heavy-work-mode');
+  const barEl = document.getElementById('heavy-blocked-bar');
+  if (!tbody || !status) return;
+  const rows = data.threads || [];
+  const summary = data.summary || {};
+  const totalHeavy = Number(summary.total_threads ?? rows.length ?? 0);
+  const blocked = Number(summary.blocked_threads ?? rows.filter(t => !t.approved).length ?? 0);
+  const approvedCount = Number(summary.approved_threads ?? rows.filter(t => t.approved).length ?? 0);
+  const blockedTokens = Number(summary.blocked_tokens || 0);
+  const totalTokens = Number(summary.total_tokens || 0);
+  const share = Number(summary.heavy_share_of_desktop_pct || 0);
+  const blockedRatio = totalTokens > 0 ? Math.min(100, Math.max(0, 100 * blockedTokens / totalTokens)) : 0;
+  status.textContent = totalHeavy
+    ? `${blocked} blocked / ${approvedCount} approved · ${fmtTokens(totalTokens)} heavy`
+    : 'нет heavy threads';
+  if (blockedEl) blockedEl.textContent = `${blocked} blocked`;
+  if (barEl) {
+    barEl.style.width = blockedRatio.toFixed(0) + '%';
+    barEl.parentElement.className = blocked > 0 ? 'bar danger' : 'bar';
+  }
+  if (modeEl) {
+    const modeCls = blocked > 0 ? 'heavy-mode' : 'heavy-mode ok';
+    modeEl.innerHTML = totalHeavy
+      ? `<span class="${modeCls}">${blocked > 0 ? 'handoff-only, originals read-only' : 'no blocked heavy threads'}</span>` +
+        ` · ${fmtTokens(blockedTokens)} blocked · ${share.toFixed(1)}% Desktop tokens heavy`
+      : 'нет Desktop threads выше порога';
+  }
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="muted">нет Desktop threads выше порога</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(t => {
+    const approved = !!t.approved;
+    const cls = approved ? 'approved' : 'blocked';
+    const action = approved ? 'Снять approve' : 'Approve handoff';
+    const conv = `${t.user_messages || 0}U / ${t.assistant_messages || 0}A`;
+    const tools = `${t.tool_calls || 0} calls / ${t.tool_outputs || 0} outs`;
+    const preview = heavyPreview(t);
+    const name = (t.cwd || '').split('/').filter(Boolean).slice(-1)[0] || t.id;
+    return `<tr class="heavy-thread-row ${cls}">` +
+      `<td>` +
+        `<div><strong>${esc(name)}</strong> <span class="muted">${esc(t.source || '')}</span></div>` +
+        `<div class="thread-path">${esc(t.cwd || t.session_file || t.id)}</div>` +
+        `<div class="thread-preview" title="${esc(preview)}">${esc(preview)}</div>` +
+      `</td>` +
+      `<td style="text-align:right" class="cost">${fmtTokens(t.tokens_used)}</td>` +
+      `<td style="text-align:right" class="cost">${conv}</td>` +
+      `<td style="text-align:right" class="cost">${tools}</td>` +
+      `<td><span class="thread-status ${cls}">${approved ? 'HANDOFF APPROVED' : 'HANDOFF REQUIRED'}</span></td>` +
+      `<td style="text-align:right"><button class="thread-action" onclick="approveHeavyThread('${esc(t.id)}', ${approved ? 'false' : 'true'})">${action}</button></td>` +
+    `</tr>`;
+  }).join('');
+}
+
+async function loadHeavyCodexThreads() {
+  try {
+    const bu = await loadBackend();
+    const r = await fetch(bu + '/api/codex_desktop_threads?threshold_tokens=1000000&limit=20', { cache: 'no-store' });
+    const data = await r.json();
+    renderHeavyCodexThreads(data);
+  } catch (e) {
+    const status = document.getElementById('heavy-thread-status');
+    const tbody = document.querySelector('#heavy-threads tbody');
+    if (status) status.textContent = 'ошибка';
+    if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="muted">ошибка: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function approveHeavyThread(id, approved) {
+  try {
+    const bu = await loadBackend();
+    await fetch(bu + '/api/codex_desktop_threads/approve', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        id,
+        approved,
+        note: approved ? 'human approved lightweight handoff use; original remains read-only' : 'handoff approval removed',
+      }),
+    });
+    loadHeavyCodexThreads();
+  } catch (e) {
+    alert('approve failed: ' + e.message);
+  }
+}
+
 async function loadBurn() {
   const bu = await loadBackend();
   if (!bu) return;

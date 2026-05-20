@@ -1909,8 +1909,9 @@ function KPISection({ kpi, setActiveTab, browserWalk }) {
 //     ├ 3b. Follow-up — status "Follow-up" (silent, we pinged)
 //     └ 3c. Отмена    — status "Не актуален" (active) + archived "Неактуально"
 //   4. Переговоры     — status "Переговоры" with history hints of price/rider discussion
-//   5. Предоплата     — status "ОПЛАТИЛА"
-//   6. Концерт        — status "Оплачен" (post-event, fully closed)
+//   5. Ждём предоплату — /api/event_stubs stage=confirmed (same source as events.html)
+//   6. Предоплата      — status "ОПЛАТИЛА"
+//   7. Концерт         — status "Оплачен" (post-event, fully closed)
 //
 // The distinction between stage 3 (Интерес) and stage 4 (Переговоры) is:
 // both share DB status "Переговоры" but stage 4 is the subset whose history
@@ -2155,7 +2156,7 @@ function tgChatUsername(item) {
 // computePipeline(active, archived, branchSpec)
 // branchSpec is an array of branch descriptors: {key, label, icon, parent, leads, hint?}
 // These are appended as branch rows under the main 6 stages.
-function computePipeline(allLeads, archived, branchSpec) {
+function computePipeline(allLeads, archived, branchSpec, awaitingPrepayEvents) {
   const active = allLeads || [];
   const arch = archived || [];
   const hasNegotiationText = (o) =>
@@ -2163,6 +2164,12 @@ function computePipeline(allLeads, archived, branchSpec) {
   const st = (o) => (o.status || '').trim();
   const eq = (s) => (o) => st(o).toLowerCase() === s.toLowerCase();
   const any = (re) => (o) => re.test(st(o));
+  const isAwaitingPrepayment = (o) => {
+    const s = st(o).toUpperCase();
+    if (s.includes('ОПЛАТ')) return false;
+    const step = String(o.payment_step || '').toLowerCase();
+    return Boolean(o.last_doc_sent) || ['invoice_seen', 'awaiting_prepayment', 'prepaid_partial'].includes(step);
+  };
 
   // 15.05.2026: broker (status="Посредник") leads — раньше не подбирались ни
   // одной стадией (Новые/Написал/Follow-up/...), их 18 жило в выгрузке но они
@@ -2181,31 +2188,34 @@ function computePipeline(allLeads, archived, branchSpec) {
     return 'followup'; // BROKER: prefix без явного signal — active brokering
   };
 
-  const stage_new      = active.filter(o => eq('Новый')(o) || (isBroker(o) && brokerSubStage(o) === 'new'));
-  const stage_sent     = active.filter(o => eq('Написал')(o) || (isBroker(o) && brokerSubStage(o) === 'sent'));
-  const neg_all        = active.filter(eq('Переговоры'));
+  const stage_new      = active.filter(o => !isAwaitingPrepayment(o) && (eq('Новый')(o) || (isBroker(o) && brokerSubStage(o) === 'new')));
+  const stage_sent     = active.filter(o => !isAwaitingPrepayment(o) && (eq('Написал')(o) || (isBroker(o) && brokerSubStage(o) === 'sent')));
+  const neg_all        = active.filter(o => !isAwaitingPrepayment(o) && eq('Переговоры')(o));
   const neg_stale      = neg_all.filter(_funnelIsStaleNegotiation);
   const neg_fresh      = neg_all.filter(o => !_funnelIsStaleNegotiation(o));
-  const stage_interest_status = active.filter(eq('Интерес'));
+  const stage_interest_status = active.filter(o => !isAwaitingPrepayment(o) && eq('Интерес')(o));
   const stage_interest = [
     ...stage_interest_status,
     ...neg_fresh.filter(o => !hasNegotiationText(o)),
   ];
   const stage_negot    = neg_fresh.filter(hasNegotiationText);
+  const stage_await_prepay = (awaitingPrepayEvents && awaitingPrepayEvents.length)
+    ? awaitingPrepayEvents
+    : active.filter(isAwaitingPrepayment);
   const stage_prepaid  = active.filter(eq('ОПЛАТИЛА'));
   // Stage 6 «Отзыв/контент» — post-event workflow: клиент отыграл, просим отзыв/фото/видео.
   // DB-статусы: Оплачен (fully paid), Концерт/Сыграл/Выступил (explicit markers),
   // Отзыв (future status when review collected).
   const stage_review   = active.filter(any(/^(Оплачен|Концерт|Сыграл|Выступил|Отзыв)/i));
   const stage_followup_all = [
-    ...active.filter(eq('Follow-up')),
+    ...active.filter(o => !isAwaitingPrepayment(o) && eq('Follow-up')(o)),
     ...neg_stale,
-    ...active.filter(o => isBroker(o) && brokerSubStage(o) === 'followup'),
+    ...active.filter(o => !isAwaitingPrepayment(o) && isBroker(o) && brokerSubStage(o) === 'followup'),
   ];
   // 🔴 27.04: разделяем Follow-up на «обычные» и «Потерянные обещания»
   const stage_promises   = stage_followup_all.filter(_funnelHasUnfulfilledPromise);
   const stage_followup   = stage_followup_all.filter(o => !_funnelHasUnfulfilledPromise(o));
-  const stage_direct   = active.filter(eq('Прямой лид'));
+  const stage_direct   = active.filter(o => !isAwaitingPrepayment(o) && eq('Прямой лид')(o));
   const stage_cancel_active = active.filter(any(/^(Не актуал|Отказ|Отмена)/i));
   const stage_cancel_arch   = arch.filter(any(/(Неактуал|Не актуал|Отказ|Отмена)/i));
   const stage_cancel   = [...stage_cancel_active, ...stage_cancel_arch];
@@ -2230,6 +2240,7 @@ function computePipeline(allLeads, archived, branchSpec) {
     ...branches.filter(b => b.parent === 'interest'),
     { key: 'negot',    label: 'Переговоры',     leads: stage_negot,    kind: 'main' },
     { key: 'direct',   label: 'Прямые лиды',   leads: stage_direct,   kind: 'main' },
+    { key: 'await_prepay', label: 'Ждём предоплату', leads: stage_await_prepay, kind: 'main' },
     { key: 'prepaid',  label: 'Предоплата',     leads: stage_prepaid,  kind: 'main' },
     { key: 'review',   label: 'Отзыв/контент',  leads: stage_review,   kind: 'main' },
   ];
@@ -2246,18 +2257,19 @@ const PIPELINE_HINTS = {
   cancelled: 'Отказались: «взяли других», «не актуально», бюджет не совпал.',
   negot:     'Активно обсуждают цену, райдер, состав. Hot — нужна личная реакция. TG-папка «Переговоры» 🤝.',
   direct:    'Прямые входящие лиды — написали сами в DM без нашего cold outreach. Отдельный трек без конверсии в другие стадии.',
+  await_prepay: 'Договор/счёт ушёл, ждём деньги от клиента. Источник: /api/event_stubs, как на Events.',
   prepaid:   'Получили предоплату (статус ОПЛАТИЛА, папка 💰).',
   review:    'Концерт отыграли, полный расчёт. Post-event workflow: отзыв, фото/видео, реферралы. TG-папка «Отзыв/фото» ⭐.',
 };
 
-function FunnelSection({ title, allLeads, archived, branchSpec }) {
+function FunnelSection({ title, allLeads, archived, branchSpec, awaitingPrepayEvents }) {
   const [expanded, setExpanded] = React.useState(null);
   // 🔴 22.04: chat panel on hover/click для лидов внутри expanded stage
   const chatCtx = React.useContext(ChatContext);
   const hoverTimer = React.useRef(null);
   const pipeline = React.useMemo(
-    () => computePipeline(allLeads, archived, branchSpec),
-    [allLeads, archived, branchSpec]
+    () => computePipeline(allLeads, archived, branchSpec, awaitingPrepayEvents),
+    [allLeads, archived, branchSpec, awaitingPrepayEvents]
   );
   const hasAnyData =
     (allLeads || []).length > 0 ||
@@ -2826,7 +2838,7 @@ function ApprovalButtons({ approvalId, draft, username }) {
 }
 
 
-function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog, fallbackFunnel }) {
+function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog, fallbackFunnel, awaitingPrepayEvents }) {
   // 15.05.2026: переименовано drum* → broker*. Содержит drum_show, solo показы,
   // host, animation, dance, fire, dj — всё что идёт через broker pipeline.
   const { bandLeads, bandArchived, brokerLeads, brokerArchived } = React.useMemo(() => {
@@ -2902,6 +2914,7 @@ function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog, fa
         branchSpec={[{
           key: 'bot', label: 'Питч в боте', icon: '🤖', parent: 'sent', leads: pendingDrafts || [],
         }]}
+        awaitingPrepayEvents={awaitingPrepayEvents || []}
       />
       {/* 15.05.2026: «Воронка брокер» теперь = двухполосный SVG-funnel
           (BrokerDualFunnel) + список заказов с подрядчиками (BrokerOrdersList).
@@ -9180,6 +9193,7 @@ function CartotekaSection({ data }) {
 function App() {
   const [rows,      setRows]      = useState(null);
   const [dbSnapshot, setDbSnapshot] = useState(null);
+  const [eventStubs, setEventStubs] = useState(null);
   const [sessionLog, setSessionLog] = useState(null);
   const [activity24h, setActivity24h] = useState(null);
   const [aiDelivery, setAiDelivery] = useState(null);
@@ -9270,6 +9284,15 @@ function App() {
         setDbSnapshot(snap);
       }
     } catch { /* backend offline → fall back to gviz data only */ }
+
+    // ── Pre-paid event stubs: same read-model as dashboard/events.html.
+    try {
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      const r = await fetch(`${bu}/api/event_stubs?stage=confirmed&with_date_only=1`, { cache: 'no-store' });
+      if (r.ok) {
+        setEventStubs(await r.json());
+      }
+    } catch { /* backend offline → funnel falls back to orders.db rows */ }
 
     // ── Session actions (what Claude did in the current work session) ──
     try {
@@ -9380,6 +9403,26 @@ function App() {
       d.pendingDrafts = dbSnapshot.pending_drafts || [];
       d.dbSync = dbSnapshot.sync;
     }
+    if (eventStubs && Array.isArray(eventStubs.stubs)) {
+      d.awaitingPrepayEvents = eventStubs.stubs.map(s => {
+        const thread = String(s.client_thread || '');
+        const username = (thread.match(/@([A-Za-z0-9_]{3,32})/) || [])[1] || '';
+        return {
+          id: s.stub_id || `event:${s.order_id || ''}:${s.hint_date || ''}`,
+          status: 'Ждём предоплату',
+          client: (s.title || '').replace(/^\d{4}-\d{2}-\d{2}\s+/, '') || username || s.client_thread || 'event',
+          username,
+          contact: username ? `@${username}` : s.client_thread || '',
+          desc: s.notes || '',
+          event_date: s.hint_date || '',
+          last_activity: (s.updated_at || '').slice(0, 16).replace('T', ' '),
+          channel: (thread.split(':')[0] || 'TG').toUpperCase(),
+          source_chat: 'lcb_orders.json',
+          last_doc_sent: s.last_doc_sent || '',
+          payment_step: s.payment_step || '',
+        };
+      });
+    }
     if (dbSnapshot && dbSnapshot.archived) {
       const total = dbSnapshot.stats?.archived || dbSnapshot.archived.length;
       d.refused = {
@@ -9394,7 +9437,7 @@ function App() {
       };
     }
     return d;
-  }, [rows, dbSnapshot]);
+  }, [rows, dbSnapshot, eventStubs]);
 
   // После загрузки attention — классифицируем лиды через /api/classify_leads.
   // Кэшируем в aiTags, чтобы не гонять Claude каждый раз.
@@ -9667,6 +9710,7 @@ function App() {
                 pendingDrafts={data.pendingDrafts || []}
                 sessionLog={sessionLog || null}
                 fallbackFunnel={data.funnel || []}
+                awaitingPrepayEvents={data.awaitingPrepayEvents || []}
               />
               <CartotekaSection data={leadContext} />
               <RecentSentMessagesSection data={recentSent} />
