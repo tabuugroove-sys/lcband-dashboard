@@ -58,8 +58,8 @@
   .event-card .stats { font-size: 11px; color: var(--muted); margin-top: 4px; }
   .event-card.paid { border-left: 3px solid var(--red); }
   .event-card.contract { border-left: 3px solid var(--orange); }
-  .event-card.negotiating { border-left: 3px solid var(--green); }
-  .event-card.lead { border-left: 3px dotted var(--purple); }
+  .event-card.negotiating { border-left: 3px solid #f5c518; }
+  .event-card.lead { border-left: 3px dotted var(--green); }
   .event-card[data-chat-q] { cursor: pointer; }
   .event-card[data-chat-q]:hover { background: rgba(88,166,255,0.08); }
   .sidebar-group-title {
@@ -353,18 +353,18 @@
   }
   .cal-pill:hover { filter: brightness(1.25); }
   /* Business-state colors (priority high→low): video_received > prepaid >
-     lineup_ready > stub > default. */
+     confirmed/contract/prepayment > negotiating > lead. */
   .cal-pill.lineup-ready {
-    background: rgba(63,185,80,0.18); color: var(--green);
-    border-left-color: var(--green);
+    background: rgba(240,136,62,0.15); color: var(--orange);
+    border-left-color: var(--orange);
   }
   .cal-pill.prepaid {
     background: rgba(248,81,73,0.16); color: var(--red);
     border-left-color: var(--red);
   }
   .cal-pill.video-received {
-    background: rgba(244,114,182,0.18); color: #f472b6;
-    border-left-color: #f472b6;
+    background: rgba(188,140,255,0.18); color: var(--purple);
+    border-left-color: var(--purple);
   }
   .cal-pill.stub {
     background: rgba(240,136,62,0.15); color: var(--orange);
@@ -372,8 +372,13 @@
     border-left-style: dashed;
   }
   .cal-pill.lead {
-    background: rgba(188,140,255,0.16); color: var(--purple);
-    border-left-color: var(--purple);
+    background: rgba(63,185,80,0.16); color: var(--green);
+    border-left-color: var(--green);
+    border-left-style: dotted;
+  }
+  .cal-pill.negotiating {
+    background: rgba(245,197,24,0.15); color: #f5c518;
+    border-left-color: #f5c518;
     border-left-style: dotted;
   }
 
@@ -1396,12 +1401,11 @@
           <button onclick="calNext()">›</button>
           <div class="cur-month" id="cal-cur-month"></div>
           <div class="legend">
-            <span><span class="dot" style="background:var(--purple)"></span>заявка</span>
-            <span><span class="dot" style="background:var(--orange)"></span>ждём предоплату</span>
-            <span><span class="dot" style="background:var(--blue)"></span>будущий event</span>
-            <span><span class="dot" style="background:var(--green)"></span>состав ≥4</span>
+            <span><span class="dot" style="background:var(--green)"></span>заявка</span>
+            <span><span class="dot" style="background:#f5c518"></span>переговоры</span>
+            <span><span class="dot" style="background:var(--orange)"></span>подтвердили/договор/ждём оплату</span>
             <span><span class="dot" style="background:var(--red)"></span>предоплата получена</span>
-            <span><span class="dot" style="background:#f472b6"></span>видео/фото получены</span>
+            <span><span class="dot" style="background:var(--purple)"></span>видео/фото получены</span>
           </div>
           <div class="stamp" id="cal-stamp"></div>
         </div>
@@ -1446,6 +1450,7 @@
         id: 'lead' + l.order_id,
         title: l.client,
         _kind: 'lead',
+        _stage: l.stage || 'lead',
         _status: l.status,
         _channel: l.channel,
         _username: l.username,
@@ -1479,11 +1484,20 @@
 
         if (ev._kind === 'stub') {
           pcls += ' stub';
-          stateLabel = 'ждём предоплату';
+          stateLabel = 'подтвердили/договор/ждём оплату';
           tip = `Pre-paid заявка (${ev._stage}): ${ev._thread || ''}\n${stateLabel}\nИсточник: lcb_orders.json`;
         } else if (ev._kind === 'lead') {
-          pcls += ' lead';
-          stateLabel = `заявка · ${ev._status}`;
+          const stage = (ev._stage || '').toLowerCase();
+          if (stage === 'negotiating') {
+            pcls += ' negotiating';
+            stateLabel = `переговоры · ${ev._status}`;
+          } else if (stage === 'contract' || stage === 'prepayment') {
+            pcls += ' stub';
+            stateLabel = `${stage === 'contract' ? 'договор' : 'ждём оплату'} · ${ev._status}`;
+          } else {
+            pcls += ' lead';
+            stateLabel = `заявка · ${ev._status}`;
+          }
           tip = `${ev.title}\n${stateLabel}\n${ev._channel || ''}${ev._username ? ' · @' + ev._username : ''}\nдата в переписке: ${ev._raw_date}`;
           // Click → open chat in index.html (if we have username+channel).
           if (ev._username && ev._channel) {
@@ -1494,8 +1508,8 @@
           switch (ev.business_state) {
             case 'video_received': pcls += ' video-received'; stateLabel = 'видео/фото получены'; break;
             case 'prepaid':        pcls += ' prepaid';        stateLabel = 'предоплата получена'; break;
-            case 'lineup_ready':   pcls += ' lineup-ready';   stateLabel = 'состав ≥4'; break;
-            default:               stateLabel = 'будущий event'; break;
+            case 'lineup_ready':   pcls += ' lineup-ready';   stateLabel = 'подтвердили/состав ≥4'; break;
+            default:               pcls += ' lineup-ready';   stateLabel = 'подтвердили/договор/ждём оплату'; break;
           }
           click = `onclick="loadEvent('${(ev.id || '').replace(/'/g, "\\'")}')"`;
           tip = (ev.title || ev.id) + (ev.members_count ? `  ·  ${ev.members_count} чел` : '') + `\n${stateLabel}`;

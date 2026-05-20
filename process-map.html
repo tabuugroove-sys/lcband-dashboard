@@ -235,7 +235,7 @@
         file:'tg_followup.py', schedule:'daily 10:09 MSK',
         why:'Возвращает молчащих лидов по расписанию, но не трогает тех, кто отказал или близко к event date.',
         input:'orders.db + DM history', action:'eligible follow-up + review', output:'TG follow-up or skip log',
-        logic:['cooldown 3 дня','hard refusal regex перед AI','стоп за 3 дня до мероприятия','cap 15 sends/run'],
+        logic:['cooldown 3 дня','hard refusal regex перед AI','content mode: если клиент написал что видео грузятся, но media не появились, просит переотправить вместо дубля','стоп за 3 дня до мероприятия','cap 15 sends/run'],
       },
       {
         group:'dm', name:'VK Responder', label:'com.lcband.vk-responder',
@@ -454,7 +454,7 @@
         file:'funnel_maintenance.py', schedule:'calendar maintenance',
         why:'Общий maintenance по обещаниям, отказам, stale follow-ups и служебным флагам.',
         input:'orders.db + message_events', action:'detect obligations and stale states', output:'history/status/flags',
-        logic:['следит за promised media/replies','cross-channel TG/TG_DIRECT/VK/WA follow-up owner для orders.db stale leads','считает тишину по реальной raw-переписке из orders.db.message_events, а не CRM service updates','overdue leads идут первыми; unchanged chat не блокирует audit после due date','21+d тишины после нашего сообщения = stale-lost, follow-up не отправлять','не должен требовать ручной разбор','работает как cleanup contour'],
+        logic:['следит за promised media/replies','cross-channel TG/TG_DIRECT/VK/WA follow-up owner для orders.db stale leads','event_date в прошлом → archive_order(status=Неактуально), чтобы лид ушёл в Отмены, а не висел как follow-up','past-event cleanup выполняется до send-window, без отправки сообщений','если pre-send блокирует из-за price/payment-form context, логирует причину, переписывает follow-up без денег и прогоняет review повторно','считает тишину по реальной raw-переписке из orders.db.message_events, а не CRM service updates','overdue leads идут первыми; unchanged chat не блокирует audit после due date','21+d тишины после нашего сообщения = stale-lost, follow-up не отправлять','не должен требовать ручной разбор','работает как cleanup contour'],
       },
       {
         group:'funnel', name:'Funnel Stage Classifier', label:'com.lcband.funnel-stage-classifier',

@@ -786,14 +786,14 @@
             <td>Ежедневно 10:09</td>
             <td>Молчит ≥ 1 день, статус «Переговоры» / «Follow-up»</td>
             <td><code>lcb_event_context.py</code> → LCB event-card</td>
-            <td>TG context-card follow-up: Opus драфт → send/skip по gates</td>
+            <td>TG context-card follow-up: deterministic missing-media retry for content uploads → Opus draft → send/skip по gates</td>
           </tr>
           <tr>
             <td><code>funnel_maintenance.py</code></td>
             <td>Calendar ticks, send window 10:00-20:00 MSK</td>
             <td>orders.db active leads: overdue by real dialog last-message date, not CRM service updates</td>
             <td><code>orders.db.message_events</code> / channel legacy cache + strategist + AI-review</td>
-            <td>Cross-channel TG/TG_DIRECT/VK/WA follow-up owner; overdue leads are scanned first, unchanged chats are still audited after due date; 21+d silence after our message is stale-lost, not a follow-up</td>
+            <td>Cross-channel TG/TG_DIRECT/VK/WA follow-up owner; event_date in the past archives the lead as Неактуально before the send window so folder sync moves it to Отмены without sending; price/payment-form pre-send blocks are logged with reason, rewritten into money-free follow-up, then reviewed again; overdue leads are scanned first, unchanged chats are still audited after due date; 21+d silence after our message is stale-lost, not a follow-up</td>
           </tr>
           <tr>
             <td><code>attention_auto_action.py</code></td>
