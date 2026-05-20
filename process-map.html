@@ -539,9 +539,9 @@
       {
         group:'infra', name:'Tunnel Watcher', label:'com.lcband.tunnel-watcher',
         file:'tunnel_watcher.py', schedule:'daemon / KeepAlive',
-        why:'Держит внешний quick-tunnel/DNS для dashboard/access, когда tunnel меняется. Это временный best-effort контур: quick tunnels нестабильны, durable fix = named tunnel + stable hostname.',
+        why:'Frontend остаётся на GitHub Pages. Этот daemon держит только backend quick-tunnel/DNS для API access; custom domain / named tunnel сейчас не планируем.',
         input:'cloudflared/tunnel state', action:'watch/refresh tunnel URL', output:'current tunnel state',
-        logic:['continuous watcher','restart by launchd','quick tunnel has no uptime guarantee','named tunnel требует Cloudflare account + DNS setup','не содержит бизнес-логики'],
+        logic:['continuous watcher','restart by launchd','quick tunnel has no uptime guarantee','GitHub Pages domain is canonical frontend','localhost fallback for same-Mac work','не содержит бизнес-логики'],
       },
       {
         group:'infra', name:'TG Health Check', label:'com.lcband.tg-health-check',
