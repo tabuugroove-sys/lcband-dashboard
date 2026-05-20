@@ -4438,7 +4438,6 @@ function SingleAgentRestartButton({endpoint, label, why, backendUrl, getOrPrompt
 }
 
 function DeliveryEfficiencyCard({aiCalls24h, sentMessages24h, sentConversion24h, aiDelivery, aiDeliveryTrend, aiTrendRange = 'day', onAiTrendRangeChange, aiTrendLoading = false, aiTrendError = '', deliveryOutcomes = {}, deliveryTitle}) {
-  if (!aiCalls24h) return null;
   const RANGE_TABS = [
     {key: 'day',   label: 'день'},
     {key: 'week',  label: 'неделя'},
@@ -5149,7 +5148,7 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
     return () => { cancelled = true; clearInterval(t); };
   }, [bwExpanded, backendUrl]);
 
-  if (!status.length) return null;
+  if (!status.length && !aiDelivery && !aiDeliveryTrend && !aiTrendLoading && !aiTrendError) return null;
   const act = activity24h || {};
   const aiCalls24h = Number(aiDelivery?.ai_calls || act._ai_calls_24h?.count || 0);
   const sentMessages24h = Number(aiDelivery?.sent_total || sent24h?.total || 0);
@@ -9551,7 +9550,6 @@ function App() {
           {activeTab === 'overview' && (
             <>
               <OverviewStatsSection stats={overviewStats} followupPlan={followupPlan} />
-              <LeadFlowSection />
               <StatusSection
                 status={data.status}
                 activity24h={activity24h}
@@ -9564,6 +9562,7 @@ function App() {
                 aiTrendError={aiTrendError}
                 onProcessClick={setShowProcess}
               />
+              <LeadFlowSection />
               <ActionButtons />
               <KPISection kpi={data.kpi} setActiveTab={setActiveTab}
                           browserWalk={data.browserWalk || {leads:0, refusals:0, chats:0, ranAt:'', hours:48, items:[]}} />
