@@ -1400,6 +1400,13 @@ function etaLabel(loadPct) {
 }
 
 const PROCESS_INFO = {
+  lead_context_classify: {
+    title: 'Lead context classify — единый контур лида',
+    does: 'Объединяет бывшие funnel_stage_classify, event_thread_batch_classify и lead_context_enrich: понять стадию, обновить context-card и подготовить данные для writer/CRM.',
+    affects: ['context cards', 'стадии воронки', 'lcb_orders', 'следующий ответ агента'],
+    risk: 'Если разрастается, это обычно повторная классификация одного и того же лида разными owner-path.',
+    where: 'lead_context_enricher.py / funnel_stage_classifier.py / event-thread batch classify',
+  },
   tg_responder_cli: {
     title: 'TG responder — автоответ клиенту в личке',
     does: 'Собирает контекст переписки и заказа, генерирует ответ клиенту и отдаёт его в pre-send review перед отправкой.',
@@ -1517,6 +1524,10 @@ function showProcessPopover(key, anchor) {
   if (!p || !pop || !anchor) return;
   const info = describeProcess(p);
   const affects = (info.affects || []).map(x => `<span class="pill">${esc(x)}</span>`).join('');
+  const rawPurposes = Object.entries(p.raw_purposes || {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count]) => `<span class="pill">${esc(name)} ${Number(count || 0)}</span>`)
+    .join('');
   pop.innerHTML = `
     <div class="head">
       <div>
@@ -1526,6 +1537,7 @@ function showProcessPopover(key, anchor) {
       <button class="close" type="button" aria-label="close">×</button>
     </div>
     <div class="sec"><div class="sec-title">Что делает</div><div class="sec-body">${esc(info.does)}</div></div>
+    ${rawPurposes ? `<div class="sec"><div class="sec-title">Raw purposes</div><div class="sec-body">${rawPurposes}</div></div>` : ''}
     <div class="sec"><div class="sec-title">На что влияет</div><div class="sec-body">${affects}</div></div>
     <div class="sec"><div class="sec-title">Модель / лимит</div><div class="sec-body">${esc(info.serviceText)}</div></div>
     <div class="sec"><div class="sec-title">Когда опасно</div><div class="sec-body">${esc(info.risk)}</div></div>
@@ -1663,8 +1675,11 @@ function renderBurn(d) {
                        p.bucket === 'gemini' ? '<span class="dot gemini"></span>gemini' :
                        p.bucket === 'api'   ? 'api $' :
                        '<span class="dot haiku"></span>claude';
+      const rawTitle = Object.keys(p.raw_purposes || {}).length
+        ? ' · raw: ' + Object.entries(p.raw_purposes).map(([k, v]) => `${k} ${v}`).join(', ')
+        : '';
       return `<tr class="proc-row${key === _selectedProcessKey ? ' selected' : ''}" data-key="${esc(key)}" title="Нажми, чтобы открыть описание процесса">
-        <td><code style="font-size:11px;">${esc(p.service)}</code> · ${esc(p.purpose)}</td>
+        <td title="${esc((p.purpose || '') + rawTitle)}"><code style="font-size:11px;">${esc(p.service)}</code> · ${esc(p.purpose)}</td>
         <td style="text-align:right" class="cost">${p.calls}</td>
         <td style="text-align:right;font-size:11px;">${bucketTag}</td>
         <td style="text-align:right;color:${color};font-weight:600;">${emoji} ${load.toFixed(1)}%</td>
@@ -2003,7 +2018,8 @@ async function loadLive() {
           ? '<span style="color:#6e7681;">'+(e.input_tok||0)+'→'+(e.output_tok||0)+'</span>'
           : '';
         const reason = e.reason ? '<span style="color:#f85149;font-style:italic;"> '+esc(e.reason)+'</span>' : '';
-        const line = '<div class="live-call-row" data-kind="'+esc(e.kind||'')+'" title="'+esc((e.service||'')+' · '+model+' · '+(e.purpose||''))+'">' +
+        const rawPurpose = e.raw_purpose && e.raw_purpose !== e.purpose ? ' · raw: '+e.raw_purpose : '';
+        const line = '<div class="live-call-row" data-kind="'+esc(e.kind||'')+'" title="'+esc((e.service||'')+' · '+model+' · '+(e.purpose||'')+rawPurpose)+'">' +
           '<span style="color:#6e7681;">'+t+'</span>' +
           '<span>'+dot+'</span>' +
           '<span class="live-model" style="color:'+color+';">'+esc(model)+'</span>' +
