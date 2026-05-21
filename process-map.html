@@ -452,9 +452,9 @@
       {
         group:'funnel', name:'Funnel Stage Classifier', label:'com.lcband.funnel-stage-classifier',
         file:'funnel_stage_classifier.py', schedule:'каждые 6 часов',
-        why:'Пакетно классифицирует stage, когда realtime-контур не дал свежую оценку.',
-        input:'orders.db + dialog snippets', action:'classify stage', output:'stage labels/log',
-        logic:['batch safety layer','не заменяет unified_dm_responder hot path','полезен для старых/тихих лидов'],
+        why:'Применяет stage verdict из единого lead_context_classify pass, не делает второй AI-запрос по той же переписке.',
+        input:'orders.db + lead_context_enricher.funnel_stage + event_threads', action:'apply stage to CRM', output:'stage labels/log/history',
+        logic:['lead_context_enricher owns context-card + active event + follow-up + funnel_stage + team event_threads AI verdict','funnel_stage_classifier только применяет confidence-gated verdict','не заменяет unified_dm_responder hot path','полезен для старых/тихих лидов без duplicate AI call'],
       },
       {
         group:'funnel', name:'Funnel Stage Watcher', label:'com.lcband.funnel-stage-watcher',

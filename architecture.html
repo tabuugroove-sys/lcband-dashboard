@@ -326,6 +326,7 @@
 	          <b>Входящее фиксируется в cache, потом обновляется картотека</b> <span class="badge badge-warn">force=True</span>
 		          <span class="anno"><br><code>_record_incoming_to_cache(out=False)</code> → <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lead_context_enricher.py" target="_blank" rel="noopener"><code>lead_context_enricher.enrich(username, "tg", force=True)</code></a>.
 		          Enricher обходит 30-мин freshness check, читает <code>orders.db.message_events</code> через <code>unified_message_store</code>; legacy cache fallback включается только явно.
+			          Один AI pass возвращает context-card, active event, follow-up, <code>funnel_stage</code> и <code>event_threads</code> для команды по той же дате; <code>funnel_stage_classifier.py</code> только применяет этот verdict к orders.db без второго AI-запроса.
 			          Если клиент ответил хотя бы один раз, минимальная context-card сохраняется до AI. Если known events пустой, но thread явно про одно мероприятие, создаёт event через <code>event_graph.py</code> в <code>orders.db.eg_*</code> и переносит key asks в event-card.</span>
 	        </li>
 	        <li>
