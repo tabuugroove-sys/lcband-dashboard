@@ -84,6 +84,12 @@ tr:last-child td { border-bottom: none; }
   color:var(--fg); padding:4px 8px; cursor:pointer; font-size:11px; font-weight:600;
 }
 .thread-action:hover { border-color: var(--accent); color: var(--accent); }
+.collapse-action {
+  border:1px solid var(--border); border-radius:6px; background:transparent;
+  color:var(--muted); padding:4px 8px; cursor:pointer; font-size:11px; font-weight:600;
+}
+.collapse-action:hover { border-color: var(--accent); color: var(--accent); }
+.collapsed-body { display:none; }
 .thread-preview { color: var(--muted); font-size:11px; max-width:360px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .heavy-mode { color: var(--danger); font-weight: 700; }
 .heavy-mode.ok { color: var(--ok); }
@@ -475,30 +481,36 @@ a:hover { text-decoration: underline; }
     <div class="big" id="heavy-blocked">—</div>
     <div class="bar danger"><span id="heavy-blocked-bar" style="width:0%"></span></div>
     <div class="label" id="heavy-work-mode">loading…</div>
+    <div class="label" id="heavy-token-window">24h: — · 7d: —</div>
   </div>
 </div>
 
 <div class="card" style="margin-bottom:18px;">
   <h2 style="display:flex;justify-content:space-between;align-items:center;">
     <span>Codex Desktop thread guard</span>
-    <span style="font-size:11px;color:var(--muted);" id="heavy-thread-status">loading…</span>
+    <span style="display:flex;gap:8px;align-items:center;">
+      <span style="font-size:11px;color:var(--muted);" id="heavy-thread-status">loading…</span>
+      <button class="collapse-action" id="heavy-thread-toggle" type="button" onclick="toggleHeavyThreadBlock()">Hide</button>
+    </span>
   </h2>
-  <table id="heavy-threads" style="width:100%;">
-    <thead><tr>
-      <th>Thread</th>
-      <th style="text-align:right">Tokens</th>
-      <th style="text-align:right">Conversation</th>
-      <th style="text-align:right">Tool output</th>
-      <th style="text-align:right">Turn cost</th>
-      <th>Status</th>
-      <th></th>
-    </tr></thead>
-    <tbody><tr><td colspan="7" class="muted">loading…</td></tr></tbody>
-  </table>
-  <div class="label" style="margin-top:6px;">
-    Старые Desktop-треды старше 7 дней и heavy-треды считаются read-only.
-    После approve разрешён только lightweight handoff из user/assistant переписки; tool outputs/log dumps не считаются рабочим контекстом.
-    Turn cost подсвечивает треды, где последние ответы стали резко дороже или последний turn превысил 80k tokens.
+  <div id="heavy-thread-body">
+    <table id="heavy-threads" style="width:100%;">
+      <thead><tr>
+        <th>Thread</th>
+        <th style="text-align:right">Tokens</th>
+        <th style="text-align:right">Conversation</th>
+        <th style="text-align:right">Tool output</th>
+        <th style="text-align:right">Turn cost</th>
+        <th>Status</th>
+        <th></th>
+      </tr></thead>
+      <tbody><tr><td colspan="7" class="muted">loading…</td></tr></tbody>
+    </table>
+    <div class="label" style="margin-top:6px;">
+      Старые Desktop-треды старше 7 дней и heavy-треды считаются read-only.
+      После approve разрешён только lightweight handoff из user/assistant переписки; tool outputs/log dumps не считаются рабочим контекстом.
+      Turn cost подсвечивает треды, где последние ответы стали резко дороже или последний turn превысил 80k tokens.
+    </div>
   </div>
 </div>
 
@@ -1669,11 +1681,27 @@ function heavyPreview(thread) {
   return (last.role ? last.role + ': ' : '') + (last.text || 'conversation-only preview empty');
 }
 
+function applyHeavyThreadCollapsed() {
+  const body = document.getElementById('heavy-thread-body');
+  const toggle = document.getElementById('heavy-thread-toggle');
+  if (!body || !toggle) return;
+  const collapsed = localStorage.getItem('lcb.cost.heavyThreadsCollapsed') === '1';
+  body.classList.toggle('collapsed-body', collapsed);
+  toggle.textContent = collapsed ? 'Show' : 'Hide';
+}
+
+function toggleHeavyThreadBlock() {
+  const collapsed = localStorage.getItem('lcb.cost.heavyThreadsCollapsed') === '1';
+  localStorage.setItem('lcb.cost.heavyThreadsCollapsed', collapsed ? '0' : '1');
+  applyHeavyThreadCollapsed();
+}
+
 function renderHeavyCodexThreads(data) {
   const tbody = document.querySelector('#heavy-threads tbody');
   const status = document.getElementById('heavy-thread-status');
   const blockedEl = document.getElementById('heavy-blocked');
   const modeEl = document.getElementById('heavy-work-mode');
+  const windowEl = document.getElementById('heavy-token-window');
   const barEl = document.getElementById('heavy-blocked-bar');
   if (!tbody || !status) return;
   const rows = data.threads || [];
@@ -1687,9 +1715,13 @@ function renderHeavyCodexThreads(data) {
   const oldCount = Number(summary.old_threads || 0);
   const heavyCount = Number(summary.heavy_threads || 0);
   const growthAlerts = Number(summary.growth_alert_threads || rows.filter(t => t.growth_alert).length || 0);
+  const tokens24h = Number(summary.desktop_tokens_24h || 0);
+  const tokens7d = Number(summary.desktop_tokens_7d || 0);
+  const active24h = Number(summary.desktop_active_threads_24h || 0);
+  const active7d = Number(summary.desktop_active_threads_7d || 0);
   const blockedRatio = totalTokens > 0 ? Math.min(100, Math.max(0, 100 * blockedTokens / totalTokens)) : 0;
   status.textContent = totalGuarded
-    ? `${blocked} blocked / ${approvedCount} approved · ${oldCount} old / ${heavyCount} heavy · ${growthAlerts} growing · ${fmtTokens(totalTokens)} guarded`
+    ? `${blocked} blocked / ${approvedCount} approved · ${oldCount} old / ${heavyCount} heavy · ${growthAlerts} growing · 24h ${fmtTokens(tokens24h)} · 7d ${fmtTokens(tokens7d)}`
     : 'нет guarded threads';
   if (blockedEl) blockedEl.textContent = `${blocked} blocked`;
   if (barEl) {
@@ -1703,8 +1735,12 @@ function renderHeavyCodexThreads(data) {
         ` · ${fmtTokens(blockedTokens)} blocked · ${share.toFixed(1)}% Desktop tokens guarded`
       : 'нет Desktop threads в guard';
   }
+  if (windowEl) {
+    windowEl.textContent = `token spend: 24h ${fmtTokens(tokens24h)} (${active24h} threads) · 7d ${fmtTokens(tokens7d)} (${active7d} threads)`;
+  }
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="7" class="muted">нет Desktop threads в guard</td></tr>';
+    applyHeavyThreadCollapsed();
     return;
   }
   tbody.innerHTML = rows.map(t => {
@@ -1733,6 +1769,7 @@ function renderHeavyCodexThreads(data) {
       `<td style="text-align:right"><button class="thread-action" onclick="approveHeavyThread('${esc(t.id)}', ${approved ? 'false' : 'true'})">${action}</button></td>` +
     `</tr>`;
   }).join('');
+  applyHeavyThreadCollapsed();
 }
 
 async function loadHeavyCodexThreads() {
