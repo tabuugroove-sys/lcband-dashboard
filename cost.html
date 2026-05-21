@@ -1987,6 +1987,9 @@ async function loadLive() {
     const j = await r.json();
     const feed = document.getElementById('live-feed');
     if (!feed) return;
+    if (j.codex_cooldown_active === false) {
+      feed.querySelectorAll('[data-kind="codex_cli_cooldown"]').forEach(el => el.remove());
+    }
     const events = j.events || [];
     if (events.length) {
       _liveLastTs = j.newest_ts || _liveLastTs;
@@ -2000,7 +2003,7 @@ async function loadLive() {
           ? '<span style="color:#6e7681;">'+(e.input_tok||0)+'→'+(e.output_tok||0)+'</span>'
           : '';
         const reason = e.reason ? '<span style="color:#f85149;font-style:italic;"> '+esc(e.reason)+'</span>' : '';
-        const line = '<div class="live-call-row" title="'+esc((e.service||'')+' · '+model+' · '+(e.purpose||''))+'">' +
+        const line = '<div class="live-call-row" data-kind="'+esc(e.kind||'')+'" title="'+esc((e.service||'')+' · '+model+' · '+(e.purpose||''))+'">' +
           '<span style="color:#6e7681;">'+t+'</span>' +
           '<span>'+dot+'</span>' +
           '<span class="live-model" style="color:'+color+';">'+esc(model)+'</span>' +
