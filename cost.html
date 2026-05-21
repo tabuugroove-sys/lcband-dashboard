@@ -497,14 +497,15 @@ a:hover { text-decoration: underline; }
     <table id="heavy-threads" style="width:100%;">
       <thead><tr>
         <th>Thread</th>
-        <th style="text-align:right">Tokens</th>
+        <th style="text-align:right">Total</th>
+        <th style="text-align:right">24h / 7d</th>
         <th style="text-align:right">Conversation</th>
         <th style="text-align:right">Tool output</th>
         <th style="text-align:right">Turn cost</th>
         <th>Status</th>
         <th></th>
       </tr></thead>
-      <tbody><tr><td colspan="7" class="muted">loading…</td></tr></tbody>
+      <tbody><tr><td colspan="8" class="muted">loading…</td></tr></tbody>
     </table>
     <div class="label" style="margin-top:6px;">
       Старые Desktop-треды старше 7 дней и heavy-треды считаются read-only.
@@ -1739,7 +1740,7 @@ function renderHeavyCodexThreads(data) {
     windowEl.textContent = `token spend: 24h ${fmtTokens(tokens24h)} (${active24h} threads) · 7d ${fmtTokens(tokens7d)} (${active7d} threads)`;
   }
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="muted">нет Desktop threads в guard</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="muted">нет Desktop threads в guard</td></tr>';
     applyHeavyThreadCollapsed();
     return;
   }
@@ -1762,6 +1763,7 @@ function renderHeavyCodexThreads(data) {
         `<div class="thread-preview" title="${esc(preview)}">${esc(preview)}</div>` +
       `</td>` +
       `<td style="text-align:right" class="cost">${fmtTokens(t.tokens_used)}</td>` +
+      `<td style="text-align:right" class="cost" title="${Number(t.token_events_24h || 0)} events 24h, ${Number(t.token_events_7d || 0)} events 7d">${fmtTokens(t.tokens_24h || 0)} / ${fmtTokens(t.tokens_7d || 0)}</td>` +
       `<td style="text-align:right" class="cost">${conv}</td>` +
       `<td style="text-align:right" class="cost">${tools}</td>` +
       `<td style="text-align:right" class="cost ${t.growth_alert ? 'heavy-mode' : ''}" title="last ${fmtTokens(t.last_turn_tokens || 0)}, recent avg ${fmtTokens(t.recent_avg_turn_tokens || 0)}, previous avg ${fmtTokens(t.previous_avg_turn_tokens || 0)}">${growth}</td>` +
@@ -1782,7 +1784,7 @@ async function loadHeavyCodexThreads() {
     const status = document.getElementById('heavy-thread-status');
     const tbody = document.querySelector('#heavy-threads tbody');
     if (status) status.textContent = 'ошибка';
-    if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="muted">ошибка: ${esc(e.message)}</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="muted">ошибка: ${esc(e.message)}</td></tr>`;
   }
 }
 
