@@ -277,7 +277,7 @@
         file:'funnel_maintenance.py', schedule:'calendar ticks',
         why:'Не теряет WA follow-up, когда native WhatsApp Desktop window ещё закрыт.',
         input:'orders.db + lcb_writer.compose_followup', action:'contextual follow-up draft', output:'wa_computer_use_queue.json',
-        logic:['только queue, не send','active Desktop window не блокирует постановку в очередь','финальный Send остаётся в WA Desktop Sender'],
+        logic:['только queue, не send','active Desktop window не блокирует постановку в очередь','past event_date/desc date archives before queue','финальный Send остаётся в WA Desktop Sender'],
       },
       {
         group:'dm', name:'WA Desktop Sender', label:'manual / computer-use',
