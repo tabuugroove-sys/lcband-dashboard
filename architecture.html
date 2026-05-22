@@ -811,7 +811,7 @@
           Coordination: <code>lcb_orders.event_slice.coordination_requests</code> → <code>lcb_event_context.py</code> → <code>event_ops_logistics_agent.py</code> для performer check с source media<br>
           Пишет: dual-stream<br><br>
           <b>Выход:</b> ответ клиенту/организатору/технику в TG/VK/WA<br><br>
-          <b>Скрипт:</b> <code>unified_dm_responder.py</code>
+          <b>Скрипт:</b> <code>unified_dm_responder.py</code>; VK realtime/inbox owner: <code>vk_auto_responder.py</code> через <code>vk_longpoll_listener.py</code>, с <code>ai_review_before_send()</code>, canon price guard и duplicate guard перед VK send.
         </div>
       </div>
       <div class="card" style="border-top:3px solid rgba(168,85,247,.5)">
@@ -910,9 +910,9 @@
           <tr>
             <td><code>vk_followup.py</code></td>
             <td>По расписанию</td>
-            <td>VK лид без ответа N дней</td>
-            <td>VK conv cache → <code>lcb_event_context.py</code></td>
-            <td>VK DM reply</td>
+            <td>VK лид без ответа N дней; также stale inbound, где последнее сообщение клиента требует follow-up, а <code>vk_auto_responder.py</code> решил <code>should_reply=false</code></td>
+            <td>VK conv cache → <code>lcb_event_context.py</code>; dated history lets AI resolve client-stated windows into hard snooze</td>
+            <td>VK DM reply через pre-send review; future decision_date writes next_action instead of sending</td>
           </tr>
           <tr>
             <td><code>broker-client-followup</code></td>
