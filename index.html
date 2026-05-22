@@ -6278,10 +6278,12 @@ function TabBar({ activeTab, setActiveTab, newLeadsCount, attentionCount, refusa
     { id: 'paid',       label: 'Оплатили',    emoji: '💰', badge: paidCount },
     { id: 'refusals',   label: 'Отказы',      emoji: '❌', badge: refusalCount },
     { id: 'broadcasts', label: 'Рассылки',    emoji: '📤' },
+    { id: 'pitches',    label: 'Питчи',       emoji: '🧩' },
     { id: 'todos',      label: 'TODO',        emoji: '📋', badge: todosCount },
     { id: 'timeline',   label: 'Таймлайн',    emoji: '🕒' },
     { id: 'ai',         label: 'AI',          emoji: '🤖', badge: aiCalls },
     { id: 'processes',  label: 'Процессы',    emoji: '🛡️', badge: agentsMissing },
+    { id: 'architecture2', label: 'Архитектура 2.0', emoji: '🧠' },
   ];
   return (
     <div style={{
@@ -6982,6 +6984,168 @@ function BroadcastsSection({ categories }) {
         </div>
         <TgSafetyStatus />
       </div>
+    </div>
+  );
+}
+
+function PitchLibrarySection({ pitchLibrary }) {
+  const items = pitchLibrary?.items || [];
+  const copyText = async (text) => {
+    try { await navigator.clipboard.writeText(text); } catch {}
+  };
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">🧩 Питчи по ситуациям</div>
+      <div style={{padding:'4px 0',color:'var(--muted)',fontSize:12,marginBottom:12}}>
+        Источник: <code>{pitchLibrary?.source || 'lcb_pitch_library.py'}</code>
+        {pitchLibrary?.total ? ` · ${pitchLibrary.total} сценариев` : ''}
+        {pitchLibrary?.generated_at ? ` · ${pitchLibrary.generated_at.slice(11, 16)}` : ''}
+      </div>
+      {!pitchLibrary && (
+        <div className="empty">Загружаю библиотеку питчей из локального repo…</div>
+      )}
+      {pitchLibrary?.ok === false && (
+        <div className="err-box">⚠️ {pitchLibrary.error || 'Не удалось загрузить /api/pitch_library'}</div>
+      )}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))',gap:10}}>
+        {items.map((s) => (
+          <div key={s.key} style={{
+            padding:12,
+            background:'rgba(255,255,255,0.035)',
+            border:'1px solid rgba(148,163,184,0.18)',
+            borderRadius:8,
+            display:'grid',
+            gap:8,
+            alignContent:'start',
+          }}>
+            <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'start'}}>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:800,color:'var(--text)',lineHeight:1.25}}>{s.situation}</div>
+                <code style={{fontSize:10,color:'#93c5fd'}}>{s.key}</code>
+              </div>
+              <button
+                type="button"
+                onClick={() => copyText(s.skeleton || '')}
+                title="Скопировать скелет питча"
+                style={{border:'1px solid rgba(96,165,250,.35)',background:'rgba(96,165,250,.1)',color:'#bfdbfe',borderRadius:6,padding:'4px 7px',fontSize:11,fontWeight:800,cursor:'pointer',flexShrink:0}}
+              >Copy</button>
+            </div>
+            <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.35}}>{s.use_when}</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <div style={{fontSize:11,lineHeight:1.35}}>
+                <div style={{fontSize:10,fontWeight:800,color:'#86efac',textTransform:'uppercase'}}>Писать</div>
+                {(s.say || []).slice(0, 3).map((x, i) => <div key={i}>• {x}</div>)}
+              </div>
+              <div style={{fontSize:11,lineHeight:1.35}}>
+                <div style={{fontSize:10,fontWeight:800,color:'#fca5a5',textTransform:'uppercase'}}>Не писать</div>
+                {(s.avoid || []).slice(0, 3).map((x, i) => <div key={i}>• {x}</div>)}
+              </div>
+            </div>
+            <pre style={{whiteSpace:'pre-wrap',fontFamily:'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',fontSize:10.5,lineHeight:1.4,color:'#e2e8f0',background:'rgba(2,6,23,.55)',border:'1px solid rgba(148,163,184,.14)',borderRadius:7,padding:9,margin:0,maxHeight:150,overflow:'auto'}}>{s.skeleton}</pre>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ArchitectureV2Section({ architectureV2 }) {
+  const headings = architectureV2?.headings || [];
+  const text = architectureV2?.text || '';
+  const sourceBase = 'https://github.com/tabuugroove-sys/lcband/blob/main/';
+  const sourceLink = (path, label, style = {}) => (
+    <a
+      href={`${sourceBase}${path}`}
+      target="_blank"
+      rel="noopener"
+      title={path}
+      style={{ color:'inherit', textDecoration:'none', borderBottom:'1px dotted rgba(147,197,253,.45)', ...style }}
+    >{label || path}</a>
+  );
+  return (
+    <div className="section" style={{ marginTop: 14 }}>
+      <div className="section-title">🧠 Архитектура 2.0</div>
+      <div style={{padding:'4px 0',color:'var(--muted)',fontSize:12,marginBottom:12}}>
+        Источник: <code>{architectureV2?.source || 'ARCHITECTURE_V2.md'}</code>
+        {architectureV2?.generated_at ? ` · ${architectureV2.generated_at.slice(11, 16)}` : ''}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(360px,100%),1fr))',gap:12,marginBottom:12}}>
+        <div style={{background:'rgba(15,23,42,.5)', border:'1.5px solid rgba(20,184,166,.28)', borderRadius:9, padding:'10px 11px', display:'grid', gap:8}}>
+          <div>
+            <div style={{fontSize:12, fontWeight:900, color:'#5eead4', textTransform:'uppercase', letterSpacing:.4}}>Orders.db SSoT → context read-layer</div>
+            <div style={{fontSize:11, color:'#cbd5e1'}}>один главный truth owner; raw archives только evidence для обновлений</div>
+          </div>
+          <div style={{background:'rgba(245,197,24,.1)', border:'1.5px solid rgba(245,197,24,.42)', borderRadius:7, padding:'9px 10px'}}>
+            <div style={{display:'flex', alignItems:'center', gap:6, marginBottom:4}}>
+              <div style={{fontSize:13, fontWeight:900, color:'#fde68a'}}>Main source of truth</div>
+              <span style={{marginLeft:'auto', fontSize:9, fontWeight:900, color:'#fde68a', border:'1px solid rgba(245,197,24,.36)', borderRadius:4, padding:'1px 6px', textTransform:'uppercase'}}>SSoT</span>
+            </div>
+            <div style={{fontSize:11, color:'#e2e8f0', lineHeight:1.35}}>
+              {sourceLink('orders.db', 'orders.db', {color:'#fde68a'})} = CRM status, funnel, event graph, promises, contact/event context SQL
+            </div>
+            <div style={{fontSize:10.5, color:'var(--muted)', marginTop:4, lineHeight:1.35}}>
+              Writers should not decide from raw caches. They read a context layer backed by orders-owned stores.
+            </div>
+          </div>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))', gap:7}}>
+            <div style={{background:'rgba(20,184,166,.08)', border:'1px solid rgba(20,184,166,.28)', borderRadius:6, padding:'7px 8px'}}>
+              <div style={{fontSize:11, fontWeight:800, color:'#5eead4'}}>LCB event-card store</div>
+              <div style={{fontSize:10.5, color:'#cbd5e1', lineHeight:1.35}}>{sourceLink('lcb_orders.json', 'lcb_orders.json', {color:'#5eead4'})} is refreshed from owner stores</div>
+            </div>
+            <div style={{background:'rgba(245,197,24,.055)', border:'1px solid rgba(245,197,24,.20)', borderRadius:6, padding:'7px 8px'}}>
+              <div style={{fontSize:11, fontWeight:800, color:'#fde68a'}}>Migration fallback</div>
+              <div style={{fontSize:10.5, color:'var(--muted)', lineHeight:1.35}}>lead_context_store.json remains AI read-model/fallback during Phase 2B shadow, not a separate truth source.</div>
+            </div>
+          </div>
+          <div style={{background:'rgba(20,184,166,.09)', border:'1px dashed rgba(20,184,166,.45)', borderRadius:6, padding:'7px 8px'}}>
+            <div style={{fontSize:11, fontWeight:800, color:'#5eead4'}}>Context read-layer</div>
+            <div style={{fontSize:10.5, color:'#cbd5e1', lineHeight:1.35}}>
+              {sourceLink('lcb_event_context.py', 'lcb_event_context.py', {color:'#5eead4'})} reads the LCB event-card; Broker writer reads broker_order_context.py.
+            </div>
+          </div>
+        </div>
+        <div style={{background:'linear-gradient(180deg, rgba(245,197,24,.12), rgba(167,139,250,.09))', border:'1.5px solid rgba(245,197,24,.34)', borderRadius:9, padding:'10px 11px', display:'grid', gap:8}}>
+          <div>
+            <div style={{fontSize:12, fontWeight:900, color:'#fde68a', textTransform:'uppercase', letterSpacing:.4}}>L3 Writer layer</div>
+            <div style={{fontSize:11, color:'#cbd5e1'}}>2 писаря · режимы по контуру · единый голос перед pre-send review</div>
+          </div>
+          <div style={{fontSize:11, color:'#bef264', background:'rgba(132,204,22,.08)', borderRadius:6, padding:'5px 8px'}}>Pitch library · situations / skeletons</div>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:8}}>
+            <div style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.28)', borderRadius:7, padding:'8px'}}>
+              <div style={{fontSize:11, fontWeight:800, color:'#93c5fd'}}>LCB writer</div>
+              <div style={{fontSize:10.5, color:'#93c5fd'}}>{sourceLink('unified_dm_responder.py', 'unified_dm_responder', {color:'#93c5fd'})}</div>
+              {['найти / принять лид','продать / квалифицировать','договор / форма оплаты','организация выступления','день ивента / координация','контент / отзыв / съемка'].map((x,i) => (
+                <div key={x} style={{marginTop:5,fontSize:10.5,color:'#cbd5e1',background:'rgba(15,23,42,.48)',border:'1px solid rgba(148,163,184,.16)',borderRadius:5,padding:'4px 6px'}}>{i + 1}. {x}</div>
+              ))}
+            </div>
+            <div style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.3)', borderRadius:7, padding:'8px'}}>
+              <div style={{fontSize:11, fontWeight:800, color:'#d8b4fe'}}>Broker writer</div>
+              <div style={{fontSize:10.5, color:'#d8b4fe'}}>{sourceLink('broker_dialog_agent.py', 'broker_dialog_agent', {color:'#d8b4fe'})}</div>
+              {['intake · broker_order','sales · top-N клиенту','casting · запрос подрядчику','negotiation · вопросы сторон','contract · оплата/20%','production · клиент ↔ подрядчик','content · промо/отзыв','sound/light · Excel +20%'].map((x,i) => (
+                <div key={x} style={{marginTop:5,fontSize:10.5,color:'#cbd5e1',background:'rgba(15,23,42,.48)',border:'1px solid rgba(148,163,184,.16)',borderRadius:5,padding:'4px 6px'}}>{i + 1}. {x}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      {!architectureV2 && (
+        <div className="empty">Загружаю Architecture v2 из локального repo…</div>
+      )}
+      {architectureV2?.ok === false && (
+        <div className="err-box">⚠️ {architectureV2.error || 'Не удалось загрузить /api/architecture_v2'}</div>
+      )}
+      {architectureV2?.ok && (
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(320px,100%),1fr))',gap:12,alignItems:'start'}}>
+          <div style={{display:'grid',gap:6}}>
+            {headings.map((h, i) => (
+              <div key={i} style={{fontSize:12,color:'var(--text)',background:'rgba(255,255,255,.035)',border:'1px solid rgba(148,163,184,.16)',borderRadius:7,padding:'8px 10px'}}>
+                {h.replace(/^##\s+/, '')}
+              </div>
+            ))}
+          </div>
+          <pre style={{whiteSpace:'pre-wrap',fontFamily:'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',fontSize:11,lineHeight:1.45,color:'#e2e8f0',background:'rgba(2,6,23,.55)',border:'1px solid rgba(148,163,184,.14)',borderRadius:8,padding:12,margin:0,maxHeight:620,overflow:'auto'}}>{text}</pre>
+        </div>
+      )}
     </div>
   );
 }
@@ -8070,6 +8234,7 @@ function LeadFlowSection() {
         {aiInfoButton('agent1', 'L3')}
       </div>
       {aiLayerButton('agent1', '_COMPOSE_OPUS_SYSTEM', 'Cold post pitch prompt · telegram_monitor', {fontSize:9, color:'#fde68a', background:'rgba(245,197,24,.1)'}, layerCounts.l3)}
+      {aiLayerButton('agent1', 'PITCH_LIBRARY_PROMPT', 'Pitch library · situations / skeletons', {fontSize:9, color:'#bef264', background:'rgba(132,204,22,.08)'}, layerCounts.l3)}
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:6}}>
         <div title="LCBand dialogue owner" style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.28)', borderRadius:6, padding:'6px 7px'}}>
           <div style={{fontSize:9.5, fontWeight:800, color:'#93c5fd', marginBottom:2}}>LCB writer</div>
@@ -8269,10 +8434,9 @@ function LeadFlowSection() {
             );
             return (
               <div style={{order:2, display:'flex', flexDirection:'column', gap:3}}>
-                {dataStoresBlock}
-                {arr('↓ context feeds L3')}
-                {l3WritersBlock}
-                {arr('↓ owner выбирает LCB / Broker режим')}
+                <div style={{background:'rgba(15,23,42,.42)', border:'1px dashed rgba(148,163,184,.22)', borderRadius:7, padding:'6px 8px', fontSize:9, color:'var(--muted)', lineHeight:1.35}}>
+                  Orders.DB SSoT / Context read-layer / L3 writer layer перенесены во вкладку «Архитектура 2.0».
+                </div>
                 {/* Trigger badge — incoming arrow from Agent 1 */}
                 <div style={{background:'rgba(167,139,250,.07)', border:'1px solid rgba(167,139,250,.4)', borderRadius:6, padding:'4px 8px', fontSize:9, color:'#c4b5fd', display:'flex', alignItems:'center', gap:4}}>
                   <div style={{fontSize:12, color:'rgba(167,139,250,.8)'}}>←</div>
@@ -9254,6 +9418,8 @@ function App() {
   const [recentSent24h, setRecentSent24h] = useState(null);
   const [todos,     setTodos]     = useState(null);
   const [leadContext, setLeadContext] = useState(null);
+  const [pitchLibrary, setPitchLibrary] = useState(null);
+  const [architectureV2, setArchitectureV2] = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [refreshing,setRefreshing]= useState(false);
   const [error,     setError]     = useState(null);
@@ -9403,6 +9569,18 @@ function App() {
       const r = await fetch(`${bu}/api/context_cards?limit=100`, { cache: 'no-store' });
       if (r.ok) setLeadContext(await r.json());
     } catch { /* backend offline → section shows empty state */ }
+
+    try {
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      const r = await fetch(`${bu}/api/pitch_library`, { cache: 'no-store' });
+      if (r.ok) setPitchLibrary(await r.json());
+    } catch { /* backend offline → pitches tab shows loading state */ }
+
+    try {
+      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+      const r = await fetch(`${bu}/api/architecture_v2`, { cache: 'no-store' });
+      if (r.ok) setArchitectureV2(await r.json());
+    } catch { /* backend offline → architecture tab shows loading state */ }
   }, []);
 
   useEffect(() => {
@@ -9771,6 +9949,10 @@ function App() {
             <BroadcastsSection categories={data.refusalCategories || {}} />
           )}
 
+          {activeTab === 'pitches' && (
+            <PitchLibrarySection pitchLibrary={pitchLibrary} />
+          )}
+
           {activeTab === 'todos' && (
             <TodoSection todos={todos} />
           )}
@@ -9785,6 +9967,10 @@ function App() {
 
           {activeTab === 'ai' && (
             <AIUsageSection aiUsage={data.aiUsage || {totalCalls:0, totalCost:0, skip:0, adapt:0, ok:0, services:{}}} />
+          )}
+
+          {activeTab === 'architecture2' && (
+            <ArchitectureV2Section architectureV2={architectureV2} />
           )}
 
           {showTGModal && (
