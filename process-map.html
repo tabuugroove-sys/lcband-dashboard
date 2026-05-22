@@ -273,6 +273,13 @@
         logic:['limit 5 per run','ai_review_before_send перед queue','не отправляет сам','бан-risk ограничен отдельными cap'],
       },
       {
+        group:'dm', name:'WA Follow-up Queue', label:'funnel_maintenance.py',
+        file:'funnel_maintenance.py', schedule:'calendar ticks',
+        why:'Не теряет WA follow-up, когда native WhatsApp Desktop window ещё закрыт.',
+        input:'orders.db + lcb_writer.compose_followup', action:'contextual follow-up draft', output:'wa_computer_use_queue.json',
+        logic:['только queue, не send','active Desktop window не блокирует постановку в очередь','финальный Send остаётся в WA Desktop Sender'],
+      },
+      {
         group:'dm', name:'WA Desktop Sender', label:'manual / computer-use',
         file:'wa_cu_agent.py', schedule:'по явному user approve',
         why:'Финальная WhatsApp отправка идёт через native WhatsApp Desktop, не через Web/API.',

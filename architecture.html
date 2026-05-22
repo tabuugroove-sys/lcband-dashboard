@@ -345,7 +345,7 @@
             <tr>
               <td>WhatsApp переписки</td>
               <td><code>wa_cache/&lt;phone_or_name&gt;.jsonl</code></td>
-              <td>Baileys пишет legacy mirror и <code>orders.db.message_events</code>; <code>wa_responder.py</code> читает active WA orders + <code>message_events</code> и кладёт draft в <code>wa_computer_use_queue.json</code>; финальный Send только через WhatsApp Desktop/computer-use</td>
+              <td>Baileys пишет legacy mirror и <code>orders.db.message_events</code>; <code>wa_responder.py</code> и WA follow-up из <code>funnel_maintenance.py</code> кладут draft в <code>wa_computer_use_queue.json</code> даже вне active Desktop window; финальный Send только через WhatsApp Desktop/computer-use</td>
             </tr>
             <tr>
               <td>Единый read-layer raw-переписок</td>
@@ -461,7 +461,7 @@
 	        <li>
 	          <b>Routing verdict</b>
 	          <span class="anno"><br>
-	            <code>sent</code> → TG/VK direct send; WA → <code>funnel_maintenance.py</code> queues <code>wa_computer_use_queue.json</code> for WhatsApp Desktop path ·
+	            <code>sent</code> → TG/VK direct send; WA → <code>funnel_maintenance.py</code> queues <code>wa_computer_use_queue.json</code> for WhatsApp Desktop path even before active window ·
 		            <code>money</code> → notify bot only ·
 	            <code>skipped</code> → spam/refusal/musician/unclear ·
 	            <code>error</code> → log/state consultant gap; no second DM sender
@@ -898,7 +898,7 @@
             <td>Calendar ticks, send window 10:00-20:00 MSK</td>
             <td>orders.db active leads: overdue by real dialog last-message date, not CRM service updates</td>
             <td><code>orders.db.message_events</code> + <code>lcb_writer.compose_followup</code></td>
-            <td>Cross-channel TG/TG_DIRECT/VK/WA watcher/router; daily contextual follow-up after ~24h silence is the default, generic reminders are banned, but only LCB writer composes wording. Client-stated info windows ("next week", "Friday", "in 3 days") create hard snooze until that date. TG history falls back to unified_message_store, then direct-message entries in orders.history; if still unreadable, the sender logs tg_history_empty and writes a visible blocker next_action for the dashboard plan. Writer/presend blocks are visible as lcb_writer_skip blockers, not silent skips. Event_date in the past archives before send window; 21+d silence after our message is stale-lost, not a follow-up; lowcost_simple_dancer_not_lcb leads are not followed up</td>
+            <td>Cross-channel TG/TG_DIRECT/VK/WA watcher/router; daily contextual follow-up after ~24h silence is the default, generic reminders are banned, but only LCB writer composes wording. Client-stated info windows ("next week", "Friday", "in 3 days") create hard snooze until that date. TG history falls back to unified_message_store, then direct-message entries in orders.history; if still unreadable, the sender logs tg_history_empty and writes a visible blocker next_action for the dashboard plan. Writer/presend blocks are visible as lcb_writer_skip blockers, not silent skips. Event_date in the past archives before send window; 21+d silence after our message is stale-lost, not a follow-up; lowcost_simple_dancer_not_lcb leads are not followed up. WA follow-ups are queued for native WhatsApp Desktop/computer-use even when Desktop send window is currently closed.</td>
           </tr>
           <tr>
             <td><code>attention_auto_action.py</code></td>
