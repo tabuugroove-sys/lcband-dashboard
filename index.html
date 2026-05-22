@@ -1034,6 +1034,7 @@ const PROCESS_RULES = {
       '  • music_band → full КП + AI-review (native-speaker fork для IT/DE, complex events)',
       'Запись: orders.db (SSoT) + Google Sheet (write-through через update_status_by_username)',
       'Питч: compose_* → ai_review_before_send (CLI Opus, retry) → send только automatic',
+      'Low-cost simple dancer/backing-dancer 1-3 чел без premium/budget-сигнала → skip до send_proposal',
       'specific_media_required → не молчание: orders.db next_action MEDIA_REQUEST → lcb_event_context subrequest → broker/media ищет точный ролик/media_bundle',
       '🔴 22.04: _PRESEND_SYSTEM знает ОБА бренда — LCB (поп/рок/джаз cover) и Noize Drum (drum-show, LED-барабаны, этно, перкуссия). Drum-запросы НЕ skip\'аются критериями LCB (инцидент LINA_SOUL 21.04)',
       'AI-review НЕ skip на: зарубежный контракт (adapt→опросник), native-speaker (adapt→fork), комплекс (adapt→upsell со светом/DJ/звуком), drum-show (adapt→Noize Drum)',
@@ -1093,7 +1094,7 @@ const PROCESS_RULES = {
     interval: 'Ежедневно в 10:09 MSK',
     desc: 'TG-only scheduled follow-up. Общий cross-channel follow-up для TG/VK/WA живёт в funnel_maintenance.py и читает orders.db + channel cache.',
     rules: [
-      'Cooldown: 3 дня от последнего исходящего',
+      'LCB active follow-up: ежедневная contextual-проверка; 3 дня только для cold outreach / явного snooze',
       'WA_DIRECT не обрабатывает: WA follow-up queue создаёт funnel_maintenance.py через wa_computer_use_queue.json',
       '🔴 22.04: hard-regex pre-check через refusal_guard.scan_history_for_refusal (общий модуль с tg_responder) — инцидент @lisitsyna_law 20.04, регекс теперь единый в refusal_guard.py',
       'Стоп: за 3 дня до мероприятия',
@@ -1190,6 +1191,7 @@ const PROCESS_RULES = {
       'Chrome MCP: открывает web.telegram.org → screenshot + scroll + classify',
       'Для каждого поста: walk_event(kept|filtered|dup) — live тикер на дашборде',
       'Лиды → send_proposal через Telethon (с pre-send AI review)',
+      'send_proposal pre-filter режет простую подтанцовку/танцоров 1-3 чел без premium/budget как lowcost_simple_dancer_not_lcb',
       'В конце: walk_finish() + browser_walk_result.json + monitor_history.jsonl append',
       'Метрика показывается в том же формате что TG Monitor: X лидов · Y постов · Z циклов (с 5:00 MSK)',
       'Lock /tmp/lcband_auto_browser_walk.lock — единственная копия',
@@ -2241,7 +2243,7 @@ const PIPELINE_HINTS = {
   sent:      'Отправили питч. Ждём первого ответа клиента.',
   bot:       'Бот подготовил draft, но не хватило правила для авто-отправки (язык/цирк/public-reply). Ждёт твоего ✅ в @lcband_notify_bot.',
   brief:     'Бриф отправлен @vadimnoize (директор Noize Drum). Ждём его ✅/❌ прежде чем пит­чить клиенту.',
-  followup:  'Клиент что-то ответил на питч (показал интерес), но дальше молчит. Автомат делает follow-up пинги через cooldown 3 дня, urgency override через 3 дня тишины.',
+  followup:  'Клиент что-то ответил на питч (показал интерес), но дальше молчит. Автомат проверяет через сутки и пишет только контекстный follow-up; если клиент назвал срок информации, snooze до этого срока.',
   promises:  'Мы что-то обещали клиенту (промо, видео, райдер) и не отправили. AI-детект: в нашем сообщении есть «отправлю/пришлю/скину», в последующих нет linkов/файлов/«вот наше». Funnel maintenance приоритетно доставит обещанное.',
   interest:  'Активная нейтральная переписка с клиентом без обсуждения цены/райдера. Опережает «Переговоры».',
   cancelled: 'Отказались: «взяли других», «не актуально», бюджет не совпал.',
@@ -6283,7 +6285,7 @@ function TabBar({ activeTab, setActiveTab, newLeadsCount, attentionCount, refusa
     { id: 'timeline',   label: 'Таймлайн',    emoji: '🕒' },
     { id: 'ai',         label: 'AI',          emoji: '🤖', badge: aiCalls },
     { id: 'processes',  label: 'Процессы',    emoji: '🛡️', badge: agentsMissing },
-    { id: 'architecture2', label: 'Архитектура 2.0', emoji: '🧠' },
+    { id: 'architecture2', label: 'Архитектура', emoji: '🧠' },
   ];
   return (
     <div style={{
@@ -7050,8 +7052,6 @@ function PitchLibrarySection({ pitchLibrary }) {
 }
 
 function ArchitectureV2Section({ architectureV2 }) {
-  const headings = architectureV2?.headings || [];
-  const text = architectureV2?.text || '';
   const sourceBase = 'https://github.com/tabuugroove-sys/lcband/blob/main/';
   const sourceLink = (path, label, style = {}) => (
     <a
@@ -7064,89 +7064,80 @@ function ArchitectureV2Section({ architectureV2 }) {
   );
   return (
     <div className="section" style={{ marginTop: 14 }}>
-      <div className="section-title">🧠 Архитектура 2.0</div>
+      <div className="section-title">🧠 Переход архитектуры AI</div>
       <div style={{padding:'4px 0',color:'var(--muted)',fontSize:12,marginBottom:12}}>
-        Источник: <code>{architectureV2?.source || 'ARCHITECTURE_V2.md'}</code>
-        {architectureV2?.generated_at ? ` · ${architectureV2.generated_at.slice(11, 16)}` : ''}
+        Сейчас production работает в гибриде. Цель cutover — один owner/router вместо локальных классификаций в каждом агенте.
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(360px,100%),1fr))',gap:12,marginBottom:12}}>
-        <div style={{background:'rgba(15,23,42,.5)', border:'1.5px solid rgba(20,184,166,.28)', borderRadius:9, padding:'10px 11px', display:'grid', gap:8}}>
+
+      <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) 54px minmax(0,1fr)',gap:12,alignItems:'stretch',marginBottom:12}}>
+        <div style={{background:'rgba(245,158,11,.08)', border:'1.5px solid rgba(245,158,11,.35)', borderRadius:9, padding:'12px 13px', display:'grid', gap:8}}>
           <div>
-            <div style={{fontSize:12, fontWeight:900, color:'#5eead4', textTransform:'uppercase', letterSpacing:.4}}>Orders.db SSoT → context read-layer</div>
-            <div style={{fontSize:11, color:'#cbd5e1'}}>один главный truth owner; raw archives только evidence для обновлений</div>
+            <div style={{fontSize:13, fontWeight:900, color:'#fbbf24'}}>Сейчас: гибрид production</div>
+            <div style={{fontSize:11, color:'#cbd5e1', marginTop:3}}>Смысловые решения ещё разбросаны по нескольким владельцам.</div>
           </div>
-          <div style={{background:'rgba(245,197,24,.1)', border:'1.5px solid rgba(245,197,24,.42)', borderRadius:7, padding:'9px 10px'}}>
-            <div style={{display:'flex', alignItems:'center', gap:6, marginBottom:4}}>
-              <div style={{fontSize:13, fontWeight:900, color:'#fde68a'}}>Main source of truth</div>
-              <span style={{marginLeft:'auto', fontSize:9, fontWeight:900, color:'#fde68a', border:'1px solid rgba(245,197,24,.36)', borderRadius:4, padding:'1px 6px', textTransform:'uppercase'}}>SSoT</span>
+          {[
+            [sourceLink('ai_classify_chain.py', 'ai_classify_chain.py', {color:'#fbbf24'}), 'ingest-посты, payment/promise, drum/Vadim, trash hard-skip'],
+            [sourceLink('smart_funnel.py', 'smart_funnel.classify_unified', {color:'#d8b4fe'}), 'уже ведёт DM funnel как AI 2.0'],
+            ['Локальные agents', 'часть route/classify решений ещё принимается внутри отдельных процессов'],
+          ].map(([name, desc]) => (
+            <div key={String(desc)} style={{background:'rgba(15,23,42,.42)',border:'1px solid rgba(148,163,184,.14)',borderRadius:7,padding:'8px 9px',fontSize:11,lineHeight:1.35}}>
+              <b>{name}</b><br/><span style={{color:'var(--muted)'}}>{desc}</span>
             </div>
-            <div style={{fontSize:11, color:'#e2e8f0', lineHeight:1.35}}>
-              {sourceLink('orders.db', 'orders.db', {color:'#fde68a'})} = CRM status, funnel, event graph, promises, contact/event context SQL
-            </div>
-            <div style={{fontSize:10.5, color:'var(--muted)', marginTop:4, lineHeight:1.35}}>
-              Writers should not decide from raw caches. They read a context layer backed by orders-owned stores.
-            </div>
-          </div>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))', gap:7}}>
-            <div style={{background:'rgba(20,184,166,.08)', border:'1px solid rgba(20,184,166,.28)', borderRadius:6, padding:'7px 8px'}}>
-              <div style={{fontSize:11, fontWeight:800, color:'#5eead4'}}>LCB event-card store</div>
-              <div style={{fontSize:10.5, color:'#cbd5e1', lineHeight:1.35}}>{sourceLink('lcb_orders.json', 'lcb_orders.json', {color:'#5eead4'})} is refreshed from owner stores</div>
-            </div>
-            <div style={{background:'rgba(245,197,24,.055)', border:'1px solid rgba(245,197,24,.20)', borderRadius:6, padding:'7px 8px'}}>
-              <div style={{fontSize:11, fontWeight:800, color:'#fde68a'}}>Migration fallback</div>
-              <div style={{fontSize:10.5, color:'var(--muted)', lineHeight:1.35}}>lead_context_store.json remains AI read-model/fallback during Phase 2B shadow, not a separate truth source.</div>
-            </div>
-          </div>
-          <div style={{background:'rgba(20,184,166,.09)', border:'1px dashed rgba(20,184,166,.45)', borderRadius:6, padding:'7px 8px'}}>
-            <div style={{fontSize:11, fontWeight:800, color:'#5eead4'}}>Context read-layer</div>
-            <div style={{fontSize:10.5, color:'#cbd5e1', lineHeight:1.35}}>
-              {sourceLink('lcb_event_context.py', 'lcb_event_context.py', {color:'#5eead4'})} reads the LCB event-card; Broker writer reads broker_order_context.py.
-            </div>
-          </div>
+          ))}
         </div>
-        <div style={{background:'linear-gradient(180deg, rgba(245,197,24,.12), rgba(167,139,250,.09))', border:'1.5px solid rgba(245,197,24,.34)', borderRadius:9, padding:'10px 11px', display:'grid', gap:8}}>
+
+        <div style={{display:'flex',alignItems:'center',justifyContent:'center',color:'#fde68a',fontSize:28}}>→</div>
+
+        <div style={{background:'rgba(20,184,166,.08)', border:'1.5px solid rgba(20,184,166,.36)', borderRadius:9, padding:'12px 13px', display:'grid', gap:8}}>
           <div>
-            <div style={{fontSize:12, fontWeight:900, color:'#fde68a', textTransform:'uppercase', letterSpacing:.4}}>L3 Writer layer</div>
-            <div style={{fontSize:11, color:'#cbd5e1'}}>2 писаря · режимы по контуру · единый голос перед pre-send review</div>
+            <div style={{fontSize:13, fontWeight:900, color:'#5eead4'}}>Цель: v2 owner/router</div>
+            <div style={{fontSize:11, color:'#cbd5e1', marginTop:3}}>Один входной слой решает owner/task, writers только исполняют.</div>
           </div>
-          <div style={{fontSize:11, color:'#bef264', background:'rgba(132,204,22,.08)', borderRadius:6, padding:'5px 8px'}}>Pitch library · situations / skeletons</div>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:8}}>
-            <div style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.28)', borderRadius:7, padding:'8px'}}>
-              <div style={{fontSize:11, fontWeight:800, color:'#93c5fd'}}>LCB writer</div>
-              <div style={{fontSize:10.5, color:'#93c5fd'}}>{sourceLink('unified_dm_responder.py', 'unified_dm_responder', {color:'#93c5fd'})}</div>
-              {['найти / принять лид','продать / квалифицировать','договор / форма оплаты','организация выступления','день ивента / координация','контент / отзыв / съемка'].map((x,i) => (
-                <div key={x} style={{marginTop:5,fontSize:10.5,color:'#cbd5e1',background:'rgba(15,23,42,.48)',border:'1px solid rgba(148,163,184,.16)',borderRadius:5,padding:'4px 6px'}}>{i + 1}. {x}</div>
-              ))}
+          {[
+            [sourceLink('ai_triage_v2.py', 'ai_triage_v2.py', {color:'#5eead4'}), 'единое triage-решение по входящему событию'],
+            [sourceLink('router_v2.py', 'router_v2.py', {color:'#5eead4'}), 'создаёт owner/task: LCB, broker, drum, payment, skip'],
+            ['Writers', 'исполняют готовую задачу без повторной собственной классификации'],
+          ].map(([name, desc]) => (
+            <div key={String(desc)} style={{background:'rgba(15,23,42,.42)',border:'1px solid rgba(148,163,184,.14)',borderRadius:7,padding:'8px 9px',fontSize:11,lineHeight:1.35}}>
+              <b>{name}</b><br/><span style={{color:'var(--muted)'}}>{desc}</span>
             </div>
-            <div style={{background:'rgba(167,139,250,.1)', border:'1px solid rgba(167,139,250,.3)', borderRadius:7, padding:'8px'}}>
-              <div style={{fontSize:11, fontWeight:800, color:'#d8b4fe'}}>Broker writer</div>
-              <div style={{fontSize:10.5, color:'#d8b4fe'}}>{sourceLink('broker_dialog_agent.py', 'broker_dialog_agent', {color:'#d8b4fe'})}</div>
-              {['intake · broker_order','sales · top-N клиенту','casting · запрос подрядчику','negotiation · вопросы сторон','contract · оплата/20%','production · клиент ↔ подрядчик','content · промо/отзыв','sound/light · Excel +20%'].map((x,i) => (
-                <div key={x} style={{marginTop:5,fontSize:10.5,color:'#cbd5e1',background:'rgba(15,23,42,.48)',border:'1px solid rgba(148,163,184,.16)',borderRadius:5,padding:'4px 6px'}}>{i + 1}. {x}</div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
       </div>
-      {!architectureV2 && (
-        <div className="empty">Загружаю Architecture v2 из локального repo…</div>
-      )}
-      {architectureV2?.ok === false && (
-        <div className="err-box">⚠️ {architectureV2.error || 'Не удалось загрузить /api/architecture_v2'}</div>
-      )}
-      {architectureV2?.ok && (
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(320px,100%),1fr))',gap:12,alignItems:'start'}}>
-          <div style={{display:'grid',gap:6}}>
-            {headings.map((h, i) => (
-              <div key={i} style={{fontSize:12,color:'var(--text)',background:'rgba(255,255,255,.035)',border:'1px solid rgba(148,163,184,.16)',borderRadius:7,padding:'8px 10px'}}>
-                {h.replace(/^##\s+/, '')}
-              </div>
-            ))}
+
+      <div style={{display:'grid',gap:9}}>
+        {[
+          ['1. Shadow', 'идёт/нужен', 'v2 читает тот же поток и пишет отдельные решения. Ничего не отправляет клиентам.', 'Сравнить v1 vs v2'],
+          ['2. Agreement', 'критерий', 'Критичные классы: LCB direct, broker, drum, refusal/payment, skip.', 'Цель: ≥95%'],
+          ['3. Canary', 'после shadow', 'Малая доля реального трафика через v2 owner/router, сначала approval-safe.', 'Без авто-риска'],
+          ['4. Cutover', 'по агентам', 'Сначала attention_auto_action, затем ingest/router владельцы, потом cleanup legacy.', 'После стабильности 2 недели'],
+        ].map(([phase, status, body, result], idx) => (
+          <div key={phase} style={{display:'grid',gridTemplateColumns:'140px minmax(0,1fr) 160px',gap:9,alignItems:'stretch'}}>
+            <div style={{background:'rgba(255,255,255,.035)',border:'1px solid rgba(148,163,184,.14)',borderRadius:7,padding:'9px 10px',fontSize:12,lineHeight:1.35}}>
+              <b>{phase}</b><br/><span style={{color:idx === 2 ? '#fbbf24' : '#5eead4',fontWeight:800}}>{status}</span>
+            </div>
+            <div style={{background:'rgba(255,255,255,.035)',border:'1px solid rgba(148,163,184,.14)',borderRadius:7,padding:'9px 10px',fontSize:12,lineHeight:1.4,color:'#cbd5e1'}}>{body}</div>
+            <div style={{background:'rgba(255,255,255,.035)',border:'1px solid rgba(148,163,184,.14)',borderRadius:7,padding:'9px 10px',fontSize:12,lineHeight:1.4,color:'#93c5fd'}}>{result}</div>
           </div>
-          <pre style={{whiteSpace:'pre-wrap',fontFamily:'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',fontSize:11,lineHeight:1.45,color:'#e2e8f0',background:'rgba(2,6,23,.55)',border:'1px solid rgba(148,163,184,.14)',borderRadius:8,padding:12,margin:0,maxHeight:620,overflow:'auto'}}>{text}</pre>
+        ))}
+      </div>
+
+      <div style={{marginTop:12,background:'rgba(245,197,24,.08)',border:'1px solid rgba(245,197,24,.28)',borderRadius:8,padding:'10px 12px',fontSize:12,lineHeight:1.45,color:'#fde68a'}}>
+        <b>{sourceLink('ai_classify_chain.py', 'ai_classify_chain.py', {color:'#fde68a'})} остаётся до cutover.</b>{' '}
+        Удалять legacy можно только после того, как v2 стабильно закрывает ingest/payment/drum/skip маршруты, canary не даёт регрессий, и минимум 2 недели нет критичных расхождений.
+      </div>
+
+      <style>{`
+        @media (max-width: 760px) {
+          .section div[style*="grid-template-columns: minmax(0px, 1fr) 54px"] {
+            grid-template-columns: 1fr !important;
+          }
+          .section div[style*="grid-template-columns: 140px minmax"] {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
         </div>
-      )}
-    </div>
   );
 }
 
@@ -8518,7 +8509,7 @@ function LeadFlowSection() {
             <div style={{fontSize:9.5, color:'var(--muted)'}}>LCB writer + legacy TG challenger → arbiter</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>ответ → TG / VK / WA</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>+ outbound_recorder обновляет stores</div>
-            <div style={{fontSize:9.5, color:'var(--muted)'}}>follow-up · 10:09 · 30м</div>
+            <div style={{fontSize:9.5, color:'var(--muted)'}}>context follow-up · 10:09 · 30м</div>
           </div>
           <div style={{order:2, background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.3)', borderRadius:9, padding:'7px 10px'}}>
             <div style={{fontSize:10, fontWeight:700, color:'#6ee7b7', marginBottom:4}}>✅ Выход Broker</div>
@@ -8534,7 +8525,7 @@ function LeadFlowSection() {
             🛑 <code style={{fontSize:9}}>is_refused_any()</code> — LCB contact hard-stop; broker статус живёт в broker_orders.json
           </div>
           <div style={{flex:1, background:'rgba(245,158,11,.05)', border:'1px solid rgba(245,158,11,.2)', borderRadius:7, padding:'6px 10px', fontSize:9.5, color:'#fde68a', minWidth:180}}>
-            ⏰ Follow-ups: <code style={{fontSize:9}}>funnel_maintenance</code> — TG/VK/WA по orders.db · <code style={{fontSize:9}}>tg_followup</code> TG structured due · <code style={{fontSize:9}}>broker-*-followup</code>
+            ⏰ Follow-ups: <code style={{fontSize:9}}>funnel_maintenance</code> — daily contextual TG/VK/WA по orders.db · <code style={{fontSize:9}}>tg_followup</code> TG structured due · <code style={{fontSize:9}}>broker-*-followup</code>
           </div>
         </div>
 
@@ -8994,7 +8985,7 @@ function OverviewStatsSection({ stats, followupPlan }) {
             </div>
             <div style={{display:'grid',gridTemplateColumns:'minmax(90px,.35fr) 1fr',gap:'4px 10px',color:'var(--muted)',lineHeight:1.35}}>
               <span>Владелец</span><span style={{color:'#cbd5e1'}}>{it.owner || (it.kind==='broker' ? 'broker follow-up' : 'funnel_maintenance')}</span>
-              <span>План</span><span style={{color:'#e2e8f0'}}>{it.plan || 'проверить тишину и отправить follow-up по gates'}</span>
+              <span>План</span><span style={{color:'#e2e8f0'}}>{it.plan || 'проверить тишину и отправить contextual follow-up по gates'}</span>
               <span>Причина</span><span>{it.reason || it.next_action || it.service || it.status || 'stale dialog'}</span>
               <span>Контекст</span><span>{it.kind==='broker'
                 ? `${it.service||'service'}${it.event_date ? ` · ${it.event_date}` : ''}${it.attempts!=null ? ` · attempt ${it.attempts}` : ''}`
@@ -9751,13 +9742,15 @@ function App() {
                title="Pricing matrix — цены по сигналам клиента, бэклайн, прочие расходы">
               <span>💰</span><span>Pricing</span>
             </a>
-            <a href="./architecture.html"
+            <button type="button"
+               onClick={() => setActiveTab('architecture2')}
                style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
-                       background:'rgba(188,140,255,0.15)', color:'#bc8cff', border:'1px solid rgba(188,140,255,0.35)',
-                       display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
-               title="Архитектура проекта + AI usage breakdown">
+                       background: activeTab === 'architecture2' ? 'rgba(188,140,255,0.26)' : 'rgba(188,140,255,0.15)',
+                       color:'#bc8cff', border:'1px solid rgba(188,140,255,0.35)',
+                       display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap', cursor:'pointer'}}
+               title="Переход AI architecture: сейчас → v2 → shadow/canary/cutover">
               <span>🧠</span><span>Архитектура</span>
-            </a>
+            </button>
             <div style={{position:'relative', display:'inline-flex'}}>
               <button
                 type="button"

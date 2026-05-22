@@ -127,10 +127,29 @@
     .side-nav .snb:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
     .side-nav .snb-gold { border-color: rgba(245,197,24,.3); color: var(--gold); }
 	    .hn { color: var(--muted); font-size: 12px; font-weight: 600; text-decoration: none; padding: 5px 9px; border-radius: 7px; background: rgba(255,255,255,.05); border: 1px solid var(--border); white-space: nowrap; transition: color .15s, border-color .15s; }
-	    .hn:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
-	    .src-link { color: inherit; text-decoration: none; border-bottom: 1px dotted rgba(147,197,253,.45); cursor: pointer; }
-	    .src-link:hover { color: #fff; border-bottom-color: rgba(255,255,255,.75); }
-	  </style>
+    .hn:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
+    .src-link { color: inherit; text-decoration: none; border-bottom: 1px dotted rgba(147,197,253,.45); cursor: pointer; }
+    .src-link:hover { color: #fff; border-bottom-color: rgba(255,255,255,.75); }
+    .legacy-architecture { display: none; }
+    .transition-grid { display: grid; grid-template-columns: minmax(0,1fr) 70px minmax(0,1fr); gap: 14px; align-items: stretch; }
+    .transition-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 170px; }
+    .transition-card h2 { margin: 0 0 10px; font-size: 15px; line-height: 1.2; }
+    .transition-card p { margin: 0 0 8px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .transition-list { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 7px; }
+    .transition-list li { background: rgba(255,255,255,.035); border: 1px solid rgba(148,163,184,.14); border-radius: 6px; padding: 7px 8px; font-size: 12px; line-height: 1.35; }
+    .transition-arrow { display: flex; align-items: center; justify-content: center; color: var(--gold); font-size: 26px; }
+    .phase-row { display: grid; grid-template-columns: 130px minmax(0,1fr) 150px; gap: 10px; align-items: stretch; margin-top: 10px; }
+    .phase-cell { background: rgba(255,255,255,.035); border: 1px solid rgba(148,163,184,.14); border-radius: 7px; padding: 9px 10px; font-size: 12px; line-height: 1.4; }
+    .phase-cell strong { color: var(--text); }
+    .phase-status { color: #5eead4; font-weight: 700; }
+    .phase-status.warn { color: var(--warn); }
+    .phase-status.wait { color: #93c5fd; }
+    @media (max-width: 760px) {
+      .transition-grid { grid-template-columns: 1fr; }
+      .transition-arrow { transform: rotate(90deg); }
+      .phase-row { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
 
@@ -150,8 +169,93 @@
 </div>
 
 <div class="wrap">
-  <div class="page-title">Как всё работает</div>
-  <div class="page-sub">Полная карта потоков: от входящего события до ответа агента и обновления контекста</div>
+  <div class="page-title">Переход архитектуры AI</div>
+  <div class="page-sub">Сейчас production работает в гибриде: legacy chain остаётся для части классификаций, v2 забирает owner/router-решения поэтапно.</div>
+
+  <div class="sec anchor-target" id="transition">
+    <div class="sec-hdr">
+      <div class="sec-num" style="background:rgba(245,197,24,.18);color:var(--gold)">AI</div>
+      <div>
+        <div class="sec-label">Что есть сейчас и на что переходим</div>
+        <div class="sec-desc">Одна видимая карта вместо старого подробного меню процессов</div>
+      </div>
+    </div>
+
+    <div class="transition-grid">
+      <div class="transition-card" style="border-color:rgba(245,158,11,.35)">
+        <h2 style="color:var(--warn)">Сейчас: гибрид production</h2>
+        <p>Решения о смысле ещё разбросаны по нескольким владельцам.</p>
+        <ul class="transition-list">
+          <li><code>ai_classify_chain.py</code> классифицирует ingest-посты, payment/promise, drum/Vadim и trash hard-skip.</li>
+          <li><code>smart_funnel.classify_unified</code> уже ведёт DM funnel как AI 2.0.</li>
+          <li>Отдельные агенты всё ещё принимают route/classify решения локально.</li>
+        </ul>
+      </div>
+
+      <div class="transition-arrow">→</div>
+
+      <div class="transition-card" style="border-color:rgba(20,184,166,.38)">
+        <h2 style="color:#5eead4">Цель: v2 owner/router</h2>
+        <p>Один входной слой решает, кто владелец задачи и что делать дальше.</p>
+        <ul class="transition-list">
+          <li><code>ai_triage_v2.py</code> читает входящий поток и даёт единое triage-решение.</li>
+          <li><code>router_v2.py</code> создаёт owner/task: LCB, broker, drum, payment, skip.</li>
+          <li>Writers исполняют задачу, а не пере-классифицируют её каждый по-своему.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec anchor-target" id="testing">
+    <div class="sec-hdr">
+      <div class="sec-num" style="background:rgba(20,184,166,.18);color:#5eead4">T</div>
+      <div>
+        <div class="sec-label">Что тестируется</div>
+        <div class="sec-desc">Cutover идёт только после shadow/canary, без ручных обходов production</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="phase-row">
+        <div class="phase-cell"><strong>1. Shadow</strong><br><span class="phase-status">идёт/нужен</span></div>
+        <div class="phase-cell">v2 читает те же входящие события, пишет свои решения отдельно и ничего не отправляет клиентам.</div>
+        <div class="phase-cell">Сравнить v1 vs v2</div>
+      </div>
+      <div class="phase-row">
+        <div class="phase-cell"><strong>2. Agreement</strong><br><span class="phase-status wait">критерий</span></div>
+        <div class="phase-cell">Для критичных классов нужен высокий match: LCB direct, broker, drum, refusal/payment, skip.</div>
+        <div class="phase-cell">Цель: ≥95%</div>
+      </div>
+      <div class="phase-row">
+        <div class="phase-cell"><strong>3. Canary</strong><br><span class="phase-status warn">после shadow</span></div>
+        <div class="phase-cell">Малая доля реального трафика идёт через v2 owner/router, сначала в approval-safe режиме.</div>
+        <div class="phase-cell">Без авто-риска</div>
+      </div>
+      <div class="phase-row">
+        <div class="phase-cell"><strong>4. Cutover</strong><br><span class="phase-status wait">по агентам</span></div>
+        <div class="phase-cell">Переключение не всё сразу: сначала <code>attention_auto_action</code>, затем ingest/router владельцы, потом cleanup legacy.</div>
+        <div class="phase-cell">После стабильности 2 недели</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec anchor-target" id="cutover">
+    <div class="sec-hdr">
+      <div class="sec-num" style="background:rgba(59,130,246,.18);color:#93c5fd">C</div>
+      <div>
+        <div class="sec-label">Когда удаляем legacy</div>
+        <div class="sec-desc">Не раньше, чем v2 докажет стабильность на production-трафике</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="hl" style="font-size:12px;line-height:1.5">
+        <b><code>ai_classify_chain.py</code> остаётся до cutover.</b>
+        Его можно убирать только после того, как v2 стабильно закрывает ingest/payment/drum/skip маршруты, canary не даёт регрессий, и минимум 2 недели нет критичных расхождений.
+      </div>
+    </div>
+  </div>
+
+  <div class="legacy-architecture">
 
   <!-- ═══════════════════════════════════════════
        1. ПОСТЫ
@@ -793,8 +897,8 @@
             <td><code>funnel_maintenance.py</code></td>
             <td>Calendar ticks, send window 10:00-20:00 MSK</td>
             <td>orders.db active leads: overdue by real dialog last-message date, not CRM service updates</td>
-            <td><code>orders.db.message_events</code> + strategist + AI-review</td>
-            <td>Cross-channel TG/TG_DIRECT/VK/WA follow-up owner; event_date in the past archives the lead as Неактуально before the send window so folder sync moves it to Отмены without sending; price/payment-form pre-send blocks are logged with reason, rewritten into money-free follow-up, then reviewed again; overdue leads are scanned first, unchanged chats are still audited after due date; 21+d silence after our message is stale-lost, not a follow-up</td>
+            <td><code>orders.db.message_events</code> + <code>lcb_writer.compose_followup</code></td>
+            <td>Cross-channel TG/TG_DIRECT/VK/WA watcher/router; daily contextual follow-up after ~24h silence is the default, generic reminders are banned, but only LCB writer composes wording. Client-stated info windows ("next week", "Friday", "in 3 days") create hard snooze until that date. TG history falls back to unified_message_store, then direct-message entries in orders.history; if still unreadable, the sender logs tg_history_empty and writes a visible blocker next_action for the dashboard plan. Writer/presend blocks are visible as lcb_writer_skip blockers, not silent skips. Event_date in the past archives before send window; 21+d silence after our message is stale-lost, not a follow-up; lowcost_simple_dancer_not_lcb leads are not followed up</td>
           </tr>
           <tr>
             <td><code>attention_auto_action.py</code></td>
@@ -974,18 +1078,14 @@
     </div>
   </div>
 
+  </div>
 </div>
 
 <!-- Side nav -->
 <div class="side-nav">
-  <a href="#posts"><div class="snb">1 Посты</div></a>
-  <a href="#raw-archives"><div class="snb" style="color:#5eead4;border-color:rgba(20,184,166,.3)">🗄 Архив текстов</div></a>
-  <a href="#dm"><div class="snb">2 DM</div></a>
-  <a href="#dualstream"><div class="snb" style="color:#5eead4;border-color:rgba(20,184,166,.3)">↕ Dual-stream</div></a>
-  <a href="#kartoteka"><div class="snb">3 Картотека</div></a>
-  <a href="#agents"><div class="snb">4 Агенты</div></a>
-  <a href="#followups"><div class="snb">5 Фолоу-апы</div></a>
-  <a href="#full"><div class="snb snb-gold">∑ Сводная</div></a>
+  <a href="#transition"><div class="snb snb-gold">Переход</div></a>
+  <a href="#testing"><div class="snb">Тестируется</div></a>
+  <a href="#cutover"><div class="snb">Cutover</div></a>
 </div>
 
 </body>
