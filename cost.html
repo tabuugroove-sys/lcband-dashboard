@@ -722,6 +722,7 @@ function fmtTimeSP(ts) {
 function prettyModelName(name) {
   const raw = String(name || '').replace(/^cli[_-]/i, '').replace(/_/g, '-');
   const n = raw.toLowerCase();
+  if (n.includes('gpt-5.3-spark')) return 'GPT-5.3 Spark';
   if (n.includes('gpt-5.5')) return 'GPT-5.5';
   if (n.includes('gpt-5')) return 'GPT-5';
   if (n.includes('opus')) return 'Opus';
@@ -756,7 +757,7 @@ const FADER_CATEGORIES = [
   { key: 'funnel_review',     label: '3. Ревью шага воронки' },
   { key: 'broker',            label: '4. Broker pipeline (посредник)' },
   // 17.05.2026: новая категория — L1 Gemini batch + L2 Opus escalation
-  // классификатор event-постов. Своя дорожка чтобы тюнить % GPT-5.5
+  // классификатор event-постов. Своя дорожка чтобы тюнить % GPT-5.3 Spark
   // независимо от broker pipeline (cost profile разный).
   { key: 'classify',          label: '5. Классификация event-постов' },
   { key: 'other_opus',        label: '6. Прочие Opus процессы' },
@@ -798,7 +799,7 @@ function clampPct(v) {
 function codexReasonLabel(reason) {
   const r = String(reason || '');
   const labels = {
-    old_gpt5_model_not_supported: 'старый gpt-5 (уже исправлено на gpt-5.5)',
+    old_gpt5_model_not_supported: 'старый gpt-5 (уже исправлено на gpt-5.3-spark)',
     model_not_supported: 'модель не поддержана',
     quota_or_rate_limit: 'лимит/rate-limit',
     codex_binary_not_found: 'codex binary not found',
