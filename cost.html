@@ -2009,6 +2009,7 @@ function modelDot(service, kind, model) {
   const s = ((model||'') + ' ' + (service||'')).toLowerCase();
   if (kind === 'codex_cli_fail') return '❌';
   if (kind === 'codex_cli_cooldown') return '⏸';
+  if (s.includes('api_') || kind === 'api_error') return '🌐';
   if (s.includes('codex')) return '🟢';
   if (s.includes('opus')) return '🟣';
   if (s.includes('sonnet')) return '🔵';
@@ -2019,6 +2020,7 @@ function modelDot(service, kind, model) {
 function modelColor(service, kind, model) {
   const s = ((model||'') + ' ' + (service||'')).toLowerCase();
   if (kind === 'codex_cli_fail' || kind === 'codex_cli_cooldown') return '#f85149';
+  if (s.includes('api_') || kind === 'api_error' || kind === 'api_call') return '#d2a8ff';
   if (s.includes('codex')) return '#3fb950';
   if (s.includes('opus')) return '#bc8cff';
   if (s.includes('sonnet')) return '#79c0ff';
@@ -2027,6 +2029,13 @@ function modelColor(service, kind, model) {
   return '#8b949e';
 }
 function liveModelName(e) {
+  const s = ((e.service || '') + ' ' + (e.model || '')).toLowerCase();
+  if (s.includes('api_') || e.kind === 'api_error' || e.kind === 'api_call') {
+    if (s.includes('anthropic') || (e.model || '').toLowerCase().includes('claude')) {
+      return 'API-запросы к Claude/Anthropic';
+    }
+    return 'API-запросы';
+  }
   return e.model || e.service || (e.kind === 'codex_cli_fail' ? 'codex_cli_fail' : e.kind) || 'unknown_model';
 }
 async function loadLive() {
@@ -2037,7 +2046,8 @@ async function loadLive() {
   const bu = await loadBackend();
   if (!bu) return;
   try {
-    const url = bu + '/api/recent_ai_calls?limit=50' + (_liveLastTs ? '&since_ts=' + encodeURIComponent(_liveLastTs) : '');
+    const includeKinds = 'ai_call,api_call,api_error,codex_cli_fail,codex_cli_cooldown';
+    const url = bu + '/api/recent_ai_calls?include_kinds=' + encodeURIComponent(includeKinds) + '&limit=50' + (_liveLastTs ? '&since_ts=' + encodeURIComponent(_liveLastTs) : '');
     const r = await fetch(url, {cache:'no-store'});
     const j = await r.json();
     const feed = document.getElementById('live-feed');
