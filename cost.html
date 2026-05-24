@@ -900,7 +900,7 @@ function guardUsageRowHtml(provider, stats) {
   return `
     <div class="budget-row" title="Hard call-count guard for background ${provider} CLI calls">
       <div class="budget-row-top">
-        <span class="budget-row-name">CLI guard: 24h ${c24}/${m24 || '∞'} · 5h ${c5}/${m5 || '∞'}</span>
+        <span class="budget-row-name">AI call guard: 24h ${c24}/${m24 || '∞'} · 5h ${c5}/${m5 || '∞'}</span>
         <span class="budget-row-delta ${statusClass}">${statusClass === 'warn' ? 'guard near/over' : 'ok'}</span>
       </div>
       <div class="budget-meter">
@@ -911,6 +911,38 @@ function guardUsageRowHtml(provider, stats) {
         <span>24h calls ${c24}/${m24 || '∞'}</span>
         <span>5h marker ${c5}/${m5 || '∞'}</span>
       </div>
+    </div>`;
+}
+
+function renderColdOutboundCard(stats) {
+  const status = stats.cold_outbound_status || {};
+  const rows = ['tg', 'vk', 'wa'].map(channel => {
+    const row = status[channel] || {};
+    const used = Number(row.used || 0);
+    const limit = Number(row.limit || 0);
+    const pct = limit > 0 ? clampPct(100 * used / limit) : 0;
+    const cls = limit > 0 && used >= limit ? 'warn' : 'good';
+    return `
+      <div class="budget-row">
+        <div class="budget-row-top">
+          <span class="budget-row-name">${channel.toUpperCase()} new users</span>
+          <span class="budget-row-delta ${cls}">${used}/${limit || '∞'}</span>
+        </div>
+        <div class="budget-meter">
+          <div class="budget-meter-segment cli" style="left:0;width:${pct}%"></div>
+        </div>
+      </div>`;
+  }).join('');
+  return `
+    <div class="limit-budget-card" data-provider="cold-outbound">
+      <div class="limit-budget-head">
+        <div>
+          <div class="limit-budget-title">Cold outbound</div>
+          <div class="muted" style="font-size:11px;margin-top:2px">first-contact messages per social network</div>
+        </div>
+        <div class="limit-budget-sub">daily limit<br>new users only</div>
+      </div>
+      ${rows}
     </div>`;
 }
 
@@ -963,7 +995,8 @@ function renderLimitBudgets(stats) {
   const grid = document.getElementById('cost-limit-budget-grid');
   if (!grid) return;
   const providers = (stats.limit_budget || {}).providers || {};
-  grid.innerHTML = ['claude', 'codex'].map(k => renderLimitBudgetCard(k, providers[k], stats)).join('');
+  grid.innerHTML = renderColdOutboundCard(stats)
+    + ['claude', 'codex'].map(k => renderLimitBudgetCard(k, providers[k], stats)).join('');
 }
 
 function buildFaderCards() {

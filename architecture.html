@@ -423,7 +423,7 @@
           <div class="ai-hop codex">
             <b>2. Codex Layer 1</b>
             <code>codex_cli.call_codex*</code><br>
-            Модель выбирает установленный Codex CLI; может вернуть <code>cooldown</code>, <code>loop_guard</code> или <code>llm_budget_guard</code>.
+            Модель выбирает установленный Codex CLI; может вернуть <code>cooldown</code>, <code>loop_guard</code> или <code>llm_budget_guard</code>. Это лимит AI-вызовов, не cold-outbound сообщений.
           </div>
           <div class="ai-arrow">→</div>
           <div class="ai-hop claude">
@@ -967,11 +967,16 @@
 	            <td><code>message_event_log.log_*()</code> + <code>enrich(force=True)</code> + <code>lcb_orders.refresh_contact()</code></td>
 	            <td>Синхронно в listener-треде, <b>до</b> запуска агента; затем <code>lcb_event_context.py</code> читает <code>lcb_orders.json</code></td>
           </tr>
-          <tr>
-            <td><span class="badge badge-green">ЗАПИСЬ</span> Исходящее DM</td>
-            <td><code>outbound_recorder.record_outbound(namespace=lcb)</code></td>
-            <td>Сразу после успешной отправки: <code>orders.db.message_events</code> → <code>lead_context_enricher</code> → <code>lcb_orders.refresh_contact()</code> → <code>thread_context_extract</code> через <code>promise_extractor</code></td>
-          </tr>
+	          <tr>
+	            <td><span class="badge badge-green">ЗАПИСЬ</span> Исходящее DM</td>
+	            <td><code>outbound_recorder.record_outbound(namespace=lcb)</code></td>
+	            <td>Сразу после успешной отправки: <code>orders.db.message_events</code> → <code>lead_context_enricher</code> → <code>lcb_orders.refresh_contact()</code> → <code>thread_context_extract</code> через <code>promise_extractor</code></td>
+	          </tr>
+	          <tr>
+	            <td><span class="badge badge-green">ЛИМИТ</span> Cold outbound</td>
+	            <td><code>outbound_counter.can_send_cold()</code> / <code>record_outbound(cold_*)</code></td>
+	            <td>40 первых сообщений новым пользователям в день отдельно для <code>tg</code>, <code>vk</code>, <code>wa</code>; reply/follow-up трафик сюда не входит</td>
+	          </tr>
           <tr>
             <td><span class="badge badge-purple">ЧТЕНИЕ</span> Генерация ответа</td>
             <td><code>lcb_event_context.card_by_contact()</code></td>
