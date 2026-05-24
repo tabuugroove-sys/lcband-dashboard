@@ -1035,7 +1035,7 @@ const PROCESS_RULES = {
       'Запись: orders.db (SSoT) + Google Sheet (write-through через update_status_by_username)',
       'Питч: compose_* → ai_review_before_send (CLI Opus, retry) → send только automatic',
       'Low-cost simple dancer/backing-dancer 1-3 чел без premium/budget-сигнала → skip до send_proposal',
-      'specific_media_required → не молчание: orders.db next_action MEDIA_REQUEST → lcb_event_context subrequest → broker/media ищет точный ролик/media_bundle',
+      'specific_media_required → если drum/LED и есть canonical DRUM_PROMO, отправляем promo; blocker только без DRUM_PROMO_URL или verified media_bundle/direct file',
       '🔴 22.04: _PRESEND_SYSTEM знает ОБА бренда — LCB (поп/рок/джаз cover) и Noize Drum (drum-show, LED-барабаны, этно, перкуссия). Drum-запросы НЕ skip\'аются критериями LCB (инцидент LINA_SOUL 21.04)',
       'AI-review НЕ skip на: зарубежный контракт (adapt→опросник), native-speaker (adapt→fork), комплекс (adapt→upsell со светом/DJ/звуком), drum-show (adapt→Noize Drum)',
       'Post-send: status Новый→Написал + добавление в TG-папку «Отправлен» 📤',
