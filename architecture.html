@@ -206,6 +206,61 @@
     .phase-status { color: #5eead4; font-weight: 700; }
     .phase-status.warn { color: var(--warn); }
     .phase-status.wait { color: #93c5fd; }
+    .ai-router {
+      display: grid;
+      grid-template-columns: 210px minmax(0,1fr) 190px;
+      gap: 10px;
+      align-items: stretch;
+      margin-top: 12px;
+    }
+    .ai-hop {
+      position: relative;
+      min-height: 82px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(148,163,184,.16);
+      border-radius: 8px;
+      padding: 12px 13px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .ai-hop b { display: block; color: var(--ink); margin-bottom: 5px; font-size: 12px; }
+    .ai-hop code { color: #a5f3fc; background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 4px; font-size: 10px; }
+    .ai-hop.codex { border-color: rgba(245,197,24,.34); background: linear-gradient(135deg, rgba(245,197,24,.12), rgba(255,255,255,.035)); }
+    .ai-hop.claude { border-color: rgba(59,130,246,.34); background: linear-gradient(135deg, rgba(59,130,246,.12), rgba(255,255,255,.035)); }
+    .ai-hop.stop { border-color: rgba(239,68,68,.36); background: linear-gradient(135deg, rgba(239,68,68,.12), rgba(255,255,255,.035)); }
+    .ai-hop.api { border-color: rgba(16,185,129,.34); background: linear-gradient(135deg, rgba(16,185,129,.11), rgba(255,255,255,.035)); }
+    .ai-hop.gemini { border-color: rgba(47,183,167,.34); background: linear-gradient(135deg, rgba(47,183,167,.10), rgba(255,255,255,.035)); }
+    .ai-flow-mid {
+      display: grid;
+      grid-template-columns: minmax(0,1fr) 28px minmax(0,1fr);
+      gap: 9px;
+      align-items: center;
+    }
+    .ai-arrow {
+      align-self: center;
+      justify-self: center;
+      color: var(--gold);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 22px;
+    }
+    .ai-route-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .ai-matrix {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .ai-matrix .phase-cell { min-height: 118px; }
     .anchor-target:not(#transition) { padding-top: 8px; }
     @media (max-width: 760px) {
       .hdr { align-items: flex-start; flex-direction: column; gap: 10px; }
@@ -217,6 +272,8 @@
       .transition-grid { grid-template-columns: 1fr; }
       .transition-arrow { transform: rotate(90deg); }
       .phase-row { grid-template-columns: 1fr; }
+      .ai-router, .ai-flow-mid, .ai-matrix { grid-template-columns: 1fr; }
+      .ai-arrow { transform: rotate(90deg); }
       .side-nav { left: 10px; right: 10px; bottom: 10px; flex-direction: row; overflow-x: auto; padding: 6px; background: rgba(8,9,11,.74); border: 1px solid rgba(255,255,255,.09); border-radius: 999px; backdrop-filter: blur(16px); }
     }
   </style>
@@ -336,6 +393,97 @@
         <div class="phase-cell"><strong>Cutover rule</strong><br><span class="phase-status wait">future</span></div>
         <div class="phase-cell">Переключать только после shadow-run, agreement audit и по одному consumer'у, сначала approval-safe.</div>
         <div class="phase-cell">manual gate</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec anchor-target" id="ai-routing">
+    <div class="sec-hdr">
+      <div class="sec-num" style="background:rgba(245,197,24,.18);color:var(--gold)">AI</div>
+      <div>
+        <div class="sec-label">CLI routing при Codex/Claude cooldown</div>
+        <div class="sec-desc">Что происходит, когда Codex выбран фейдером, но заблокирован quota/cooldown/guard</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ai-route-label">Основной production route</div>
+      <div class="ai-router">
+        <div class="ai-hop codex">
+          <b>1. Runtime router</b>
+          <code>runtime_config.should_route_purpose_to_codex()</code><br>
+          Если category weight = 0%, Codex не трогается и вызов сразу идёт в Claude CLI.
+        </div>
+        <div class="ai-flow-mid">
+          <div class="ai-hop codex">
+            <b>2. Codex Layer 1</b>
+            <code>codex_cli.call_codex*</code><br>
+            Может вернуть <code>cooldown</code>, <code>loop_guard</code> или <code>llm_budget_guard</code>.
+          </div>
+          <div class="ai-arrow">→</div>
+          <div class="ai-hop claude">
+            <b>3. Claude CLI fallback</b>
+            Модель берётся из callsite или <code>codex_fallback_model</code>; сейчас fallback = <code>opus</code>.
+          </div>
+        </div>
+        <div class="ai-hop stop">
+          <b>4. Если Claude тоже недоступен</b>
+          Dialogue, follow-up, context, classify и broker возвращают <code>None</code> / skip. Они не уходят в API.
+        </div>
+      </div>
+
+      <div class="ai-route-label" style="margin-top:18px">Исключения и слабые места</div>
+      <div class="ai-matrix">
+        <div class="phase-cell">
+          <strong>Initial pitch</strong><br>
+          <span class="phase-status">API allowed</span><br><br>
+          <code>compose_proposal</code>, <code>pitch_presend_review</code>, <code>bot_commander_outreach</code>:
+          Codex/Claude fail → API fallback разрешён.
+        </div>
+        <div class="phase-cell">
+          <strong>Live dialogue</strong><br>
+          <span class="phase-status warn">stop/skip</span><br><br>
+          <code>unified_dm_generate</code>, <code>tg_responder_cli</code>, <code>vk_responder</code>, <code>wa_draft_reply</code>:
+          API blocked, без слепой переписки.
+        </div>
+        <div class="phase-cell">
+          <strong>Review / broker core</strong><br>
+          <span class="phase-status warn">no Gemini</span><br><br>
+          <code>presend_review</code>, <code>broker_intake</code>, <code>broker_brief</code>, relay:
+          weak fallback запрещён; при недоступности CLI результат не отправляется.
+        </div>
+        <div class="phase-cell">
+          <strong>Context / classify legacy</strong><br>
+          <span class="phase-status wait">Gemini possible</span><br><br>
+          Часть JSON/classify purposes ещё может идти в Gemini Layer 2 после Claude/JSON fail.
+          Это источник degraded behavior, не API.
+        </div>
+      </div>
+
+      <div class="ai-route-label" style="margin-top:18px">Фактический след инцидента</div>
+      <div class="ai-router">
+        <div class="ai-hop codex">
+          <b>Codex exhausted</b>
+          <code>ai_timeline.jsonl</code>: <code>codex 24h budget exhausted: 1500/1500</code>
+          для <code>lead_context_classify</code>, <code>classify</code>, <code>broker_intake</code>.
+        </div>
+        <div class="ai-flow-mid">
+          <div class="ai-hop claude">
+            <b>Claude CLI continued</b>
+            После выключения Codex в хвосте видно <code>cli_sonnet</code>, <code>cli_opus</code>, <code>cli_haiku</code>
+            по active processes.
+          </div>
+          <div class="ai-arrow">→</div>
+          <div class="ai-hop gemini">
+            <b>Degraded fallback</b>
+            Ранние записи <code>lead_context_classify</code> / <code>classify_batch</code> показывали <code>cli_gemini</code>.
+          </div>
+        </div>
+        <div class="ai-hop stop">
+          <b>API blocked for non-pitch</b>
+          <code>api_fallback_blocked</code>: <code>unified_dm_generate</code>, <code>lead_context_classify</code>,
+          <code>broker_intake</code>, <code>presend_review</code>.
+        </div>
       </div>
     </div>
   </div>
@@ -1173,6 +1321,7 @@
   <a href="#transition"><div class="snb snb-gold">Live</div></a>
   <a href="#testing"><div class="snb">Agents</div></a>
   <a href="#cutover"><div class="snb">Not prod</div></a>
+  <a href="#ai-routing"><div class="snb">AI route</div></a>
 </div>
 
 </body>
