@@ -5307,6 +5307,7 @@ function StatusSection({ status, activity24h, sent24h, aiDelivery, aiDeliveryTre
         `Gemini free today: ${aiDelivery.gemini_free_quota?.used_today || 0}/${aiDelivery.gemini_free_quota?.limit_24h || 0}`,
         `Lead funnel CLI: ${aiDelivery.funnel_cli_calls || 0}`,
         `Lead funnel stage moves: ${aiDelivery.funnel_stage_moves || 0}`,
+        aiDelivery.stage_source_note || 'Stage moves source: orders.history + maintenance log fallback',
         `Lead funnel stage/CLI: ${aiDelivery.funnel_stage_per_cli_pct || 0}%`,
         `Текст: ${aiDelivery.sent_text || 0}`,
         `Медиа: ${aiDelivery.sent_media || 0}`,
