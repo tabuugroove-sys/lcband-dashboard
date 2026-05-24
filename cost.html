@@ -2008,6 +2008,7 @@ setInterval(loadRoutingControls, 30000);
 let _liveLastTs = '';
 function modelDot(service, kind, model) {
   const s = ((model||'') + ' ' + (service||'')).toLowerCase();
+  if (kind === 'llm_budget_guard') return '⛔';
   if (kind === 'codex_cli_fail') return '❌';
   if (kind === 'codex_cli_cooldown') return '⏸';
   if (s.includes('api_') || kind === 'api_error') return '🌐';
@@ -2020,7 +2021,7 @@ function modelDot(service, kind, model) {
 }
 function modelColor(service, kind, model) {
   const s = ((model||'') + ' ' + (service||'')).toLowerCase();
-  if (kind === 'codex_cli_fail' || kind === 'codex_cli_cooldown') return '#f85149';
+  if (kind === 'codex_cli_fail' || kind === 'codex_cli_cooldown' || kind === 'llm_budget_guard') return '#f85149';
   if (s.includes('api_') || kind === 'api_error' || kind === 'api_call') return '#d2a8ff';
   if (s.includes('codex')) return '#3fb950';
   if (s.includes('opus')) return '#bc8cff';
@@ -2037,6 +2038,7 @@ function liveModelName(e) {
     }
     return 'API-запросы';
   }
+  if (e.kind === 'llm_budget_guard') return e.model || e.service || 'budget guard';
   return e.model || e.service || (e.kind === 'codex_cli_fail' ? 'codex_cli_fail' : e.kind) || 'unknown_model';
 }
 async function loadLive() {
@@ -2047,7 +2049,7 @@ async function loadLive() {
   const bu = await loadBackend();
   if (!bu) return;
   try {
-    const includeKinds = 'ai_call,api_call,api_error,codex_cli_fail,codex_cli_cooldown';
+    const includeKinds = 'ai_call,api_call,api_error,codex_cli_fail,codex_cli_cooldown,llm_budget_guard';
     const url = bu + '/api/recent_ai_calls?include_kinds=' + encodeURIComponent(includeKinds) + '&limit=50' + (_liveLastTs ? '&since_ts=' + encodeURIComponent(_liveLastTs) : '');
     const r = await fetch(url, {cache:'no-store'});
     const j = await r.json();
