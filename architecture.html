@@ -517,11 +517,11 @@
         </li>
 		        <li>
 	          <b>Агент читает свежую карточку</b>
-	          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lead_context_enricher.py" target="_blank" rel="noopener"><code>get_or_enrich(username, channel)</code></a> — если карточка устарела (cron-путь) — обновляет; иначе берёт актуальную из кеша</span>
+	          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lead_context_enricher.py" target="_blank" rel="noopener"><code>get_or_enrich(username, channel)</code></a> — если карточка устарела (cron-путь) — обновляет; иначе берёт актуальную из кеша. До classify собирается <code>Context-hint</code>: роль текущего контакта, active event, stage, writer mode, waiting flags и next action.</span>
 	        </li>
         <li>
-          <b>Хард-стоп проверка</b>
-		          <span class="anno"><br>Context/CRM refusal, payment и role gates. Свободный classifier не может сам повысить контакт до <code>event_organizer_active</code>: текущая роль из <code>lcb_event_context.py</code>/<code>event_context_events</code> выигрывает до writer. Performer/vendor/tech roles → musician/contractor/tech verdict, не organizer.</span>
+          <b>Classifier с context-hint</b>
+		          <span class="anno"><br>Opus-classifier получает переписку + structured context. Он не должен повышать контакт до <code>event_organizer_active</code>, если текущая роль из <code>lcb_event_context.py</code>/<code>event_context_events</code> — performer/vendor/tech. Post-classify role normalization остаётся safety net перед writer.</span>
 	        </li>
         <li>
           <b>Opus генерирует ответ</b>
@@ -874,7 +874,7 @@
           <b>Вход:</b> входящий TG/VK/WA DM<br><br>
           <b>AI-стек:</b><br>
           Opus — classify + LCBand writer<br>
-          Role normalization после classify: <code>event_organizer_active</code> допускается только если CRM/context подтверждает текущего контакта как organizer/client-side участника; performer/vendor/tech role понижает verdict до writer<br>
+          Classifier получает <code>Context-hint</code> из LCB read-layer; role normalization после classify страхует: <code>event_organizer_active</code> допускается только если CRM/context подтверждает текущего контакта как organizer/client-side участника; performer/vendor/tech role понижает verdict до writer<br>
           Legacy TG writer challenger → arbiter выбирает primary/challenger/adapt/block<br>
           modes: intake / sales / contract / production / content<br><br>
           <b>Контекст:</b> <span class="badge badge-blue">LCB event read-layer</span><br>
