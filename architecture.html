@@ -1051,7 +1051,7 @@
           Coordination: <code>lcb_orders.event_slice.coordination_requests</code> → <code>lcb_event_context.py</code> → <code>event_ops_logistics_agent.py</code> для performer check с source media<br>
           Пишет: dual-stream<br><br>
           <b>Выход:</b> ответ клиенту/организатору/технику в TG/VK/WA<br><br>
-          <b>Скрипт:</b> <code>unified_dm_responder.py</code>; VK realtime/inbox owner: <code>vk_auto_responder.py</code> через <code>vk_longpoll_listener.py</code>, с <code>ai_review_before_send()</code>, canon price guard и duplicate guard перед VK send. Drum/LED media requests use canonical Noize <code>DRUM_PROMO_URL</code>; <code>specific_media_required</code> blocks only when no verified promo/media bundle is available.
+          <b>Скрипт:</b> <code>unified_dm_responder.py</code>; VK realtime/inbox owner: <code>vk_auto_responder.py</code> через <code>vk_longpoll_listener.py</code>, с <code>ai_review_before_send()</code>, canon price guard и duplicate guard перед VK send. WA Baileys <code>@lid</code> push без активного CRM order только кэшируется и не запускает materialize/context/writer AI. Drum/LED media requests use canonical Noize <code>DRUM_PROMO_URL</code>; <code>specific_media_required</code> blocks only when no verified promo/media bundle is available.
         </div>
       </div>
       <div class="card" style="border-top:3px solid rgba(168,85,247,.5)">
