@@ -521,7 +521,7 @@
 	        </li>
         <li>
           <b>Хард-стоп проверка</b>
-		          <span class="anno"><br><code>payment/refusal/musician/aggregator regex</code> + context refusal. Payment → alert, refusal/spam/musician → skip, техсигнал → production mode.</span>
+		          <span class="anno"><br>Context/CRM refusal, payment и role gates. Свободный classifier не может сам повысить контакт до <code>event_organizer_active</code>: текущая роль из <code>lcb_event_context.py</code>/<code>event_context_events</code> выигрывает до writer. Performer/vendor/tech roles → musician/contractor/tech verdict, не organizer.</span>
 	        </li>
         <li>
           <b>Opus генерирует ответ</b>
@@ -874,6 +874,7 @@
           <b>Вход:</b> входящий TG/VK/WA DM<br><br>
           <b>AI-стек:</b><br>
           Opus — classify + LCBand writer<br>
+          Role normalization после classify: <code>event_organizer_active</code> допускается только если CRM/context подтверждает текущего контакта как organizer/client-side участника; performer/vendor/tech role понижает verdict до writer<br>
           Legacy TG writer challenger → arbiter выбирает primary/challenger/adapt/block<br>
           modes: intake / sales / contract / production / content<br><br>
           <b>Контекст:</b> <span class="badge badge-blue">LCB event read-layer</span><br>
