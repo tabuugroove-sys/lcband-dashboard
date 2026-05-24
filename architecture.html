@@ -418,7 +418,7 @@
           <div class="ai-hop codex">
             <b>2. Codex Layer 1</b>
             <code>codex_cli.call_codex*</code><br>
-            Может вернуть <code>cooldown</code>, <code>loop_guard</code> или <code>llm_budget_guard</code>.
+            Модель выбирает установленный Codex CLI; может вернуть <code>cooldown</code>, <code>loop_guard</code> или <code>llm_budget_guard</code>.
           </div>
           <div class="ai-arrow">→</div>
           <div class="ai-hop claude">
@@ -464,7 +464,7 @@
       <div class="ai-router">
         <div class="ai-hop codex">
           <b>Codex exhausted</b>
-          <code>ai_timeline.jsonl</code>: <code>codex 24h budget exhausted: 1500/1500</code>
+          <code>ai_timeline.jsonl</code>: <code>codex 24h budget exhausted: used/limit</code>
           для <code>lead_context_classify</code>, <code>classify</code>, <code>broker_intake</code>.
         </div>
         <div class="ai-flow-mid">

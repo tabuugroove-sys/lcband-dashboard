@@ -403,7 +403,7 @@ a:hover { text-decoration: underline; }
   </h2>
   <div id="live-feed" style="max-height:380px;overflow:auto;font: 12px/1.5 'SF Mono','Menlo','Consolas',monospace;background:#0d1117;color:#c9d1d9;border-radius:6px;padding:10px;"></div>
   <div class="label" style="margin-top:6px;">
-    Последние ~50 AI вызовов (auto-refresh 3s). Жирным показана точная model из API: cli_codex_gpt-5.5, cli_gemini-3-flash-preview, opus/sonnet/haiku и т.д. 🟢 = Codex, 🟣 = Opus, 🔵 = Sonnet, 🩵 = Haiku, 🟠 = Gemini, ❌ = fail.
+    Последние ~50 AI вызовов (auto-refresh 3s). Жирным показана точная model из API: cli_codex_default, cli_gemini-3-flash-preview, opus/sonnet/haiku и т.д. 🟢 = Codex, 🟣 = Opus, 🔵 = Sonnet, 🩵 = Haiku, 🟠 = Gemini, ❌ = fail.
   </div>
 </div>
 
@@ -479,7 +479,7 @@ a:hover { text-decoration: underline; }
     Здесь живут фейдеры Codex ↔ Claude. Weekly usage-полоски подняты выше: сразу после real-time burn графиков.
   </div>
   <div id="codex-fallback-row" style="display:flex;align-items:center;gap:10px;margin:0 0 12px 0;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;flex-wrap:wrap;">
-    <span style="font-size:12px;color:var(--muted);">Если Codex (gpt-5.5) упал — Layer 2:</span>
+    <span style="font-size:12px;color:var(--muted);">Если Codex CLI упал — Layer 2:</span>
     <div id="codex-fallback-buttons" style="display:flex;gap:6px;">
       <button class="codex-fb-btn" data-model="opus"   style="padding:6px 12px;border:1px solid #444;background:transparent;color:#ccc;border-radius:6px;cursor:pointer;font-size:12px;">CLI Opus</button>
       <button class="codex-fb-btn" data-model="sonnet" style="padding:6px 12px;border:1px solid #444;background:transparent;color:#ccc;border-radius:6px;cursor:pointer;font-size:12px;">CLI Sonnet</button>
@@ -722,6 +722,7 @@ function fmtTimeSP(ts) {
 function prettyModelName(name) {
   const raw = String(name || '').replace(/^cli[_-]/i, '').replace(/_/g, '-');
   const n = raw.toLowerCase();
+  if (n === 'default' || n === 'codex-default') return 'CLI default';
   if (n.includes('gpt-5.3-spark')) return 'GPT-5.3 Spark';
   if (n.includes('gpt-5.5')) return 'GPT-5.5';
   if (n.includes('gpt-5')) return 'GPT-5';
@@ -799,7 +800,7 @@ function clampPct(v) {
 function codexReasonLabel(reason) {
   const r = String(reason || '');
   const labels = {
-    old_gpt5_model_not_supported: 'старый gpt-5 (уже исправлено на gpt-5.3-spark)',
+    old_gpt5_model_not_supported: 'старый gpt-5 / устаревший hardcoded model',
     model_not_supported: 'модель не поддержана',
     quota_or_rate_limit: 'лимит/rate-limit',
     codex_binary_not_found: 'codex binary not found',
