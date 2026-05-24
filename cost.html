@@ -870,8 +870,8 @@ function combinedUsageRowHtml(rows, data) {
         <div class="budget-marker" style="left:${markerLeft}%" title="лимит: ${limitPct(marker)}"></div>
       </div>
       <div class="budget-split-legend">
-        <span><span class="sq app-sq"></span>Приложение <strong>${limitPct(appUsed)}</strong></span>
-        <span><span class="sq cli-sq"></span>CLI <strong>${limitPct(cliUsed)}</strong></span>
+        <span><span class="sq app-sq"></span>Приложение <strong>${limitPct(appUsed)}</strong>${app.call_count ? ` <span style="opacity:.6">(${app.call_count} calls)</span>` : ''}</span>
+        <span><span class="sq cli-sq"></span>CLI <strong>${limitPct(cliUsed)}</strong>${cli.call_count ? ` <span style="opacity:.6">(${cli.call_count} calls)</span>` : ''}</span>
         <span>Всего <strong>${limitPct(totalUsed)}</strong> от weekly limit</span>
       </div>
       <div class="budget-row-foot">
