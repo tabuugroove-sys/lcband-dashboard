@@ -881,8 +881,42 @@ function combinedUsageRowHtml(rows, data) {
     </div>`;
 }
 
-function renderLimitBudgetCard(provider, data) {
+function guardUsageRowHtml(provider, stats) {
+  const guard = ((stats.llm_budget_guard_status || {}).providers || {})[provider];
+  if (!guard) return '';
+  const counts = guard.counts || {};
+  const limits = guard.limits || {};
+  const c24 = Number(counts.calls_24h || 0);
+  const c5 = Number(counts.calls_5h || 0);
+  const m24 = Number(limits.max_calls_24h || 0);
+  const m5 = Number(limits.max_calls_5h || 0);
+  const w24 = Number(limits.warn_calls_24h || 0);
+  const w5 = Number(limits.warn_calls_5h || 0);
+  const pct24 = m24 > 0 ? clampPct(100 * c24 / m24) : 0;
+  const pct5 = m5 > 0 ? clampPct(100 * c5 / m5) : 0;
+  const statusClass = (m24 > 0 && c24 >= m24) || (m5 > 0 && c5 >= m5)
+    ? 'warn'
+    : ((w24 > 0 && c24 >= w24) || (w5 > 0 && c5 >= w5) ? 'warn' : 'good');
+  return `
+    <div class="budget-row" title="Hard call-count guard for background ${provider} CLI calls">
+      <div class="budget-row-top">
+        <span class="budget-row-name">CLI guard: 24h ${c24}/${m24 || '∞'} · 5h ${c5}/${m5 || '∞'}</span>
+        <span class="budget-row-delta ${statusClass}">${statusClass === 'warn' ? 'guard near/over' : 'ok'}</span>
+      </div>
+      <div class="budget-meter">
+        <div class="budget-meter-segment cli" style="left:0;width:${pct24}%"></div>
+        <div class="budget-marker" style="left:${Math.max(0.4, Math.min(99.6, pct5))}%" title="5h ${c5}/${m5 || '∞'}"></div>
+      </div>
+      <div class="budget-row-foot">
+        <span>24h calls ${c24}/${m24 || '∞'}</span>
+        <span>5h marker ${c5}/${m5 || '∞'}</span>
+      </div>
+    </div>`;
+}
+
+function renderLimitBudgetCard(provider, data, stats) {
   data = data || {};
+  stats = stats || {};
   const rows = applyCrossBucketBorrowing(data.rows || {});
   const total = rows.total || {};
   const icon = provider === 'claude' ? '🟣' : '🔵';
@@ -921,6 +955,7 @@ function renderLimitBudgetCard(provider, data) {
         <div class="limit-budget-kpi"><div class="k">Баланс</div><div class="v ${delta.cls}">${delta.text.replace('перерасход ', '-').replace('запас +', '+')}</div></div>
       </div>
       ${combinedUsageRowHtml(rows, data)}
+      ${guardUsageRowHtml(provider, stats)}
     </div>`;
 }
 
@@ -928,7 +963,7 @@ function renderLimitBudgets(stats) {
   const grid = document.getElementById('cost-limit-budget-grid');
   if (!grid) return;
   const providers = (stats.limit_budget || {}).providers || {};
-  grid.innerHTML = ['claude', 'codex'].map(k => renderLimitBudgetCard(k, providers[k])).join('');
+  grid.innerHTML = ['claude', 'codex'].map(k => renderLimitBudgetCard(k, providers[k], stats)).join('');
 }
 
 function buildFaderCards() {
