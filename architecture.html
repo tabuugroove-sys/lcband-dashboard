@@ -349,6 +349,11 @@
         <div class="phase-cell">launchd owner</div>
       </div>
       <div class="phase-row">
+        <div class="phase-cell"><strong>Agent watchdog</strong><br><span class="phase-status wait">guarded</span></div>
+        <div class="phase-cell"><code>agent_watchdog.py</code> auto-recovers agents, but respects <code>agent_watchdog_pause_state.json</code> during explicit maintenance holds.</div>
+        <div class="phase-cell">self-heal gate</div>
+      </div>
+      <div class="phase-row">
         <div class="phase-cell"><strong>LCB DM writer</strong><br><span class="phase-status">active</span></div>
         <div class="phase-cell"><code>unified_dm_responder.py</code> пишет клиентам; <code>tg_responder.py</code> consultant-only и не является вторым sender'ом.</div>
         <div class="phase-cell">one writer</div>
