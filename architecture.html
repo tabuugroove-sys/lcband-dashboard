@@ -72,7 +72,7 @@
     }
     .page-sub { max-width: 780px; font-size: 15px; color: #aab2bf; margin-bottom: 30px; line-height: 1.65; }
     .page-sub::after {
-      content: "production hybrid";
+      content: "current production";
       display: inline-flex;
       margin-left: 10px;
       padding: 3px 8px;
@@ -239,38 +239,38 @@
 </div>
 
 <div class="wrap">
-  <div class="page-title">Переход архитектуры AI</div>
-  <div class="page-sub">Сейчас production работает в гибриде: legacy chain остаётся для части классификаций, v2 забирает owner/router-решения поэтапно.</div>
+  <div class="page-title">Production архитектура LCB</div>
+  <div class="page-sub">Актуальная карта владельцев: realtime gateway принимает входящий поток, LCB writer ведёт прямые DM, broker-контур отдельно ведёт подрядчиков, dashboard только показывает состояние.</div>
 
   <div class="sec anchor-target" id="transition">
     <div class="sec-hdr">
-      <div class="sec-num" style="background:rgba(245,197,24,.18);color:var(--gold)">AI</div>
+      <div class="sec-num" style="background:rgba(245,197,24,.18);color:var(--gold)">LIVE</div>
       <div>
-        <div class="sec-label">Что есть сейчас и на что переходим</div>
-        <div class="sec-desc">Одна видимая карта вместо старого подробного меню процессов</div>
+        <div class="sec-label">Текущая production-топология</div>
+        <div class="sec-desc">Один realtime-шлюз, разделённые writer owners, один набор SSoT/read-layer файлов</div>
       </div>
     </div>
 
     <div class="transition-grid">
       <div class="transition-card" style="border-color:rgba(245,158,11,.35)">
-        <h2 style="color:var(--warn)">Сейчас: гибрид production</h2>
-        <p>Решения о смысле ещё разбросаны по нескольким владельцам.</p>
+        <h2 style="color:var(--warn)">Ingress и routing</h2>
+        <p>Launchd держит входящие каналы и отдаёт события ответственным владельцам.</p>
         <ul class="transition-list">
-          <li><code>ai_classify_chain.py</code> классифицирует ingest-посты, payment/promise, drum/Vadim и trash hard-skip.</li>
-          <li><code>smart_funnel.classify_unified</code> уже ведёт DM funnel как AI 2.0.</li>
-          <li>Отдельные агенты всё ещё принимают route/classify решения локально.</li>
+          <li><code>com.lcband.realtime-gateway</code> supervises TG realtime, payment listener и VK longpoll.</li>
+          <li><code>tg_realtime_monitor.py</code> ловит TG event-чаты/private DM, обновляет context card и зовёт LCB writer.</li>
+          <li><code>vk_longpoll_listener.py</code> триггерит <code>vk_auto_responder.py</code>; WA идёт через native Desktop queue.</li>
         </ul>
       </div>
 
       <div class="transition-arrow">→</div>
 
       <div class="transition-card" style="border-color:rgba(20,184,166,.38)">
-        <h2 style="color:#5eead4">Цель: v2 owner/router</h2>
-        <p>Один входной слой решает, кто владелец задачи и что делать дальше.</p>
+        <h2 style="color:#5eead4">Owners и state</h2>
+        <p>Смысловая работа разделена по владельцам, чтобы не было двух writer'ов на один диалог.</p>
         <ul class="transition-list">
-          <li><code>ai_triage_v2.py</code> читает входящий поток и даёт единое triage-решение.</li>
-          <li><code>ai_triage_v2.route_v2()</code> — будущий deterministic router; отдельного <code>router_v2.py</code> в production нет.</li>
-          <li>Writers исполняют задачу, а не пере-классифицируют её каждый по-своему.</li>
+          <li><code>unified_dm_responder.py</code> владеет LCB direct DM: intake, sales, contract, production, content.</li>
+          <li><code>broker_dialog_agent.py</code> и <code>broker_casting.py</code> владеют broker events, contractors, media и relay.</li>
+          <li><code>lcb_orders.json</code>, <code>broker_orders.json</code>, <code>orders.db.message_events</code> остаются source-of-truth слоями.</li>
         </ul>
       </div>
     </div>
@@ -278,33 +278,33 @@
 
   <div class="sec anchor-target" id="testing">
     <div class="sec-hdr">
-      <div class="sec-num" style="background:rgba(20,184,166,.18);color:#5eead4">T</div>
+      <div class="sec-num" style="background:rgba(20,184,166,.18);color:#5eead4">RUN</div>
       <div>
-        <div class="sec-label">Что тестируется</div>
-        <div class="sec-desc">Cutover идёт только после shadow/canary, без ручных обходов production</div>
+        <div class="sec-label">Кто реально работает сейчас</div>
+        <div class="sec-desc">Production agents и их ответственность без ручного запуска из Codex</div>
       </div>
     </div>
 
     <div class="card">
       <div class="phase-row">
-        <div class="phase-cell"><strong>1. Shadow</strong><br><span class="phase-status">идёт/нужен</span></div>
-        <div class="phase-cell">v2 читает те же входящие события, пишет свои решения отдельно и ничего не отправляет клиентам.</div>
-        <div class="phase-cell">Сравнить v1 vs v2</div>
+        <div class="phase-cell"><strong>Realtime gateway</strong><br><span class="phase-status">continuous</span></div>
+        <div class="phase-cell"><code>com.lcband.realtime-gateway</code> supervises <code>tg_realtime_monitor.py</code>, <code>payment_event_handler.py</code>, <code>vk_longpoll_listener.py</code>.</div>
+        <div class="phase-cell">launchd owner</div>
       </div>
       <div class="phase-row">
-        <div class="phase-cell"><strong>2. Agreement</strong><br><span class="phase-status wait">критерий</span></div>
-        <div class="phase-cell">Для критичных классов нужен высокий match: LCB direct, broker, drum, refusal/payment, skip.</div>
-        <div class="phase-cell">Цель: ≥95%</div>
+        <div class="phase-cell"><strong>LCB DM writer</strong><br><span class="phase-status">active</span></div>
+        <div class="phase-cell"><code>unified_dm_responder.py</code> пишет клиентам; <code>tg_responder.py</code> consultant-only и не является вторым sender'ом.</div>
+        <div class="phase-cell">one writer</div>
       </div>
       <div class="phase-row">
-        <div class="phase-cell"><strong>3. Canary</strong><br><span class="phase-status warn">после shadow</span></div>
-        <div class="phase-cell">Canary ещё не включён: v2 owner/router должен сначала пройти shadow и agreement, затем approval-safe трафик.</div>
-        <div class="phase-cell">Без авто-риска</div>
+        <div class="phase-cell"><strong>Broker contour</strong><br><span class="phase-status">active</span></div>
+        <div class="phase-cell"><code>broker_casting.py</code> выбирает top-N, <code>broker_dialog_agent.py</code> ведёт client/contractor стороны, direct DM не превращается в broker order.</div>
+        <div class="phase-cell">separate SSoT</div>
       </div>
       <div class="phase-row">
-        <div class="phase-cell"><strong>4. Cutover</strong><br><span class="phase-status wait">по агентам</span></div>
-        <div class="phase-cell">Переключение не всё сразу: сначала <code>attention_auto_action</code>, затем ingest/router владельцы, потом cleanup legacy.</div>
-        <div class="phase-cell">После стабильности 2 недели</div>
+        <div class="phase-cell"><strong>Follow-up</strong><br><span class="phase-status wait">scheduled</span></div>
+        <div class="phase-cell"><code>funnel_maintenance.py</code> routes stale leads, <code>tg_followup.py</code> делает TG context follow-up, wording принадлежит LCB writer.</div>
+        <div class="phase-cell">context-first</div>
       </div>
     </div>
   </div>
@@ -313,14 +313,29 @@
     <div class="sec-hdr">
       <div class="sec-num" style="background:rgba(59,130,246,.18);color:#93c5fd">C</div>
       <div>
-        <div class="sec-label">Когда удаляем legacy</div>
-        <div class="sec-desc">Не раньше, чем v2 докажет стабильность на production-трафике</div>
+        <div class="sec-label">Что НЕ production</div>
+        <div class="sec-desc">Плановые v2 pieces не должны выглядеть как работающий агент</div>
       </div>
     </div>
     <div class="card">
       <div class="hl" style="font-size:12px;line-height:1.5">
-        <b><code>ai_classify_chain.py</code> остаётся до cutover.</b>
-        Его можно убирать только после того, как v2 стабильно закрывает ingest/payment/drum/skip маршруты, canary не даёт регрессий, и минимум 2 недели нет критичных расхождений.
+        <b><code>router_v2.py</code> не существует как production agent.</b>
+        В репо есть <code>ai_triage_v2.py</code> с pure-функцией <code>route_v2()</code>, но сам файл помечен как parallel/shadow design: production code его пока не импортирует, launchd его не запускает, outbound/DB writes он не делает.
+      </div>
+      <div class="phase-row">
+        <div class="phase-cell"><strong>Current classifier</strong><br><span class="phase-status">production</span></div>
+        <div class="phase-cell"><code>ai_classify_chain.py</code> остаётся действующим ingest/payment/drum/skip контуром там, где он подключён.</div>
+        <div class="phase-cell">keep</div>
+      </div>
+      <div class="phase-row">
+        <div class="phase-cell"><strong>v2 triage</strong><br><span class="phase-status warn">not cut over</span></div>
+        <div class="phase-cell"><code>ai_triage_v2.classify_v2()</code> + <code>route_v2()</code> можно считать design/shadow-ready кодом, а не владельцем traffic.</div>
+        <div class="phase-cell">no send</div>
+      </div>
+      <div class="phase-row">
+        <div class="phase-cell"><strong>Cutover rule</strong><br><span class="phase-status wait">future</span></div>
+        <div class="phase-cell">Переключать только после shadow-run, agreement audit и по одному consumer'у, сначала approval-safe.</div>
+        <div class="phase-cell">manual gate</div>
       </div>
     </div>
   </div>
@@ -1155,9 +1170,9 @@
 
 <!-- Side nav -->
 <div class="side-nav">
-  <a href="#transition"><div class="snb snb-gold">Переход</div></a>
-  <a href="#testing"><div class="snb">Тестируется</div></a>
-  <a href="#cutover"><div class="snb">Cutover</div></a>
+  <a href="#transition"><div class="snb snb-gold">Live</div></a>
+  <a href="#testing"><div class="snb">Agents</div></a>
+  <a href="#cutover"><div class="snb">Not prod</div></a>
 </div>
 
 </body>
