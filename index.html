@@ -7095,7 +7095,7 @@ function ArchitectureV2Section({ architectureV2 }) {
           </div>
           {[
             [sourceLink('ai_triage_v2.py', 'ai_triage_v2.py', {color:'#5eead4'}), 'единое triage-решение по входящему событию'],
-            [sourceLink('router_v2.py', 'router_v2.py', {color:'#5eead4'}), 'создаёт owner/task: LCB, broker, drum, payment, skip'],
+            [sourceLink('ai_triage_v2.py', 'ai_triage_v2.route_v2()', {color:'#5eead4'}), 'будущий deterministic router; отдельного router_v2.py в production нет'],
             ['Writers', 'исполняют готовую задачу без повторной собственной классификации'],
           ].map(([name, desc]) => (
             <div key={String(desc)} style={{background:'rgba(15,23,42,.42)',border:'1px solid rgba(148,163,184,.14)',borderRadius:7,padding:'8px 9px',fontSize:11,lineHeight:1.35}}>
@@ -7109,7 +7109,7 @@ function ArchitectureV2Section({ architectureV2 }) {
         {[
           ['1. Shadow', 'идёт/нужен', 'v2 читает тот же поток и пишет отдельные решения. Ничего не отправляет клиентам.', 'Сравнить v1 vs v2'],
           ['2. Agreement', 'критерий', 'Критичные классы: LCB direct, broker, drum, refusal/payment, skip.', 'Цель: ≥95%'],
-          ['3. Canary', 'после shadow', 'Малая доля реального трафика через v2 owner/router, сначала approval-safe.', 'Без авто-риска'],
+          ['3. Canary', 'после shadow', 'Canary ещё не включён: сначала shadow/agreement, затем approval-safe трафик через v2 owner/router.', 'Без авто-риска'],
           ['4. Cutover', 'по агентам', 'Сначала attention_auto_action, затем ingest/router владельцы, потом cleanup legacy.', 'После стабильности 2 недели'],
         ].map(([phase, status, body, result], idx) => (
           <div key={phase} style={{display:'grid',gridTemplateColumns:'140px minmax(0,1fr) 160px',gap:9,alignItems:'stretch'}}>

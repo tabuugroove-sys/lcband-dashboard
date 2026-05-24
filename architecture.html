@@ -269,7 +269,7 @@
         <p>Один входной слой решает, кто владелец задачи и что делать дальше.</p>
         <ul class="transition-list">
           <li><code>ai_triage_v2.py</code> читает входящий поток и даёт единое triage-решение.</li>
-          <li><code>router_v2.py</code> создаёт owner/task: LCB, broker, drum, payment, skip.</li>
+          <li><code>ai_triage_v2.route_v2()</code> — будущий deterministic router; отдельного <code>router_v2.py</code> в production нет.</li>
           <li>Writers исполняют задачу, а не пере-классифицируют её каждый по-своему.</li>
         </ul>
       </div>
@@ -298,7 +298,7 @@
       </div>
       <div class="phase-row">
         <div class="phase-cell"><strong>3. Canary</strong><br><span class="phase-status warn">после shadow</span></div>
-        <div class="phase-cell">Малая доля реального трафика идёт через v2 owner/router, сначала в approval-safe режиме.</div>
+        <div class="phase-cell">Canary ещё не включён: v2 owner/router должен сначала пройти shadow и agreement, затем approval-safe трафик.</div>
         <div class="phase-cell">Без авто-риска</div>
       </div>
       <div class="phase-row">
