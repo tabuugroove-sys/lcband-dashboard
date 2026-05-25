@@ -1310,12 +1310,6 @@ function ConnectionStatus({ connection, vkConnection, waConnection }) {
   return (
     <div className="section">
       <div className="section-title">Соединения</div>
-      <ConnectionRow
-        title="📨 Telegram inbound"
-        status={connection?.status}
-        reason={tgReason}
-        lastCheck={connection?.lastCheck}
-      />
       {connection?.realtime && (
         <ConnectionRow
           title="TG realtime"
@@ -1329,14 +1323,6 @@ function ConnectionStatus({ connection, vkConnection, waConnection }) {
           title="TG follow-up session"
           status={connection.followup.status}
           reason={connection.followup.reason}
-          lastCheck={connection?.lastCheck}
-        />
-      )}
-      {connection?.paymentEvents && (
-        <ConnectionRow
-          title="Payment events"
-          status={connection.paymentEvents.status}
-          reason={connection.paymentEvents.reason}
           lastCheck={connection?.lastCheck}
         />
       )}
