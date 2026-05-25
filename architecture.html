@@ -286,6 +286,115 @@
       color: var(--text);
       font-size: 12px;
     }
+    .actual-grid {
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .actual-stack {
+      display: grid;
+      gap: 10px;
+    }
+    .step {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      border: 1px solid rgba(148,163,184,.15);
+      border-radius: 8px;
+      background: rgba(255,255,255,.035);
+      padding: 10px 12px;
+    }
+    .step-num {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(231,189,71,.12);
+      color: var(--gold);
+      font-size: 11px;
+      font-weight: 900;
+    }
+    .step h3 {
+      margin: 0 0 4px;
+      color: var(--ink);
+      font-size: 13px;
+      line-height: 1.25;
+    }
+    .step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .rule-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .rule-table th {
+      color: var(--muted);
+      font-weight: 850;
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(255,255,255,.1);
+    }
+    .rule-table td {
+      color: var(--muted);
+      line-height: 1.45;
+      vertical-align: top;
+      padding: 9px 10px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    .rule-table tr:last-child td { border-bottom: 0; }
+    .rule-table b { color: var(--text); }
+    .lane {
+      display: grid;
+      grid-template-columns: 130px minmax(0, 1fr);
+      gap: 10px;
+      align-items: stretch;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 8px;
+      background: rgba(255,255,255,.03);
+      padding: 10px;
+    }
+    .lane-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 7px;
+      background: rgba(0,0,0,.18);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 850;
+      text-align: center;
+    }
+    .lane-flow {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+    .lane-chip {
+      flex: 0 0 142px;
+      border: 1px solid rgba(148,163,184,.15);
+      border-radius: 7px;
+      background: rgba(255,255,255,.035);
+      padding: 9px 10px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .lane-chip b {
+      display: block;
+      color: var(--text);
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
     .pill {
       display: inline-flex;
       align-items: center;
@@ -337,7 +446,7 @@
       .hdr { flex-direction: column; align-items: flex-start; gap: 10px; }
       .wrap { width: min(100vw - 28px, 1220px); padding-top: 24px; }
       .page-title { font-size: 40px; }
-      .grid2, .grid3, .flow-row, .flow-row.five { grid-template-columns: 1fr; }
+      .grid2, .grid3, .actual-grid, .flow-row, .flow-row.five, .lane { grid-template-columns: 1fr; }
       .arrow-col { transform: rotate(90deg); min-height: 26px; }
       .row { grid-template-columns: 1fr; gap: 5px; }
       .side-nav {
@@ -372,19 +481,19 @@
   </header>
 
   <main class="wrap">
-    <h1 class="page-title">LCB writer в центре системы</h1>
+    <h1 class="page-title">Как сейчас работает LCB automation</h1>
     <p class="page-sub">
-      Упрощённая карта: для LC Band основной владелец текста — writer с режимами по шагам воронки.
-      Broker больше не смешивается с LCB-клиентами и живёт отдельным pipeline. Вокруг writer находятся orders,
-      память переписок и подключения к мессенджерам.
+      Карта текущей реализации: realtime и scheduled процессы приносят события, state сходится в
+      <code>orders.db</code> и read-model'ы, LCB client text пишет один writer, а broker-переписки
+      уводятся в отдельный broker state до LCB writer.
     </p>
 
     <section class="section" id="map">
       <div class="section-head">
         <div class="section-num">1</div>
         <div>
-          <div class="section-label">Схема целиком</div>
-          <div class="section-desc">Только основные сущности и направления данных</div>
+          <div class="section-label">Как есть: схема целиком</div>
+          <div class="section-desc">Текущие owners и направления данных в production-коде</div>
         </div>
       </div>
       <div class="card map-wrap">
@@ -418,7 +527,7 @@
             <div class="node writer" style="min-height:170px">
               <h3>LCB writer</h3>
               <p>
-                Один владелец клиентского текста. Режим выбирается по текущему шагу воронки:
+                Один production-владелец клиентского текста. Режим выбирается по текущему шагу воронки:
                 intake, sales, contract, production, content, refusal-close, follow-up.
               </p>
             </div>
@@ -453,17 +562,8 @@
           </div>
         </div>
       </div>
-    </section>
-
-    <section class="section" id="lcb">
-      <div class="section-head">
-        <div class="section-num">2</div>
-        <div>
-          <div class="section-label">LC Band pipeline</div>
-          <div class="section-desc">Клиентский контур вокруг одного writer</div>
-        </div>
-      </div>
-      <div class="card">
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">LCB client flow внутри этой схемы</div>
         <div class="flow-row five">
           <div class="node connect">
             <h3>Inbound / due follow-up</h3>
@@ -477,7 +577,7 @@
           <div class="arrow-col">→</div>
           <div class="node writer">
             <h3>LCB writer mode</h3>
-            <p>Режим соответствует шагу воронки, а не отдельному агенту.</p>
+            <p>Режим вычисляется из context/order status и может быть переопределён по последнему сообщению.</p>
           </div>
         </div>
         <div class="flow-row">
@@ -494,14 +594,15 @@
       </div>
       <div class="grid3" style="margin-top:12px">
         <div class="card">
-          <div class="card-title">Writer modes</div>
+          <div class="card-title">Writer modes в коде</div>
           <div class="list">
             <div class="row"><b>intake</b><span>Понять запрос, дату, формат, кто пишет и что нужно уточнить.</span></div>
             <div class="row"><b>sales</b><span>Состав, цена, promo, аргументация без лишних upsell.</span></div>
             <div class="row"><b>contract</b><span>Договор, реквизиты, подтверждения, без самостоятельных money-replies.</span></div>
             <div class="row"><b>production</b><span>Техника, тайминг, райдер, участники, логистика.</span></div>
             <div class="row"><b>content</b><span>Фото/видео/отзыв после события.</span></div>
-            <div class="row"><b>follow-up</b><span>Контекстный пинг по текущему next action.</span></div>
+            <div class="row"><b>event_day</b><span>Оперативные вопросы в день/перед мероприятием.</span></div>
+            <div class="row"><b>complex_request</b><span>Сложный/короткий формат, нестандартная цена, часовой запрос, БН/оборудование.</span></div>
           </div>
         </div>
         <div class="card">
@@ -530,12 +631,117 @@
       </div>
     </section>
 
+    <section class="section" id="actual">
+      <div class="section-head">
+        <div class="section-num">2</div>
+        <div>
+          <div class="section-label">Как реально проходит входящее сообщение</div>
+          <div class="section-desc">Порядок проверок в <code>unified_dm_responder.handle()</code></div>
+        </div>
+      </div>
+      <div class="actual-grid">
+        <div class="card">
+          <div class="card-title">Runtime sequence</div>
+          <div class="actual-stack">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div>
+                <h3>Listener фиксирует событие</h3>
+                <p>TG/VK/WA inbound попадает в raw history; для TG realtime перед writer уже вызывается context refresh.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div>
+                <h3>Dedup и hard routing</h3>
+                <p><code>handle()</code> сначала проверяет recent handled claim, band member route, broker candidate/client route, musician/aggregator/payment gates.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div>
+                <h3>Context сборка</h3>
+                <p><code>lead_context_enricher.get_or_enrich()</code>, <code>resolve_context</code>, <code>lcb_event_context</code> и CRM lookup собирают prompt context.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div>
+                <h3>Классификация</h3>
+                <p>Classifier даёт verdict: lead, event organizer, broker, contractor, tech, musician, spam, refusal или unclear. CRM/context могут нормализовать verdict.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">5</div>
+              <div>
+                <h3>Writer mode и draft</h3>
+                <p><code>_suggest_lcb_mode()</code> выбирает mode по последнему сообщению, verdict и CRM: intake/sales/contract/production/event_day/content/complex_request.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">6</div>
+              <div>
+                <h3>Freshness + pre-send</h3>
+                <p>Перед отправкой заново читается tail переписки. Если он изменился, draft не отправляется. Потом идёт pre-send review и repair только для repairable blocks.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">7</div>
+              <div>
+                <h3>Send и write-back</h3>
+                <p>После успешной отправки <code>outbound_recorder.record_outbound(namespace="lcb")</code> пишет outbound в memory, обновляет context и promises.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Главные развилки</div>
+          <table class="rule-table">
+            <thead>
+              <tr><th>Условие</th><th>Куда уходит</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>Band member</b></td>
+                <td><code>band_member_reply.py</code>; только факты по подтверждённым event'ам.</td>
+              </tr>
+              <tr>
+                <td><b>Broker contractor/client</b></td>
+                <td>Запись в <code>broker_orders.json</code> history/status; LCB writer не запускается.</td>
+              </tr>
+              <tr>
+                <td><b>Payment / money intent</b></td>
+                <td>Hard block + notify admin; клиенту AI не отвечает.</td>
+              </tr>
+              <tr>
+                <td><b>Refusal</b></td>
+                <td>Refusal close: один закрывающий ответ, затем silent close, если уже закрывали.</td>
+              </tr>
+              <tr>
+                <td><b>Musician / spam</b></td>
+                <td>Skip + suppression state, чтобы не гонять AI повторно.</td>
+              </tr>
+              <tr>
+                <td><b>Unclear low confidence</b></td>
+                <td>Skip без отправки.</td>
+              </tr>
+              <tr>
+                <td><b>Lead / active organizer</b></td>
+                <td>LCB writer draft → freshness guard → pre-send → transport.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <section class="section" id="broker">
       <div class="section-head">
         <div class="section-num">3</div>
         <div>
-          <div class="section-label">Broker pipeline отдельно</div>
-          <div class="section-desc">Broker больше не является режимом LCB writer</div>
+          <div class="section-label">Broker pipeline как есть</div>
+          <div class="section-desc">Broker route срабатывает до LCB writer</div>
         </div>
       </div>
       <div class="card">
@@ -553,6 +759,36 @@
           <div class="node broker">
             <h3>Casting + relay</h3>
             <p>Подбор подрядчика, проверка маржи, общение с contractor side и relay клиенту.</p>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">Broker state transitions</div>
+        <div class="lane">
+          <div class="lane-label">Intake</div>
+          <div class="lane-flow">
+            <div class="lane-chip"><b>opportunity</b>group/event source</div>
+            <div class="lane-chip"><b>budget missing</b>ask client budget</div>
+            <div class="lane-chip"><b>waiting_client_budget</b>hold retry window</div>
+            <div class="lane-chip"><b>budget reply</b>return to casting</div>
+          </div>
+        </div>
+        <div class="lane" style="margin-top:10px">
+          <div class="lane-label">Casting</div>
+          <div class="lane-flow">
+            <div class="lane-chip"><b>margin gate</b>budget floor</div>
+            <div class="lane-chip"><b>candidate score</b>media + quality</div>
+            <div class="lane-chip"><b>reconfirm</b>price not stale</div>
+            <div class="lane-chip"><b>top-N relay</b>client-facing draft</div>
+          </div>
+        </div>
+        <div class="lane" style="margin-top:10px">
+          <div class="lane-label">Replies</div>
+          <div class="lane-flow">
+            <div class="lane-chip"><b>contractor DM</b>append history</div>
+            <div class="lane-chip"><b>client DM</b>update broker status</div>
+            <div class="lane-chip"><b>closed order</b>alert only</div>
+            <div class="lane-chip"><b>direct LCB source</b>reroute/close broker</div>
           </div>
         </div>
       </div>
@@ -647,7 +883,7 @@
 
   <nav class="side-nav">
     <a href="#map">Схема</a>
-    <a href="#lcb">LCB</a>
+    <a href="#actual">Как есть</a>
     <a href="#broker">Broker</a>
     <a href="#connectors">Подключения</a>
     <a href="#rules">Правила</a>
