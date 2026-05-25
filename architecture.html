@@ -829,8 +829,8 @@
           <div class="card-title">Постоянные подключения</div>
           <div class="list">
             <div class="row"><b>TG realtime</b><span><code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code> — основной realtime TG socket; слушает NewMessage/push и отдаёт DM в LCB writer или broker handler по routing.</span></div>
-            <div class="row"><b>VK longpoll</b><span>Слушает VK inbound и запускает VK transport/handler.</span></div>
-            <div class="row"><b>WA inbound path</b><span>Фиксирует входящее, но outbound остаётся через native WhatsApp Desktop path.</span></div>
+            <div class="row"><b>VK longpoll</b><span><code>vk_longpoll_listener.py</code> — постоянный VK listener; триггерит <code>vk_auto_responder.py</code> и пишет события в общий state.</span></div>
+            <div class="row"><b>WA inbound/cache</b><span>WA входящие материализуются в cache/message history; outbound не через WA Web, а через native WhatsApp Desktop + computer-use queue.</span></div>
           </div>
           <div style="margin-top:12px">
             <span class="pill blue">always on</span>
@@ -839,10 +839,10 @@
         <div class="card">
           <div class="card-title">Временные подключения</div>
           <div class="list">
-            <div class="row"><b>Send session</b><span>Короткая операция отправки после writer/gates.</span></div>
+            <div class="row"><b>TG send session</b><span>Короткая Telethon-операция отправки после writer/gates; не должна конкурировать с <code>tg_session_monitor.session</code>.</span></div>
             <div class="row"><b>TG follow-up dry-run</b><span><code>tg_followup.py --dry-run --only wellintea</code> держит <code>tg_session_followup.session</code> как временную ручную сессию; это не штатный daemon socket.</span></div>
-            <div class="row"><b>Browser walk</b><span>Периодический обход источников, backfill и сверка пропущенных постов.</span></div>
-            <div class="row"><b>Export/backfill</b><span>Разовые чтения истории для пополнения memory, не отдельный source of truth.</span></div>
+            <div class="row"><b>Browser walk</b><span>Временный browser-run для обхода event/group источников и сверки пропущенных постов; результат дедупится с realtime, не держит socket.</span></div>
+            <div class="row"><b>Export/backfill</b><span>Разовое чтение истории в <code>orders.db.message_events</code> / legacy cache; не отдельная память и не постоянное подключение.</span></div>
           </div>
           <div style="margin-top:12px">
             <span class="pill warn">short lived</span>
