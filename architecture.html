@@ -574,29 +574,29 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Источники и подключения сходятся в общего LCB writer</div>
+        <div class="card-title">Input connections сходятся в общего LCB writer, output transports отдельные</div>
         <div class="converge">
           <div class="converge-col">
-            <div class="converge-title">Sources + adapters</div>
+            <div class="converge-title">Input connections</div>
             <div class="source-card">
               <b>TG private DM</b>
-              <p><code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code>; inbound сразу пишется в <code>orders.db.message_events</code>.</p>
+              <p>Input socket: <code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code>; inbound сразу пишется в <code>orders.db.message_events</code>.</p>
             </div>
             <div class="source-card">
               <b>VK DM</b>
-              <p><code>vk_longpoll_listener.py</code> принимает inbound, <code>vk_auto_responder.py</code> остаётся VK adapter/transport.</p>
+              <p>Input listener: <code>vk_longpoll_listener.py</code> принимает inbound и передаёт дальше через VK adapter path.</p>
             </div>
             <div class="source-card">
               <b>WhatsApp</b>
-              <p>WA inbound материализуется через cache/message history; outbound идёт только через native WhatsApp Desktop + computer-use queue.</p>
+              <p>Input materializer: WA inbound попадает в cache/message history; это не тот же путь, что output send.</p>
             </div>
             <div class="source-card">
               <b>Event/group posts</b>
-              <p>TG realtime / VK monitor / Browser Walk дедупят посты и маршрутизируют в LCB cold lead или broker opportunity.</p>
+              <p>Input scan: TG realtime / VK monitor / Browser Walk дедупят посты и маршрутизируют в LCB cold lead или broker opportunity.</p>
             </div>
             <div class="source-card">
               <b>Manual / dry-run</b>
-              <p><code>tg_followup.py --dry-run --only wellintea</code> читает через <code>tg_session_followup.session</code>; это временная ручная сессия, не daemon.</p>
+              <p>Read-only/manual input: <code>tg_followup.py --dry-run --only wellintea</code> читает через <code>tg_session_followup.session</code>; это временная ручная сессия, не daemon.</p>
             </div>
           </div>
           <div class="converge-arrow">→</div>
@@ -607,7 +607,7 @@
           </div>
           <div class="converge-arrow">→</div>
           <div class="converge-col">
-            <div class="converge-title">Shared state + output</div>
+            <div class="converge-title">Shared state + output transports</div>
             <div class="shared-chain">
               <div class="source-card">
                 <b>Context/state</b>
@@ -618,8 +618,16 @@
                 <p>writer mode, freshness guard, pre-send review, money/refusal/duplicate guards.</p>
               </div>
               <div class="source-card">
-                <b>Transport adapters</b>
-                <p>TG send, VK send, WA Desktop queue. Transport не становится вторым writer.</p>
+                <b>TG output</b>
+                <p>Отдельная send operation после writer/gates; не использует <code>tg_session_monitor.session</code> как второй realtime owner.</p>
+              </div>
+              <div class="source-card">
+                <b>VK output</b>
+                <p><code>vk_auto_responder.py</code> / VK send path отправляет готовый текст после gates; это adapter, не writer.</p>
+              </div>
+              <div class="source-card">
+                <b>WA output</b>
+                <p>Только native WhatsApp Desktop + computer-use queue; не WA Web и не inbound materializer.</p>
               </div>
               <div class="source-card">
                 <b>Write-back</b>
