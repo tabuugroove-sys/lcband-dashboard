@@ -690,7 +690,7 @@ function processRows(rows) {
   const refusalCategories = {};  // { low_budget: 15, format_mismatch: 1, ... }
   const channels = {};  // { TG: 91, VK: 5, ... }
   const tgFunnel = {};  // { day: {sent,leads,paid,earned}, week: {…}, … }
-  const connection = { status: 'unknown', lastCheck: null, sessions: {}, realtime: null };
+  const connection = { status: 'unknown', lastCheck: null, sessions: {}, realtime: null, followup: null, paymentEvents: null };
   const vkConnection = { status: 'unknown', lastCheck: null, reason: '', tokens: {} };
   const waConnection = { status: 'unknown', lastCheck: null, detail: '' };
   // scan state removed 16.05.2026 — TG-scan widget удалён
@@ -766,6 +766,12 @@ function processRows(rows) {
       } else if (row.key === 'conn_tg_realtime') {
         const [st, reason] = (row.value || '').split('|');
         connection.realtime = { status: st || 'unknown', reason: reason || '', label: row.label };
+      } else if (row.key === 'conn_tg_followup') {
+        const [st, reason] = (row.value || '').split('|');
+        connection.followup = { status: st || 'unknown', reason: reason || '', label: row.label };
+      } else if (row.key === 'conn_payment_events') {
+        const [st, reason] = (row.value || '').split('|');
+        connection.paymentEvents = { status: st || 'unknown', reason: reason || '', label: row.label };
       } else if (row.key?.startsWith('conn_')) {
         const sessName = row.label || row.key.replace('conn_', '');
         const [st, reason] = (row.value || '').split('|');
@@ -1315,6 +1321,22 @@ function ConnectionStatus({ connection, vkConnection, waConnection }) {
           title="TG realtime"
           status={connection.realtime.status}
           reason={connection.realtime.reason}
+          lastCheck={connection?.lastCheck}
+        />
+      )}
+      {connection?.followup && (
+        <ConnectionRow
+          title="TG follow-up session"
+          status={connection.followup.status}
+          reason={connection.followup.reason}
+          lastCheck={connection?.lastCheck}
+        />
+      )}
+      {connection?.paymentEvents && (
+        <ConnectionRow
+          title="Payment events"
+          status={connection.paymentEvents.status}
+          reason={connection.paymentEvents.reason}
           lastCheck={connection?.lastCheck}
         />
       )}
