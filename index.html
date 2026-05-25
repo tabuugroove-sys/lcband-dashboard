@@ -8205,10 +8205,10 @@ function LeadFlowSection() {
           >schema</button>
         </div>
         <div style={{fontSize:8, color:'#cbd5e1', lineHeight:1.35}}>
-          {sourceLink('lcb_event_context.py', 'lcb_event_context.py', {color:'#5eead4'})} reads the LCB event-card; Broker writer reads broker_order_context.py.
+          {sourceLink('agent_context.py', 'agent_context.py', {color:'#5eead4'})} is the new single read API: messages + order + event-card + promises.
         </div>
         <div style={{fontSize:8, color:'var(--muted)', marginTop:3}}>
-          This is the only layer L3 should use for response context.
+          Phase 4b shadow compares it against old readers before unified_dm_responder flips.
         </div>
       </div>
     </div>
@@ -8329,7 +8329,7 @@ function LeadFlowSection() {
             </div>
           </div>
 
-          {/* Agent 2 — full enrichment pipeline */}
+          {/* Agent 2 — full enrichment + single-read migration pipeline */}
           {(() => {
             const step = (color, bg, label) => (
               <div style={{background:bg, border:`1px solid ${color}`, borderRadius:6, padding:'4px 8px', fontSize:9.5, color:color, fontWeight:600}}>{label}</div>
@@ -8353,19 +8353,19 @@ function LeadFlowSection() {
                     <span style={{fontFamily:'monospace'}}>{'{out:true,  text:"Да, свободно!"}'}</span>
                   </div>
                 </div>
-	                {arr('↓ enrich(force=True) читает ВСЕ записи')}
+                {arr('↓ inbound owner updates context before agent')}
 	                <div style={{background:'rgba(245,197,24,.07)', border:'1px solid rgba(245,197,24,.28)', borderRadius:6, padding:'4px 8px', fontSize:9, color:'#fde68a', fontWeight:600, textAlign:'center'}}>
 	                  {sourceLink('lead_context_enricher.py', 'lead_context_enricher.enrich(force=True)', {color:'#fde68a'})}
 	                </div>
-	                {arr('↓ Opus анализирует историю')}
-	                {step('rgba(139,92,246,.9)', 'rgba(139,92,246,.08)', '🔮 Opus AI · context card')}
-	                {arr('↓ обновляет thread/context')}
+	                {arr('↓ AI enrich writes owner stores')}
+	                {step('rgba(139,92,246,.9)', 'rgba(139,92,246,.08)', 'Opus AI · context/card refresh')}
+	                {arr('↓ orders.db + read models')}
                 {/* context card */}
                 <div style={{background:'rgba(59,130,246,.07)', border:'1.5px dashed rgba(59,130,246,.45)', borderRadius:7, padding:'5px 8px'}}>
 	                  <div style={{fontSize:9, fontWeight:700, color:'#60a5fa', marginBottom:3}}>
-	                    📋 {sourceLink('lead_context_store.json', 'lead_context_store · tg:username', {color:'#60a5fa'})}
+	                    📋 {sourceLink('orders.db', 'orders.db.message_events + eg_promises', {color:'#60a5fa'})}
 	                  </div>
-                  {[['client_intent','намерение'],['event_context_events','event binding'],['event_context_open_promises','promises'],['refusal_detected','отказ']].map(([k,v]) => (
+                  {[['message_events','raw DM history'],['orders','CRM status / active / confirmed'],['eg_promises','open promises'],['contact_context','refusal / waiting flags']].map(([k,v]) => (
                     <div key={k} style={{fontSize:8.5, color:'var(--muted)', lineHeight:1.4}}>
                       <span style={{color:'#60a5fa'}}>{k}</span> · {v}
                     </div>
@@ -8373,9 +8373,28 @@ function LeadFlowSection() {
                 </div>
 	                {arr('↓ lcb_orders.refresh_contact()')}
 	                <div style={{background:'rgba(20,184,166,.08)', border:'1px solid rgba(20,184,166,.32)', borderRadius:6, padding:'4px 8px', fontSize:9, color:'#5eead4', fontWeight:700, textAlign:'center'}}>
-	                  lcb_orders.json · event SSoT
+	                  lcb_orders.json / broker_orders.json · event read-models
 	                </div>
-	                {arr('↓ unified_dm_responder читает перед ответом')}
+	                {arr('↓ Phase 4b shadow read')}
+	                <div style={{background:'rgba(20,184,166,.09)', border:'1.5px solid rgba(20,184,166,.42)', borderRadius:7, padding:'5px 8px'}}>
+	                  <div style={{fontSize:9, fontWeight:800, color:'#5eead4', marginBottom:3}}>
+	                    {sourceLink('agent_context.py', 'agent_context.py · get_agent_context()', {color:'#5eead4'})}
+	                  </div>
+	                  {[
+	                    ['messages', 'orders.db.message_events'],
+	                    ['order', 'orders.db.orders'],
+	                    ['event_card', 'lcb_event_context / broker_order_context'],
+	                    ['promises', 'eg_promises'],
+	                  ].map(([k, v]) => (
+	                    <div key={k} style={{fontSize:8.3, color:'var(--muted)', lineHeight:1.35}}>
+	                      <span style={{color:'#5eead4'}}>{k}</span> · {v}
+	                    </div>
+	                  ))}
+	                  <div style={{fontSize:8, color:'#fde68a', marginTop:4}}>
+	                    shadow only: logs parity diff, does not affect send
+	                  </div>
+	                </div>
+	                {arr('↓ unified_dm_responder still uses old readers until 4c')}
 	                {/* agent */}
 	                <div className="ai-layer-card" onClick={() => setAiLayerOpen({ layer: 'agent2' })} title="Показать текущие промпты, source files, context и gates Agent 2" style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.35)', borderRadius:7, padding:'5px 8px'}}>
 	                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
@@ -8385,6 +8404,7 @@ function LeadFlowSection() {
 	                    {aiInfoButton('agent2', 'Agent 2')}
 	                  </div>
 		                  <div style={{fontSize:8.5, color:'#f87171'}}>classify → LCB writer modes → review → send/skip</div>
+		                  <div style={{fontSize:8, color:'#fde68a', marginTop:2}}>4c target: replace old reader block with one AgentContext</div>
 	                </div>
 	                {arr('↓ routing verdict')}
 	                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:4}}>
