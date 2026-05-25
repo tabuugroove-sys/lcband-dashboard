@@ -277,6 +277,51 @@ tr:last-child td { border-bottom: none; }
   border-radius: 10px;
   padding: 13px 14px;
 }
+.limit-budget-card.cold-outbound-compact {
+  padding: 8px 10px;
+  align-self: start;
+}
+.cold-outbound-compact .limit-budget-head {
+  align-items: center;
+  margin-bottom: 6px;
+}
+.cold-outbound-compact .limit-budget-title {
+  font-size: 12px;
+}
+.cold-outbound-compact .muted,
+.cold-outbound-compact .limit-budget-sub {
+  font-size: 10px;
+}
+.cold-outbound-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cold-outbound-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid rgba(108,108,112,.22);
+  border-radius: 999px;
+  background: rgba(255,255,255,.58);
+  font-size: 11px;
+}
+.cold-outbound-pill .cold-outbound-name {
+  color: var(--muted);
+  font-weight: 700;
+}
+.cold-outbound-pill .cold-outbound-value {
+  color: var(--ok);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.cold-outbound-pill.warn {
+  border-color: rgba(255,59,48,.32);
+  background: rgba(255,59,48,.06);
+}
+.cold-outbound-pill.warn .cold-outbound-value { color: var(--danger); }
 .limit-budget-card.stale { border-color: rgba(255,149,0,.45); background: rgba(255,149,0,.07); }
 .limit-budget-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:10px; }
 .limit-budget-title { font-size:14px; font-weight:800; }
@@ -916,33 +961,34 @@ function guardUsageRowHtml(provider, stats) {
 
 function renderColdOutboundCard(stats) {
   const status = stats.cold_outbound_status || {};
-  const rows = ['tg', 'vk', 'wa'].map(channel => {
+  const labels = { tg: 'TG', vk: 'VK', wa: 'WA' };
+  const channels = ['tg', 'vk', 'wa'];
+  let totalUsed = 0;
+  let totalLimit = 0;
+  const rows = channels.map(channel => {
     const row = status[channel] || {};
     const used = Number(row.used || 0);
     const limit = Number(row.limit || 0);
-    const pct = limit > 0 ? clampPct(100 * used / limit) : 0;
+    totalUsed += used;
+    if (limit > 0) totalLimit += limit;
     const cls = limit > 0 && used >= limit ? 'warn' : 'good';
     return `
-      <div class="budget-row">
-        <div class="budget-row-top">
-          <span class="budget-row-name">${channel.toUpperCase()} new users</span>
-          <span class="budget-row-delta ${cls}">${used}/${limit || '∞'}</span>
-        </div>
-        <div class="budget-meter">
-          <div class="budget-meter-segment cli" style="left:0;width:${pct}%"></div>
-        </div>
-      </div>`;
+      <span class="cold-outbound-pill ${cls}" title="${labels[channel]} new users daily limit: ${used}/${limit || '∞'}">
+        <span class="cold-outbound-name">${labels[channel]}</span>
+        <span class="cold-outbound-value">${used}/${limit || '∞'}</span>
+      </span>`;
   }).join('');
+  const totalLabel = totalLimit > 0 ? `${totalUsed}/${totalLimit}` : `${totalUsed}/∞`;
   return `
-    <div class="limit-budget-card" data-provider="cold-outbound">
+    <div class="limit-budget-card cold-outbound-compact" data-provider="cold-outbound">
       <div class="limit-budget-head">
         <div>
           <div class="limit-budget-title">Cold outbound</div>
-          <div class="muted" style="font-size:11px;margin-top:2px">first-contact messages per social network</div>
+          <div class="muted" style="margin-top:1px">new-user caps only</div>
         </div>
-        <div class="limit-budget-sub">daily limit<br>new users only</div>
+        <div class="limit-budget-sub">${totalLabel}<br>today</div>
       </div>
-      ${rows}
+      <div class="cold-outbound-pills">${rows}</div>
     </div>`;
 }
 
@@ -995,8 +1041,8 @@ function renderLimitBudgets(stats) {
   const grid = document.getElementById('cost-limit-budget-grid');
   if (!grid) return;
   const providers = (stats.limit_budget || {}).providers || {};
-  grid.innerHTML = renderColdOutboundCard(stats)
-    + ['claude', 'codex'].map(k => renderLimitBudgetCard(k, providers[k], stats)).join('');
+  grid.innerHTML = ['claude', 'codex'].map(k => renderLimitBudgetCard(k, providers[k], stats)).join('')
+    + renderColdOutboundCard(stats);
 }
 
 function buildFaderCards() {
