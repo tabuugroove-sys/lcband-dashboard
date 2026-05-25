@@ -4953,6 +4953,7 @@ function AgentMatrixStatus() {
             failed: failed,
             hung: j.hung || 0,
             hung_agents: j.hung_agents || [],
+            failed_agents: j.failed_agents || [],
           });
           setError(false);
         } else {
@@ -5014,8 +5015,23 @@ function AgentMatrixStatus() {
       {stats.failed > 0 && (
         <>
           <span className="matrix-sep">│</span>
-          <span className="matrix-cell failed">
+          <span
+            className="matrix-cell failed"
+            title={`Последний запуск exit>0 (subset of WAIT):\n${(stats.failed_agents||[]).join('\n')}`}
+            style={{cursor:'help'}}
+          >
             <span className="label">FAIL</span><span className="val">{stats.failed}</span>
+          </span>
+          {/* inline mini-list под счётчиком */}
+          <span style={{
+            fontSize:7, color:'rgba(239,68,68,0.7)', letterSpacing:0.3,
+            display:'flex', flexDirection:'column', justifyContent:'center',
+            lineHeight:1.3, maxWidth:180,
+          }}>
+            {(stats.failed_agents||[]).slice(0,4).map(a => (
+              <span key={a} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a}</span>
+            ))}
+            {(stats.failed_agents||[]).length > 4 && <span>+{stats.failed_agents.length-4}</span>}
           </span>
         </>
       )}
