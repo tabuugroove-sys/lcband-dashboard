@@ -8249,6 +8249,42 @@ function LeadFlowSection() {
       </div>
     </div>
   );
+  const aiDerivedCachesBlock = (
+    <div style={{background:'rgba(59,130,246,.055)', border:'1.5px solid rgba(96,165,250,.26)', borderRadius:9, padding:'8px 9px', display:'grid', gap:7}}>
+      <div>
+        <div style={{fontSize:10.5, fontWeight:900, color:'#93c5fd', textTransform:'uppercase', letterSpacing:.4}}>AI-derived cache layer</div>
+        <div style={{fontSize:8.5, color:'#cbd5e1'}}>это не raw-переписка: пересчитываемые решения поверх unified_message_store</div>
+      </div>
+      <div style={{background:'rgba(15,23,42,.46)', border:'1px solid rgba(96,165,250,.22)', borderRadius:7, padding:'6px 7px'}}>
+        <div style={{fontSize:9.5, fontWeight:800, color:'#bfdbfe', marginBottom:4}}>Standard fingerprint for new writes</div>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))', gap:4}}>
+          {['thread_id', 'last_msg_id', 'msg_count', 'thread_hash', 'model', 'prompt_version', 'source_reader', 'updated_at'].map(k => (
+            <code key={k} style={{fontSize:8, color:'#93c5fd', background:'rgba(96,165,250,.08)', border:'1px solid rgba(96,165,250,.18)', borderRadius:4, padding:'2px 5px'}}>{k}</code>
+          ))}
+        </div>
+      </div>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:6}}>
+        {[
+          ['attention_classifications.json', 'attention_classify_cache.py', 'LIVE · dashboard/daily report', 'attention_v3'],
+          ['inbound_leads_classify_cache.json', 'find_inbound_leads.py', 'offline inbound scan', 'inbound_lead_classify_v1'],
+          ['funnel_stage_classifier_state.json', 'funnel_stage_classifier.py', 'LIVE · funnel stage', 'lead_context_classify_v1'],
+          ['ai_ingest_classify_cache.json', 'ai_classify_chain.py', 'LIVE · per-post hash', 'post hash/version'],
+          ['vk_peer_classification.json', 'vk_classify_and_draft.py', 'offline snapshot · no fingerprint yet', 'deferred'],
+          ['vk_outreach_v3.json', 'vk_auto_pitch.py', 'LIVE-ish snapshot · rebuild from #1 + DB', 'deferred'],
+        ].map(([cache, owner, role, version]) => (
+          <div key={cache} style={{background:'rgba(15,23,42,.38)', border:'1px solid rgba(148,163,184,.14)', borderRadius:6, padding:'6px 7px', minWidth:0}}>
+            <div style={{fontSize:8.8, fontWeight:800, color:'#e2e8f0', marginBottom:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{cache}</div>
+            <div style={{fontSize:7.8, color:'#93c5fd', marginBottom:2}}>{sourceLink(owner, owner, {color:'#93c5fd'})}</div>
+            <div style={{fontSize:7.8, color:'var(--muted)', lineHeight:1.25}}>{role}</div>
+            <div style={{fontSize:7.6, color:version === 'deferred' ? '#fbbf24' : '#6ee7b7', marginTop:3}}>prompt/version: {version}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{fontSize:8.4, color:'#94a3b8', lineHeight:1.35, background:'rgba(15,23,42,.34)', border:'1px dashed rgba(148,163,184,.18)', borderRadius:6, padding:'5px 7px'}}>
+        Old cache entries are not backfilled by hand. They update naturally on TTL, fingerprint change, or force refresh.
+      </div>
+    </div>
+  );
   const l3WritersBlock = (
     <div className="ai-layer-card" onClick={(e) => {
       if (e.target.closest('a,button')) return;
@@ -8626,6 +8662,10 @@ function LeadFlowSection() {
               </div>
             ))}
           </div>
+        </div>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:8}}>
+          {aiDerivedCachesBlock}
+          {l3WritersBlock}
         </div>
 
       </div>
