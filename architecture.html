@@ -513,8 +513,9 @@
           <div class="lane-flow">
             <div class="lane-chip"><b>source</b>Клиент пишет в VK</div>
             <div class="lane-chip"><b>connection</b><code>vk_longpoll_listener.py</code></div>
-            <div class="lane-chip"><b>trigger</b><code>vk_auto_responder.py</code></div>
+            <div class="lane-chip"><b>adapter</b><code>vk_auto_responder.py</code></div>
             <div class="lane-chip"><b>state</b>VK history → common memory/state</div>
+            <div class="lane-chip"><b>owner</b><code>unified_dm_responder.py</code><br>LCB writer logic</div>
             <div class="lane-chip"><b>output</b>VK send после gates</div>
           </div>
         </div>
@@ -524,7 +525,7 @@
             <div class="lane-chip"><b>source</b>WA inbound / active lead</div>
             <div class="lane-chip"><b>connection</b>WA cache/materializer path</div>
             <div class="lane-chip"><b>state</b><code>wa_cache</code> / <code>message_events</code></div>
-            <div class="lane-chip"><b>owner</b>LCB writer drafts reply</div>
+            <div class="lane-chip"><b>owner</b><code>unified_dm_responder.py</code><br>LCB writer draft</div>
             <div class="lane-chip"><b>output</b>native WhatsApp Desktop + computer-use queue</div>
           </div>
         </div>
