@@ -1022,10 +1022,11 @@ const PROCESS_RULES = {
   proc_tg_monitor: {
     name: 'TG Realtime Monitor',
     interval: 'Постоянно: Telethon NewMessage + heartbeat 120s',
-    desc: 'Единственный persistent TG realtime client: event-чаты + private DM на одном Telethon подключении',
+    desc: 'Единственный persistent TG realtime client: event-чаты + private DM IN/OUT на одном Telethon подключении',
     rules: [
       'Persistent listener: events.NewMessage по всем event-чатам из telegram_monitor.CHATS',
-      'Private DM на том же client → lead_context_enricher.enrich(force=True) → unified_dm_responder.handle()',
+      'Private incoming DM на том же client → lead_context_enricher.enrich(force=True) → unified_dm_responder.handle()',
+      'Private manual outgoing DM → conversation_cache + message_events source=tg_dm_realtime_listener_outgoing → context refresh; writer не запускается',
       'Новый пост → debounce 3s → telegram_monitor.scan_cycle по msg_id-курсорам',
       'Heartbeat scan каждые 120s ловит reconnect gaps и любые пропущенные socket events',
       'Только дельта: msg_id-курсор per chat (iter_messages min_id=N), до 5000 новых за цикл',

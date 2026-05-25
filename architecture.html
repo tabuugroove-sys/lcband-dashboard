@@ -314,7 +314,7 @@
         <p>Launchd держит входящие каналы и отдаёт события ответственным владельцам.</p>
         <ul class="transition-list">
           <li><code>com.lcband.realtime-gateway</code> supervises TG realtime, payment listener и VK longpoll.</li>
-          <li><code>tg_realtime_monitor.py</code> ловит TG event-чаты/private DM, обновляет context card и зовёт LCB writer.</li>
+          <li><code>tg_realtime_monitor.py</code> ловит TG event-чаты/private DM; incoming DM обновляет context card и зовёт LCB writer, manual outgoing DM пишет в <code>message_events</code> + cache без запуска writer.</li>
           <li><code>vk_longpoll_listener.py</code> триггерит <code>vk_auto_responder.py</code>; WA идёт через native Desktop queue.</li>
         </ul>
       </div>
@@ -1044,7 +1044,7 @@
       <div class="card" style="border-top:3px solid rgba(59,130,246,.5)">
         <div style="font-size:13px;font-weight:700;color:#93c5fd;margin-bottom:12px">🔵 Agent 2<br>LC Band DM</div>
         <div class="anno">
-          <b>Вход:</b> входящий TG/VK/WA DM<br><br>
+          <b>Вход:</b> входящий TG/VK/WA DM; ручной TG outgoing фиксируется как raw OUT без запуска writer<br><br>
           <b>AI-стек:</b><br>
           Opus — classify + LCBand writer<br>
           Classifier получает <code>Context-hint</code> из LCB read-layer; role normalization после classify страхует: <code>event_organizer_active</code> допускается только если CRM/context подтверждает текущего контакта как organizer/client-side участника; performer/vendor/tech role понижает verdict до writer<br>
