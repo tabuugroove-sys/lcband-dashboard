@@ -577,12 +577,17 @@
     }
     .tg-earned-label { font-size: 13px; color: var(--muted); }
     .tg-earned-val { font-size: 22px; font-weight: 800; color: var(--ok); }
-    /* ── Chat panel (slide from right) ── */
+    /* ── Chat panel (slide from side) ── */
     .chat-panel {
       position: fixed; top: 0; right: 0; bottom: 0;
       width: min(440px, 100vw); background: #0e0e18; border-left: 1px solid var(--border);
       box-shadow: -6px 0 24px rgba(0,0,0,.4); display: flex; flex-direction: column; z-index: 100;
       transform: translateX(100%); transition: transform .25s ease;
+    }
+    .chat-panel.left {
+      left: 0; right: auto; border-left: none; border-right: 1px solid var(--border);
+      box-shadow: 6px 0 24px rgba(0,0,0,.4);
+      transform: translateX(-100%);
     }
     .chat-panel.open { transform: translateX(0); }
     .chat-header {
@@ -7546,8 +7551,10 @@ function ChatPanel({ target, onClose }) {
   const q = target?.username || (target?.user_id ? String(target.user_id) : '');
   // 🔴 26.04: VK channel uses /api/vk_chat + /api/vk_send (parallel to TG endpoints).
   const channel = (target?.channel || 'TG').toUpperCase();
-  const chatEp = channel === 'VK' ? 'vk_chat' : 'chat';
-  const sendEp = channel === 'VK' ? 'vk_send' : 'send';
+  const chatEp = channel === 'VK' ? 'vk_chat' : (channel === 'WA' ? 'wa_chat' : 'chat');
+  const sendEp = channel === 'VK' ? 'vk_send' : (channel === 'WA' ? null : 'send');
+  const cacheKey = `${channel}:${q}`;
+  const side = target?.side === 'left' ? 'left' : 'right';
 
   const fetchChat = useCallback(async (sinceId) => {
     if (!q) return;
@@ -7569,28 +7576,28 @@ function ChatPanel({ target, onClose }) {
       setErr('');
       if (j.incremental) {
         // Merge new messages onto cached set (dedupe by id).
-        const prev = CHAT_CACHE.get(activeQ) || data || { messages: [], meta: j.meta };
+        const prev = CHAT_CACHE.get(cacheKey) || data || { messages: [], meta: j.meta };
         const seen = new Set(prev.messages.map(m => m.id));
         const merged = prev.messages.concat(j.messages.filter(m => !seen.has(m.id)));
         const next = { meta: prev.meta || j.meta, messages: merged };
-        CHAT_CACHE.set(activeQ, next);
+        CHAT_CACHE.set(cacheKey, next);
         setData(next);
       } else {
-        CHAT_CACHE.set(activeQ, { meta: j.meta, messages: j.messages });
+        CHAT_CACHE.set(cacheKey, { meta: j.meta, messages: j.messages });
         setData({ meta: j.meta, messages: j.messages });
       }
     } catch (e) {
       if (e.name === 'AbortError') return;
       setErr(`Backend не отвечает (${e.message}). Запусти dashboard_backend.py.`);
     }
-  }, [q, data]);
+  }, [q, data, cacheKey, chatEp]);
 
   useEffect(() => {
     if (!target) return;
     setErr(''); setDraft('');
     // Instant paint from cache (if we've seen this chat before), then request
     // only the tail (messages newer than what's cached).
-    const cached = CHAT_CACHE.get(q);
+    const cached = CHAT_CACHE.get(cacheKey);
     if (cached) {
       setData(cached);
       const lastId = cached.messages.length ? cached.messages[cached.messages.length - 1].id : 0;
@@ -7601,7 +7608,7 @@ function ChatPanel({ target, onClose }) {
     }
     // Autorefresh — incremental only, cheap on backend.
     const id = setInterval(() => {
-      const c = CHAT_CACHE.get(q);
+      const c = CHAT_CACHE.get(cacheKey);
       const lastId = c && c.messages.length ? c.messages[c.messages.length - 1].id : 0;
       fetchChat(lastId || undefined);
     }, 15000);
@@ -7617,7 +7624,7 @@ function ChatPanel({ target, onClose }) {
 
   const send = async () => {
     const text = draft.trim();
-    if (!text || sending) return;
+    if (!text || sending || !sendEp) return;
     setSending(true); setErr('');
     try {
       const r = await fetch(`${CHAT_BACKEND}/api/${sendEp}`, {
@@ -7629,7 +7636,7 @@ function ChatPanel({ target, onClose }) {
       if (j.error) setErr(j.error);
       else {
         setDraft('');
-        const c = CHAT_CACHE.get(q);
+        const c = CHAT_CACHE.get(cacheKey);
         const lastId = c && c.messages.length ? c.messages[c.messages.length - 1].id : 0;
         fetchChat(lastId || undefined);
       }
@@ -7657,7 +7664,7 @@ function ChatPanel({ target, onClose }) {
   const sub = meta?.username ? `@${meta.username}` : (target.username ? `@${target.username}` : '');
 
   return (
-    <div className={`chat-panel ${target ? 'open' : ''}`}>
+    <div className={`chat-panel ${side} ${target ? 'open' : ''}`}>
       <div className="chat-header">
         <div>
           <div className="chat-title">{title}</div>
@@ -7678,19 +7685,25 @@ function ChatPanel({ target, onClose }) {
           </div>
         ))}
       </div>
-      <div className="chat-input-row">
-        <textarea
-          className="chat-input"
-          placeholder="Ответ клиенту… (Ctrl+Enter — отправить, Esc — закрыть)"
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onKeyDown={onKey}
-          rows={2}
-        />
-        <button className="chat-send" onClick={send} disabled={sending || !draft.trim()}>
-          {sending ? '…' : '➤'}
-        </button>
-      </div>
+      {sendEp ? (
+        <div className="chat-input-row">
+          <textarea
+            className="chat-input"
+            placeholder="Ответ клиенту… (Ctrl+Enter — отправить, Esc — закрыть)"
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={onKey}
+            rows={2}
+          />
+          <button className="chat-send" onClick={send} disabled={sending || !draft.trim()}>
+            {sending ? '…' : '➤'}
+          </button>
+        </div>
+      ) : (
+        <div className="chat-input-row" style={{color:'var(--muted)',fontSize:12}}>
+          WA переписка открыта только для чтения; отправка идёт через WhatsApp Desktop.
+        </div>
+      )}
     </div>
   );
 }
@@ -8952,6 +8965,9 @@ function FlowArrow() {
 function OverviewStatsSection({ stats, followupPlan }) {
   const [pitchOpen, setPitchOpen] = React.useState(null);
   const [fuOpen, setFuOpen] = React.useState(null);
+  const chatCtx = React.useContext(ChatContext);
+  const hoverTimer = React.useRef(null);
+  React.useEffect(() => () => clearTimeout(hoverTimer.current), []);
 
   if (!stats) return (
     <div style={{padding:'16px 16px 0'}}>
@@ -8982,16 +8998,48 @@ function OverviewStatsSection({ stats, followupPlan }) {
     <span style={{fontSize:12,color:'var(--muted)',marginLeft:4}}>{children}</span>
   );
 
+  const followupChatTarget = (it) => {
+    const rawChannel = String(it.channel || '').toUpperCase();
+    const name = String(it.username || it.name || it.contact || '').trim();
+    const isVk = rawChannel.startsWith('VK') || /^@?https?:\/\/vk\.com\//i.test(name) || /^@?vk\.com\//i.test(name);
+    const isWa = rawChannel.startsWith('WA');
+    const q = name.replace(/^@/, '').trim();
+    if (!q) return null;
+    return {
+      user_id: null,
+      username: q,
+      client: it.name || it.contact || name,
+      channel: isVk ? 'VK' : (isWa ? 'WA' : 'TG'),
+      side: 'left',
+    };
+  };
+
   const LeadList = ({items}) => (
     <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:7}}>
       {(items||[]).map((it,i) => {
         const name = it.username || it.name || it.contact || '?';
         const due = it.due_date ? it.due_date.slice(5,10).split('-').reverse().join('.') : '';
         const accent = it.kind === 'broker' ? 'var(--purple)' : (it.channel||'').startsWith('WA') ? '#25d366' : 'var(--accent)';
+        const chatTarget = followupChatTarget(it);
+        const openChat = () => chatTarget && chatCtx?.openChat(chatTarget);
+        const onEnter = chatTarget ? () => {
+          clearTimeout(hoverTimer.current);
+          hoverTimer.current = setTimeout(openChat, 250);
+        } : undefined;
+        const onLeave = chatTarget ? () => clearTimeout(hoverTimer.current) : undefined;
         return (
-          <div key={i} style={{
+          <div key={i}
+            onMouseEnter={onEnter}
+            onMouseLeave={onLeave}
+            onClick={chatTarget ? (e) => {
+              const tag = (e.target.tagName || '').toLowerCase();
+              if (tag === 'button' || tag === 'textarea' || tag === 'a' || tag === 'input') return;
+              openChat();
+            } : undefined}
+            style={{
             background:'rgba(255,255,255,0.035)', border:'1px solid rgba(148,163,184,.12)',
             borderRadius:7, padding:'8px 10px', fontSize:12, display:'grid', gap:5,
+            cursor: chatTarget ? 'pointer' : 'default',
           }}>
             <div style={{display:'flex', gap:8, alignItems:'center', minWidth:0}}>
               <span style={{color:accent,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:190}}>
