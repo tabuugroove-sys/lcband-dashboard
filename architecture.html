@@ -574,7 +574,7 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Input connections сходятся в общего LCB writer, output transports отдельные</div>
+        <div class="card-title">Input connections сначала проходят routing gate, потом либо broker, либо LCB writer</div>
         <div class="converge">
           <div class="converge-col">
             <div class="converge-title">Input connections</div>
@@ -600,10 +600,16 @@
             </div>
           </div>
           <div class="converge-arrow">→</div>
-          <div class="shared-agent">
-            <h3><code>unified_dm_responder.py</code><br>LCB writer</h3>
-            <p>Один владелец клиентского текста. Сначала отсекает broker/client-candidate, band member, payment, refusal, musician/spam, затем выбирает writer mode и draft.</p>
-            <span class="pill gold">shared owner</span>
+          <div class="converge-col">
+            <div class="source-card" style="border-color:rgba(199,154,240,.45);background:rgba(199,154,240,.08)">
+              <b>Broker pre-route</b>
+              <p>Broker client/contractor/candidate replies и broker opportunities уходят в <code>broker_orders.json</code> / broker pipeline здесь. LCB writer не запускается.</p>
+            </div>
+            <div class="shared-agent" style="min-height:190px">
+              <h3><code>unified_dm_responder.py</code><br>LCB writer</h3>
+              <p>Только non-broker клиентский поток. Выбирает writer mode, делает draft и проходит safety gates.</p>
+              <span class="pill gold">LCB owner</span>
+            </div>
           </div>
           <div class="converge-arrow">→</div>
           <div class="converge-col">
@@ -632,10 +638,6 @@
               <div class="source-card">
                 <b>Write-back</b>
                 <p>Outbound возвращается в <code>orders.db.message_events</code>, context и promises для следующего шага.</p>
-              </div>
-              <div class="source-card">
-                <b>Broker branch</b>
-                <p>Broker pre-route уводит contractor/client broker replies в <code>broker_orders.json</code> до LCB writer.</p>
               </div>
             </div>
           </div>
