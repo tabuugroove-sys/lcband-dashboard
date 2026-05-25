@@ -1133,9 +1133,9 @@
         <tbody>
           <tr>
             <td><code>tg_followup.py</code></td>
-            <td>Ежедневно 10:09</td>
+            <td>Hourly launchd tick</td>
             <td>Hourly check: последняя реплика наша, клиент молчит ≥ 1 день, нет hard snooze/stale/new inbound</td>
-            <td><code>lcb_event_context.py</code> → LCB event-card facts; <code>tg_followup.py</code> owns due/skip</td>
+            <td><code>lcb_event_context.py</code> → LCB event-card facts; <code>followup_orchestrator.py</code> shared rules; <code>tg_followup.py</code> owns TG transport</td>
             <td>TG context-card follow-up: deterministic missing-media retry for content uploads → <code>lcb_writer</code> drafts only after tg_followup gates → pre-send review → send/skip</td>
           </tr>
           <tr>
@@ -1183,7 +1183,8 @@
         </tbody>
       </table>
       <div class="hl" style="margin-top:14px;font-size:12px">
-        <b>Правило ownership:</b> решение “делать ли TG follow-up сейчас” владеет <code>tg_followup.py</code>;
+        <b>Правило ownership:</b> решение “делать ли follow-up сейчас” централизуется в <code>followup_orchestrator.py</code>;
+        <code>tg_followup.py</code>, <code>vk_followup.py</code> и WA path остаются channel adapters/read-send transports.
         <code>lead_context_enricher.py</code> только поставляет факты/подсказку карточки, а <code>lcb_writer.py</code> только пишет текст и делает pre-send safety.
         Общий cross-channel stale follow-up по <code>orders.db</code> владеет <code>funnel_maintenance.py</code>.
         <code>attention_auto_action.py</code> больше не auto-send'ит <code>followup_ready</code>, только делегирует.
