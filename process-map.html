@@ -169,16 +169,16 @@
       {
         group:'intake', name:'TG Realtime Gateway', label:'com.lcband.realtime-gateway',
         file:'realtime_gateway.py', schedule:'daemon / KeepAlive',
-        why:'Единая точка realtime-событий; TG event и TG DM теперь идут через один persistent Telethon client, payment и VK longpoll остаются отдельными компонентами.',
+        why:'Единая точка realtime-событий; TG event, TG DM и payment/drum события идут через один persistent Telethon client, VK longpoll остаётся отдельным компонентом.',
         input:'TG/VK realtime streams', action:'держит компоненты и heartbeat', output:'triggers downstream agents',
-        logic:['supervises tg_realtime_monitor, payment_event_handler, vk_longpoll_listener','перезапускается launchd при падении','пишет heartbeat/log для watchdog'],
+        logic:['supervises tg_realtime_monitor, vk_longpoll_listener','tg_realtime_monitor imports payment_event_handler handlers on the same client','перезапускается launchd при падении','пишет heartbeat/log для watchdog'],
       },
       {
         group:'intake', name:'TG Event Monitor', label:'com.lcband.tg-monitor component',
         file:'tg_realtime_monitor.py → telegram_monitor.py', schedule:'daemon component',
         why:'Единственный persistent TG realtime client: ловит event-чаты и private DM без второго session-copy socket.',
-        input:'TG event-чаты + private DM + msg_id cursors', action:'event classify → compose → pre-send review; DM → enrich(force=True) + unified_dm_responder.handle', output:'orders.db, sent proposal, tg_seen_posts.jsonl, conversation_cache',
-        logic:['NewMessage по event-чатам запускает scan_cycle по cursor','private DM routes through imported tg_dm_realtime_listener handlers on same client','dedup по tg_seen_posts.jsonl','verdict music_band/drum/solo/abstract/broker/skip','перед отправкой всегда ai_review_before_send()'],
+        input:'TG event-чаты + private DM + payment/promise/drum events + msg_id cursors', action:'event classify → compose → pre-send review; DM → enrich(force=True) + unified_dm_responder.handle; payment → payment_event_handler handlers', output:'orders.db, sent proposal, tg_seen_posts.jsonl, conversation_cache, payment heartbeat',
+        logic:['NewMessage по event-чатам запускает scan_cycle по cursor','private DM routes through imported tg_dm_realtime_listener handlers on same client','payment/promise/drum routes through imported payment_event_handler handlers on same client','dedup по tg_seen_posts.jsonl','verdict music_band/drum/solo/abstract/broker/skip','перед отправкой всегда ai_review_before_send()'],
       },
       {
         group:'intake', name:'Browser Walk', label:'com.lcband.browser-walk',
@@ -524,10 +524,10 @@
       },
       {
         group:'infra', name:'Payment Event Handler', label:'com.lcband.payment-handler',
-        file:'payment_event_handler.py', schedule:'daemon component',
-        why:'Отдельно ловит платежные события, потому что деньги — единственный допустимый human-attention boundary.',
-        input:'TG private messages', action:'detect payment/promise/drum events', output:'alerts/state updates',
-        logic:['catch-up replay by cursor','не смешан с generic responder','heartbeat для watchdog'],
+        file:'payment_event_handler.py', schedule:'attached module inside tg_realtime_monitor.py',
+        why:'Деньги остаются отдельным policy-owner, но без отдельного TG session/socket.',
+        input:'TG private incoming/outgoing from shared realtime client', action:'detect payment/promise/drum events', output:'alerts/state updates',
+        logic:['catch-up replay by cursor','не смешан с generic responder','heartbeat для watchdog','no tg_session_payments in live path'],
       },
       {
         group:'infra', name:'Agent Watchdog', label:'com.lcband.agent-watchdog',

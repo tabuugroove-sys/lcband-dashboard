@@ -1053,14 +1053,14 @@ const PROCESS_RULES = {
   },
   proc_payment_handler: {
     name: 'Payment Event Handler',
-    interval: 'Постоянно (KeepAlive daemon)',
-    desc: 'Telethon listener для оплат, обещаний, Кирилла и drum-director событий',
+    interval: 'Attached to TG Realtime Monitor',
+    desc: 'Payment/promise/drum logic attached to the single TG realtime Telethon client',
     rules: [
-      'Слушает private incoming/outgoing через отдельную tg_session_payments',
+      'Слушает private incoming/outgoing через tg_realtime_monitor.py на tg_session_monitor',
       'Catch-up replay при старте по per-peer cursor закрывает downtime gaps',
       'Payment/promise/drum logic остаётся здесь, общий tg_responder это не дублирует',
-      'Heartbeat state: payment_event_handler_heartbeat.json; watchdog рестартит при stale >3 мин',
-      'Скрипт: payment_event_handler.py | log: /tmp/payment_event_handler.log',
+      'Heartbeat state: payment_event_handler_heartbeat.json; watchdog следит через realtime-gateway',
+      'Код: payment_event_handler.py | runtime log: /tmp/tg_realtime_monitor.log',
     ],
   },
   proc_vk_monitor: {

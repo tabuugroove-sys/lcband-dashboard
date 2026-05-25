@@ -345,7 +345,7 @@
     <div class="card">
       <div class="phase-row">
         <div class="phase-cell"><strong>Realtime gateway</strong><br><span class="phase-status">continuous</span></div>
-        <div class="phase-cell"><code>com.lcband.realtime-gateway</code> supervises <code>tg_realtime_monitor.py</code>, <code>payment_event_handler.py</code>, <code>vk_longpoll_listener.py</code>.</div>
+        <div class="phase-cell"><code>com.lcband.realtime-gateway</code> supervises <code>tg_realtime_monitor.py</code> and <code>vk_longpoll_listener.py</code>; <code>payment_event_handler.py</code> is imported into the TG realtime client.</div>
         <div class="phase-cell">launchd owner</div>
       </div>
       <div class="phase-row">
@@ -1134,9 +1134,9 @@
           <tr>
             <td><code>tg_followup.py</code></td>
             <td>Ежедневно 10:09</td>
-            <td>Молчит ≥ 1 день, статус «Переговоры» / «Follow-up»</td>
-            <td><code>lcb_event_context.py</code> → LCB event-card</td>
-            <td>TG context-card follow-up: deterministic missing-media retry for content uploads → Opus draft → send/skip по gates</td>
+            <td>Hourly check: последняя реплика наша, клиент молчит ≥ 1 день, нет hard snooze/stale/new inbound</td>
+            <td><code>lcb_event_context.py</code> → LCB event-card facts; <code>tg_followup.py</code> owns due/skip</td>
+            <td>TG context-card follow-up: deterministic missing-media retry for content uploads → <code>lcb_writer</code> drafts only after tg_followup gates → pre-send review → send/skip</td>
           </tr>
           <tr>
             <td><code>funnel_maintenance.py</code></td>
@@ -1183,8 +1183,9 @@
         </tbody>
       </table>
       <div class="hl" style="margin-top:14px;font-size:12px">
-        <b>Правило ownership:</b> structured TG follow-up владеет <code>tg_followup.py</code>,
-        общий cross-channel stale follow-up по <code>orders.db</code> владеет <code>funnel_maintenance.py</code>.
+        <b>Правило ownership:</b> решение “делать ли TG follow-up сейчас” владеет <code>tg_followup.py</code>;
+        <code>lead_context_enricher.py</code> только поставляет факты/подсказку карточки, а <code>lcb_writer.py</code> только пишет текст и делает pre-send safety.
+        Общий cross-channel stale follow-up по <code>orders.db</code> владеет <code>funnel_maintenance.py</code>.
         <code>attention_auto_action.py</code> больше не auto-send'ит <code>followup_ready</code>, только делегирует.
       </div>
     </div>
