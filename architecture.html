@@ -573,17 +573,17 @@
             <tr>
               <td>VK DM переписки</td>
               <td><code>vk_conversation_cache/&lt;peer&gt;.jsonl</code></td>
-              <td><code>vk_full_export.py</code>, VK responder/follow-up</td>
+              <td><code>vk_full_export.py</code> сохраняет legacy JSONL и зеркалит строки в <code>orders.db.message_events</code>; VK responder/follow-up должны читать DB-first через <code>unified_message_store.py</code></td>
             </tr>
             <tr>
               <td>Instagram DM переписки</td>
               <td><code>ig_conversation_cache/&lt;username&gt;.jsonl</code></td>
-              <td>IG sync/export; context analysis</td>
+              <td><code>ig_conv_cache.py</code> сохраняет legacy JSONL и зеркалит новые сообщения в <code>orders.db.message_events</code>; context analysis читает DB-first</td>
             </tr>
             <tr>
               <td>WhatsApp переписки</td>
               <td><code>wa_cache/&lt;phone_or_name&gt;.jsonl</code><br><code>wa_contacts_cache.json</code> runtime resolver cache</td>
-              <td>Baileys пишет legacy mirror и <code>orders.db.message_events</code>, а также ведёт contact-index из <code>contacts.upsert</code>/<code>messaging-history.set</code>/<code>messages.upsert</code>; старые human-slug cache импортируются только через <code>wa_lid_resolver.py</code> в канонический <code>wa:+&lt;lid&gt;@lid</code>. <code>wa_responder.py</code> и WA follow-up кладут draft в <code>wa_computer_use_queue.json</code>; финальный Send только через WhatsApp Desktop/computer-use</td>
+              <td>Baileys и WhatsApp Desktop/computer-use пишут legacy mirror и <code>orders.db.message_events</code>, а также ведётся contact-index из <code>contacts.upsert</code>/<code>messaging-history.set</code>/<code>messages.upsert</code>; старые human-slug cache импортируются только через <code>wa_lid_resolver.py</code> в канонический <code>wa:+&lt;lid&gt;@lid</code>. <code>wa_responder.py</code> и WA follow-up кладут draft в <code>wa_computer_use_queue.json</code>; финальный Send только через WhatsApp Desktop/computer-use</td>
             </tr>
             <tr>
               <td>Единый read-layer raw-переписок</td>
