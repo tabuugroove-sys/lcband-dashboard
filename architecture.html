@@ -395,6 +395,82 @@
       margin-bottom: 4px;
       font-size: 12px;
     }
+    .converge {
+      display: grid;
+      grid-template-columns: minmax(260px, .95fr) 34px minmax(250px, .78fr) 34px minmax(280px, 1fr);
+      gap: 10px;
+      align-items: stretch;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .converge-col {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+      min-width: 0;
+    }
+    .converge-title {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .source-card {
+      border: 1px solid rgba(148,163,184,.16);
+      border-radius: 8px;
+      background: rgba(255,255,255,.035);
+      padding: 10px 12px;
+      min-height: 78px;
+    }
+    .source-card b {
+      display: block;
+      color: var(--text);
+      margin-bottom: 5px;
+      font-size: 12px;
+    }
+    .source-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .converge-arrow {
+      display: grid;
+      place-items: center;
+      color: var(--gold);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 28px;
+      opacity: .9;
+    }
+    .shared-agent {
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      min-height: 282px;
+      border: 1.5px solid rgba(231,189,71,.52);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(231,189,71,.16), rgba(231,189,71,.055));
+      padding: 18px;
+      text-align: center;
+    }
+    .shared-agent h3 {
+      margin: 0 0 10px;
+      color: var(--ink);
+      font-size: 17px;
+      line-height: 1.2;
+    }
+    .shared-agent p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .shared-agent .pill { margin-top: 14px; }
+    .shared-chain {
+      display: grid;
+      gap: 10px;
+    }
     .pill {
       display: inline-flex;
       align-items: center;
@@ -446,8 +522,9 @@
       .hdr { flex-direction: column; align-items: flex-start; gap: 10px; }
       .wrap { width: min(100vw - 28px, 1220px); padding-top: 24px; }
       .page-title { font-size: 40px; }
-      .grid2, .grid3, .actual-grid, .flow-row, .flow-row.five, .lane { grid-template-columns: 1fr; }
-      .arrow-col { transform: rotate(90deg); min-height: 26px; }
+      .grid2, .grid3, .actual-grid, .flow-row, .flow-row.five, .lane, .converge { grid-template-columns: 1fr; }
+      .arrow-col, .converge-arrow { transform: rotate(90deg); min-height: 26px; }
+      .shared-agent { min-height: 180px; }
       .row { grid-template-columns: 1fr; gap: 5px; }
       .side-nav {
         left: 10px;
@@ -497,56 +574,62 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Источники → подключения → owner → state/output</div>
-        <div class="lane">
-          <div class="lane-label">TG private DM</div>
-          <div class="lane-flow">
-            <div class="lane-chip"><b>source</b>Клиент пишет в TG DM</div>
-            <div class="lane-chip"><b>connection</b><code>tg_realtime_monitor.py</code><br><code>tg_session_monitor.session</code></div>
-            <div class="lane-chip"><b>write</b>inbound → <code>orders.db.message_events</code></div>
-            <div class="lane-chip"><b>owner</b><code>unified_dm_responder.py</code><br>LCB writer / broker pre-route</div>
-            <div class="lane-chip"><b>output</b>TG send + outbound write-back</div>
+        <div class="card-title">Источники и подключения сходятся в общего LCB writer</div>
+        <div class="converge">
+          <div class="converge-col">
+            <div class="converge-title">Sources + adapters</div>
+            <div class="source-card">
+              <b>TG private DM</b>
+              <p><code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code>; inbound сразу пишется в <code>orders.db.message_events</code>.</p>
+            </div>
+            <div class="source-card">
+              <b>VK DM</b>
+              <p><code>vk_longpoll_listener.py</code> принимает inbound, <code>vk_auto_responder.py</code> остаётся VK adapter/transport.</p>
+            </div>
+            <div class="source-card">
+              <b>WhatsApp</b>
+              <p>WA inbound материализуется через cache/message history; outbound идёт только через native WhatsApp Desktop + computer-use queue.</p>
+            </div>
+            <div class="source-card">
+              <b>Event/group posts</b>
+              <p>TG realtime / VK monitor / Browser Walk дедупят посты и маршрутизируют в LCB cold lead или broker opportunity.</p>
+            </div>
+            <div class="source-card">
+              <b>Manual / dry-run</b>
+              <p><code>tg_followup.py --dry-run --only wellintea</code> читает через <code>tg_session_followup.session</code>; это временная ручная сессия, не daemon.</p>
+            </div>
           </div>
-        </div>
-        <div class="lane" style="margin-top:10px">
-          <div class="lane-label">VK DM</div>
-          <div class="lane-flow">
-            <div class="lane-chip"><b>source</b>Клиент пишет в VK</div>
-            <div class="lane-chip"><b>connection</b><code>vk_longpoll_listener.py</code></div>
-            <div class="lane-chip"><b>adapter</b><code>vk_auto_responder.py</code></div>
-            <div class="lane-chip"><b>state</b>VK history → common memory/state</div>
-            <div class="lane-chip"><b>owner</b><code>unified_dm_responder.py</code><br>LCB writer logic</div>
-            <div class="lane-chip"><b>output</b>VK send после gates</div>
+          <div class="converge-arrow">→</div>
+          <div class="shared-agent">
+            <h3><code>unified_dm_responder.py</code><br>LCB writer</h3>
+            <p>Один владелец клиентского текста. Сначала отсекает broker/client-candidate, band member, payment, refusal, musician/spam, затем выбирает writer mode и draft.</p>
+            <span class="pill gold">shared owner</span>
           </div>
-        </div>
-        <div class="lane" style="margin-top:10px">
-          <div class="lane-label">WhatsApp</div>
-          <div class="lane-flow">
-            <div class="lane-chip"><b>source</b>WA inbound / active lead</div>
-            <div class="lane-chip"><b>connection</b>WA cache/materializer path</div>
-            <div class="lane-chip"><b>state</b><code>wa_cache</code> / <code>message_events</code></div>
-            <div class="lane-chip"><b>owner</b><code>unified_dm_responder.py</code><br>LCB writer draft</div>
-            <div class="lane-chip"><b>output</b>native WhatsApp Desktop + computer-use queue</div>
-          </div>
-        </div>
-        <div class="lane" style="margin-top:10px">
-          <div class="lane-label">Event/group posts</div>
-          <div class="lane-flow">
-            <div class="lane-chip"><b>source</b>TG/VK event/group пост</div>
-            <div class="lane-chip"><b>connection</b>TG realtime / VK monitor / Browser Walk</div>
-            <div class="lane-chip"><b>dedupe</b><code>tg_seen_posts</code> + DB checks</div>
-            <div class="lane-chip"><b>route</b>LCB cold lead или broker opportunity</div>
-            <div class="lane-chip"><b>state</b><code>orders.db</code> / <code>broker_orders.json</code></div>
-          </div>
-        </div>
-        <div class="lane" style="margin-top:10px">
-          <div class="lane-label">Manual / dry-run</div>
-          <div class="lane-flow">
-            <div class="lane-chip"><b>TG follow-up</b><code>tg_followup.py --dry-run --only wellintea</code></div>
-            <div class="lane-chip"><b>connection</b><code>tg_session_followup.session</code></div>
-            <div class="lane-chip"><b>scope</b>ручная временная сессия, не daemon</div>
-            <div class="lane-chip"><b>reads</b>orders + memory + context card</div>
-            <div class="lane-chip"><b>output</b>dry-run decision, без штатного socket ownership</div>
+          <div class="converge-arrow">→</div>
+          <div class="converge-col">
+            <div class="converge-title">Shared state + output</div>
+            <div class="shared-chain">
+              <div class="source-card">
+                <b>Context/state</b>
+                <p><code>orders.db</code>, <code>orders.db.message_events</code>, <code>lcb_event_context.py</code>, <code>resolve_context.py</code>.</p>
+              </div>
+              <div class="source-card">
+                <b>Mode + gates</b>
+                <p>writer mode, freshness guard, pre-send review, money/refusal/duplicate guards.</p>
+              </div>
+              <div class="source-card">
+                <b>Transport adapters</b>
+                <p>TG send, VK send, WA Desktop queue. Transport не становится вторым writer.</p>
+              </div>
+              <div class="source-card">
+                <b>Write-back</b>
+                <p>Outbound возвращается в <code>orders.db.message_events</code>, context и promises для следующего шага.</p>
+              </div>
+              <div class="source-card">
+                <b>Broker branch</b>
+                <p>Broker pre-route уводит contractor/client broker replies в <code>broker_orders.json</code> до LCB writer.</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
