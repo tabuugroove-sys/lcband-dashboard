@@ -636,14 +636,14 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Порядок: input → запись → routing → context load → writer → output → write-back</div>
+        <div class="card-title">Порядок: 4 подключения → запись → routing → context load → writer → output action → write-back</div>
         <div class="sequence-map">
           <div class="seq-col">
-            <div class="converge-title">1. Input connections</div>
-            <div class="seq-card"><b>TG DM</b><p><code>tg_realtime_monitor.py</code> + <code>tg_session_monitor.session</code>.</p></div>
-            <div class="seq-card"><b>VK DM</b><p><code>vk_longpoll_listener.py</code> принимает inbound.</p></div>
-            <div class="seq-card"><b>WA inbound</b><p>WA cache/materializer path.</p></div>
-            <div class="seq-card"><b>Event posts / dry-run</b><p>Browser Walk, monitors, manual read-only sessions.</p></div>
+            <div class="converge-title">1. 4 dashboard connections</div>
+            <div class="seq-card"><b>TG realtime</b><p><code>tg_realtime_monitor.py</code> + <code>tg_session_monitor.session</code>; realtime DM/event input.</p></div>
+            <div class="seq-card"><b>TG follow-up session</b><p><code>tg_followup.py</code> + <code>tg_session_followup.session</code>; follow-up read/run session.</p></div>
+            <div class="seq-card"><b>VK service</b><p>Kate Mobile + service API health/read path; VK adapter handles VK-side actions.</p></div>
+            <div class="seq-card"><b>WhatsApp Baileys</b><p>WA connection/materializer; outbound still goes through native Desktop queue.</p></div>
           </div>
           <div class="seq-arrow">→</div>
           <div class="seq-col">
@@ -666,10 +666,10 @@
           </div>
           <div class="seq-arrow">→</div>
           <div class="seq-col">
-            <div class="converge-title">5. Output transports</div>
-            <div class="seq-card"><b>TG output</b><p>Отдельная send operation после gates; не realtime monitor socket.</p></div>
-            <div class="seq-card"><b>VK output</b><p>VK send adapter отправляет готовый текст после gates.</p></div>
-            <div class="seq-card"><b>WA output</b><p>Native WhatsApp Desktop + computer-use queue, не WA Web.</p></div>
+            <div class="converge-title">5. Output actions</div>
+            <div class="seq-card"><b>Send/queue action</b><p>Отправка после writer/gates не считается новым dashboard connection: TG/VK send path или WA Desktop queue.</p></div>
+            <div class="seq-card"><b>Transport owner</b><p>Transport доставляет готовый текст и не становится вторым writer.</p></div>
+            <div class="seq-card"><b>No extra socket count</b><p>На схеме остаётся 4 подключения; output — действие поверх соответствующего канала.</p></div>
           </div>
         </div>
         <div class="return-strip">
@@ -907,31 +907,31 @@
         <div class="section-num">4</div>
         <div>
           <div class="section-label">Подключения к мессенджерам</div>
-          <div class="section-desc">Два типа подключения, чтобы не путать ownership</div>
+          <div class="section-desc">В dashboard их четыре; send/browser/export ниже — действия, не новые connection health-сущности</div>
         </div>
       </div>
       <div class="grid2">
         <div class="card">
-          <div class="card-title">Постоянные подключения</div>
+          <div class="card-title">4 подключения из dashboard</div>
           <div class="list">
             <div class="row"><b>TG realtime</b><span><code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code> — основной realtime TG socket; слушает NewMessage/push и отдаёт DM в LCB writer или broker handler по routing.</span></div>
-            <div class="row"><b>VK longpoll</b><span><code>vk_longpoll_listener.py</code> — постоянный VK listener; триггерит <code>vk_auto_responder.py</code> и пишет события в общий state.</span></div>
-            <div class="row"><b>WA inbound/cache</b><span>WA входящие материализуются в cache/message history; outbound не через WA Web, а через native WhatsApp Desktop + computer-use queue.</span></div>
+            <div class="row"><b>TG follow-up session</b><span><code>tg_followup.py</code> / <code>tg_session_followup.session</code> — отдельная follow-up session; live/dry-run статус показывается как connection health, но это не основной realtime socket.</span></div>
+            <div class="row"><b>VK service</b><span>Kate Mobile + Service API health/read path; VK adapter может выполнять VK-side действия, но это не LCB writer.</span></div>
+            <div class="row"><b>WhatsApp Baileys</b><span>WA connected/materializer path; outbound не через WA Web, а через native WhatsApp Desktop + computer-use queue.</span></div>
           </div>
           <div style="margin-top:12px">
-            <span class="pill blue">always on</span>
+            <span class="pill blue">4 connections</span>
           </div>
         </div>
         <div class="card">
-          <div class="card-title">Временные подключения</div>
+          <div class="card-title">Не считать отдельными подключениями</div>
           <div class="list">
-            <div class="row"><b>TG send session</b><span>Короткая Telethon-операция отправки после writer/gates; не должна конкурировать с <code>tg_session_monitor.session</code>.</span></div>
-            <div class="row"><b>TG follow-up dry-run</b><span><code>tg_followup.py --dry-run --only wellintea</code> держит <code>tg_session_followup.session</code> как временную ручную сессию; это не штатный daemon socket.</span></div>
-            <div class="row"><b>Browser walk</b><span>Временный browser-run для обхода event/group источников и сверки пропущенных постов; результат дедупится с realtime, не держит socket.</span></div>
+            <div class="row"><b>Output send</b><span>TG/VK send и WA Desktop queue — действия после writer/gates, а не новые health connections.</span></div>
+            <div class="row"><b>Browser Walk</b><span>Обход event/group источников и сверка пропущенных постов; результат дедупится с realtime, но это не connection card.</span></div>
             <div class="row"><b>Export/backfill</b><span>Разовое чтение истории в <code>orders.db.message_events</code> / legacy cache; не отдельная память и не постоянное подключение.</span></div>
           </div>
           <div style="margin-top:12px">
-            <span class="pill warn">short lived</span>
+            <span class="pill warn">actions only</span>
           </div>
         </div>
       </div>
