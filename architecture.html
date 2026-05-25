@@ -471,6 +471,68 @@
       display: grid;
       gap: 10px;
     }
+    .sequence-map {
+      display: grid;
+      grid-template-columns: minmax(180px,.82fr) 26px minmax(180px,.82fr) 26px minmax(190px,.9fr) 26px minmax(210px,1fr) 26px minmax(190px,.9fr);
+      gap: 8px;
+      align-items: stretch;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .seq-col {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+      min-width: 0;
+    }
+    .seq-card {
+      border: 1px solid rgba(148,163,184,.16);
+      border-radius: 8px;
+      background: rgba(255,255,255,.035);
+      padding: 10px 12px;
+      min-height: 76px;
+    }
+    .seq-card b {
+      display: block;
+      color: var(--text);
+      margin-bottom: 5px;
+      font-size: 12px;
+    }
+    .seq-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .seq-card.primary {
+      border-color: rgba(231,189,71,.52);
+      background: linear-gradient(180deg, rgba(231,189,71,.16), rgba(231,189,71,.055));
+    }
+    .seq-card.broker {
+      border-color: rgba(199,154,240,.45);
+      background: rgba(199,154,240,.08);
+    }
+    .seq-card.state {
+      border-color: rgba(88,215,196,.38);
+      background: rgba(88,215,196,.07);
+    }
+    .seq-arrow {
+      display: grid;
+      place-items: center;
+      color: var(--gold);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 22px;
+    }
+    .return-strip {
+      margin-top: 10px;
+      border: 1px solid rgba(88,215,196,.24);
+      border-radius: 8px;
+      background: rgba(88,215,196,.055);
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
     .pill {
       display: inline-flex;
       align-items: center;
@@ -522,8 +584,8 @@
       .hdr { flex-direction: column; align-items: flex-start; gap: 10px; }
       .wrap { width: min(100vw - 28px, 1220px); padding-top: 24px; }
       .page-title { font-size: 40px; }
-      .grid2, .grid3, .actual-grid, .flow-row, .flow-row.five, .lane, .converge { grid-template-columns: 1fr; }
-      .arrow-col, .converge-arrow { transform: rotate(90deg); min-height: 26px; }
+      .grid2, .grid3, .actual-grid, .flow-row, .flow-row.five, .lane, .converge, .sequence-map { grid-template-columns: 1fr; }
+      .arrow-col, .converge-arrow, .seq-arrow { transform: rotate(90deg); min-height: 26px; }
       .shared-agent { min-height: 180px; }
       .row { grid-template-columns: 1fr; gap: 5px; }
       .side-nav {
@@ -574,73 +636,46 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Input connections сначала проходят routing gate, потом либо broker, либо LCB writer</div>
-        <div class="converge">
-          <div class="converge-col">
-            <div class="converge-title">Input connections</div>
-            <div class="source-card">
-              <b>TG private DM</b>
-              <p>Input socket: <code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code>; inbound сразу пишется в <code>orders.db.message_events</code>.</p>
-            </div>
-            <div class="source-card">
-              <b>VK DM</b>
-              <p>Input listener: <code>vk_longpoll_listener.py</code> принимает inbound и передаёт дальше через VK adapter path.</p>
-            </div>
-            <div class="source-card">
-              <b>WhatsApp</b>
-              <p>Input materializer: WA inbound попадает в cache/message history; это не тот же путь, что output send.</p>
-            </div>
-            <div class="source-card">
-              <b>Event/group posts</b>
-              <p>Input scan: TG realtime / VK monitor / Browser Walk дедупят посты и маршрутизируют в LCB cold lead или broker opportunity.</p>
-            </div>
-            <div class="source-card">
-              <b>Manual / dry-run</b>
-              <p>Read-only/manual input: <code>tg_followup.py --dry-run --only wellintea</code> читает через <code>tg_session_followup.session</code>; это временная ручная сессия, не daemon.</p>
-            </div>
+        <div class="card-title">Порядок: input → запись → routing → context load → writer → output → write-back</div>
+        <div class="sequence-map">
+          <div class="seq-col">
+            <div class="converge-title">1. Input connections</div>
+            <div class="seq-card"><b>TG DM</b><p><code>tg_realtime_monitor.py</code> + <code>tg_session_monitor.session</code>.</p></div>
+            <div class="seq-card"><b>VK DM</b><p><code>vk_longpoll_listener.py</code> принимает inbound.</p></div>
+            <div class="seq-card"><b>WA inbound</b><p>WA cache/materializer path.</p></div>
+            <div class="seq-card"><b>Event posts / dry-run</b><p>Browser Walk, monitors, manual read-only sessions.</p></div>
           </div>
-          <div class="converge-arrow">→</div>
-          <div class="converge-col">
-            <div class="source-card" style="border-color:rgba(199,154,240,.45);background:rgba(199,154,240,.08)">
-              <b>Broker pre-route</b>
-              <p>Broker client/contractor/candidate replies и broker opportunities уходят в <code>broker_orders.json</code> / broker pipeline здесь. LCB writer не запускается.</p>
-            </div>
-            <div class="shared-agent" style="min-height:190px">
-              <h3><code>unified_dm_responder.py</code><br>LCB writer</h3>
-              <p>Только non-broker клиентский поток. Выбирает writer mode, делает draft и проходит safety gates.</p>
-              <span class="pill gold">LCB owner</span>
-            </div>
+          <div class="seq-arrow">→</div>
+          <div class="seq-col">
+            <div class="converge-title">2. Raw write / cache</div>
+            <div class="seq-card state"><b>Canonical history</b><p>Inbound/message/post facts пишутся или материализуются в <code>orders.db.message_events</code> и channel cache mirrors.</p></div>
+            <div class="seq-card state"><b>Order/event state</b><p>CRM row, event graph, <code>lcb_orders</code> / <code>broker_orders</code> обновляются владельцами state.</p></div>
           </div>
-          <div class="converge-arrow">→</div>
-          <div class="converge-col">
-            <div class="converge-title">Shared state + output transports</div>
-            <div class="shared-chain">
-              <div class="source-card">
-                <b>Context/state</b>
-                <p><code>orders.db</code>, <code>orders.db.message_events</code>, <code>lcb_event_context.py</code>, <code>resolve_context.py</code>.</p>
-              </div>
-              <div class="source-card">
-                <b>Mode + gates</b>
-                <p>writer mode, freshness guard, pre-send review, money/refusal/duplicate guards.</p>
-              </div>
-              <div class="source-card">
-                <b>TG output</b>
-                <p>Отдельная send operation после writer/gates; не использует <code>tg_session_monitor.session</code> как второй realtime owner.</p>
-              </div>
-              <div class="source-card">
-                <b>VK output</b>
-                <p><code>vk_auto_responder.py</code> / VK send path отправляет готовый текст после gates; это adapter, не writer.</p>
-              </div>
-              <div class="source-card">
-                <b>WA output</b>
-                <p>Только native WhatsApp Desktop + computer-use queue; не WA Web и не inbound materializer.</p>
-              </div>
-              <div class="source-card">
-                <b>Write-back</b>
-                <p>Outbound возвращается в <code>orders.db.message_events</code>, context и promises для следующего шага.</p>
-              </div>
-            </div>
+          <div class="seq-arrow">→</div>
+          <div class="seq-col">
+            <div class="converge-title">3. Routing gate</div>
+            <div class="seq-card broker"><b>Broker branch</b><p>Broker client/contractor/candidate replies и broker opportunities уходят в <code>broker_orders.json</code>; LCB writer не запускается.</p></div>
+            <div class="seq-card"><b>LCB client branch</b><p>Non-broker клиентский поток идёт дальше в context load и writer.</p></div>
+            <div class="seq-card"><b>Hard stops</b><p>Band member, payment, refusal, musician/spam, duplicate/recent handled могут остановить поток до draft.</p></div>
           </div>
+          <div class="seq-arrow">→</div>
+          <div class="seq-col">
+            <div class="converge-title">4. Context load + writer</div>
+            <div class="seq-card state"><b>Подгрузка контекста</b><p><code>lead_context_enricher</code>, <code>lcb_event_context</code>, <code>resolve_context</code>, CRM lookup читают state перед генерацией.</p></div>
+            <div class="seq-card primary"><b><code>unified_dm_responder.py</code><br>LCB writer</b><p>Выбирает writer mode, делает draft, затем freshness guard и pre-send review.</p></div>
+          </div>
+          <div class="seq-arrow">→</div>
+          <div class="seq-col">
+            <div class="converge-title">5. Output transports</div>
+            <div class="seq-card"><b>TG output</b><p>Отдельная send operation после gates; не realtime monitor socket.</p></div>
+            <div class="seq-card"><b>VK output</b><p>VK send adapter отправляет готовый текст после gates.</p></div>
+            <div class="seq-card"><b>WA output</b><p>Native WhatsApp Desktop + computer-use queue, не WA Web.</p></div>
+          </div>
+        </div>
+        <div class="return-strip">
+          <b style="color:var(--text)">Обратная запись после output:</b>
+          successful send → <code>outbound_recorder.record_outbound(namespace="lcb")</code> →
+          <code>orders.db.message_events</code> → context refresh/promises → следующий входящий или follow-up уже читает обновлённую память.
         </div>
       </div>
       <div class="grid3" style="margin-top:12px">
