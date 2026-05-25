@@ -567,7 +567,7 @@
         <div class="flow-row five">
           <div class="node connect">
             <h3>Inbound / due follow-up</h3>
-            <p>Realtime listener приносит inbound. Follow-up runner может принести due-кандидата, но не держит основной TG socket.</p>
+            <p>Realtime listener приносит inbound. Follow-up runner может принести due-кандидата, но не держит основной TG socket. Warm cap: 5 context pings; media/pitch bundle считается одним раундом.</p>
           </div>
           <div class="arrow-col">→</div>
           <div class="node store">
@@ -863,7 +863,7 @@
         <div class="grid2">
           <div class="node warn">
             <h3>Не плодить writer'ов</h3>
-            <p>Follow-up, listeners и transports только находят событие и доставляют результат. Текст LCB пишет один writer.</p>
+            <p>Follow-up, listeners и transports только находят событие и доставляют результат. Текст LCB пишет один writer; auto-follow-up не пушит оплату/предоплату и чистит payment step из draft/adapt.</p>
           </div>
           <div class="node warn">
             <h3>Не делать broker внутри LCB</h3>
