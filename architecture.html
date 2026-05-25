@@ -496,99 +496,56 @@
           <div class="section-desc">Текущие owners и направления данных в production-коде</div>
         </div>
       </div>
-      <div class="card map-wrap">
-        <div class="system-map">
-          <div class="map-col">
-            <div class="col-title">Мессенджеры</div>
-            <div class="node src">
-              <h3>TG / VK / WA / IG</h3>
-              <p>Клиенты, входящие сообщения, исходящие ответы, event/group источники.</p>
-            </div>
-            <div class="node src">
-              <h3>Event/group посты</h3>
-              <p>Холодные возможности для LCB или broker, без собственной истории диалога.</p>
-            </div>
-          </div>
-
-          <div class="map-col">
-            <div class="col-title">Подключения</div>
-            <div class="node connect">
-              <h3>Постоянные listeners</h3>
-              <p><strong>TG realtime</strong>: <code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code>; VK держит longpoll.</p>
-            </div>
-            <div class="node connect">
-              <h3>Временные sessions</h3>
-              <p><strong>Send / dry-run / browser walk / export</strong>: короткие ручные подключения, не штатные daemon sockets.</p>
-            </div>
-          </div>
-
-          <div class="map-col">
-            <div class="col-title">Центр</div>
-            <div class="node writer" style="min-height:170px">
-              <h3>LCB writer</h3>
-              <p>
-                Один production-владелец клиентского текста. Режим выбирается по текущему шагу воронки:
-                intake, sales, contract, production, content, refusal-close, follow-up.
-              </p>
-            </div>
-            <div class="node broker">
-              <h3>Broker pipeline</h3>
-              <p>Отдельный контур для broker opportunities: подрядчики, media, casting, client relay.</p>
-            </div>
-          </div>
-
-          <div class="map-col">
-            <div class="col-title">State</div>
-            <div class="node store">
-              <h3>orders.db</h3>
-              <p>CRM source of truth: все заказы, статусы, история, event graph, raw message events.</p>
-            </div>
-            <div class="node store">
-              <h3>Память переписок</h3>
-              <p>Canonical raw-log в <code>orders.db.message_events</code>; JSONL cache/export по каналам только зеркала.</p>
-            </div>
-          </div>
-
-          <div class="map-col">
-            <div class="col-title">Выход</div>
-            <div class="node out">
-              <h3>Ответ клиенту</h3>
-              <p>Writer пишет, pre-send gates проверяют, transport отправляет в нужный канал.</p>
-            </div>
-            <div class="node out">
-              <h3>Обновление state</h3>
-              <p>Входящие и исходящие сообщения возвращаются в orders и память, чтобы следующий шаг видел контекст.</p>
-            </div>
+      <div class="card">
+        <div class="card-title">Источники → подключения → owner → state/output</div>
+        <div class="lane">
+          <div class="lane-label">TG private DM</div>
+          <div class="lane-flow">
+            <div class="lane-chip"><b>source</b>Клиент пишет в TG DM</div>
+            <div class="lane-chip"><b>connection</b><code>tg_realtime_monitor.py</code><br><code>tg_session_monitor.session</code></div>
+            <div class="lane-chip"><b>write</b>inbound → <code>orders.db.message_events</code></div>
+            <div class="lane-chip"><b>owner</b><code>unified_dm_responder.py</code><br>LCB writer / broker pre-route</div>
+            <div class="lane-chip"><b>output</b>TG send + outbound write-back</div>
           </div>
         </div>
-      </div>
-      <div class="card" style="margin-top:12px">
-        <div class="card-title">LCB client flow внутри этой схемы</div>
-        <div class="flow-row five">
-          <div class="node connect">
-            <h3>Inbound / due follow-up</h3>
-            <p>Realtime listener приносит inbound. Follow-up runner может принести due-кандидата, но не держит основной TG socket. Warm cap: 5 context pings; media/pitch bundle считается одним раундом.</p>
-          </div>
-          <div class="arrow-col">→</div>
-          <div class="node store">
-            <h3>Orders + memory</h3>
-            <p>Writer читает текущий order, funnel step, историю сообщений и event context.</p>
-          </div>
-          <div class="arrow-col">→</div>
-          <div class="node writer">
-            <h3>LCB writer mode</h3>
-            <p>Режим вычисляется из context/order status и может быть переопределён по последнему сообщению.</p>
+        <div class="lane" style="margin-top:10px">
+          <div class="lane-label">VK DM</div>
+          <div class="lane-flow">
+            <div class="lane-chip"><b>source</b>Клиент пишет в VK</div>
+            <div class="lane-chip"><b>connection</b><code>vk_longpoll_listener.py</code></div>
+            <div class="lane-chip"><b>trigger</b><code>vk_auto_responder.py</code></div>
+            <div class="lane-chip"><b>state</b>VK history → common memory/state</div>
+            <div class="lane-chip"><b>output</b>VK send после gates</div>
           </div>
         </div>
-        <div class="flow-row">
-          <div class="node out">
-            <h3>Transport send</h3>
-            <p>TG/VK/WA adapter отправляет только результат writer + gates.</p>
+        <div class="lane" style="margin-top:10px">
+          <div class="lane-label">WhatsApp</div>
+          <div class="lane-flow">
+            <div class="lane-chip"><b>source</b>WA inbound / active lead</div>
+            <div class="lane-chip"><b>connection</b>WA cache/materializer path</div>
+            <div class="lane-chip"><b>state</b><code>wa_cache</code> / <code>message_events</code></div>
+            <div class="lane-chip"><b>owner</b>LCB writer drafts reply</div>
+            <div class="lane-chip"><b>output</b>native WhatsApp Desktop + computer-use queue</div>
           </div>
-          <div class="arrow-col">↔</div>
-          <div class="node store">
-            <h3>Dual write-back</h3>
-            <p>Outbound записывается в <code>orders.db.message_events</code>, затем обновляет context для следующего шага.</p>
+        </div>
+        <div class="lane" style="margin-top:10px">
+          <div class="lane-label">Event/group posts</div>
+          <div class="lane-flow">
+            <div class="lane-chip"><b>source</b>TG/VK event/group пост</div>
+            <div class="lane-chip"><b>connection</b>TG realtime / VK monitor / Browser Walk</div>
+            <div class="lane-chip"><b>dedupe</b><code>tg_seen_posts</code> + DB checks</div>
+            <div class="lane-chip"><b>route</b>LCB cold lead или broker opportunity</div>
+            <div class="lane-chip"><b>state</b><code>orders.db</code> / <code>broker_orders.json</code></div>
+          </div>
+        </div>
+        <div class="lane" style="margin-top:10px">
+          <div class="lane-label">Manual / dry-run</div>
+          <div class="lane-flow">
+            <div class="lane-chip"><b>TG follow-up</b><code>tg_followup.py --dry-run --only wellintea</code></div>
+            <div class="lane-chip"><b>connection</b><code>tg_session_followup.session</code></div>
+            <div class="lane-chip"><b>scope</b>ручная временная сессия, не daemon</div>
+            <div class="lane-chip"><b>reads</b>orders + memory + context card</div>
+            <div class="lane-chip"><b>output</b>dry-run decision, без штатного socket ownership</div>
           </div>
         </div>
       </div>
