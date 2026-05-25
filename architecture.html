@@ -514,11 +514,11 @@
             <div class="col-title">Подключения</div>
             <div class="node connect">
               <h3>Постоянные listeners</h3>
-              <p><strong>Push/longpoll</strong>: держат входящий поток, фиксируют inbound, запускают владельца.</p>
+              <p><strong>TG realtime</strong>: <code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code>; VK держит longpoll.</p>
             </div>
             <div class="node connect">
               <h3>Временные sessions</h3>
-              <p><strong>Send / browser walk / export</strong>: короткие подключения для отправки, обхода или backfill.</p>
+              <p><strong>Send / dry-run / browser walk / export</strong>: короткие ручные подключения, не штатные daemon sockets.</p>
             </div>
           </div>
 
@@ -567,7 +567,7 @@
         <div class="flow-row five">
           <div class="node connect">
             <h3>Inbound / due follow-up</h3>
-            <p>Listener или scheduled watcher приносит событие в клиентский контур.</p>
+            <p>Realtime listener приносит inbound. Follow-up runner может принести due-кандидата, но не держит основной TG socket.</p>
           </div>
           <div class="arrow-col">→</div>
           <div class="node store">
@@ -647,7 +647,7 @@
               <div class="step-num">1</div>
               <div>
                 <h3>Listener фиксирует событие</h3>
-                <p>TG/VK/WA inbound попадает в raw history; для TG realtime перед writer уже вызывается context refresh.</p>
+                <p>TG inbound идёт через <code>tg_realtime_monitor.py</code> на <code>tg_session_monitor.session</code>; перед writer уже вызывается context refresh.</p>
               </div>
             </div>
             <div class="step">
@@ -828,7 +828,7 @@
         <div class="card">
           <div class="card-title">Постоянные подключения</div>
           <div class="list">
-            <div class="row"><b>TG realtime</b><span>Слушает NewMessage/push и отдаёт DM в LCB writer или broker handler по routing.</span></div>
+            <div class="row"><b>TG realtime</b><span><code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code> — основной realtime TG socket; слушает NewMessage/push и отдаёт DM в LCB writer или broker handler по routing.</span></div>
             <div class="row"><b>VK longpoll</b><span>Слушает VK inbound и запускает VK transport/handler.</span></div>
             <div class="row"><b>WA inbound path</b><span>Фиксирует входящее, но outbound остаётся через native WhatsApp Desktop path.</span></div>
           </div>
@@ -840,6 +840,7 @@
           <div class="card-title">Временные подключения</div>
           <div class="list">
             <div class="row"><b>Send session</b><span>Короткая операция отправки после writer/gates.</span></div>
+            <div class="row"><b>TG follow-up dry-run</b><span><code>tg_followup.py --dry-run --only wellintea</code> держит <code>tg_session_followup.session</code> как временную ручную сессию; это не штатный daemon socket.</span></div>
             <div class="row"><b>Browser walk</b><span>Периодический обход источников, backfill и сверка пропущенных постов.</span></div>
             <div class="row"><b>Export/backfill</b><span>Разовые чтения истории для пополнения memory, не отдельный source of truth.</span></div>
           </div>
