@@ -3,34 +3,35 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>LCB — Архитектура системы</title>
+  <title>LCB — Архитектура</title>
   <style>
     :root {
-      --bg:     #08090b;
-      --ink:    #f7f3e8;
-      --card:   #121416;
-      --card2:  #191b1e;
-      --rail:   #202328;
-      --border: #30343b;
-      --gold:   #e7bd47;
-      --text:   #ece7da;
-      --muted:  #8e97a6;
-      --ok:     #10b981;
-      --warn:   #e08a2e;
-      --err:    #e05252;
-      --blue:   #4f8fcf;
-      --purple: #b064d8;
-      --teal:   #2fb7a7;
-      --shadow: 0 18px 55px rgba(0,0,0,.38);
+      --bg: #08090b;
+      --panel: #121417;
+      --panel2: #181b20;
+      --line: #313640;
+      --line2: #424956;
+      --ink: #f5efe2;
+      --text: #e9e3d6;
+      --muted: #9ba5b4;
+      --gold: #e7bd47;
+      --blue: #75a7e8;
+      --teal: #58d7c4;
+      --green: #7bd98f;
+      --purple: #c79af0;
+      --warn: #f0a34b;
+      --red: #ee7777;
+      --shadow: 0 18px 54px rgba(0,0,0,.34);
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
+      margin: 0;
       min-height: 100vh;
       background:
-        linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px) 0 0/96px 96px,
-        linear-gradient(180deg, rgba(231,189,71,.11), transparent 260px),
-        radial-gradient(circle at 78% 8%, rgba(47,183,167,.16), transparent 360px),
+        linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px) 0 0/88px 88px,
+        linear-gradient(180deg, rgba(231,189,71,.11), transparent 300px),
         var(--bg);
       color: var(--text);
       font-family: "Avenir Next", "Segoe UI", Verdana, sans-serif;
@@ -38,1303 +39,618 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* ── header ── */
     .hdr {
-      background: rgba(8,9,11,.9);
-      border-bottom: 1px solid rgba(231,189,71,.18);
-      backdrop-filter: blur(18px);
-      padding: 12px 20px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
       position: sticky;
       top: 0;
-      z-index: 50;
-      box-shadow: 0 1px 0 rgba(255,255,255,.04);
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 12px 20px;
+      background: rgba(8,9,11,.92);
+      border-bottom: 1px solid rgba(231,189,71,.18);
+      backdrop-filter: blur(18px);
     }
-    .hdr a { color: var(--muted); font-size: 12px; text-decoration: none; }
-    .hdr a:hover { color: var(--text); }
-    .hdr nav { min-width: 0; max-width: 100%; }
-    .hdr-title { font-family: Georgia, "Times New Roman", serif; font-size: 19px; font-weight: 700; color: var(--ink); letter-spacing: 0; }
-    .hdr-title::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 9px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 5px rgba(231,189,71,.13); vertical-align: 2px; }
-    .hdr-sub { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .08em; }
-
-    /* ── layout ── */
-    .wrap { max-width: 1180px; margin: 0 auto; padding: 34px 20px 90px; }
-    .page-title {
-      max-width: 840px;
+    .hdr-title {
+      flex: 0 0 auto;
       font-family: Georgia, "Times New Roman", serif;
-      font-size: clamp(34px, 6vw, 72px);
-      line-height: .92;
+      font-size: 19px;
       font-weight: 700;
       color: var(--ink);
-      margin: 14px 0 14px;
     }
-    .page-sub { max-width: 780px; font-size: 15px; color: #aab2bf; margin-bottom: 30px; line-height: 1.65; }
-    .page-sub::after {
-      content: "current production";
-      display: inline-flex;
-      margin-left: 10px;
-      padding: 3px 8px;
-      border: 1px solid rgba(224,138,46,.42);
-      border-radius: 999px;
-      color: #f0b169;
+    .hdr-title::before {
+      content: "";
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-right: 9px;
+      border-radius: 50%;
+      background: var(--gold);
+      box-shadow: 0 0 0 5px rgba(231,189,71,.13);
+      vertical-align: 2px;
+    }
+    .hdr-sub {
+      margin-top: 2px;
+      color: var(--muted);
       font-size: 10px;
       font-weight: 800;
       letter-spacing: .08em;
       text-transform: uppercase;
-      vertical-align: 2px;
     }
-
-    /* ── section headers ── */
-    .sec { margin-bottom: 24px; }
-    .sec-hdr { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-    .sec-num { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; flex-shrink: 0; border: 1px solid rgba(255,255,255,.1); }
-    .sec-label { font-size: 15px; font-weight: 800; color: var(--ink); }
-    .sec-desc { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
-
-    /* node styles */
-    .node {
-      border-radius: 8px;
-      padding: 10px 14px;
+    .nav {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .nav a {
+      flex: 0 0 auto;
+      padding: 7px 10px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 999px;
+      background: rgba(255,255,255,.045);
+      color: var(--muted);
       font-size: 12px;
-      font-weight: 600;
-      line-height: 1.35;
-      text-align: center;
-      min-width: 110px;
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
     }
-    .node-sm { min-width: 80px; padding: 7px 10px; font-size: 11px; }
-    .node-src   { background: rgba(59,130,246,.15); border: 1.5px solid rgba(59,130,246,.5); color: #93c5fd; }
-    .node-proc  { background: rgba(245,197,24,.1);  border: 1.5px solid rgba(245,197,24,.4); color: var(--gold); }
-    .node-ai    { background: rgba(168,85,247,.15); border: 1.5px solid rgba(168,85,247,.5); color: #d8b4fe; }
-    .node-store { background: rgba(20,184,166,.12); border: 1.5px solid rgba(20,184,166,.4); color: #5eead4; }
-    .node-out   { background: rgba(16,185,129,.12); border: 1.5px solid rgba(16,185,129,.4); color: #6ee7b7; }
-    .node-warn  { background: rgba(239,68,68,.12);  border: 1.5px solid rgba(239,68,68,.4);  color: #fca5a5; }
-    .node-gray  { background: rgba(100,116,139,.1); border: 1.5px solid rgba(100,116,139,.3); color: var(--muted); }
+    .nav a:hover {
+      color: var(--text);
+      border-color: rgba(231,189,71,.35);
+      background: rgba(231,189,71,.08);
+    }
 
-    /* arrows */
-    .arr { color: var(--muted); font-size: 18px; display: flex; align-items: center; justify-content: center; padding: 0 4px; flex-shrink: 0; }
-    .arr-down { color: var(--muted); text-align: center; font-size: 18px; line-height: 1; padding: 4px 0; }
+    .wrap {
+      width: min(1220px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 34px 0 84px;
+    }
+    .page-title {
+      max-width: 920px;
+      margin: 12px 0 14px;
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(38px, 6vw, 72px);
+      font-weight: 700;
+      line-height: .94;
+    }
+    .page-sub {
+      max-width: 780px;
+      margin: 0 0 30px;
+      color: #aeb7c5;
+      font-size: 15px;
+      line-height: 1.62;
+    }
 
-    /* pipeline rows */
-    .pipe { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-
-    /* badge */
-    .badge { display: inline-block; padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 700; }
-    .badge-blue   { background: rgba(59,130,246,.2); color: #93c5fd; }
-    .badge-green  { background: rgba(16,185,129,.2); color: #6ee7b7; }
-    .badge-warn   { background: rgba(245,158,11,.2); color: var(--warn); }
-    .badge-purple { background: rgba(168,85,247,.2); color: #d8b4fe; }
-    .badge-err    { background: rgba(239,68,68,.2); color: #fca5a5; }
-    .badge-teal   { background: rgba(20,184,166,.2); color: #5eead4; }
-
-    /* card */
-    .card { background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.012)), var(--card); border: 1px solid rgba(255,255,255,.09); border-radius: 8px; padding: 18px 20px; box-shadow: var(--shadow); }
-    .card + .card { margin-top: 12px; }
-
-    /* grids */
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-    @media (max-width: 700px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
-
-    /* annotation */
-    .anno { font-size: 11px; color: var(--muted); line-height: 1.6; }
-    .anno b { color: var(--text); }
-    .anno code { background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 4px; font-size: 10px; font-family: 'SF Mono', monospace; color: #a5f3fc; }
-
-    /* table */
-    .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .tbl th { color: var(--muted); font-weight: 600; text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
-    .tbl td { padding: 7px 10px; border-bottom: 1px solid rgba(35,35,58,.5); vertical-align: top; }
-    .tbl tr:last-child td { border-bottom: none; }
-
-    /* steps */
-    .steps { list-style: none; counter-reset: step; }
-    .steps li { counter-increment: step; padding: 9px 0 9px 40px; position: relative; border-bottom: 1px solid rgba(35,35,58,.4); font-size: 12px; line-height: 1.5; }
-    .steps li:last-child { border-bottom: none; }
-    .steps li::before { content: counter(step); position: absolute; left: 0; top: 9px; width: 24px; height: 24px; border-radius: 50%; background: var(--card2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--muted); }
-    .steps li b { color: var(--text); }
-
-    /* dual stream */
-    .dual { display: flex; gap: 12px; align-items: flex-start; }
-    .dual-branch { flex: 1; background: var(--card2); border-radius: 8px; padding: 10px 12px; font-size: 11px; line-height: 1.5; }
-    .dual-branch b { display: block; margin-bottom: 4px; font-size: 12px; }
-
-    /* highlight */
-    .hl { background: rgba(231,189,71,.07); border: 1px solid rgba(231,189,71,.26); border-radius: 8px; padding: 11px 14px; font-size: 12px; color: #f2cf77; }
-
-    /* legend */
-    .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
-    .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
-
-    /* anchor */
-    .anchor-target { scroll-margin-top: 80px; }
-
-    /* sideNav */
-    .side-nav { position: fixed; bottom: 20px; right: 16px; display: flex; flex-direction: column; gap: 6px; z-index: 100; }
-    .side-nav a { text-decoration: none; }
-    .side-nav .snb { background: rgba(18,20,22,.92); border: 1px solid rgba(255,255,255,.1); border-radius: 999px; padding: 7px 11px; font-size: 11px; color: var(--muted); cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s, transform .15s; box-shadow: 0 8px 28px rgba(0,0,0,.25); }
-    .side-nav .snb:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
-    .side-nav .snb-gold { border-color: rgba(245,197,24,.3); color: var(--gold); }
-    .side-nav .snb:hover { transform: translateX(-2px); }
-	    .hn { color: var(--muted); font-size: 12px; font-weight: 700; text-decoration: none; padding: 7px 10px; border-radius: 999px; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08); white-space: nowrap; flex: 0 0 auto; transition: color .15s, border-color .15s, background .15s; }
-    .hn:hover { color: var(--text); border-color: rgba(231,189,71,.35); background: rgba(231,189,71,.08); }
-    .src-link { color: inherit; text-decoration: none; border-bottom: 1px dotted rgba(147,197,253,.45); cursor: pointer; }
-    .src-link:hover { color: #fff; border-bottom-color: rgba(255,255,255,.75); }
-    .legacy-architecture { display: none; }
-    .transition-grid { display: grid; grid-template-columns: minmax(0,1fr) 74px minmax(0,1fr); gap: 16px; align-items: stretch; }
-    .transition-card {
-      position: relative;
-      overflow: hidden;
-      background: linear-gradient(145deg, rgba(255,255,255,.06), rgba(255,255,255,.018)), var(--card);
+    .section { margin-top: 24px; }
+    .section-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .section-num {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      flex: 0 0 auto;
       border: 1px solid rgba(255,255,255,.1);
       border-radius: 8px;
-      padding: 18px 18px 16px;
-      min-height: 190px;
-      box-shadow: var(--shadow);
+      background: rgba(231,189,71,.14);
+      color: var(--gold);
+      font-size: 12px;
+      font-weight: 900;
     }
-    .transition-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--gold); opacity: .86; }
-    .transition-card h2 { margin: 0 0 10px; font-family: Georgia, "Times New Roman", serif; font-size: 25px; line-height: 1.05; letter-spacing: 0; }
-    .transition-card p { margin: 0 0 12px; color: #adb6c4; font-size: 13px; line-height: 1.5; }
-    .transition-list { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 7px; }
-    .transition-list li { background: rgba(255,255,255,.045); border: 1px solid rgba(148,163,184,.15); border-radius: 7px; padding: 9px 10px; font-size: 12px; line-height: 1.42; }
-    .transition-arrow { display: flex; align-items: center; justify-content: center; color: var(--gold); font-size: 28px; font-family: Georgia, "Times New Roman", serif; }
-    .phase-row { display: grid; grid-template-columns: 150px minmax(0,1fr) 160px; gap: 10px; align-items: stretch; margin-top: 10px; }
-    .phase-cell { background: rgba(255,255,255,.04); border: 1px solid rgba(148,163,184,.14); border-radius: 7px; padding: 11px 12px; font-size: 12px; line-height: 1.45; }
-    .phase-cell strong { color: var(--text); }
-    .phase-status { color: #5eead4; font-weight: 700; }
-    .phase-status.warn { color: var(--warn); }
-    .phase-status.wait { color: #93c5fd; }
-    .ai-router {
-      display: grid;
-      grid-template-columns: 210px minmax(0,1fr) 190px;
-      gap: 10px;
-      align-items: stretch;
-      margin-top: 12px;
+    .section-label {
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 850;
     }
-    .ai-hop {
-      position: relative;
-      min-height: 82px;
-      background: rgba(255,255,255,.04);
-      border: 1px solid rgba(148,163,184,.16);
-      border-radius: 8px;
-      padding: 12px 13px;
+    .section-desc {
+      margin-top: 3px;
+      color: var(--muted);
       font-size: 12px;
       line-height: 1.45;
     }
-    .ai-hop b { display: block; color: var(--ink); margin-bottom: 5px; font-size: 12px; }
-    .ai-hop code { color: #a5f3fc; background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 4px; font-size: 10px; }
-    .ai-hop.codex { border-color: rgba(245,197,24,.34); background: linear-gradient(135deg, rgba(245,197,24,.12), rgba(255,255,255,.035)); }
-    .ai-hop.claude { border-color: rgba(59,130,246,.34); background: linear-gradient(135deg, rgba(59,130,246,.12), rgba(255,255,255,.035)); }
-    .ai-hop.stop { border-color: rgba(239,68,68,.36); background: linear-gradient(135deg, rgba(239,68,68,.12), rgba(255,255,255,.035)); }
-    .ai-hop.api { border-color: rgba(16,185,129,.34); background: linear-gradient(135deg, rgba(16,185,129,.11), rgba(255,255,255,.035)); }
-    .ai-hop.gemini { border-color: rgba(47,183,167,.34); background: linear-gradient(135deg, rgba(47,183,167,.10), rgba(255,255,255,.035)); }
-    .ai-flow-mid {
+
+    .card {
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.012)), var(--panel);
+      box-shadow: var(--shadow);
+      padding: 18px 20px;
+    }
+    .card + .card { margin-top: 12px; }
+    .card-title {
+      margin-bottom: 8px;
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 850;
+    }
+    .note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    code {
+      border-radius: 4px;
+      background: rgba(255,255,255,.065);
+      color: #a5f3fc;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11px;
+      padding: 1px 5px;
+    }
+
+    .system-map {
       display: grid;
-      grid-template-columns: minmax(0,1fr) 28px minmax(0,1fr);
-      gap: 9px;
-      align-items: center;
+      grid-template-columns: minmax(185px, .72fr) minmax(250px, .95fr) minmax(320px, 1.25fr) minmax(250px, .95fr) minmax(190px, .72fr);
+      gap: 10px;
+      align-items: stretch;
+      min-width: 1040px;
     }
-    .ai-arrow {
-      align-self: center;
-      justify-self: center;
-      color: var(--gold);
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 22px;
+    .map-wrap { overflow-x: auto; padding-bottom: 4px; }
+    .map-col {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
-    .ai-route-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      margin-bottom: 10px;
+    .col-title {
       color: var(--muted);
       font-size: 11px;
-      font-weight: 800;
-      letter-spacing: .06em;
+      font-weight: 850;
+      letter-spacing: .08em;
       text-transform: uppercase;
+      min-height: 28px;
     }
-    .ai-matrix {
+    .node {
+      position: relative;
+      min-height: 86px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel2);
+      padding: 12px;
+      line-height: 1.4;
+    }
+    .node h3 {
+      margin: 0 0 6px;
+      color: var(--ink);
+      font-size: 13px;
+      line-height: 1.25;
+    }
+    .node p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .node strong { color: var(--text); }
+    .node.src { border-color: rgba(117,167,232,.42); background: rgba(117,167,232,.09); }
+    .node.connect { border-color: rgba(240,163,75,.44); background: rgba(240,163,75,.08); }
+    .node.store { border-color: rgba(88,215,196,.42); background: rgba(88,215,196,.075); }
+    .node.writer { border-color: rgba(231,189,71,.52); background: linear-gradient(180deg, rgba(231,189,71,.16), rgba(231,189,71,.055)); }
+    .node.broker { border-color: rgba(199,154,240,.48); background: rgba(199,154,240,.08); }
+    .node.out { border-color: rgba(123,217,143,.42); background: rgba(123,217,143,.075); }
+    .node.warn { border-color: rgba(238,119,119,.45); background: rgba(238,119,119,.075); }
+
+    .arrow-col {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap: 10px;
-      margin-top: 12px;
+      place-items: center;
+      color: var(--gold);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 24px;
+      opacity: .9;
     }
-    .ai-matrix .phase-cell { min-height: 118px; }
-    .anchor-target:not(#transition) { padding-top: 8px; }
-    @media (max-width: 760px) {
-      .hdr { align-items: flex-start; flex-direction: column; gap: 10px; }
-      .hdr > div, .hdr nav { width: 100%; }
-      .hdr nav { margin-left: 0 !important; padding-bottom: 2px; }
-      .wrap { padding: 24px 14px 100px; }
+    .flow-row {
+      display: grid;
+      grid-template-columns: 1fr 46px 1fr;
+      gap: 8px;
+      align-items: stretch;
+      margin-top: 10px;
+    }
+    .flow-row.five {
+      grid-template-columns: 1fr 42px 1fr 42px 1fr;
+    }
+
+    .grid2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .grid3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .list {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      border: 1px solid rgba(148,163,184,.15);
+      border-radius: 7px;
+      background: rgba(255,255,255,.035);
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .row b {
+      color: var(--text);
+      font-size: 12px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 22px;
+      padding: 3px 8px;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .pill.gold { border-color: rgba(231,189,71,.34); color: var(--gold); background: rgba(231,189,71,.08); }
+    .pill.teal { border-color: rgba(88,215,196,.34); color: var(--teal); background: rgba(88,215,196,.07); }
+    .pill.purple { border-color: rgba(199,154,240,.34); color: var(--purple); background: rgba(199,154,240,.07); }
+    .pill.blue { border-color: rgba(117,167,232,.34); color: var(--blue); background: rgba(117,167,232,.07); }
+    .pill.warn { border-color: rgba(240,163,75,.36); color: var(--warn); background: rgba(240,163,75,.075); }
+
+    .side-nav {
+      position: fixed;
+      right: 16px;
+      bottom: 18px;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .side-nav a {
+      display: block;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 999px;
+      background: rgba(18,20,22,.92);
+      box-shadow: 0 8px 28px rgba(0,0,0,.25);
+      color: var(--muted);
+      font-size: 11px;
+      padding: 7px 11px;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .side-nav a:hover {
+      color: var(--text);
+      border-color: rgba(231,189,71,.35);
+    }
+
+    @media (max-width: 860px) {
+      .hdr { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .wrap { width: min(100vw - 28px, 1220px); padding-top: 24px; }
       .page-title { font-size: 40px; }
-      .page-sub::after { display: table; margin: 10px 0 0; }
-      .transition-grid { grid-template-columns: 1fr; }
-      .transition-arrow { transform: rotate(90deg); }
-      .phase-row { grid-template-columns: 1fr; }
-      .ai-router, .ai-flow-mid, .ai-matrix { grid-template-columns: 1fr; }
-      .ai-arrow { transform: rotate(90deg); }
-      .side-nav { left: 10px; right: 10px; bottom: 10px; flex-direction: row; overflow-x: auto; padding: 6px; background: rgba(8,9,11,.74); border: 1px solid rgba(255,255,255,.09); border-radius: 999px; backdrop-filter: blur(16px); }
+      .grid2, .grid3, .flow-row, .flow-row.five { grid-template-columns: 1fr; }
+      .arrow-col { transform: rotate(90deg); min-height: 26px; }
+      .row { grid-template-columns: 1fr; gap: 5px; }
+      .side-nav {
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        flex-direction: row;
+        overflow-x: auto;
+        border: 1px solid rgba(255,255,255,.09);
+        border-radius: 999px;
+        background: rgba(8,9,11,.74);
+        padding: 6px;
+        backdrop-filter: blur(16px);
+      }
+      .side-nav a { flex: 0 0 auto; }
     }
   </style>
 </head>
 <body>
+  <header class="hdr">
+    <div>
+      <div class="hdr-title">Архитектура</div>
+      <div class="hdr-sub">Writer · Orders · Memory · Connectors</div>
+    </div>
+    <nav class="nav">
+      <a href="./index.html">Дашборд</a>
+      <a href="./broker.html">Broker</a>
+      <a href="./contacts.html">Contacts</a>
+      <a href="./cost.html">Расход</a>
+      <a href="./bw-catchup.html">BW</a>
+    </nav>
+  </header>
 
-<div class="hdr">
-  <div style="flex-shrink:0">
-    <div class="hdr-title">⚙️ Архитектура</div>
-    <div class="hdr-sub">Посты · DM · Агенты · Картотека · Фолоу-апы</div>
-  </div>
-  <nav style="display:flex;gap:6px;align-items:center;margin-left:16px;overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap">
-    <a href="./index.html"     class="hn">🏠 Дашборд</a>
-    <a href="./broker.html"    class="hn">🤝 Broker</a>
-    <a href="./contacts.html"  class="hn">🎭 Contacts</a>
-    <a href="./cost.html"      class="hn">💸 Расход</a>
-    <a href="./bw-catchup.html" class="hn">🔍 BW</a>
-    <a href="./ab-monitor.html" class="hn">📊 AB</a>
+  <main class="wrap">
+    <h1 class="page-title">LCB writer в центре системы</h1>
+    <p class="page-sub">
+      Упрощённая карта: для LC Band основной владелец текста — writer с режимами по шагам воронки.
+      Broker больше не смешивается с LCB-клиентами и живёт отдельным pipeline. Вокруг writer находятся orders,
+      память переписок и подключения к мессенджерам.
+    </p>
+
+    <section class="section" id="map">
+      <div class="section-head">
+        <div class="section-num">1</div>
+        <div>
+          <div class="section-label">Схема целиком</div>
+          <div class="section-desc">Только основные сущности и направления данных</div>
+        </div>
+      </div>
+      <div class="card map-wrap">
+        <div class="system-map">
+          <div class="map-col">
+            <div class="col-title">Мессенджеры</div>
+            <div class="node src">
+              <h3>TG / VK / WA / IG</h3>
+              <p>Клиенты, входящие сообщения, исходящие ответы, event/group источники.</p>
+            </div>
+            <div class="node src">
+              <h3>Event/group посты</h3>
+              <p>Холодные возможности для LCB или broker, без собственной истории диалога.</p>
+            </div>
+          </div>
+
+          <div class="map-col">
+            <div class="col-title">Подключения</div>
+            <div class="node connect">
+              <h3>Постоянные listeners</h3>
+              <p><strong>Push/longpoll</strong>: держат входящий поток, фиксируют inbound, запускают владельца.</p>
+            </div>
+            <div class="node connect">
+              <h3>Временные sessions</h3>
+              <p><strong>Send / browser walk / export</strong>: короткие подключения для отправки, обхода или backfill.</p>
+            </div>
+          </div>
+
+          <div class="map-col">
+            <div class="col-title">Центр</div>
+            <div class="node writer" style="min-height:170px">
+              <h3>LCB writer</h3>
+              <p>
+                Один владелец клиентского текста. Режим выбирается по текущему шагу воронки:
+                intake, sales, contract, production, content, refusal-close, follow-up.
+              </p>
+            </div>
+            <div class="node broker">
+              <h3>Broker pipeline</h3>
+              <p>Отдельный контур для broker opportunities: подрядчики, media, casting, client relay.</p>
+            </div>
+          </div>
+
+          <div class="map-col">
+            <div class="col-title">State</div>
+            <div class="node store">
+              <h3>orders.db</h3>
+              <p>CRM source of truth: все заказы, статусы, история, event graph, raw message events.</p>
+            </div>
+            <div class="node store">
+              <h3>Память переписок</h3>
+              <p>Canonical raw-log в <code>orders.db.message_events</code>; JSONL cache/export по каналам только зеркала.</p>
+            </div>
+          </div>
+
+          <div class="map-col">
+            <div class="col-title">Выход</div>
+            <div class="node out">
+              <h3>Ответ клиенту</h3>
+              <p>Writer пишет, pre-send gates проверяют, transport отправляет в нужный канал.</p>
+            </div>
+            <div class="node out">
+              <h3>Обновление state</h3>
+              <p>Входящие и исходящие сообщения возвращаются в orders и память, чтобы следующий шаг видел контекст.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="lcb">
+      <div class="section-head">
+        <div class="section-num">2</div>
+        <div>
+          <div class="section-label">LC Band pipeline</div>
+          <div class="section-desc">Клиентский контур вокруг одного writer</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="flow-row five">
+          <div class="node connect">
+            <h3>Inbound / due follow-up</h3>
+            <p>Listener или scheduled watcher приносит событие в клиентский контур.</p>
+          </div>
+          <div class="arrow-col">→</div>
+          <div class="node store">
+            <h3>Orders + memory</h3>
+            <p>Writer читает текущий order, funnel step, историю сообщений и event context.</p>
+          </div>
+          <div class="arrow-col">→</div>
+          <div class="node writer">
+            <h3>LCB writer mode</h3>
+            <p>Режим соответствует шагу воронки, а не отдельному агенту.</p>
+          </div>
+        </div>
+        <div class="flow-row">
+          <div class="node out">
+            <h3>Transport send</h3>
+            <p>TG/VK/WA adapter отправляет только результат writer + gates.</p>
+          </div>
+          <div class="arrow-col">↔</div>
+          <div class="node store">
+            <h3>Dual write-back</h3>
+            <p>Outbound записывается в <code>orders.db.message_events</code>, затем обновляет context для следующего шага.</p>
+          </div>
+        </div>
+      </div>
+      <div class="grid3" style="margin-top:12px">
+        <div class="card">
+          <div class="card-title">Writer modes</div>
+          <div class="list">
+            <div class="row"><b>intake</b><span>Понять запрос, дату, формат, кто пишет и что нужно уточнить.</span></div>
+            <div class="row"><b>sales</b><span>Состав, цена, promo, аргументация без лишних upsell.</span></div>
+            <div class="row"><b>contract</b><span>Договор, реквизиты, подтверждения, без самостоятельных money-replies.</span></div>
+            <div class="row"><b>production</b><span>Техника, тайминг, райдер, участники, логистика.</span></div>
+            <div class="row"><b>content</b><span>Фото/видео/отзыв после события.</span></div>
+            <div class="row"><b>follow-up</b><span>Контекстный пинг по текущему next action.</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">orders.db</div>
+          <div class="note">
+            Сюда сливаются заказы и операционная история: funnel status, contacts, history, event graph,
+            promises, refs, raw message events. Агент создания event взаимодействует с этим слоем через
+            владельцев event graph/context, а не через отдельную картотеку.
+          </div>
+          <div style="margin-top:12px">
+            <span class="pill teal">single CRM SSoT</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Память переписок</div>
+          <div class="note">
+            Канонически вся переписка должна сходиться в один raw-log: <code>orders.db.message_events</code>.
+            Канальные файлы вроде <code>conversation_cache/</code>, <code>vk_conversation_cache/</code>,
+            <code>wa_cache/</code>, <code>ig_conversation_cache/</code> могут оставаться cache/export зеркалами,
+            но writer читает unified memory, а не четыре независимых источника правды.
+          </div>
+          <div style="margin-top:12px">
+            <span class="pill teal">one memory layer</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="broker">
+      <div class="section-head">
+        <div class="section-num">3</div>
+        <div>
+          <div class="section-label">Broker pipeline отдельно</div>
+          <div class="section-desc">Broker больше не является режимом LCB writer</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="flow-row five">
+          <div class="node src">
+            <h3>Broker opportunity</h3>
+            <p>Внешний event/group trigger, где нужен подрядчик, а не LCB-клиентский диалог.</p>
+          </div>
+          <div class="arrow-col">→</div>
+          <div class="node broker">
+            <h3>Broker order</h3>
+            <p><code>broker_orders.json</code>: событие, клиент, candidates, цены, media, stage.</p>
+          </div>
+          <div class="arrow-col">→</div>
+          <div class="node broker">
+            <h3>Casting + relay</h3>
+            <p>Подбор подрядчика, проверка маржи, общение с contractor side и relay клиенту.</p>
+          </div>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:12px">
+        <div class="card">
+          <div class="card-title">LCB не смешивать с broker</div>
+          <div class="note">
+            Direct/private DM остаётся LCB lead и идёт в LCB writer. Broker создаётся только из broker opportunity,
+            где задача — найти или согласовать внешнего подрядчика.
+          </div>
+          <div style="margin-top:12px">
+            <span class="pill gold">separate pipeline</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Broker state</div>
+          <div class="note">
+            Broker хранит собственный event/context в <code>broker_orders.json</code> и media/read-model вокруг подрядчиков.
+            Клиентский LCB writer не должен становиться вторым владельцем broker-переписки.
+          </div>
+          <div style="margin-top:12px">
+            <span class="pill purple">own SSoT</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="connectors">
+      <div class="section-head">
+        <div class="section-num">4</div>
+        <div>
+          <div class="section-label">Подключения к мессенджерам</div>
+          <div class="section-desc">Два типа подключения, чтобы не путать ownership</div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">Постоянные подключения</div>
+          <div class="list">
+            <div class="row"><b>TG realtime</b><span>Слушает NewMessage/push и отдаёт DM в LCB writer или broker handler по routing.</span></div>
+            <div class="row"><b>VK longpoll</b><span>Слушает VK inbound и запускает VK transport/handler.</span></div>
+            <div class="row"><b>WA inbound path</b><span>Фиксирует входящее, но outbound остаётся через native WhatsApp Desktop path.</span></div>
+          </div>
+          <div style="margin-top:12px">
+            <span class="pill blue">always on</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Временные подключения</div>
+          <div class="list">
+            <div class="row"><b>Send session</b><span>Короткая операция отправки после writer/gates.</span></div>
+            <div class="row"><b>Browser walk</b><span>Периодический обход источников, backfill и сверка пропущенных постов.</span></div>
+            <div class="row"><b>Export/backfill</b><span>Разовые чтения истории для пополнения memory, не отдельный source of truth.</span></div>
+          </div>
+          <div style="margin-top:12px">
+            <span class="pill warn">short lived</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="rules">
+      <div class="section-head">
+        <div class="section-num">5</div>
+        <div>
+          <div class="section-label">Правила ownership</div>
+          <div class="section-desc">Что должна удерживать архитектура</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="grid2">
+          <div class="node warn">
+            <h3>Не плодить writer'ов</h3>
+            <p>Follow-up, listeners и transports только находят событие и доставляют результат. Текст LCB пишет один writer.</p>
+          </div>
+          <div class="node warn">
+            <h3>Не делать broker внутри LCB</h3>
+            <p>Broker имеет отдельный state и pipeline. LCB direct lead не превращается в broker order.</p>
+          </div>
+          <div class="node warn">
+            <h3>Не создавать вторую память</h3>
+            <p>Канальные файлы могут быть cache/export, но смысловая память для writer должна читаться unified layer.</p>
+          </div>
+          <div class="node warn">
+            <h3>Не обходить agents руками</h3>
+            <p>Если поведение принадлежит agent/process, исправляется владелец, а не выполняется одноразовый workaround.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="side-nav">
+    <a href="#map">Схема</a>
+    <a href="#lcb">LCB</a>
+    <a href="#broker">Broker</a>
+    <a href="#connectors">Подключения</a>
+    <a href="#rules">Правила</a>
   </nav>
-</div>
-
-<div class="wrap">
-  <div class="page-title">Production архитектура LCB</div>
-  <div class="page-sub">Актуальная карта владельцев: realtime gateway принимает входящий поток, LCB writer ведёт прямые DM, broker-контур отдельно ведёт подрядчиков, dashboard только показывает состояние.</div>
-
-  <div class="sec anchor-target" id="transition">
-    <div class="sec-hdr">
-      <div class="sec-num" style="background:rgba(245,197,24,.18);color:var(--gold)">LIVE</div>
-      <div>
-        <div class="sec-label">Текущая production-топология</div>
-        <div class="sec-desc">Один realtime-шлюз, разделённые writer owners, один набор SSoT/read-layer файлов</div>
-      </div>
-    </div>
-
-    <div class="transition-grid">
-      <div class="transition-card" style="border-color:rgba(245,158,11,.35)">
-        <h2 style="color:var(--warn)">Ingress и routing</h2>
-        <p>Launchd держит входящие каналы и отдаёт события ответственным владельцам.</p>
-        <ul class="transition-list">
-          <li><code>com.lcband.realtime-gateway</code> supervises TG realtime, payment listener и VK longpoll.</li>
-          <li><code>tg_realtime_monitor.py</code> ловит TG event-чаты/private DM; incoming DM обновляет context card и зовёт LCB writer, manual outgoing DM пишет в <code>message_events</code> + cache без запуска writer.</li>
-          <li><code>vk_longpoll_listener.py</code> триггерит <code>vk_auto_responder.py</code>; WA идёт через native Desktop queue.</li>
-        </ul>
-      </div>
-
-      <div class="transition-arrow">→</div>
-
-      <div class="transition-card" style="border-color:rgba(20,184,166,.38)">
-        <h2 style="color:#5eead4">Owners и state</h2>
-        <p>Смысловая работа разделена по владельцам, чтобы не было двух writer'ов на один диалог.</p>
-        <ul class="transition-list">
-          <li><code>unified_dm_responder.py</code> владеет LCB direct DM: intake, sales, contract, production, content.</li>
-          <li><code>broker_dialog_agent.py</code> и <code>broker_casting.py</code> владеют broker events, contractors, media и relay.</li>
-          <li><code>lcb_orders.json</code>, <code>broker_orders.json</code>, <code>orders.db.message_events</code> остаются source-of-truth слоями.</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-
-  <div class="sec anchor-target" id="testing">
-    <div class="sec-hdr">
-      <div class="sec-num" style="background:rgba(20,184,166,.18);color:#5eead4">RUN</div>
-      <div>
-        <div class="sec-label">Кто реально работает сейчас</div>
-        <div class="sec-desc">Production agents и их ответственность без ручного запуска из Codex</div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="phase-row">
-        <div class="phase-cell"><strong>Realtime gateway</strong><br><span class="phase-status">continuous</span></div>
-        <div class="phase-cell"><code>com.lcband.realtime-gateway</code> supervises <code>tg_realtime_monitor.py</code> and <code>vk_longpoll_listener.py</code>; <code>payment_event_handler.py</code> is imported into the TG realtime client.</div>
-        <div class="phase-cell">launchd owner</div>
-      </div>
-      <div class="phase-row">
-        <div class="phase-cell"><strong>Agent watchdog</strong><br><span class="phase-status wait">guarded</span></div>
-        <div class="phase-cell"><code>agent_watchdog.py</code> auto-recovers critical dashboard owners including <code>dashboard_backend.py</code> and <code>tunnel_watcher.py</code>, but respects <code>agent_watchdog_pause_state.json</code> during explicit maintenance holds.</div>
-        <div class="phase-cell">self-heal gate</div>
-      </div>
-      <div class="phase-row">
-        <div class="phase-cell"><strong>LCB DM writer</strong><br><span class="phase-status">active</span></div>
-        <div class="phase-cell"><code>unified_dm_responder.py</code> пишет клиентам; <code>tg_responder.py</code> consultant-only и не является вторым sender'ом.</div>
-        <div class="phase-cell">one writer</div>
-      </div>
-      <div class="phase-row">
-        <div class="phase-cell"><strong>Broker contour</strong><br><span class="phase-status">active</span></div>
-        <div class="phase-cell"><code>broker_casting.py</code> выбирает top-N, <code>broker_dialog_agent.py</code> ведёт client/contractor стороны, direct DM не превращается в broker order.</div>
-        <div class="phase-cell">separate SSoT</div>
-      </div>
-      <div class="phase-row">
-        <div class="phase-cell"><strong>Follow-up</strong><br><span class="phase-status wait">scheduled</span></div>
-        <div class="phase-cell"><code>funnel_maintenance.py</code> routes stale leads, <code>tg_followup.py</code> делает TG context follow-up, wording принадлежит LCB writer.</div>
-        <div class="phase-cell">context-first</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="sec anchor-target" id="cutover">
-    <div class="sec-hdr">
-      <div class="sec-num" style="background:rgba(59,130,246,.18);color:#93c5fd">C</div>
-      <div>
-        <div class="sec-label">Что НЕ production</div>
-        <div class="sec-desc">Плановые v2 pieces не должны выглядеть как работающий агент</div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="hl" style="font-size:12px;line-height:1.5">
-        <b><code>router_v2.py</code> не существует как production agent.</b>
-        В репо есть <code>ai_triage_v2.py</code> с pure-функцией <code>route_v2()</code>, но сам файл помечен как parallel/shadow design: production code его пока не импортирует, launchd его не запускает, outbound/DB writes он не делает.
-      </div>
-      <div class="phase-row">
-        <div class="phase-cell"><strong>Current classifier</strong><br><span class="phase-status">production</span></div>
-        <div class="phase-cell"><code>ai_classify_chain.py</code> остаётся действующим ingest/payment/drum/skip контуром там, где он подключён.</div>
-        <div class="phase-cell">keep</div>
-      </div>
-      <div class="phase-row">
-        <div class="phase-cell"><strong>v2 triage</strong><br><span class="phase-status warn">not cut over</span></div>
-        <div class="phase-cell"><code>ai_triage_v2.classify_v2()</code> + <code>route_v2()</code> можно считать design/shadow-ready кодом, а не владельцем traffic.</div>
-        <div class="phase-cell">no send</div>
-      </div>
-      <div class="phase-row">
-        <div class="phase-cell"><strong>Cutover rule</strong><br><span class="phase-status wait">future</span></div>
-        <div class="phase-cell">Переключать только после shadow-run, agreement audit и по одному consumer'у, сначала approval-safe.</div>
-        <div class="phase-cell">manual gate</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="sec anchor-target" id="ai-routing">
-    <div class="sec-hdr">
-      <div class="sec-num" style="background:rgba(245,197,24,.18);color:var(--gold)">AI</div>
-      <div>
-        <div class="sec-label">CLI routing при Codex/Claude cooldown</div>
-        <div class="sec-desc">Что происходит, когда Codex выбран фейдером, но заблокирован quota/cooldown/guard</div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="ai-route-label">Основной production route</div>
-      <div class="ai-router">
-        <div class="ai-hop codex">
-          <b>1. Runtime router</b>
-          <code>runtime_config.should_route_purpose_to_codex()</code><br>
-          Если category weight = 0%, Codex не трогается и вызов сразу идёт в Claude CLI.
-        </div>
-        <div class="ai-flow-mid">
-          <div class="ai-hop codex">
-            <b>2. Codex Layer 1</b>
-            <code>codex_cli.call_codex*</code><br>
-            Модель выбирает установленный Codex CLI; может вернуть <code>cooldown</code>, <code>loop_guard</code> или <code>llm_budget_guard</code>. Это лимит AI-вызовов, не cold-outbound сообщений.
-          </div>
-          <div class="ai-arrow">→</div>
-          <div class="ai-hop claude">
-            <b>3. Claude CLI fallback</b>
-            Модель берётся из callsite или <code>codex_fallback_model</code>; сейчас fallback = <code>opus</code>.
-          </div>
-        </div>
-        <div class="ai-hop stop">
-          <b>4. Если Claude тоже недоступен</b>
-          Dialogue, follow-up, context, classify и broker возвращают <code>None</code> / skip. Они не уходят в API.
-        </div>
-      </div>
-
-      <div class="ai-route-label" style="margin-top:18px">Исключения и слабые места</div>
-      <div class="ai-matrix">
-        <div class="phase-cell">
-          <strong>Initial pitch</strong><br>
-          <span class="phase-status">API allowed</span><br><br>
-          <code>compose_proposal</code>, <code>pitch_presend_review</code>, <code>bot_commander_outreach</code>:
-          Codex/Claude fail → API fallback разрешён.
-        </div>
-        <div class="phase-cell">
-          <strong>Live dialogue</strong><br>
-          <span class="phase-status warn">stop/skip</span><br><br>
-          <code>unified_dm_generate</code>, <code>tg_responder_cli</code>, <code>vk_responder</code>, <code>wa_draft_reply</code>:
-          API blocked, без слепой переписки.
-        </div>
-        <div class="phase-cell">
-          <strong>Review / broker core</strong><br>
-          <span class="phase-status warn">no Gemini</span><br><br>
-          <code>presend_review</code>, <code>broker_intake</code>, <code>broker_brief</code>, relay:
-          weak fallback запрещён; при недоступности CLI результат не отправляется.
-        </div>
-        <div class="phase-cell">
-          <strong>Context / classify legacy</strong><br>
-          <span class="phase-status wait">Gemini possible</span><br><br>
-          Часть JSON/classify purposes ещё может идти в Gemini Layer 2 после Claude/JSON fail.
-          Это источник degraded behavior, не API.
-        </div>
-      </div>
-
-      <div class="ai-route-label" style="margin-top:18px">Фактический след инцидента</div>
-      <div class="ai-router">
-        <div class="ai-hop codex">
-          <b>Codex exhausted</b>
-          <code>ai_timeline.jsonl</code>: <code>codex 24h budget exhausted: used/limit</code>
-          для <code>lead_context_classify</code>, <code>classify</code>, <code>broker_intake</code>.
-        </div>
-        <div class="ai-flow-mid">
-          <div class="ai-hop claude">
-            <b>Claude CLI continued</b>
-            После выключения Codex в хвосте видно <code>cli_sonnet</code>, <code>cli_opus</code>, <code>cli_haiku</code>
-            по active processes.
-          </div>
-          <div class="ai-arrow">→</div>
-          <div class="ai-hop gemini">
-            <b>Degraded fallback</b>
-            Ранние записи <code>lead_context_classify</code> / <code>classify_batch</code> показывали <code>cli_gemini</code>.
-          </div>
-        </div>
-        <div class="ai-hop stop">
-          <b>API blocked for non-pitch</b>
-          <code>api_fallback_blocked</code>: <code>unified_dm_generate</code>, <code>lead_context_classify</code>,
-          <code>broker_intake</code>, <code>presend_review</code>.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="legacy-architecture">
-
-  <!-- ═══════════════════════════════════════════
-       1. ПОСТЫ
-  ═══════════════════════════════════════════ -->
-  <div class="sec anchor-target" id="posts">
-    <div class="sec-hdr">
-      <div class="sec-num" style="background:rgba(59,130,246,.2);color:#93c5fd">1</div>
-      <div>
-        <div class="sec-label">Посты в event-чатах</div>
-        <div class="sec-desc">TG Monitor + Browser Walk → кросс-дедупликация → классификатор → orders.db</div>
-      </div>
-    </div>
-    <div class="card">
-
-      <!-- TG Monitor + BW -->
-      <div class="pipe" style="margin-bottom:10px">
-        <div class="node node-src node-sm">TG чаты<br><span style="font-size:10px;opacity:.7">17+ групп</span></div>
-        <div class="arr">→</div>
-        <div class="node node-proc">TG Realtime Monitor<br><span class="badge badge-blue" style="margin-top:4px">Telethon NewMessage</span></div>
-        <div class="arr" style="font-size:13px;color:var(--muted)">──┐</div>
-      </div>
-      <div class="pipe" style="margin-bottom:4px;padding-left:0">
-        <div class="node node-src node-sm">TG чаты<br><span style="font-size:10px;opacity:.7">тот же набор</span></div>
-        <div class="arr">→</div>
-        <div class="node node-proc">Browser Walk<br><span class="badge badge-warn" style="margin-top:4px">каждые 30 мин</span></div>
-        <div class="arr" style="font-size:13px;color:var(--muted)">──┘</div>
-        <div class="node node-store" style="min-width:150px">
-          tg_seen_posts.jsonl<br>
-          <span style="font-size:10px;opacity:.7">кросс-деdup лог<br>(chat_id, msg_id, source)</span>
-        </div>
-      </div>
-      <div class="pipe" style="margin-top:8px;margin-bottom:14px">
-        <div class="node node-src node-sm">VK events</div>
-        <div class="arr">→</div>
-        <div class="node node-proc">VK Monitor<br><span class="badge badge-blue" style="margin-top:4px">longpoll</span></div>
-        <div class="anno" style="margin-left:8px">отдельный поток,<br>своя дедупликация</div>
-      </div>
-
-      <div class="hl" style="margin-bottom:12px;font-size:11px">
-        <b>Кросс-дедупликация BW:</b> при старте загружает <code>tg_seen_posts.load_seen_set(since_hours=25)</code> — скипает всё,
-        что TG Monitor уже записал. Оба пишут в один лог: <code>add(chat_id, msg_id, source, verdict)</code>
-      </div>
-
-      <div class="card anchor-target" id="raw-archives" style="background:rgba(20,184,166,.05);border-color:rgba(20,184,166,.25);margin-bottom:12px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-          <span style="font-size:18px">🗄</span>
-          <div>
-            <div style="font-weight:700;color:#5eead4">Raw text store — посты и переписки</div>
-            <div class="anno">Canonical raw-переписка живёт в <code>orders.db.message_events</code>. JSONL-кэши ниже — legacy/export слои и не должны быть source of truth.</div>
-          </div>
-        </div>
-        <table class="tbl">
-          <thead>
-            <tr><th>Что хранит</th><th>Файлы</th><th>Кто пишет / читает</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Все входящие/исходящие события и тексты постов</td>
-              <td><code>orders.db.message_events</code><br><code>message_events.jsonl</code> legacy mirror</td>
-              <td><code>message_event_log.py</code> пишет в SQLite; <code>unified_message_store.py</code> читает DB-first</td>
-            </tr>
-            <tr>
-              <td>Дедуп TG event-постов</td>
-              <td><code>tg_seen_posts.jsonl</code></td>
-              <td>TG realtime + Browser Walk пишут <code>chat_id/msg_id/source/verdict</code></td>
-            </tr>
-            <tr>
-              <td>Годовой/полный TG архив приватных диалогов и чатов</td>
-              <td><code>tg_full_export/&lt;username_or_id&gt;.jsonl</code><br><code>tg_full_export/_meta.json</code></td>
-              <td><code>tg_full_export.py</code> legacy backfill/export; <code>thread_transcript.py</code> читает DB-first</td>
-            </tr>
-            <tr>
-              <td>Оперативный TG cache по лидам</td>
-              <td><code>conversation_cache/&lt;username&gt;.jsonl</code><br><code>conv_cache_last_changed.json</code></td>
-              <td>Legacy mirror/export; hot-path agents читают <code>orders.db.message_events</code> через <code>unified_message_store.py</code></td>
-            </tr>
-            <tr>
-              <td>VK DM переписки</td>
-              <td><code>vk_conversation_cache/&lt;peer&gt;.jsonl</code></td>
-              <td><code>vk_full_export.py</code> сохраняет legacy JSONL и зеркалит строки в <code>orders.db.message_events</code>; VK responder/follow-up должны читать DB-first через <code>unified_message_store.py</code></td>
-            </tr>
-            <tr>
-              <td>Instagram DM переписки</td>
-              <td><code>ig_conversation_cache/&lt;username&gt;.jsonl</code></td>
-              <td><code>ig_conv_cache.py</code> сохраняет legacy JSONL и зеркалит новые сообщения в <code>orders.db.message_events</code>; context analysis читает DB-first</td>
-            </tr>
-            <tr>
-              <td>WhatsApp переписки</td>
-              <td><code>wa_cache/&lt;phone_or_name&gt;.jsonl</code><br><code>wa_contacts_cache.json</code> runtime resolver cache</td>
-              <td>Baileys и WhatsApp Desktop/computer-use пишут legacy mirror и <code>orders.db.message_events</code>, а также ведётся contact-index из <code>contacts.upsert</code>/<code>messaging-history.set</code>/<code>messages.upsert</code>; старые human-slug cache импортируются только через <code>wa_lid_resolver.py</code> в канонический <code>wa:+&lt;lid&gt;@lid</code>. <code>wa_responder.py</code> и WA follow-up кладут draft в <code>wa_computer_use_queue.json</code>; финальный Send только через WhatsApp Desktop/computer-use</td>
-            </tr>
-            <tr>
-              <td>Единый read-layer raw-переписок</td>
-              <td><code>unified_message_store.py</code></td>
-              <td>Нормализует <code>orders.db.message_events</code> в один формат <code>channel/thread_id/ts/direction/text/source_path</code>; JSONL читает только как legacy fallback при явном включении</td>
-            </tr>
-            <tr>
-              <td>AI-выводы поверх текстов</td>
-              <td><code>orders.db.contact_context/event_context</code><br><code>lead_context_store.json</code> legacy mirror/read-through<br><code>conversation_analysis/tg/*.json</code></td>
-              <td>Enricher читает raw из <code>message_events</code>, primary карточки пишет/читает из SQL; JSON только legacy mirror/fallback по env</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="arr-down">↓</div>
-      <div style="margin:12px 0;text-align:center">
-        <div class="node node-ai" style="display:inline-flex;flex-direction:column;align-items:center;gap:8px;min-width:340px;padding:14px 18px">
-          <div style="font-size:13px">🤖 Agent 1 — Event Classifier</div>
-          <div class="pipe" style="gap:8px;justify-content:center">
-            <div class="node node-ai node-sm" style="background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.4);color:#6ee7b7">
-              L1 Gemini Flash<br><span style="font-size:9px">binary: event/skip</span>
-            </div>
-            <div class="arr">→</div>
-            <div class="node node-ai node-sm">
-              L2 Sonnet<br><span style="font-size:9px">classify</span>
-            </div>
-            <div class="arr">→</div>
-            <div class="node node-ai node-sm" style="background:rgba(245,197,24,.1);border-color:rgba(245,197,24,.4);color:var(--gold)">
-              L3 Writers<br><span style="font-size:9px">LCB + Broker</span>
-            </div>
-          </div>
-          <div class="pipe" style="gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap">
-            <div class="node node-out node-sm" style="border-color:rgba(59,130,246,.4);color:#93c5fd">
-              LCB writer<br><span style="font-size:9px"><code>unified_dm_responder.py</code></span>
-            </div>
-            <div class="node node-out node-sm" style="border-color:rgba(168,85,247,.45);color:#d8b4fe">
-              Broker writer<br><span style="font-size:9px"><code>broker_dialog_agent.py</code></span>
-            </div>
-          </div>
-          <div class="anno" style="font-size:10px">Постов НЕТ в картотеке — они холодные, истории нет</div>
-        </div>
-      </div>
-      <div class="arr-down">↓</div>
-
-      <div class="pipe" style="justify-content:center;margin-top:12px;gap:12px">
-        <div class="node node-out">orders.db<br><span style="font-size:10px;opacity:.7">SSoT лидов</span></div>
-        <div class="arr">→</div>
-        <div class="node node-proc">Approval bot</div>
-        <div class="arr">→</div>
-        <div class="node node-out">Питч в DM<br><span style="font-size:10px;opacity:.7">TG / VK</span></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════
-       2. DM
-  ═══════════════════════════════════════════ -->
-  <div class="sec anchor-target" id="dm">
-    <div class="sec-hdr">
-      <div class="sec-num" style="background:rgba(168,85,247,.2);color:#d8b4fe">2</div>
-      <div>
-        <div class="sec-label">Входящий DM</div>
-        <div class="sec-desc">Listener → cache inbound → enrich(force) синхронно → event-card → агент читает свежую карточку</div>
-      </div>
-    </div>
-    <div class="card">
-
-      <div class="pipe" style="margin-bottom:14px">
-	        <div class="node node-src node-sm">TG DM<br><span style="font-size:10px;opacity:.7"><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/tg_realtime_monitor.py" target="_blank" rel="noopener">tg_realtime_monitor</a></span></div>
-	        <div class="node node-src node-sm" style="margin-left:8px">VK DM<br><span style="font-size:10px;opacity:.7"><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/vk_longpoll_listener.py" target="_blank" rel="noopener">vk_longpoll_listener</a></span></div>
-	        <div class="node node-src node-sm" style="margin-left:8px">WA<br><span style="font-size:10px;opacity:.7"><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/tree/main/wa_baileys" target="_blank" rel="noopener">wa_baileys</a></span></div>
-      </div>
-      <div class="arr-down">↓</div>
-
-      <ol class="steps" style="margin:12px 0">
-        <li>
-          <b>Listener ловит событие</b>
-	          <span class="anno"><br><code>NewMessage(incoming=True, is_private=True)</code> → запускает тред. Работает на <b>любой</b> новый private DM, не только первое сообщение.</span>
-	        </li>
-        <li>
-	          <b>Входящее фиксируется в cache, потом обновляется картотека</b> <span class="badge badge-warn">force=True</span>
-		          <span class="anno"><br><code>_record_incoming_to_cache(out=False)</code> → <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lead_context_enricher.py" target="_blank" rel="noopener"><code>lead_context_enricher.enrich(username, "tg", force=True)</code></a>.
-		          Enricher обходит 30-мин freshness check, читает <code>orders.db.message_events</code> через <code>unified_message_store</code>; legacy cache fallback включается только явно.
-			          Один AI pass возвращает context-card, active event, follow-up, <code>funnel_stage</code> и <code>event_threads</code> для команды по той же дате; <code>funnel_stage_classifier.py</code> только применяет этот verdict к orders.db без второго AI-запроса.
-			          Если клиент ответил хотя бы один раз, минимальная context-card сохраняется до AI. Если known events пустой, но thread явно про одно мероприятие, создаёт event через <code>event_graph.py</code> в <code>orders.db.eg_*</code> и переносит key asks в event-card.</span>
-	        </li>
-	        <li>
-	          <b>Запуск агента</b>
-	          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/unified_dm_responder.py" target="_blank" rel="noopener"><code>unified_dm_responder.handle({channel, username, text, ts})</code></a></span>
-	        </li>
-        <li>
-          <b>LCB band-member route</b>
-          <span class="anno"><br>LAZ/Ира/Стас/Лео/Teddy из <code>tg_whitelist.json</code> идут в <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/band_member_reply.py" target="_blank" rel="noopener"><code>band_member_reply.py</code></a>: только факты по подтверждённым event'ам, performer-safe репертуар и runtime-поиск конкретных файлов в promo-папке; payment/new-gig/personal → silent.</span>
-        </li>
-        <li>
-          <b>LCB promo material resolver</b>
-          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lcb_promo_materials.py" target="_blank" rel="noopener"><code>lcb_promo_materials.py</code></a> раскрывает promo-папку Я.Диска и даёт writer'у отдельные ссылки по смыслу запроса: видео, фото/костюмы, райдер/репертуар, LAZ/TEDDY; общая promo-ссылка остаётся fallback.</span>
-        </li>
-		        <li>
-	          <b>Агент читает свежую карточку</b>
-	          <span class="anno"><br><a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/lead_context_enricher.py" target="_blank" rel="noopener"><code>get_or_enrich(username, channel)</code></a> — если карточка устарела (cron-путь) — обновляет; иначе берёт актуальную из кеша. До classify собирается <code>Context-hint</code>: роль текущего контакта, active event, stage, writer mode, waiting flags и next action.</span>
-	        </li>
-        <li>
-          <b>Classifier с context-hint</b>
-		          <span class="anno"><br>Opus-classifier получает переписку + structured context. Он не должен повышать контакт до <code>event_organizer_active</code>, если текущая роль из <code>lcb_event_context.py</code>/<code>event_context_events</code> — performer/vendor/tech. Post-classify role normalization остаётся safety net перед writer.</span>
-	        </li>
-        <li>
-          <b>Opus генерирует ответ</b>
-          <span class="anno"><br>Полный контекст переписки + карточка + текущий текст → <code>claude_cli.call_opus()</code><br>
-          API fallback отключён для переписки/follow-up/context/classify: если CLI недоступен, writer stop/skip; API остаётся только для первичного pitch.<br>
-          Anti-ban: 8/run · 40/день · jitter 15–35s</span>
-        </li>
-	        <li>
-	          <b>Routing verdict</b>
-	          <span class="anno"><br>
-	            <code>sent</code> → TG/VK direct send; WA → <code>funnel_maintenance.py</code> queues <code>wa_computer_use_queue.json</code> for WhatsApp Desktop path even before active window ·
-		            <code>money</code> → notify bot only ·
-	            <code>skipped</code> → spam/refusal/musician/unclear ·
-	            <code>error</code> → log/state consultant gap; no second DM sender
-	          </span>
-	        </li>
-        <li>
-          <b>Dual-stream после отправки</b> <span class="badge badge-purple">одновременно</span>
-          <span class="anno"><br>
-          Поток 1 → сообщение отправлено в DM<br>
-	          Поток 2 → <a class="src-link" href="https://github.com/tabuugroove-sys/lcband/blob/main/unified_dm_responder.py" target="_blank" rel="noopener"><code>_record_outgoing_to_cache(out=True)</code></a> + <code>enrich(force=True)</code> — исходящий текст тоже попадает в картотеку и активный event</span>
-	        </li>
-      </ol>
-
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════
-       2.5 DUAL-STREAM — ПОЛНЫЙ ЦИКЛ
-  ═══════════════════════════════════════════ -->
-  <div class="sec anchor-target" id="dualstream">
-    <div class="sec-hdr">
-      <div class="sec-num" style="background:rgba(20,184,166,.2);color:#5eead4">↕</div>
-      <div>
-        <div class="sec-label">Как сообщения попадают в картотеку</div>
-        <div class="sec-desc">orders.db.message_events — общий лог входящих и исходящих → enrich → context card</div>
-      </div>
-    </div>
-
-    <div class="card" style="overflow-x:auto">
-    <div style="min-width:560px">
-
-    <!-- ── ЦЕНТРАЛЬНЫЙ ФАЙЛ ── -->
-    <div style="margin:0 auto 0;max-width:520px">
-
-      <!-- Заголовок файла -->
-      <div style="text-align:center;margin-bottom:6px">
-        <span style="font-size:11px;color:var(--muted)">Центр системы — сырой лог переписки</span>
-      </div>
-      <div style="background:#0d1117;border:1.5px solid rgba(20,184,166,.5);border-radius:10px;padding:0;overflow:hidden">
-        <div style="background:rgba(20,184,166,.08);padding:7px 14px;border-bottom:1px solid rgba(20,184,166,.2);display:flex;align-items:center;gap:8px">
-          <span style="font-size:16px">📄</span>
-          <code style="font-size:12px;color:#5eead4;font-weight:700">orders.db.message_events</code>
-        </div>
-        <div style="padding:10px 14px;display:flex;flex-direction:column;gap:5px" id="cache-log">
-          <!-- entry 1 — incoming old -->
-          <div style="display:flex;align-items:baseline;gap:8px;opacity:.5">
-            <span style="background:rgba(59,130,246,.2);color:#93c5fd;padding:1px 6px;border-radius:4px;font-size:10px;white-space:nowrap">IN</span>
-            <code style="font-size:11px;color:#94a3b8">{"out":false, "text":"Добрый день, сколько стоит?", "date":"09:30"}</code>
-          </div>
-          <!-- entry 2 — outgoing old -->
-          <div style="display:flex;align-items:baseline;gap:8px;opacity:.5">
-            <span style="background:rgba(168,85,247,.2);color:#d8b4fe;padding:1px 6px;border-radius:4px;font-size:10px;white-space:nowrap">OUT</span>
-            <code style="font-size:11px;color:#94a3b8">{"out":true,  "text":"Здравствуйте! От 250 000₽…",  "date":"09:45"}</code>
-          </div>
-          <!-- entry 3 — NEW incoming, highlighted -->
-          <div style="display:flex;align-items:baseline;gap:8px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:6px;padding:4px 8px;margin-top:2px">
-            <span style="background:rgba(59,130,246,.3);color:#93c5fd;padding:1px 6px;border-radius:4px;font-size:10px;white-space:nowrap;flex-shrink:0">NEW IN</span>
-            <code style="font-size:11px;color:#93c5fd">{"out":false, "text":"Хочу 14 июня, 100 гостей", "date":"10:01"}</code>
-          </div>
-        </div>
-      </div>
-
-      <!-- Две стрелки В файл сверху -->
-      <div style="display:flex;justify-content:space-between;padding:0 60px;margin-bottom:-2px">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-          <div style="width:1px;height:20px;background:rgba(59,130,246,.5)"></div>
-          <span style="font-size:9px;color:rgba(59,130,246,.7);white-space:nowrap">приходит автоматически<br>через Telethon</span>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-          <div style="width:1px;height:20px;background:rgba(168,85,247,.5)"></div>
-          <span style="font-size:9px;color:rgba(168,85,247,.7);white-space:nowrap;text-align:right">_record_outgoing_to_cache()<br>вызывает агент</span>
-        </div>
-      </div>
-
-      <!-- Источники сверху -->
-      <div style="display:flex;justify-content:space-between;padding:0 20px;margin-bottom:12px">
-        <div style="display:flex;flex-direction:column;align-items:center">
-          <div style="width:1px;height:12px;background:rgba(59,130,246,.5)"></div>
-          <div class="node node-src node-sm" style="font-size:11px;text-align:center">
-            👤 Клиент<br>пишет в TG/VK/WA
-          </div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:center">
-          <div style="width:1px;height:12px;background:rgba(168,85,247,.5)"></div>
-          <div class="node node-ai node-sm" style="font-size:11px;text-align:center">
-            🤖 Агент<br>отправляет ответ
-          </div>
-        </div>
-      </div>
-
-      <!-- Стрелка вниз из файла -->
-      <div style="text-align:center;margin:4px 0">
-        <div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px">
-          <div style="width:1px;height:16px;background:rgba(245,197,24,.6)"></div>
-          <span style="font-size:10px;color:rgba(245,197,24,.8)">enrich(force=True)<br>читает все записи</span>
-          <div style="width:1px;height:10px;background:rgba(245,197,24,.6)"></div>
-          <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid rgba(245,197,24,.6)"></div>
-        </div>
-      </div>
-
-      <!-- Opus -->
-      <div style="text-align:center;margin:6px 0">
-        <div class="node node-ai" style="display:inline-block;min-width:200px">
-          Opus AI<br>
-          <span style="font-size:10px;opacity:.8">анализирует ВСЮ переписку<br>(вх + исх вместе)</span>
-        </div>
-      </div>
-      <div style="text-align:center;color:var(--muted);font-size:18px;padding:4px 0">↓</div>
-
-      <!-- Context card -->
-      <div style="background:#0d1117;border:1.5px solid rgba(245,197,24,.4);border-radius:10px;overflow:hidden">
-        <div style="background:rgba(245,197,24,.07);padding:7px 14px;border-bottom:1px solid rgba(245,197,24,.2);display:flex;align-items:center;gap:8px">
-          <span style="font-size:16px">🗂</span>
-          <code style="font-size:12px;color:var(--gold);font-weight:700">orders.db.contact_context/event_context → legacy mirror lead_context_store.json</code>
-          <span class="badge badge-warn" style="margin-left:auto">карточка</span>
-        </div>
-        <div style="padding:10px 14px;display:flex;flex-direction:column;gap:3px">
-          <code style="font-size:11px;color:#86efac">"client_intent": "хочет забронировать 14 июня, 100 гостей"</code>
-          <code style="font-size:11px;color:#86efac">"event_date_confirmed": "2026-06-14"</code>
-          <code style="font-size:11px;color:#fde68a">"waiting_for_us": true</code>
-          <code style="font-size:11px;color:#fca5a5">"refusal_detected": false</code>
-          <code style="font-size:11px;color:#c4b5fd">"next_action_hint": "подтвердить дату, уточнить программу"</code>
-          <code style="font-size:11px;color:#94a3b8">"enriched_at": "2026-05-17T10:01:23"</code>
-        </div>
-      </div>
-
-    </div><!-- /max-width -->
-
-    <!-- ── DUAL STREAM ── -->
-    <div style="margin-top:28px;border-top:1px solid var(--border);padding-top:20px">
-      <div style="text-align:center;font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px">
-        Момент раздвоения — после того как агент решил ответить
-      </div>
-
-      <div style="display:flex;gap:0;align-items:flex-start;justify-content:center">
-
-        <!-- Left: agent box -->
-        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">
-          <div class="node node-ai" style="min-width:130px;text-align:center">
-            🤖 Агент<br>
-            <span style="font-size:10px">сгенерировал:<br>«Да, 14 июня свободно!»</span>
-          </div>
-          <div style="font-size:10px;color:var(--muted);margin-top:4px">одновременно ↙ ↘</div>
-        </div>
-
-        <!-- Branches -->
-        <div style="display:flex;flex-direction:column;gap:10px;margin-left:20px">
-
-          <!-- Stream 1 -->
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:30px;height:1px;background:rgba(59,130,246,.5);flex-shrink:0"></div>
-            <div style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.4);border-radius:8px;padding:8px 12px;min-width:220px">
-              <div style="color:#93c5fd;font-weight:700;font-size:12px;margin-bottom:4px">Поток 1 — отправка</div>
-              <div class="anno">
-                TG/VK/WA API<br>
-                → сообщение доставлено клиенту<br>
-                <span style="color:#6ee7b7">✓ клиент видит ответ</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Stream 2 -->
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:30px;height:1px;background:rgba(20,184,166,.5);flex-shrink:0"></div>
-            <div style="background:rgba(20,184,166,.08);border:1px solid rgba(20,184,166,.4);border-radius:8px;padding:8px 12px;min-width:220px">
-              <div style="color:#5eead4;font-weight:700;font-size:12px;margin-bottom:4px">Поток 2 — картотека</div>
-              <div class="anno">
-                <code>_record_outgoing_to_cache()</code><br>
-                в jsonl пишется новая строка:<br>
-                <div style="background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.3);border-radius:4px;padding:3px 6px;margin:4px 0">
-                  <span style="background:rgba(168,85,247,.3);color:#d8b4fe;padding:0 4px;border-radius:3px;font-size:9px">OUT</span>
-                  <code style="font-size:10px;color:#d8b4fe"> {"out":true, "text":"Да, 14 июня свободно!", "date":"10:02"}</code>
-                </div>
-                → <code>enrich(force=True)</code> снова<br>
-                → <code>promise_extractor.process_thread()</code> / <code>purpose=thread_context_extract</code><br>
-                → one AI request writes event graph + promises + refs; durable tech/contractor dependencies stay open until explicit resolution<br>
-                → карточка: <code style="color:#fde68a">waiting_for_client: true</code>
-                + open promises
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <div style="margin-top:16px;background:rgba(245,197,24,.04);border:1px solid rgba(245,197,24,.15);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--muted)">
-        <span style="color:var(--gold);font-weight:700">Итог:</span>
-        после каждого обмена в <code>orders.db.message_events</code> есть <b>все</b> реальные сообщения — и входящие (<code>direction=in</code>) и исходящие (<code>direction=out</code>).
-        Enricher видит полную переписку и строит карточку с актуальным контекстом.
-        <code>outbound_recorder.py</code> закрывает send-paths LCB writer, TG follow-up, approval-bot и broker direct-send; следующий ответ агента будет знать что мы уже написали и что пообещали.
-      </div>
-    </div>
-
-    </div><!-- /min-width -->
-    </div><!-- /card -->
-  </div>
-
-  <!-- ═══════════════════════════════════════════
-       3. КАРТОТЕКА
-  ═══════════════════════════════════════════ -->
-  <div class="sec anchor-target" id="kartoteka">
-    <div class="sec-hdr">
-      <div class="sec-num" style="background:rgba(20,184,166,.2);color:#5eead4">3</div>
-      <div>
-        <div class="sec-label">Картотека контекста</div>
-        <div class="sec-desc">LCB read-layer + Broker SSoT · что пишется · что читается</div>
-      </div>
-    </div>
-
-    <div class="grid2" style="margin-bottom:12px">
-      <div class="card" style="border:1.5px dashed rgba(59,130,246,.5)">
-        <div style="font-weight:700;color:#93c5fd;margin-bottom:10px">📘 LCB Event SSoT</div>
-        <div class="anno">
-          <b>Файл:</b> <code>lcb_orders.json</code><br>
-          <b>Read-layer:</b> <code>lcb_event_context.py</code><br><br>
-          <b>Хранит:</b><br>
-          — Event как сущность<br>
-          — Organizer + performers/tech<br>
-          — Stage / next_action / waiting flags<br>
-          — lcb_writer_mode + history, синхронно с CRM funnel stage<br>
-          — Promises, roles, active_event; тех/contractor dependencies не stale по отсутствию в compact AI output<br>
-          — Internal subrequests: например DJ или folk cover-band (баян/балалайка/народный элемент) → <code>broker_pipeline</code> для цены/видео/style-match<br><br>
-	          <b>Обновляют:</b> inbound/outbound context, CRM status/history, event graph owners (<code>orders.db.eg_*</code>)<br>
-	          <b>Читает календарь:</b> <code>/api/event_stubs</code> строит pre-paid заявки напрямую отсюда, без отдельного SQL/date push.
-        </div>
-      </div>
-      <div class="card" style="border:1.5px dashed rgba(168,85,247,.5)">
-        <div style="font-weight:700;color:#d8b4fe;margin-bottom:10px">📙 Broker Event SSoT</div>
-        <div class="anno">
-          <b>Файл:</b> <code>broker_orders.json</code><br>
-          <b>Read-layer:</b> <code>broker_order_context.py</code><br><br>
-          <b>Хранит:</b><br>
-          — Event как сущность<br>
-          — Organizer + contractors/candidates<br>
-          — Stage / status / history<br>
-          — Смысл переговоров, цены, медиа<br>
-          — Vendor promo/media read-model: <code>broker_vendor_media.json</code> из roster + переписок + <code>broker_promo/</code><br><br>
-          <b>Читает:</b> Broker контур — <code>broker_casting</code> / <code>broker_dialog_agent</code>
-        </div>
-      </div>
-    </div>
-
-    <div class="card" style="border:1px solid rgba(239,68,68,.3);margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span style="font-size:18px">🛑</span>
-        <span style="font-weight:700;color:#fca5a5">Общий хард-стоп</span>
-        <code style="font-size:11px;background:rgba(239,68,68,.1);padding:2px 8px;border-radius:4px;color:#fca5a5">is_refused_any(username)</code>
-      </div>
-      <div class="anno">
-        Читает LCB contact-card как общий contact hard-stop. Broker-specific статус/отказ живёт в
-        <code>broker_orders.json</code>, без второй broker-картотеки.
-      </div>
-    </div>
-
-    <div class="card">
-      <div style="font-weight:700;margin-bottom:14px">Когда обновляется и читается</div>
-      <table class="tbl">
-        <thead>
-          <tr><th>Событие</th><th>Вызов</th><th>Порядок / условие</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-	            <td><span class="badge badge-blue">ЗАПИСЬ</span> Входящее DM</td>
-	            <td><code>message_event_log.log_*()</code> + <code>enrich(force=True)</code> + <code>lcb_orders.refresh_contact()</code></td>
-	            <td>Синхронно в listener-треде, <b>до</b> запуска агента; затем <code>lcb_event_context.py</code> читает <code>lcb_orders.json</code></td>
-          </tr>
-	          <tr>
-	            <td><span class="badge badge-green">ЗАПИСЬ</span> Исходящее DM</td>
-	            <td><code>outbound_recorder.record_outbound(namespace=lcb)</code></td>
-	            <td>Сразу после успешной отправки: <code>orders.db.message_events</code> → <code>lead_context_enricher</code> → <code>lcb_orders.refresh_contact()</code> → <code>thread_context_extract</code> через <code>promise_extractor</code></td>
-	          </tr>
-	          <tr>
-	            <td><span class="badge badge-green">ЛИМИТ</span> Cold outbound</td>
-	            <td><code>outbound_counter.can_send_cold()</code> / <code>record_outbound(cold_*)</code></td>
-	            <td>40 первых сообщений новым пользователям в день отдельно для <code>tg</code>, <code>vk</code>, <code>wa</code>; reply/follow-up трафик сюда не входит</td>
-	          </tr>
-          <tr>
-            <td><span class="badge badge-purple">ЧТЕНИЕ</span> Генерация ответа</td>
-            <td><code>lcb_event_context.card_by_contact()</code></td>
-            <td>Read-only карточка из <code>lcb_orders.json</code> перед Opus-вызовом; writer видит <code>subrequests</code> как отдельные зависимости</td>
-          </tr>
-          <tr>
-            <td><span class="badge badge-purple">ЧТЕНИЕ</span> Follow-up</td>
-            <td><code>get_or_enrich(username, channel)</code></td>
-            <td>В <code>tg_followup.py</code> перед каждым драфтом</td>
-          </tr>
-          <tr>
-            <td><span class="badge badge-warn">СТОП</span> Хард-стоп</td>
-            <td><code>is_refused_any(username)</code></td>
-            <td>Перед любым ответом (оба агента)</td>
-          </tr>
-          <tr>
-            <td><span class="badge badge-teal">ФОН</span> Фоновый cron</td>
-            <td><code>enrich_all()</code></td>
-            <td><code>attention-auto-action</code> каждые 30 мин — пропускает свежее 30 мин</td>
-          </tr>
-        </tbody>
-      </table>
-      <div style="margin-top:14px" class="anno">
-        <b>Файлы:</b><br>
-        <code>lcb_orders.json</code> — физический LCB event/context SSoT<br>
-        <code>lcb_event_context.py</code> — единый LCB read-layer поверх <code>lcb_orders.json</code><br>
-        <code>orders.db.contact_context/event_context</code> — primary LCB AI read-model (ключ = <code>channel:username</code>)<br>
-        <code>lead_context_store.json</code> — legacy mirror/read-through только при явном fallback<br>
-	        <code>orders.db.message_events</code> — canonical raw история (вх + исх); JSONL-кэши только legacy/export<br>
-	        <code>orders.db.eg_*</code> — event graph + promises + refs из одного <code>thread_context_extract</code>; <code>event_graph.py</code> — compatibility API<br>
-        <code>vk_conversation_cache/&lt;peer&gt;.jsonl</code> · <code>wa_cache/&lt;phone&gt;.jsonl</code> — legacy mirrors<br>
-        Запись: <code>{"id": -ts, "date": "...", "out": true/false, "text": "...", "media": false}</code>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════
-       4. ТРИ АГЕНТА
-  ═══════════════════════════════════════════ -->
-  <div class="sec anchor-target" id="agents">
-    <div class="sec-hdr">
-      <div class="sec-num" style="background:rgba(245,197,24,.15);color:var(--gold)">4</div>
-      <div>
-        <div class="sec-label">AI-агенты + отдельный Broker контур</div>
-        <div class="sec-desc">Event Classifier · LC Band DM · Broker без смешивания с tg_responder</div>
-      </div>
-    </div>
-    <div class="grid3">
-      <div class="card" style="border-top:3px solid rgba(16,185,129,.5)">
-        <div style="font-size:13px;font-weight:700;color:#6ee7b7;margin-bottom:12px">🟢 Agent 1<br>Event Classifier</div>
-        <div class="anno">
-          <b>Вход:</b> пост из TG/VK event-чата<br><br>
-          <b>AI-стек:</b><br>
-          Gemini Flash → binary (event/skip)<br>
-          Sonnet → classify (категория)<br>
-          L3 writer split:<br>
-          <code>unified_dm_responder.py</code> для LCBand dialogue<br>
-          <code>broker_dialog_agent.py</code> для broker dialogue<br><br>
-          <b>Картотека:</b> <span class="badge badge-err">нет</span><br>
-          Посты холодные, истории нет<br><br>
-          <b>Выход:</b> orders.db + pre-send gates → pitching DM / skip<br><br>
-          <b>Скрипт:</b> <code>tg_realtime_monitor.py</code>
-        </div>
-      </div>
-      <div class="card" style="border-top:3px solid rgba(59,130,246,.5)">
-        <div style="font-size:13px;font-weight:700;color:#93c5fd;margin-bottom:12px">🔵 Agent 2<br>LC Band DM</div>
-        <div class="anno">
-          <b>Вход:</b> входящий TG/VK/WA DM; ручной TG outgoing фиксируется как raw OUT без запуска writer<br><br>
-          <b>AI-стек:</b><br>
-          Opus — classify + LCBand writer<br>
-          Classifier получает <code>Context-hint</code> из LCB read-layer; role normalization после classify страхует: <code>event_organizer_active</code> допускается только если CRM/context подтверждает текущего контакта как organizer/client-side участника; performer/vendor/tech role понижает verdict до writer<br>
-          Legacy TG writer challenger → arbiter выбирает primary/challenger/adapt/block<br>
-          modes: intake / sales / contract / production / content<br><br>
-          <b>Контекст:</b> <span class="badge badge-blue">LCB event read-layer</span><br>
-          Читает: <code>lcb_event_context.py</code><br>
-          Event binding: <code>event_context_events</code><br>
-          Coordination: <code>lcb_orders.event_slice.coordination_requests</code> → <code>lcb_event_context.py</code> → <code>event_ops_logistics_agent.py</code> для performer check с source media<br>
-          Пишет: dual-stream<br><br>
-          <b>Выход:</b> ответ клиенту/организатору/технику в TG/VK/WA<br><br>
-          <b>Скрипт:</b> <code>unified_dm_responder.py</code>; VK realtime/inbox owner: <code>vk_auto_responder.py</code> через <code>vk_longpoll_listener.py</code>, с <code>ai_review_before_send()</code>, canon price guard и duplicate guard перед VK send. Cross-channel <code>dm_ai_suppression_state.json</code> гасит уже распознанные personal/noise/vendor/non-LCB треды в TG/VK/WA: входящее только кэшируется и больше не запускает context/classifier/writer AI. WA Baileys также проверяет legacy <code>wa_ai_suppression_state.json</code>; <code>@lid</code> push без активного CRM order кэшируется без AI. Drum/LED media requests use canonical Noize <code>DRUM_PROMO_URL</code>; <code>specific_media_required</code> blocks only when no verified promo/media bundle is available.
-        </div>
-      </div>
-      <div class="card" style="border-top:3px solid rgba(168,85,247,.5)">
-        <div style="font-size:13px;font-weight:700;color:#d8b4fe;margin-bottom:12px">🟣 Broker контур<br>casting + relay</div>
-        <div class="anno">
-          <b>Вход:</b> broker opportunity trigger из event/group chat<br>
-          Direct/private DM → <code>unified_dm_responder.py</code>, не broker<br><br>
-          <b>AI-стек:</b><br>
-          Opus → contractor brief / relay<br>
-          Quality scorer → ranking<br>
-          Reference match → closest media top-N<br><br>
-          <b>Контекст:</b> <span class="badge badge-purple">Broker event SSoT</span><br>
-          Источник: <code>broker_orders.json</code><br>
-          Читает: <code>broker_order_context.py</code><br>
-          Vendor media: <code>broker_vendor_media.py</code> → <code>broker_vendor_media.json</code><br>
-          Folk cover-band pool: <code>cover_band_folk</code> в <code>broker_vendor_roster.json</code> для запросов с баяном/балалайкой/народным элементом<br><br>
-          <b>Skip до fanout:</b> contractor-side работа только после подтверждённого бюджета; simple actor/dancer lowcost и любой budget reply ниже broker margin floor закрываются до client-hold и contractor brief<br><br>
-          <b>Выход:</b> client relay / contractor brief / follow-up<br>
-          Contractor-side: bypass client review → auto-send; client-side: presend + context + duplicate guard<br><br>
-          <b>Owner:</b> <code>broker_dialog_agent.py</code> для сообщений; <code>broker_casting.py</code> для выбора
-        </div>
-      </div>
-    </div>
-    <div class="card" style="margin-top:14px;border-top:3px solid rgba(168,85,247,.55)">
-      <div style="font-size:13px;font-weight:800;color:#d8b4fe;margin-bottom:12px">Broker отдельно: выбор подрядчика и две переписки</div>
-      <div class="pipe" style="gap:8px;flex-wrap:wrap;align-items:stretch">
-        <div class="node node-src node-sm">broker_order<br><span style="font-size:10px;opacity:.7"><code>broker_orders.json</code></span></div>
-        <div class="arr">→</div>
-        <div class="node node-ai node-sm">Casting<br><span style="font-size:10px;opacity:.7"><code>broker_casting.py</code></span></div>
-        <div class="arr">→</div>
-        <div class="node node-ai node-sm">Top-N / assigned<br><span style="font-size:10px;opacity:.7">service · margin · ref-match · score</span></div>
-        <div class="arr">→</div>
-        <div class="node node-out node-sm">Relay клиенту<br><span style="font-size:10px;opacity:.7"><code>broker_relay_to_client</code></span></div>
-        <div class="arr">↔</div>
-        <div class="node node-out node-sm">Подрядчик<br><span style="font-size:10px;opacity:.7"><code>broker_relay_to_contractor</code></span></div>
-      </div>
-      <div class="anno" style="margin-top:10px">
-        <b>Разделение ownership:</b> <code>broker_casting.py</code> выбирает подрядчика.
-        <code>broker_order_context.py</code> отдаёт broker event как сущность: event, organizer, подрядчики/candidates, смысл переговоров и текущий stage.
-        Входящие DM от broker-linked clients/contractors/candidates realtime-шлюз отдаёт broker handler’у до LCB writer: budget replies обновляют <code>broker_orders.json</code>; только подтверждённый бюджет выше margin floor возвращает заказ в casting, contractor replies фиксируются как broker-side state.
-        Broker создаётся только из внешнего event/group chat source. Direct/private DM (`TG`, `TG_DIRECT`, `TG DM ...`) автоматически остаётся LCBand lead.
-        Broker → contractor сообщения обходят client review и отправляются сразу; broker → client идёт через presend, context и duplicate guard.
-        <code>tg_responder.py</code> hard-disabled для общего DM send; в broker-контуре он только маршрутизирует contractor inbound в <code>broker_dialog_agent.py</code>.
-      </div>
-    </div>
-    <div style="margin-top:12px;padding:10px 16px;background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.2);border-radius:10px;text-align:center">
-      <div class="pipe" style="justify-content:center;gap:16px">
-        <span style="color:#93c5fd;font-size:12px">Agent 2 (LCB)</span>
-        <div class="arr">→</div>
-        <div class="node node-warn node-sm" style="min-width:130px">is_refused_any()<br><span style="font-size:10px">общий хард-стоп</span></div>
-        <div class="arr">←</div>
-        <span style="color:#d8b4fe;font-size:12px">Broker контур</span>
-      </div>
-      <div class="anno" style="margin-top:6px">LCB contact hard-stop читается из LCB card; broker-specific closed/cancelled живёт в <code>broker_orders.json</code> и тоже учитывается helper'ом.</div>
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════
-       5. ФОЛОУ-АПЫ
-  ═══════════════════════════════════════════ -->
-  <div class="sec anchor-target" id="followups">
-    <div class="sec-hdr">
-      <div class="sec-num" style="background:rgba(245,158,11,.2);color:var(--warn)">5</div>
-      <div>
-        <div class="sec-label">Фолоу-апы</div>
-        <div class="sec-desc">Кто, когда и как пишет повторно</div>
-      </div>
-    </div>
-    <div class="card">
-      <table class="tbl">
-        <thead>
-          <tr><th>Агент</th><th>Расписание</th><th>Триггер</th><th>Контекст</th><th>Выход</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>tg_followup.py</code></td>
-            <td>Hourly launchd tick</td>
-            <td>Hourly check: последняя реплика наша, клиент молчит ≥ 1 день, нет hard snooze/stale/new inbound</td>
-            <td><code>lcb_event_context.py</code> → LCB event-card facts; <code>followup_orchestrator.py</code> shared rules; <code>tg_followup.py</code> owns TG transport</td>
-            <td>TG context-card follow-up: deterministic missing-media retry for content uploads → <code>lcb_writer</code> drafts only after tg_followup gates → pre-send review → send/skip</td>
-          </tr>
-          <tr>
-            <td><code>funnel_maintenance.py</code></td>
-            <td>Calendar ticks, send window 10:00-20:00 MSK</td>
-            <td>orders.db active leads: overdue by real dialog last-message date, not CRM service updates</td>
-            <td><code>orders.db.message_events</code> + <code>lcb_writer.compose_followup</code></td>
-            <td>Cross-channel TG/TG_DIRECT/VK/WA watcher/router; daily contextual follow-up after ~24h silence is the default, generic reminders are banned, but only LCB writer composes wording. Client-stated info windows ("next week", "Friday", "in 3 days") create hard snooze until that date. TG history falls back to unified_message_store, then direct-message entries in orders.history; if still unreadable, the sender logs tg_history_empty and writes a visible blocker next_action for the dashboard plan. Writer/presend blocks are visible as lcb_writer_skip blockers, not silent skips. Event_date in the past archives before send window; if structured event_date is empty, the watcher also checks explicit dates in desc before any follow-up send. 21+d silence after our message is stale-lost, not a follow-up; lowcost_simple_dancer_not_lcb leads are not followed up. WA follow-ups are queued for native WhatsApp Desktop/computer-use even when Desktop send window is currently closed.</td>
-          </tr>
-          <tr>
-            <td><code>attention_auto_action.py</code></td>
-            <td>Каждые 30 мин</td>
-            <td>requires_attention = true в orders.db</td>
-            <td><code>ai_review_before_send()</code> pre-send check</td>
-            <td><code>followup_ready</code> → delegate to <code>tg_followup.py</code>; hot/awaiting_us остаются здесь</td>
-          </tr>
-          <tr>
-            <td><code>vk_followup.py</code></td>
-            <td>По расписанию</td>
-            <td>VK лид без ответа N дней; также stale inbound, где последнее сообщение клиента требует follow-up, а <code>vk_auto_responder.py</code> решил <code>should_reply=false</code></td>
-            <td>VK conv cache → <code>lcb_event_context.py</code>; dated history lets AI resolve client-stated windows into hard snooze</td>
-            <td>VK DM reply через pre-send review; future decision_date writes next_action instead of sending</td>
-          </tr>
-          <tr>
-            <td><code>broker-client-followup</code></td>
-            <td>По расписанию</td>
-            <td>Broker: клиент молчит N дней</td>
-            <td><code>broker_order_context.py</code></td>
-            <td>Broker DM → Opus → broker_dialog_agent; auto-send по gates, money/risk → notify</td>
-          </tr>
-          <tr>
-            <td><code>broker-contractor-followup</code></td>
-            <td>По расписанию</td>
-            <td>Подрядчик не ответил</td>
-            <td><code>broker_orders.json</code></td>
-            <td>DM подрядчику</td>
-          </tr>
-          <tr>
-            <td><code>tg_responder.py</code></td>
-            <td>Consultant-only</td>
-            <td>launchd tick</td>
-            <td><code>tg_responder_safety.json</code></td>
-            <td>Пишет consultant state и выходит без scan/send; legacy active mode отключён в коде</td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="hl" style="margin-top:14px;font-size:12px">
-        <b>Правило ownership:</b> решение “делать ли follow-up сейчас” централизуется в <code>followup_orchestrator.py</code>;
-        <code>tg_followup.py</code>, <code>vk_followup.py</code> и WA path остаются channel adapters/read-send transports.
-        <code>lead_context_enricher.py</code> только поставляет факты/подсказку карточки, а <code>lcb_writer.py</code> только пишет текст и делает pre-send safety.
-        Общий cross-channel stale follow-up по <code>orders.db</code> владеет <code>funnel_maintenance.py</code>.
-        <code>attention_auto_action.py</code> больше не auto-send'ит <code>followup_ready</code>, только делегирует.
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════
-       ∑. СВОДНАЯ СХЕМА
-  ═══════════════════════════════════════════ -->
-  <div class="sec anchor-target" id="full">
-    <div class="sec-hdr">
-      <div class="sec-num" style="background:rgba(255,255,255,.08);color:var(--text)">∑</div>
-      <div>
-        <div class="sec-label">Сводная схема — всё вместе</div>
-      </div>
-    </div>
-    <div class="card" style="overflow-x:auto">
-      <div style="min-width:640px;display:flex;flex-direction:column;gap:0">
-
-        <!-- R1: Sources -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:center">
-          <div class="node node-src" style="text-align:center">
-            <div style="font-size:10px;color:var(--muted);margin-bottom:4px">ПОСТЫ</div>
-            TG event-чаты · VK community
-          </div>
-          <div class="node node-src" style="text-align:center">
-            <div style="font-size:10px;color:var(--muted);margin-bottom:4px">DM</div>
-            TG DM · VK DM · WA
-          </div>
-          <div class="node node-src" style="text-align:center">
-            <div style="font-size:10px;color:var(--muted);margin-bottom:4px">BROKER</div>
-            opportunity trigger
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;color:var(--muted);font-size:20px;padding:4px 0">
-          <div>↓</div><div>↓</div><div>↓</div>
-        </div>
-
-        <!-- R2: Listeners -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:center">
-          <div class="node node-proc" style="text-align:center;font-size:11px">
-            TG Monitor + Browser Walk<br>
-            <span style="font-size:10px;opacity:.7">cross-dedup → tg_seen_posts.jsonl</span>
-          </div>
-          <div class="node node-proc" style="text-align:center;font-size:11px">
-            DM Listener<br>
-            <span style="font-size:10px;opacity:.7">NewMessage → тред</span>
-          </div>
-          <div class="node node-proc" style="text-align:center;font-size:11px">
-            broker_pipeline<br>
-            <span style="font-size:10px;opacity:.7">trigger event</span>
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;color:var(--muted);font-size:20px;padding:4px 0">
-          <div>↓</div><div>↓</div><div>↓</div>
-        </div>
-
-        <!-- R3: Context -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:center">
-          <div class="node node-gray" style="text-align:center;font-size:11px">
-            — нет картотеки —<br>пост холодный
-          </div>
-          <div class="node node-store" style="text-align:center;font-size:11px">
-            lcb_orders.json<br>
-            <span style="font-size:10px;opacity:.7">LCB event/context SSoT → lcb_event_context.py</span>
-          </div>
-          <div class="node node-store" style="text-align:center;font-size:11px">
-            broker_order_context<br>
-            <span style="font-size:10px;opacity:.7">broker_orders.json SSoT</span>
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;color:var(--muted);font-size:20px;padding:4px 0">
-          <div>↓</div><div>↓</div><div>↓</div>
-        </div>
-
-        <!-- R4: AI Agents -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:center">
-          <div class="node node-ai" style="text-align:center;border-color:rgba(16,185,129,.5)">
-            🟢 Agent 1<br>Gemini→Sonnet→Opus
-          </div>
-          <div class="node node-ai" style="text-align:center">
-            🔵 Agent 2<br>unified_dm_responder<br><span style="font-size:10px">Opus</span>
-          </div>
-          <div class="node node-ai" style="text-align:center">
-            🟣 Broker контур<br>casting + relay<br><span style="font-size:10px">Opus + scorer</span>
-          </div>
-        </div>
-
-        <!-- Hard-stop -->
-        <div style="text-align:center;padding:8px 0">
-          <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:6px 20px;font-size:11px;color:#fca5a5">
-            🛑 <code>is_refused_any()</code> — LCB contact hard-stop; broker статус живёт в broker_orders.json
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;color:var(--muted);font-size:20px;padding:4px 0">
-          <div>↓</div><div>↓</div><div>↓</div>
-        </div>
-
-        <!-- R5: Output -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:center">
-          <div class="node node-out" style="text-align:center;font-size:11px">
-            orders.db<br>
-            <span style="font-size:10px;opacity:.7">+ pre-send gates → pitch/skip</span>
-          </div>
-          <div class="node node-out" style="text-align:center;font-size:11px">
-            TG/VK/WA reply<br>
-            <span style="font-size:10px;opacity:.7">+ outbound_recorder → stores</span>
-          </div>
-          <div class="node node-out" style="text-align:center;font-size:11px">
-            Broker DM<br>
-            <span style="font-size:10px;opacity:.7">+ presend/context → client relay</span>
-          </div>
-        </div>
-
-        <!-- Follow-up bar -->
-        <div style="margin-top:16px;text-align:center">
-          <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:7px 18px;font-size:11px;color:var(--warn)">
-            ⏰ Follow-up: <code>tg_followup</code> (10:09) — TG owner · <code>attention_auto_action</code> delegates followup_ready · <code>vk_followup</code> · <code>broker-*-followup</code>
-            — LCB читает <code>lcb_event_context.py</code>, broker читает <code>broker_order_context.py</code>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:rgba(59,130,246,.6)"></div>Источник</div>
-      <div class="legend-item"><div class="legend-dot" style="background:rgba(245,197,24,.6)"></div>Процесс / listener</div>
-      <div class="legend-item"><div class="legend-dot" style="background:rgba(168,85,247,.6)"></div>AI агент</div>
-      <div class="legend-item"><div class="legend-dot" style="background:rgba(20,184,166,.6)"></div>Картотека / контекст</div>
-      <div class="legend-item"><div class="legend-dot" style="background:rgba(16,185,129,.6)"></div>Результат / выход</div>
-      <div class="legend-item"><div class="legend-dot" style="background:rgba(239,68,68,.6)"></div>Guard / хард-стоп</div>
-    </div>
-  </div>
-
-  </div>
-</div>
-
-<!-- Side nav -->
-<div class="side-nav">
-  <a href="#transition"><div class="snb snb-gold">Live</div></a>
-  <a href="#testing"><div class="snb">Agents</div></a>
-  <a href="#cutover"><div class="snb">Not prod</div></a>
-  <a href="#ai-routing"><div class="snb">AI route</div></a>
-</div>
-
 </body>
 </html>
