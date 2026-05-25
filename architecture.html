@@ -533,6 +533,51 @@
       font-size: 12px;
       line-height: 1.45;
     }
+    .connection-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .connection-card {
+      border: 1px solid rgba(148,163,184,.16);
+      border-radius: 8px;
+      background: rgba(255,255,255,.035);
+      padding: 12px;
+      min-height: 220px;
+      display: grid;
+      gap: 9px;
+      align-content: start;
+    }
+    .connection-card h3 {
+      margin: 0;
+      color: var(--ink);
+      font-size: 13px;
+      line-height: 1.25;
+    }
+    .role-row {
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 7px;
+      background: rgba(0,0,0,.14);
+      padding: 8px 9px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.38;
+    }
+    .role-row b {
+      display: block;
+      color: var(--text);
+      font-size: 11px;
+      margin-bottom: 3px;
+    }
+    .shared-flow {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr) 28px minmax(0, 1fr);
+      gap: 9px;
+      align-items: stretch;
+      margin-top: 10px;
+    }
+    .shared-flow .seq-card { min-height: 110px; }
     .pill {
       display: inline-flex;
       align-items: center;
@@ -584,7 +629,7 @@
       .hdr { flex-direction: column; align-items: flex-start; gap: 10px; }
       .wrap { width: min(100vw - 28px, 1220px); padding-top: 24px; }
       .page-title { font-size: 40px; }
-      .grid2, .grid3, .actual-grid, .flow-row, .flow-row.five, .lane, .converge, .sequence-map { grid-template-columns: 1fr; }
+      .grid2, .grid3, .actual-grid, .flow-row, .flow-row.five, .lane, .converge, .sequence-map, .connection-grid, .shared-flow { grid-template-columns: 1fr; }
       .arrow-col, .converge-arrow, .seq-arrow { transform: rotate(90deg); min-height: 26px; }
       .shared-agent { min-height: 180px; }
       .row { grid-template-columns: 1fr; gap: 5px; }
@@ -636,40 +681,47 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Порядок: 4 подключения → запись → routing → context load → writer → output action → write-back</div>
-        <div class="sequence-map">
-          <div class="seq-col">
-            <div class="converge-title">1. 4 dashboard connections</div>
-            <div class="seq-card"><b>TG realtime</b><p><code>tg_realtime_monitor.py</code> + <code>tg_session_monitor.session</code>; realtime DM/event input.</p></div>
-            <div class="seq-card"><b>TG follow-up session</b><p><code>tg_followup.py</code> + <code>tg_session_followup.session</code>; follow-up read/run session.</p></div>
-            <div class="seq-card"><b>VK service</b><p>Kate Mobile + service API health/read path; VK adapter handles VK-side actions.</p></div>
-            <div class="seq-card"><b>WhatsApp Baileys</b><p>WA connection/materializer; outbound still goes through native Desktop queue.</p></div>
+        <div class="card-title">4 подключения: каждое имеет свою входную/выходную роль, общий owner один</div>
+        <div class="connection-grid">
+          <div class="connection-card">
+            <h3>TG realtime</h3>
+            <div class="role-row"><b>input</b><code>tg_realtime_monitor.py</code> + <code>tg_session_monitor.session</code>: DM/event NewMessage.</div>
+            <div class="role-row"><b>output</b>Не output-owner. Отправка после writer идёт отдельной send operation, не через realtime socket.</div>
+            <div class="role-row"><b>write</b>Inbound → <code>orders.db.message_events</code> → context refresh.</div>
+          </div>
+          <div class="connection-card">
+            <h3>TG follow-up session</h3>
+            <div class="role-row"><b>input/read</b><code>tg_followup.py</code> + <code>tg_session_followup.session</code>: follow-up scan/read/run.</div>
+            <div class="role-row"><b>output</b>Если не dry-run, отправка всё равно проходит через writer/gates и write-back.</div>
+            <div class="role-row"><b>не daemon owner</b>Отдельная session-card, но не основной realtime socket.</div>
+          </div>
+          <div class="connection-card">
+            <h3>VK service</h3>
+            <div class="role-row"><b>input</b>VK listener/service path принимает inbound и читает историю.</div>
+            <div class="role-row"><b>output</b>VK adapter отправляет готовый текст после writer/gates.</div>
+            <div class="role-row"><b>write</b>VK history/materialized events → общий state.</div>
+          </div>
+          <div class="connection-card">
+            <h3>WhatsApp Baileys</h3>
+            <div class="role-row"><b>input</b>WA connection/materializer обновляет cache/message history.</div>
+            <div class="role-row"><b>output</b>Не WA Web: готовый draft уходит в native WhatsApp Desktop + computer-use queue.</div>
+            <div class="role-row"><b>write</b>WA cache/message_events → context для writer.</div>
+          </div>
+        </div>
+        <div class="shared-flow">
+          <div class="seq-card state">
+            <b>Общий state перед owner</b>
+            <p>Все входы сходятся в <code>orders.db.message_events</code>, CRM/order state, <code>lcb_event_context</code>, <code>resolve_context</code>.</p>
           </div>
           <div class="seq-arrow">→</div>
-          <div class="seq-col">
-            <div class="converge-title">2. Raw write / cache</div>
-            <div class="seq-card state"><b>Canonical history</b><p>Inbound/message/post facts пишутся или материализуются в <code>orders.db.message_events</code> и channel cache mirrors.</p></div>
-            <div class="seq-card state"><b>Order/event state</b><p>CRM row, event graph, <code>lcb_orders</code> / <code>broker_orders</code> обновляются владельцами state.</p></div>
+          <div class="seq-card primary">
+            <b>Routing + <code>unified_dm_responder.py</code></b>
+            <p>Сначала broker/band/payment/refusal/hard-stop gates. Non-broker клиентский поток идёт в LCB writer mode + draft.</p>
           </div>
           <div class="seq-arrow">→</div>
-          <div class="seq-col">
-            <div class="converge-title">3. Routing gate</div>
-            <div class="seq-card broker"><b>Broker branch</b><p>Broker client/contractor/candidate replies и broker opportunities уходят в <code>broker_orders.json</code>; LCB writer не запускается.</p></div>
-            <div class="seq-card"><b>LCB client branch</b><p>Non-broker клиентский поток идёт дальше в context load и writer.</p></div>
-            <div class="seq-card"><b>Hard stops</b><p>Band member, payment, refusal, musician/spam, duplicate/recent handled могут остановить поток до draft.</p></div>
-          </div>
-          <div class="seq-arrow">→</div>
-          <div class="seq-col">
-            <div class="converge-title">4. Context load + writer</div>
-            <div class="seq-card state"><b>Подгрузка контекста</b><p><code>lead_context_enricher</code>, <code>lcb_event_context</code>, <code>resolve_context</code>, CRM lookup читают state перед генерацией.</p></div>
-            <div class="seq-card primary"><b><code>unified_dm_responder.py</code><br>LCB writer</b><p>Выбирает writer mode, делает draft, затем freshness guard и pre-send review.</p></div>
-          </div>
-          <div class="seq-arrow">→</div>
-          <div class="seq-col">
-            <div class="converge-title">5. Output actions</div>
-            <div class="seq-card"><b>Send/queue action</b><p>Отправка после writer/gates не считается новым dashboard connection: TG/VK send path или WA Desktop queue.</p></div>
-            <div class="seq-card"><b>Transport owner</b><p>Transport доставляет готовый текст и не становится вторым writer.</p></div>
-            <div class="seq-card"><b>No extra socket count</b><p>На схеме остаётся 4 подключения; output — действие поверх соответствующего канала.</p></div>
+          <div class="seq-card">
+            <b>Output через то же семейство каналов</b>
+            <p>TG send / VK send / WA Desktop queue — это действия транспорта после writer, а не дополнительные подключения.</p>
           </div>
         </div>
         <div class="return-strip">
