@@ -526,8 +526,8 @@ a:hover { text-decoration: underline; }
   <div id="codex-fallback-row" style="display:flex;align-items:center;gap:10px;margin:0 0 12px 0;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;flex-wrap:wrap;">
     <span style="font-size:12px;color:var(--muted);">Если Codex CLI упал — Layer 2:</span>
     <div id="codex-fallback-buttons" style="display:flex;gap:6px;">
-      <button class="codex-fb-btn" data-model="opus"   style="padding:6px 12px;border:1px solid #444;background:transparent;color:#ccc;border-radius:6px;cursor:pointer;font-size:12px;">CLI Opus</button>
       <button class="codex-fb-btn" data-model="sonnet" style="padding:6px 12px;border:1px solid #444;background:transparent;color:#ccc;border-radius:6px;cursor:pointer;font-size:12px;">CLI Sonnet</button>
+      <button class="codex-fb-btn" data-model="opus"   style="padding:6px 12px;border:1px solid #444;background:transparent;color:#ccc;border-radius:6px;cursor:pointer;font-size:12px;">CLI Opus</button>
       <button class="codex-fb-btn" data-model="haiku"  style="padding:6px 12px;border:1px solid #444;background:transparent;color:#ccc;border-radius:6px;cursor:pointer;font-size:12px;">CLI Haiku</button>
     </div>
     <span style="font-size:11px;color:var(--muted);margin-left:auto;">→ если и она упадёт, последняя защита: <b>API</b></span>
@@ -1203,7 +1203,7 @@ function bindRoutingControls() {
 }
 
 function renderCodexFallback(cfg) {
-  const current = String((cfg && cfg.codex_fallback_model) || 'opus').toLowerCase();
+  const current = String((cfg && cfg.codex_fallback_model) || 'sonnet').toLowerCase();
   for (const btn of document.querySelectorAll('.codex-fb-btn')) {
     const active = btn.dataset.model === current;
     btn.style.background = active ? 'var(--accent, #3a82f7)' : 'transparent';
@@ -1624,7 +1624,7 @@ const PROCESS_INFO = {
 const SERVICE_INFO = {
   cli_codex: 'Codex CLI через ChatGPT/Codex лимит. Обычно первый слой для review/classification.',
   cli_gemini: 'Gemini CLI. Обычно дешёвая классификация/фильтр; не должен принимать критичные коммерческие решения.',
-  cli_opus: 'Claude Opus CLI через Max. Сильный, но дорогой по лимиту слой.',
+  cli_opus: 'Claude Opus CLI через Max. Ручной аварийный слой, не default.',
   cli_sonnet: 'Claude Sonnet CLI через Max. Средний слой: дешевле Opus, сильнее Haiku.',
   cli_haiku: 'Claude Haiku CLI/API. Быстрый слой для простых задач.',
 };
