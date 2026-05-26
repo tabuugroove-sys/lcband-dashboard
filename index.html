@@ -766,6 +766,9 @@ function processRows(rows) {
       } else if (row.key === 'conn_tg_realtime') {
         const [st, reason] = (row.value || '').split('|');
         connection.realtime = { status: st || 'unknown', reason: reason || '', label: row.label };
+      } else if (row.key === 'conn_tg_realtime_last_check') {
+        if (!connection.realtime) connection.realtime = {};
+        connection.realtime.lastCheck = row.value;
       } else if (row.key === 'conn_tg_followup') {
         const [st, reason] = (row.value || '').split('|');
         connection.followup = { status: st || 'unknown', reason: reason || '', label: row.label };
@@ -1315,7 +1318,7 @@ function ConnectionStatus({ connection, vkConnection, waConnection }) {
           title="TG realtime"
           status={connection.realtime.status}
           reason={connection.realtime.reason}
-          lastCheck={connection?.lastCheck}
+          lastCheck={connection.realtime.lastCheck || connection?.lastCheck}
         />
       )}
       {connection?.followup && (
