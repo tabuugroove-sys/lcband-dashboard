@@ -850,7 +850,7 @@
               </tr>
               <tr>
                 <td><b>Payment / money intent</b></td>
-                <td>Hard block + notify admin; клиенту AI не отвечает.</td>
+                <td>Hard block + notify admin; клиенту AI не отвечает. Исключение: <code>payment_event_handler.py</code> ловит подтверждение Кирилла о счёте в ЭДО, ставит <code>invoice_loaded</code> и создаёт approval-драфт без автоотправки.</td>
               </tr>
               <tr>
                 <td><b>Refusal</b></td>
