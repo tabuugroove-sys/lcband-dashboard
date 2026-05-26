@@ -8294,11 +8294,11 @@ function LeadFlowSection() {
     <div className="ai-layer-card" onClick={(e) => {
       if (e.target.closest('a,button')) return;
       setAiLayerOpen({ layer: 'agent1' });
-    }} title="L3 writer layer: два владельца переписки и режимы работы" style={{background:'linear-gradient(180deg, rgba(245,197,24,.12), rgba(167,139,250,.09))', border:'1.5px solid rgba(245,197,24,.34)', borderRadius:9, padding:'8px 9px', display:'grid', gap:7}}>
+    }} title="L3 writer layer: один LCB writer и отдельный broker writer" style={{background:'linear-gradient(180deg, rgba(245,197,24,.12), rgba(167,139,250,.09))', border:'1.5px solid rgba(245,197,24,.34)', borderRadius:9, padding:'8px 9px', display:'grid', gap:7}}>
       <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:8}}>
         <div>
           <div style={{fontSize:10.5, fontWeight:900, color:'#fde68a', textTransform:'uppercase', letterSpacing:.4}}>L3 Writer layer</div>
-          <div style={{fontSize:8.5, color:'#cbd5e1'}}>2 писаря · 6 режимов каждый · единый голос по контуру</div>
+          <div style={{fontSize:8.5, color:'#cbd5e1'}}>LCB text policy один: lcb_writer.py · broker отдельно</div>
         </div>
         {aiInfoButton('agent1', 'L3')}
       </div>
@@ -8308,7 +8308,7 @@ function LeadFlowSection() {
         <div title="LCBand dialogue owner" style={{background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.28)', borderRadius:6, padding:'6px 7px'}}>
           <div style={{fontSize:9.5, fontWeight:800, color:'#93c5fd', marginBottom:2}}>LCB writer</div>
           <div style={{fontSize:8.5, color:'#93c5fd'}}>
-            {sourceLink('unified_dm_responder.py', 'unified_dm_responder', {color:'#93c5fd'})}
+            {sourceLink('lcb_writer.py', 'lcb_writer.py', {color:'#93c5fd'})}
           </div>
           {writerModeGrid('#93c5fd', 'agent2', 'LCB_WRITER', lcbWriterModes)}
         </div>
@@ -8480,7 +8480,7 @@ function LeadFlowSection() {
 	                    </div>
 	                    {aiInfoButton('agent2', 'Agent 2')}
 	                  </div>
-		                  <div style={{fontSize:8.5, color:'#f87171'}}>classify → LCB writer modes → review → send/skip</div>
+		                  <div style={{fontSize:8.5, color:'#f87171'}}>classify/orchestrate → lcb_writer modes → review → send/skip</div>
 		                  <div style={{fontSize:8, color:'#fde68a', marginTop:2}}>4c target: replace old reader block with one AgentContext</div>
 	                </div>
 	                {arr('↓ routing verdict')}

@@ -715,8 +715,8 @@
           </div>
           <div class="seq-arrow">→</div>
           <div class="seq-card primary">
-            <b>Routing + <code>unified_dm_responder.py</code></b>
-            <p>Сначала broker/band/payment/refusal/hard-stop gates. Non-broker клиентский поток идёт в LCB writer mode + draft.</p>
+            <b>Routing + <code>unified_dm_responder.py</code> → <code>lcb_writer.py</code></b>
+            <p>Сначала broker/band/payment/refusal/hard-stop gates. Non-broker клиентский поток идёт в один LCB writer prompt/modes из <code>lcb_writer.py</code>.</p>
           </div>
           <div class="seq-arrow">→</div>
           <div class="seq-card">
