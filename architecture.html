@@ -807,7 +807,7 @@
               <div class="step-num">4</div>
               <div>
                 <h3>Классификация</h3>
-                <p>Classifier даёт verdict: lead, event organizer, broker, contractor, tech, musician, spam, refusal или unclear. CRM/context могут нормализовать verdict.</p>
+                <p>Classifier даёт verdict: lead, event organizer, broker, contractor, tech, musician, spam, refusal или unclear. Дешёвые classifiers/extractors идут через <code>gpt-5.3-spark</code>; генерация текста и pre-send review остаются на <code>gpt-5.5</code>.</p>
               </div>
             </div>
             <div class="step">
@@ -843,7 +843,7 @@
             <tbody>
               <tr>
                 <td><b>Band member</b></td>
-                <td><code>band_member_reply.py</code>; только факты по подтверждённым event'ам.</td>
+                <td><code>band_member_reply.py</code>; один smart-text JSON pass, только факты по подтверждённым event'ам; <code>topic=payment</code> молчит без отдельного payment classifier.</td>
               </tr>
               <tr>
                 <td><b>Broker contractor/client</b></td>
@@ -851,7 +851,7 @@
               </tr>
               <tr>
                 <td><b>Payment / money intent</b></td>
-                <td>Hard block + notify admin; клиенту AI не отвечает. Исключение: <code>payment_event_handler.py</code> ловит просьбу Кириллу сделать счёт в ЭДО, ставит внутренний reminder в рабочем окне Bali 10:00-24:00, затем по подтверждению Кирилла ставит <code>invoice_loaded</code> и создаёт approval-драфт без автоотправки.</td>
+                <td>Hard block + notify admin; <code>classify_payment_intent</code> сначала проверяет кэш и <code>gpt-5.3-spark</code>, затем эскалирует в chain только при неуверенности. Исключение: <code>payment_event_handler.py</code> ловит просьбу Кириллу сделать счёт в ЭДО, ставит внутренний reminder в рабочем окне Bali 10:00-24:00, затем по подтверждению Кирилла ставит <code>invoice_loaded</code> и создаёт approval-драфт без автоотправки.</td>
               </tr>
               <tr>
                 <td><b>Refusal</b></td>
