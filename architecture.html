@@ -792,7 +792,7 @@
               <div class="step-num">2</div>
               <div>
                 <h3>Dedup и hard routing</h3>
-                <p><code>handle()</code> сначала проверяет recent handled claim, band member route, broker candidate/client route, musician/aggregator/payment gates.</p>
+                <p><code>handle()</code> сначала проверяет recent handled claim, band member route, broker candidate/client route, musician/aggregator/payment gates. Если owner всё же зациклится, <code>agent_watchdog.py</code> ловит повторяющийся AI-purpose/input по <code>ai_timeline.jsonl</code>, рестартит владельца и ставит временный LLM-блок.</p>
               </div>
             </div>
             <div class="step">

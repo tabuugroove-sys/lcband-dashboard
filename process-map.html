@@ -532,9 +532,9 @@
       {
         group:'infra', name:'Agent Watchdog', label:'com.lcband.agent-watchdog',
         file:'agent_watchdog.py', schedule:'каждые 30 мин',
-        why:'Следит, что launchd-агенты живы, и поднимает тревогу/рестартит упавшие.',
-        input:'launchctl status + heartbeat files', action:'detect stale/down agents', output:'restart/alert/log',
-        logic:['проверяет daemon/stale SLA','не заменяет самих агентов','защищает unattended mode'],
+        why:'Следит, что launchd-агенты живы, и поднимает тревогу/рестартит упавшие или зацикленные.',
+        input:'launchctl status + heartbeat files + ai_timeline.jsonl', action:'detect stale/down/AI-loop agents', output:'restart/alert/log + temporary LLM purpose block',
+        logic:['проверяет daemon/stale SLA','ловит повторяющиеся AI-вызовы одного purpose/input','ставит общий LLM circuit breaker через llm_budget_guard','не заменяет самих агентов','защищает unattended mode'],
       },
       {
         group:'infra', name:'Tunnel Watcher', label:'com.lcband.tunnel-watcher',
