@@ -1019,6 +1019,10 @@
             <h3>Не обходить agents руками</h3>
             <p>Если поведение принадлежит agent/process, исправляется владелец, а не выполняется одноразовый workaround.</p>
           </div>
+          <div class="node warn">
+            <h3>Budget guard с результатом</h3>
+            <p>GPT/Codex имеет отдельный call-cap; follow-up/write может пройти общий guard, но watchdog блокирует purpose, если серия AI-вызовов не приводит к свежему sent-событию.</p>
+          </div>
         </div>
       </div>
     </section>
