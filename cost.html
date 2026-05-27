@@ -803,7 +803,6 @@ function prettyModelName(name) {
   const raw = String(name || '').replace(/^cli[_-]/i, '').replace(/_/g, '-');
   const n = raw.toLowerCase();
   if (n === 'default' || n === 'codex-default') return 'CLI default';
-  if (n.includes('gpt-5.3-spark')) return 'GPT-5.3 Spark';
   if (n.includes('gpt-5.5')) return 'GPT-5.5';
   if (n.includes('gpt-5')) return 'GPT-5';
   if (n.includes('opus')) return 'Opus';
@@ -837,8 +836,8 @@ const FADER_CATEGORIES = [
   { key: 'client_review',     label: '2. Ревью ответов клиентам' },
   { key: 'funnel_review',     label: '3. Ревью шага воронки' },
   { key: 'broker',            label: '4. Broker pipeline (посредник)' },
-  // 17.05.2026: новая категория — L1 Gemini batch + L2 Opus escalation
-  // классификатор event-постов. Своя дорожка чтобы тюнить % GPT-5.3 Spark
+  // 17.05.2026: новая категория — L1 Gemini batch + L2 Opus/Codex escalation
+  // классификатор event-постов. Своя дорожка чтобы тюнить % Codex default
   // независимо от broker pipeline (cost profile разный).
   { key: 'classify',          label: '5. Классификация event-постов' },
   { key: 'other_opus',        label: '6. Прочие Opus процессы' },
