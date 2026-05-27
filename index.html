@@ -8151,6 +8151,68 @@ function LeadFlowSection() {
     ['7', 'content · промо/отзыв', 'CONTENT'],
     ['8', 'sound/light · Excel +20%', 'SOUND_LIGHT_ESTIMATE'],
   ];
+  const pipelineGates = [
+    {
+      title: 'Ingress / source',
+      color: '#5eead4',
+      gates: [
+        ['broadcast/status skip', 'WA status@broadcast, пустой text/media, technical events'],
+        ['active owner', 'realtime-gateway / vk-longpoll / wa-baileys выбирает единственный hot-path'],
+        ['manual continuation', 'WA ответ после ручного OUT Михаила допускается в unified writer без CRM materialize'],
+      ],
+    },
+    {
+      title: 'Identity / suppression',
+      color: '#fbbf24',
+      gates: [
+        ['handled claim', 'unified_handled TTL не даёт параллельным потокам отвечать дважды'],
+        ['ai_suppression', 'dm_ai_suppression / wa_ai_suppression режет доказанный non-LCB, кроме manual-continuation'],
+        ['protected contacts', 'paid/confirmed + musician/contractor/vendor/internal/Sirin/LCB roster'],
+        ['folder/role guards', 'TG musician folders, contact_roles, lcb_roster, broker roster'],
+      ],
+    },
+    {
+      title: 'Hard stops',
+      color: '#f87171',
+      gates: [
+        ['money/payment', 'карта, реквизиты, банк, счет, платеж → alert/admin, no AI send'],
+        ['wrong target', 'не мое объявление / ошиблись контактом → false_positive archive'],
+        ['do_not_touch', 'context card запрет, refusal close, archived/past-event cleanup'],
+        ['non-client', 'spam, musician, contractor, tech_crew, vendor self-promo → suppress/skip'],
+      ],
+    },
+    {
+      title: 'Context / decision',
+      color: '#93c5fd',
+      gates: [
+        ['agent_context', 'orders.db + event graph + lcb/broker read-model before writer'],
+        ['CRM/event override', 'confirmed event forces production path; active/pending controls writer mode'],
+        ['classifier normalize', 'current_contact_roles can override AI verdict to musician/contractor/tech'],
+        ['broker viability', 'budget, margin, media availability, Noize-only drum route'],
+      ],
+    },
+    {
+      title: 'Draft / review',
+      color: '#c4b5fd',
+      gates: [
+        ['writer mode', 'LCB/Broker prompt mode by stage: intake, sales, contract, production, content'],
+        ['dual draft judge', 'primary/challenger/arbiter can block ambiguous or risky answer'],
+        ['presend review', 'ai_review_before_send + strip contacts + price/payment policy'],
+        ['repair once', 'repairable presend block rewrites and rechecks instead of sending raw draft'],
+      ],
+    },
+    {
+      title: 'Delivery / loop',
+      color: '#6ee7b7',
+      gates: [
+        ['freshness reread', 'latest 20 messages must match source tail before delivery'],
+        ['channel caps', 'TG anti-flood, VK drain/rate, WA direct only with explicit send window'],
+        ['visible action', 'TG direct/fallback, VK verified send, WA queue/native Desktop approval'],
+        ['post-send writeback', 'outbound_recorder/message_events + context refresh + promise extraction'],
+        ['loop guard', 'CLI no-output streak, daily budgets, follow-up state/source_key dedupe'],
+      ],
+    },
+  ];
   const writerModeGrid = (accent, layer, prefix, modes) => (
     <div style={{display:'grid', gridTemplateColumns:'1fr', gap:4, marginTop:6}}>
       {modes.map(([n, label, mode]) => (
@@ -8616,6 +8678,32 @@ function LeadFlowSection() {
             <div style={{fontSize:9.5, color:'var(--muted)'}}>relay → клиент</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>brief → подрядчик</div>
             <div style={{fontSize:9.5, color:'var(--muted)'}}>+ broker_orders.json обновлен</div>
+          </div>
+        </div>
+
+        {/* Gate map */}
+        <div style={{background:'rgba(15,23,42,.5)', border:'1px solid rgba(148,163,184,.18)', borderRadius:9, padding:'9px 10px', display:'grid', gap:8}}>
+          <div style={{display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap'}}>
+            <div style={{fontSize:10.5, fontWeight:900, color:'#e2e8f0', textTransform:'uppercase', letterSpacing:.45}}>Pipeline gates</div>
+            <div style={{fontSize:8.5, color:'var(--muted)'}}>все точки, где поток может быть остановлен, пропущен дальше или переведен в review/queue</div>
+          </div>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(185px,1fr))', gap:6}}>
+            {pipelineGates.map(group => (
+              <div key={group.title} style={{background:'rgba(2,6,23,.42)', border:`1px solid ${group.color}44`, borderRadius:7, padding:'7px 8px', minWidth:0}}>
+                <div style={{fontSize:9.5, fontWeight:850, color:group.color, marginBottom:5}}>{group.title}</div>
+                <div style={{display:'grid', gap:4}}>
+                  {group.gates.map(([gate, desc]) => (
+                    <div key={`${group.title}:${gate}`} title={desc} style={{display:'grid', gridTemplateColumns:'72px 1fr', gap:5, alignItems:'start'}}>
+                      <code style={{fontSize:7.7, color:group.color, background:'rgba(148,163,184,.08)', padding:'1px 4px', borderRadius:4, whiteSpace:'normal', lineHeight:1.25}}>{gate}</code>
+                      <div style={{fontSize:8.2, color:'#cbd5e1', lineHeight:1.25}}>{desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{fontSize:8.2, color:'#94a3b8', lineHeight:1.35}}>
+            Gate owner stays in code: <code style={{fontSize:8}}>unified_dm_responder.py</code>, <code style={{fontSize:8}}>followup_presend.py</code>, <code style={{fontSize:8}}>wa_baileys_webhook.py</code>, channel adapters and follow-up agents.
           </div>
         </div>
 
