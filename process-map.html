@@ -433,7 +433,7 @@
         file:'_run_conv_sync_and_funnel_keeper.sh', schedule:'каждые 5 мин',
         why:'Держит canonical raw-message store свежим и запускает умное обслуживание воронки.',
         input:'TG dialogs', action:'sync live messages → orders.db.message_events → run funnel keeper', output:'message_events, funnel status updates',
-        logic:['orders.db.message_events = source of truth','conversation_cache остаётся legacy export','changed dialogs feed AI reclassify'],
+        logic:['orders.db.message_events = source of truth','conversation_cache остаётся legacy export','changed dialogs feed AI reclassify','cancel verdict archives lead before TG Отмены sync'],
       },
       {
         group:'funnel', name:'Funnel Autoheal', label:'com.lcband.funnel-autoheal',
@@ -447,7 +447,7 @@
         file:'funnel_folder_sync.py', schedule:'каждые 30 мин',
         why:'Синхронизирует TG folder semantics с CRM-воронкой.',
         input:'TG folders + orders.db', action:'map folders to stages', output:'status/folder alignment',
-        logic:['учитывает protected folders','не двигает ОПЛАТИЛА','активный лид снимается из Отмены','пишет logs/funnel_folder_sync.log'],
+        logic:['cancel status = CRM archive + TG Отмены','учитывает protected folders','не двигает ОПЛАТИЛА','активный лид снимается из Отмены','пишет logs/funnel_folder_sync.log'],
       },
       {
         group:'funnel', name:'Funnel Maintenance', label:'com.lcband.funnel-maintenance',
