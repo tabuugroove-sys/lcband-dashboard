@@ -308,7 +308,7 @@
         file:'broker_casting.py', schedule:'каждые 30 мин',
         why:'Отдельный broker-владелец выбора подрядчика: сначала casting, потом relay.',
         input:'broker_orders.json + contractor roster/media', action:'rank top-N + assign candidate + relay', output:'client relay / contractor brief',
-        logic:['confirmed client budget required','service-type match','margin viability','media availability','quality score','lowcost simple actor/dancer tasks do not enter casting','не смешан с tg_responder'],
+        logic:['drum_show contractor route строго только @vadimnoize / Noize; штатным барабанщикам заявки не уходят','confirmed client budget required','service-type match','margin viability','media availability','quality score','lowcost simple actor/dancer tasks do not enter casting','не смешан с tg_responder'],
       },
       {
         group:'broker', name:'Broker Collect Promo', label:'com.lcband.broker-collect-promo',
