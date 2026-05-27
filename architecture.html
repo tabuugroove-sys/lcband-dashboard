@@ -688,6 +688,7 @@
             <div class="role-row"><b>input</b><code>tg_realtime_monitor.py</code> + <code>tg_session_monitor.session</code>: DM/event NewMessage.</div>
             <div class="role-row"><b>output</b>Не writer и не output-owner. Send выполняется отдельной TG operation после gates.</div>
             <div class="role-row"><b>write</b>Inbound → <code>orders.db.message_events</code> → context refresh.</div>
+            <div class="role-row"><b>reaction</b>Если DM-agent решил не писать текст, listener может поставить лёгкий TG 👍 только для коротких безопасных ack/wait сообщений.</div>
             <div class="role-row"><b>blacklist</b><code>tg_whitelist.json</code> → context <code>do_not_touch</code>; manual blacklist не получает read-ack.</div>
           </div>
           <div class="connection-card">
