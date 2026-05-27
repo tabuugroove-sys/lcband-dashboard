@@ -786,14 +786,14 @@
               <div class="step-num">1</div>
               <div>
                 <h3>Listener фиксирует событие</h3>
-                <p>TG inbound идёт через <code>tg_realtime_monitor.py</code> на <code>tg_session_monitor.session</code>; перед writer уже вызывается context refresh.</p>
+                <p>TG inbound идёт через <code>tg_realtime_monitor.py</code> на <code>tg_session_monitor.session</code>; durable suppression проверяется до дорогого context refresh.</p>
               </div>
             </div>
             <div class="step">
               <div class="step-num">2</div>
               <div>
                 <h3>Dedup и hard routing</h3>
-                <p><code>handle()</code> сначала проверяет recent handled claim, band member route, broker candidate/client route, musician/aggregator/payment gates. Если owner всё же зациклится, <code>agent_watchdog.py</code> или <code>codex_loop_guard</code> ловит повторяющийся AI-purpose/input по <code>ai_timeline.jsonl</code> и ставит общий temporary LLM-блок через <code>llm_budget_guard</code>.</p>
+                <p><code>handle()</code> сначала проверяет recent handled claim, band member route, broker candidate/client route, musician/aggregator/payment gates. Legacy <code>tg_responder.py</code> для band-member сразу выходит до payment chain. Если owner всё же зациклится, <code>agent_watchdog.py</code> или <code>codex_loop_guard</code> ловит повторяющийся AI-purpose/input по <code>ai_timeline.jsonl</code> и ставит общий temporary LLM-блок через <code>llm_budget_guard</code>.</p>
               </div>
             </div>
             <div class="step">
@@ -814,7 +814,7 @@
               <div class="step-num">5</div>
               <div>
                 <h3>Writer mode и draft</h3>
-                <p><code>_suggest_lcb_mode()</code> выбирает mode по последнему сообщению, verdict и CRM: intake/sales/contract/production/event_day/content/complex_request.</p>
+                <p><code>_suggest_lcb_mode()</code> выбирает mode по последнему сообщению, verdict и CRM: intake/sales/contract/production/event_day/content/complex_request. Второй dual-draft reviewer запускается только по deterministic risk-сигналам или force flag.</p>
               </div>
             </div>
             <div class="step">
@@ -843,7 +843,7 @@
             <tbody>
               <tr>
                 <td><b>Band member</b></td>
-                <td><code>band_member_reply.py</code>; один smart-text JSON pass, только факты по подтверждённым event'ам; <code>topic=payment</code> молчит без отдельного payment classifier.</td>
+                <td><code>unified_dm_responder.py</code> → <code>band_member_reply.py</code>; legacy <code>tg_responder.py</code> не запускает payment chain. Один smart-text JSON pass, только факты по подтверждённым event'ам; <code>topic=payment</code> молчит без отдельного payment classifier.</td>
               </tr>
               <tr>
                 <td><b>Broker contractor/client</b></td>
@@ -867,7 +867,7 @@
               </tr>
               <tr>
                 <td><b>Lead / active organizer</b></td>
-                <td>LCB writer draft → freshness guard → pre-send → transport.</td>
+                <td>LCB writer draft → optional deterministic dual-draft risk review → freshness guard → pre-send → transport.</td>
               </tr>
             </tbody>
           </table>
