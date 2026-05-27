@@ -249,7 +249,7 @@
         file:'vk_followup.py', schedule:'calendar windows',
         why:'Готовит VK follow-up drafts после тишины отдельным VK-контуром.',
         input:'VK history + state', action:'follow-up eligibility + review', output:'presend viewer draft / state update',
-        logic:['direct send только при LCB_FOLLOWUP_DIRECT_SEND=1','default output = pending_approvals viewer_only','protected skip для paid/confirmed/musician/contractor/vendor','cheap skip до AI','pre-send review перед сообщением','пишет state, чтобы не дублировать'],
+        logic:['direct send только при LCB_FOLLOWUP_DIRECT_SEND=1','default output = pending_approvals viewer_only','protected skip для paid/confirmed/musician/contractor/vendor','cheap skip до AI','vk_followup_classify no-output streak ≥8 → runtime block 30 мин','pre-send review перед сообщением','пишет state, чтобы не дублировать'],
       },
       {
         group:'dm', name:'WA Baileys Bridge', label:'com.lcband.wa-baileys',
