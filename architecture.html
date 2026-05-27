@@ -691,8 +691,8 @@
           </div>
           <div class="connection-card">
             <h3>TG follow-up session</h3>
-            <div class="role-row"><b>input/read</b><code>tg_followup.py</code> + <code>tg_session_followup.session</code>: follow-up scan/read/run.</div>
-            <div class="role-row"><b>output</b>Если не dry-run, отправка всё равно проходит через writer/gates и write-back.</div>
+            <div class="role-row"><b>input/read</b><code>tg_followup.py</code> + <code>tg_session_followup.session</code>: follow-up scan/read/run, включая due <code>self_to_them</code> promises.</div>
+            <div class="role-row"><b>output</b>Если не dry-run, отправка проходит через <code>lcb_writer</code> → единый <code>presend_review</code> → write-back.</div>
             <div class="role-row"><b>не daemon owner</b>Отдельная session-card, но не основной realtime socket.</div>
           </div>
           <div class="connection-card">
@@ -727,7 +727,8 @@
         <div class="return-strip">
           <b style="color:var(--text)">Обратная запись после output:</b>
           successful send → <code>outbound_recorder.record_outbound(namespace="lcb")</code> →
-          <code>orders.db.message_events</code> → context refresh/promises → следующий входящий или follow-up уже читает обновлённую память.
+          <code>orders.db.message_events</code> → context refresh/promises. Если send закрывает due <code>self_to_them</code>
+          event promise, <code>tg_followup</code> помечает его <code>done</code> в <code>event_graph</code>, чтобы следующий tick не повторил действие.
         </div>
       </div>
       <div class="grid3" style="margin-top:12px">
@@ -737,8 +738,9 @@
             <div class="row"><b>intake</b><span>Понять запрос, дату, формат, кто пишет и что нужно уточнить.</span></div>
             <div class="row"><b>sales</b><span>Состав, цена, promo, аргументация без лишних upsell.</span></div>
             <div class="row"><b>agency package</b><span>Если посредник уже дал дату + площадку/локацию, writer сразу даёт ready package: 2-4 состава, цены, что входит/не входит, promo; presend разворачивает short-KP.</span></div>
-            <div class="row"><b>contract</b><span>Договор, реквизиты, подтверждения, без самостоятельных money-replies.</span></div>
-            <div class="row"><b>production</b><span>Техника, тайминг, райдер, участники, логистика.</span></div>
+            <div class="row"><b>vendor promo</b><span><code>AVAILABLE_VENDOR_ASSETS</code> из roster обязателен для запросов «видео/ссылками»; presend блокирует общую LCB-папку вместо конкретных vendor URLs. Drive upload проходит через <code>promo_media_namer.py</code>: NVIDIA NIM Layer 0 / Gemini / ffmpeg label → понятное имя файла → <code>client_safe_promo_urls</code>.</span></div>
+            <div class="row"><b>contract</b><span>Договор, реквизиты, подтверждения, без самостоятельных money-replies; рабочие контакты event-подрядчиков можно передавать только через presend handoff.</span></div>
+            <div class="row"><b>production</b><span>Техника, тайминг, райдер, участники, логистика, чаты подрядчиков и due event promises.</span></div>
             <div class="row"><b>content</b><span>Фото/видео/отзыв после события.</span></div>
             <div class="row"><b>event_day</b><span>Оперативные вопросы в день/перед мероприятием.</span></div>
             <div class="row"><b>complex_request</b><span>Сложный/короткий формат, нестандартная цена, часовой запрос, БН/оборудование.</span></div>
@@ -807,7 +809,7 @@
               <div class="step-num">4</div>
               <div>
                 <h3>Классификация</h3>
-                <p>Classifier даёт verdict: lead, event organizer, broker, contractor, tech, musician, spam, refusal или unclear. Дешёвые classifiers/extractors идут через <code>gpt-5.3-spark</code>; генерация текста и pre-send review остаются на <code>gpt-5.5</code>.</p>
+                <p>Classifier даёт verdict: lead, event organizer, broker, contractor, tech, musician, spam, refusal или unclear. Low-risk classifiers/extractors сначала пробуют <code>NVIDIA NIM Layer 0</code> из <code>runtime_config.nvidia_layer0_purposes</code>; при missing key, 429, timeout, empty/invalid JSON сразу падают в текущий <code>gpt-5.3-spark</code> → Claude chain. Генерация текста и pre-send review остаются на <code>gpt-5.5</code>.</p>
               </div>
             </div>
             <div class="step">
@@ -821,7 +823,7 @@
               <div class="step-num">6</div>
               <div>
                 <h3>Freshness + pre-send</h3>
-                <p>Перед отправкой заново читается tail переписки. Если он изменился, draft не отправляется. Потом идёт pre-send review и repair только для repairable blocks.</p>
+                <p>Перед отправкой заново читается tail переписки. Если он изменился, draft не отправляется. Потом идёт единый pre-send review. Для organiser/event contact handoff он разрешает только контакт из <code>allowed_contact</code> и блокирует phone/social leaks.</p>
               </div>
             </div>
             <div class="step">
