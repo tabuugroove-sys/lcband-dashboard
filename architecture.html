@@ -681,12 +681,12 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title">4 подключения: каждое имеет свою входную/выходную роль, общий owner один</div>
+        <div class="card-title">4 подключения: transport health отдельно, owner текста отдельно</div>
         <div class="connection-grid">
           <div class="connection-card">
             <h3>TG realtime</h3>
             <div class="role-row"><b>input</b><code>tg_realtime_monitor.py</code> + <code>tg_session_monitor.session</code>: DM/event NewMessage.</div>
-            <div class="role-row"><b>output</b>Не output-owner. Отправка после writer идёт отдельной send operation, не через realtime socket.</div>
+            <div class="role-row"><b>output</b>Не writer и не output-owner. Send выполняется отдельной TG operation после gates.</div>
             <div class="role-row"><b>write</b>Inbound → <code>orders.db.message_events</code> → context refresh.</div>
           </div>
           <div class="connection-card">
@@ -697,36 +697,36 @@
           </div>
           <div class="connection-card">
             <h3>VK service</h3>
-            <div class="role-row"><b>input</b>VK listener/service path принимает inbound и читает историю.</div>
-            <div class="role-row"><b>output</b>VK adapter отправляет готовый текст после writer/gates.</div>
-            <div class="role-row"><b>write</b>VK history/materialized events → общий state.</div>
+            <div class="role-row"><b>input</b><code>vk_longpoll_listener.py</code> ловит inbound и триггерит <code>vk_auto_responder.py</code>.</div>
+            <div class="role-row"><b>output</b><code>vk_auto_responder.vk_send_message</code> отправляет текст, который прошёл writer/gates.</div>
+            <div class="role-row"><b>write</b>VK history → <code>orders.db.message_events</code>; legacy cache только fallback.</div>
           </div>
           <div class="connection-card">
             <h3>WhatsApp Baileys</h3>
-            <div class="role-row"><b>input</b>WA connection/materializer обновляет cache/message history.</div>
-            <div class="role-row"><b>output</b>Не WA Web: готовый draft уходит в native WhatsApp Desktop + computer-use queue.</div>
-            <div class="role-row"><b>write</b>WA cache/message_events → context для writer.</div>
+            <div class="role-row"><b>input</b><code>wa_baileys/</code> materializer обновляет WA cache и message history.</div>
+            <div class="role-row"><b>output</b>Не WA Web: approved draft идёт в native WhatsApp Desktop через <code>wa_cu_agent.py</code>.</div>
+            <div class="role-row"><b>write</b><code>wa_cache/</code> и outbound mark-sent сходятся обратно в memory/context.</div>
           </div>
         </div>
         <div class="shared-flow">
           <div class="seq-card state">
-            <b>Общий state перед owner</b>
-            <p>Все входы сходятся в <code>orders.db.message_events</code>, CRM/order state, <code>lcb_event_context</code>, <code>resolve_context</code>.</p>
+            <b>Общий state перед routing</b>
+            <p>Inputs сходятся в <code>orders.db.message_events</code>, CRM/order state, <code>lcb_event_context</code>, <code>resolve_context</code>. Channel caches остаются зеркалами/fallback.</p>
           </div>
           <div class="seq-arrow">→</div>
           <div class="seq-card primary">
-            <b>Routing + <code>unified_dm_responder.py</code> → <code>lcb_writer.py</code></b>
-            <p>Сначала broker/band/payment/refusal/hard-stop gates. Non-broker клиентский поток идёт в один LCB writer prompt/modes из <code>lcb_writer.py</code>.</p>
+            <b>Owner split + <code>unified_dm_responder.py</code></b>
+            <p>Broker, band-member, payment/refusal gates срабатывают до текста. Только LCB client branch идёт в <code>lcb_writer.py</code>.</p>
           </div>
           <div class="seq-arrow">→</div>
           <div class="seq-card">
-            <b>Output через то же семейство каналов</b>
-            <p>TG send / VK send / WA Desktop queue — это действия транспорта после writer, а не дополнительные подключения.</p>
+            <b>Output action, не новое подключение</b>
+            <p>TG send, VK send и WA Desktop queue доставляют уже готовый текст. Они не добавляют fifth/sixth connection health card.</p>
           </div>
         </div>
         <div class="return-strip">
           <b style="color:var(--text)">Обратная запись после output:</b>
-          successful send → <code>outbound_recorder.record_outbound(namespace="lcb")</code> →
+          successful send / mark-sent → <code>outbound_recorder.record_outbound(namespace="lcb")</code> →
           <code>orders.db.message_events</code> → context refresh/promises. Если send закрывает due <code>self_to_them</code>
           event promise, <code>tg_followup</code> помечает его <code>done</code> в <code>event_graph</code>, чтобы следующий tick не повторил действие.
         </div>
@@ -737,8 +737,8 @@
           <div class="list">
             <div class="row"><b>intake</b><span>Понять запрос, дату, формат, кто пишет и что нужно уточнить.</span></div>
             <div class="row"><b>sales</b><span>Состав, цена, promo, аргументация без лишних upsell.</span></div>
-            <div class="row"><b>agency package</b><span>Если посредник уже дал дату + площадку/локацию, writer сразу даёт ready package: 2-4 состава, цены, что входит/не входит, promo; presend разворачивает short-KP.</span></div>
-            <div class="row"><b>vendor promo</b><span><code>AVAILABLE_VENDOR_ASSETS</code> из roster обязателен для запросов «видео/ссылками»; presend блокирует общую LCB-папку вместо конкретных vendor URLs. Drive upload проходит через <code>promo_media_namer.py</code>: NVIDIA NIM Layer 0 / Gemini / ffmpeg label → понятное имя файла → <code>client_safe_promo_urls</code>.</span></div>
+            <div class="row"><b>agency package</b><span>Для посредника с датой и площадкой writer может собрать ready package: составы, цены, что входит/не входит, promo.</span></div>
+            <div class="row"><b>vendor promo</b><span>Для запросов по подрядчикам writer берёт конкретные vendor assets из roster/media; общая LCB-папка не заменяет нужные vendor URLs.</span></div>
             <div class="row"><b>contract</b><span>Договор, реквизиты, подтверждения, без самостоятельных money-replies; рабочие контакты event-подрядчиков можно передавать только через presend handoff.</span></div>
             <div class="row"><b>production</b><span>Техника, тайминг, райдер, участники, логистика, чаты подрядчиков и due event promises.</span></div>
             <div class="row"><b>content</b><span>Фото/видео/отзыв после события.</span></div>
@@ -763,7 +763,7 @@
             Канонически вся переписка должна сходиться в один raw-log: <code>orders.db.message_events</code>.
             Канальные файлы вроде <code>conversation_cache/</code>, <code>vk_conversation_cache/</code>,
             <code>wa_cache/</code>, <code>ig_conversation_cache/</code> могут оставаться cache/export зеркалами,
-            но writer читает unified memory, а не четыре независимых источника правды.
+            но это не четыре независимых памяти. Writer сначала читает unified memory/context, а legacy cache используется только как fallback/read-through.
           </div>
           <div style="margin-top:12px">
             <span class="pill teal">one memory layer</span>
@@ -795,7 +795,7 @@
               <div class="step-num">2</div>
               <div>
                 <h3>Dedup и hard routing</h3>
-                <p><code>handle()</code> сначала проверяет recent handled claim, band member route, broker candidate/client route, musician/aggregator/payment gates. Legacy <code>tg_responder.py</code> для band-member сразу выходит до payment chain. Если owner всё же зациклится, <code>agent_watchdog.py</code> или <code>codex_loop_guard</code> ловит повторяющийся AI-purpose/input по <code>ai_timeline.jsonl</code> и ставит общий temporary LLM-блок через <code>llm_budget_guard</code>.</p>
+                <p><code>handle()</code> сначала проверяет recent handled claim, band member route, broker candidate/client route, musician/aggregator/payment gates. Legacy <code>tg_responder.py</code> для band-member сразу выходит до payment chain. Если owner всё же зациклится, <code>agent_watchdog.py</code> или <code>codex_loop_guard</code> ловит повторяющийся AI-purpose/input по <code>ai_timeline.jsonl</code> и ставит общий temporary LLM-блок через <code>llm_budget_guard</code>. Страница <code>cost.html</code> поверх этого же timeline группирует близкие AI-вызовы в work pools и показывает итог пачки без запуска нового агента.</p>
               </div>
             </div>
             <div class="step">
