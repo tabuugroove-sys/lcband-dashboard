@@ -1107,10 +1107,11 @@ const PROCESS_RULES = {
   proc_tg_followup: {
     name: 'TG Follow-up',
     interval: 'Ежедневно в 10:09 MSK',
-    desc: 'TG-only scheduled follow-up. Общий cross-channel follow-up для TG/VK/WA живёт в funnel_maintenance.py и читает orders.db + channel cache.',
+    desc: 'TG-only scheduled follow-up. По умолчанию пишет только viewer-only draft в presend viewer; прямой send включается явно через LCB_FOLLOWUP_DIRECT_SEND=1.',
     rules: [
       'LCB active follow-up: ежедневная contextual-проверка; 3 дня только для cold outreach / явного snooze',
-      'WA_DIRECT не обрабатывает: WA follow-up queue создаёт funnel_maintenance.py через wa_computer_use_queue.json',
+      'Protected skip: ОПЛАТИЛА/confirmed, музыканты, подрядчики, vendor/internal contacts',
+      'WA_DIRECT не отправляет напрямую: draft уходит в presend viewer, Desktop queue только при explicit direct-send window',
       '🔴 22.04: hard-regex pre-check через refusal_guard.scan_history_for_refusal (общий модуль с tg_responder) — инцидент @lisitsyna_law 20.04, регекс теперь единый в refusal_guard.py',
       'Стоп: за 3 дня до мероприятия',
       'AI-классификация: declined → закрывающее, client → skip',

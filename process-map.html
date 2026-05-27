@@ -226,9 +226,9 @@
       {
         group:'dm', name:'TG Follow-up', label:'com.lcband.tg-followup',
         file:'tg_followup.py', schedule:'daily 10:09 MSK',
-        why:'Возвращает молчащих лидов по расписанию, но не трогает тех, кто отказал или близко к event date.',
-        input:'orders.db + DM history', action:'eligible follow-up + review', output:'TG follow-up or skip log',
-        logic:['cooldown 3 дня','hard refusal regex перед AI','content mode: если клиент написал что видео грузятся, но media не появились, просит переотправить вместо дубля','стоп за 3 дня до мероприятия','cap 15 sends/run'],
+        why:'Готовит follow-up drafts по расписанию, но не трогает оплативших, музыкантов, подрядчиков и близкие event date.',
+        input:'orders.db + DM history', action:'eligible follow-up + review', output:'presend viewer draft / skip log',
+        logic:['direct send только при LCB_FOLLOWUP_DIRECT_SEND=1','default output = pending_approvals viewer_only','protected skip для ОПЛАТИЛА/confirmed/musician/contractor/vendor','content mode: если клиент написал что видео грузятся, но media не появились, просит переотправить вместо дубля','стоп за 3 дня до мероприятия','cap 15 sends/run'],
       },
       {
         group:'dm', name:'VK Responder', label:'com.lcband.vk-responder',
@@ -247,9 +247,9 @@
       {
         group:'dm', name:'VK Follow-up', label:'com.lcband.vk-followup',
         file:'vk_followup.py', schedule:'calendar windows',
-        why:'Догоняет VK-лиды после тишины отдельным VK-контуром.',
-        input:'VK history + state', action:'follow-up eligibility + review', output:'VK follow-up / state update',
-        logic:['cheap skip до AI','pre-send review перед сообщением','пишет state, чтобы не дублировать'],
+        why:'Готовит VK follow-up drafts после тишины отдельным VK-контуром.',
+        input:'VK history + state', action:'follow-up eligibility + review', output:'presend viewer draft / state update',
+        logic:['direct send только при LCB_FOLLOWUP_DIRECT_SEND=1','default output = pending_approvals viewer_only','protected skip для paid/confirmed/musician/contractor/vendor','cheap skip до AI','pre-send review перед сообщением','пишет state, чтобы не дублировать'],
       },
       {
         group:'dm', name:'WA Baileys Bridge', label:'com.lcband.wa-baileys',
@@ -269,15 +269,15 @@
         group:'dm', name:'WA Responder', label:'com.lcband.wa-responder',
         file:'wa_responder.py --limit 5', schedule:'каждые 30 мин',
         why:'Готовит безопасные WhatsApp replies с лимитами и review.',
-        input:'WA cache', action:'draft + presend gate', output:'wa_computer_use_queue.json / skip',
-        logic:['limit 5 per run','ai_review_before_send перед queue','не отправляет сам','бан-risk ограничен отдельными cap'],
+        input:'WA cache', action:'draft + presend gate', output:'presend viewer draft / skip',
+        logic:['direct WA Desktop queue только при LCB_FOLLOWUP_DIRECT_SEND=1','default output = pending_approvals viewer_only','protected skip для paid/confirmed/musician/contractor/vendor','limit 5 per run','ai_review_before_send перед queue','не отправляет сам','бан-risk ограничен отдельными cap'],
       },
       {
         group:'dm', name:'WA Follow-up Queue', label:'funnel_maintenance.py',
         file:'funnel_maintenance.py', schedule:'calendar ticks',
         why:'Не теряет WA follow-up, когда native WhatsApp Desktop window ещё закрыт.',
-        input:'orders.db + lcb_writer.compose_followup', action:'contextual follow-up draft', output:'wa_computer_use_queue.json',
-        logic:['только queue, не send','active Desktop window не блокирует постановку в очередь','past event_date/desc date archives before queue','финальный Send остаётся в WA Desktop Sender'],
+        input:'orders.db + lcb_writer.compose_followup', action:'contextual follow-up draft', output:'presend viewer draft',
+        logic:['direct channel output только при LCB_FOLLOWUP_DIRECT_SEND=1','default output = pending_approvals viewer_only','active Desktop window не блокирует подготовку draft','past event_date/desc date archives before draft','финальный Send остаётся отдельным approve/send шагом'],
       },
       {
         group:'dm', name:'WA Desktop Sender', label:'manual / computer-use',
@@ -454,7 +454,7 @@
         file:'funnel_maintenance.py', schedule:'calendar maintenance',
         why:'Общий maintenance по обещаниям, отказам, stale follow-ups и служебным флагам.',
         input:'orders.db + message_events', action:'detect obligations and stale states', output:'history/status/flags',
-        logic:['следит за promised media/replies','cross-channel TG/TG_DIRECT/VK/WA follow-up owner для orders.db stale leads','event_date в прошлом → archive_order(status=Неактуально), чтобы лид ушёл в Отмены, а не висел как follow-up','past-event cleanup выполняется до send-window, без отправки сообщений','если pre-send блокирует из-за price/payment-form context, логирует причину, переписывает follow-up без денег и прогоняет review повторно','считает тишину по реальной raw-переписке из orders.db.message_events, а не CRM service updates','overdue leads идут первыми; unchanged chat не блокирует audit после due date','21+d тишины после нашего сообщения = stale-lost, follow-up не отправлять','не должен требовать ручной разбор','работает как cleanup contour'],
+        logic:['следит за promised media/replies','cross-channel TG/TG_DIRECT/VK/WA follow-up owner для orders.db stale leads','default follow-up output = pending_approvals viewer_only; direct send только при LCB_FOLLOWUP_DIRECT_SEND=1','protected skip для ОПЛАТИЛА/confirmed/musician/contractor/vendor','event_date в прошлом → archive_order(status=Неактуально), чтобы лид ушёл в Отмены, а не висел как follow-up','past-event cleanup выполняется до send-window, без отправки сообщений','если pre-send блокирует из-за price/payment-form context, логирует причину, переписывает follow-up без денег и прогоняет review повторно','считает тишину по реальной raw-переписке из orders.db.message_events, а не CRM service updates','overdue leads идут первыми; unchanged chat не блокирует audit после due date','21+d тишины после нашего сообщения = stale-lost, follow-up не отправлять','не должен требовать ручной разбор','работает как cleanup contour'],
       },
       {
         group:'funnel', name:'Funnel Stage Classifier', label:'com.lcband.funnel-stage-classifier',
