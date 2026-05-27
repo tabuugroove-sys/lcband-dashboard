@@ -526,6 +526,91 @@
       background: rgba(139,92,246,.14) !important;
       transform: translateY(-1px);
     }
+    .pipeline-gates {
+      background: rgba(15,23,42,.5);
+      border: 1px solid rgba(148,163,184,.18);
+      border-radius: 9px;
+      padding: 9px 10px;
+      display: grid;
+      gap: 8px;
+    }
+    .pipeline-gates-title {
+      font-size: 10.5px;
+      font-weight: 900;
+      color: #e2e8f0;
+      text-transform: uppercase;
+      letter-spacing: .45px;
+    }
+    .pipeline-gates-sub {
+      font-size: 8.5px;
+      color: var(--muted);
+    }
+    .pipeline-gate-card {
+      background: rgba(2,6,23,.42);
+      border: 1px solid var(--gate-accent);
+      border-radius: 7px;
+      padding: 7px 8px;
+      min-width: 0;
+    }
+    .pipeline-gate-heading {
+      font-size: 9.5px;
+      font-weight: 850;
+      color: var(--gate-accent);
+      margin-bottom: 5px;
+    }
+    .pipeline-gate-row {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 5px;
+      align-items: start;
+    }
+    .pipeline-gate-code {
+      font-size: 7.7px;
+      color: var(--gate-accent);
+      background: rgba(148,163,184,.08);
+      border: 1px solid rgba(148,163,184,.12);
+      padding: 1px 4px;
+      border-radius: 4px;
+      white-space: normal;
+      line-height: 1.25;
+    }
+    .pipeline-gate-desc {
+      font-size: 8.2px;
+      color: #cbd5e1;
+      line-height: 1.25;
+    }
+    .pipeline-gates-owner {
+      font-size: 8.2px;
+      color: #94a3b8;
+      line-height: 1.35;
+    }
+    html[data-theme="light"] .pipeline-gates {
+      background: #ffffff !important;
+      border-color: #d0d7de !important;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    }
+    html[data-theme="light"] .pipeline-gates-title {
+      color: #1f2328 !important;
+    }
+    html[data-theme="light"] .pipeline-gate-card {
+      background: #f6f8fa !important;
+      border-color: #d0d7de !important;
+      box-shadow: inset 3px 0 0 var(--gate-accent-light);
+    }
+    html[data-theme="light"] .pipeline-gate-heading {
+      color: var(--gate-accent-light) !important;
+    }
+    html[data-theme="light"] .pipeline-gate-code {
+      background: #ffffff !important;
+      color: var(--gate-accent-light) !important;
+      border-color: #d0d7de !important;
+    }
+    html[data-theme="light"] .pipeline-gate-desc {
+      color: #1f2328 !important;
+    }
+    html[data-theme="light"] .pipeline-gates-owner {
+      color: #656d76 !important;
+    }
     .ai-layer-source {
       display: flex; flex-direction: column; gap: 5px;
       background: var(--card2); border: 1px solid var(--border);
@@ -8155,6 +8240,7 @@ function LeadFlowSection() {
     {
       title: 'Ingress / source',
       color: '#5eead4',
+      lightColor: '#087f6f',
       gates: [
         ['broadcast/status skip', 'WA status@broadcast, пустой text/media, technical events'],
         ['active owner', 'realtime-gateway / vk-longpoll / wa-baileys выбирает единственный hot-path'],
@@ -8164,6 +8250,7 @@ function LeadFlowSection() {
     {
       title: 'Identity / suppression',
       color: '#fbbf24',
+      lightColor: '#9a6700',
       gates: [
         ['handled claim', 'unified_handled TTL не даёт параллельным потокам отвечать дважды'],
         ['ai_suppression', 'dm_ai_suppression / wa_ai_suppression режет доказанный non-LCB, кроме manual-continuation'],
@@ -8174,6 +8261,7 @@ function LeadFlowSection() {
     {
       title: 'Hard stops',
       color: '#f87171',
+      lightColor: '#cf222e',
       gates: [
         ['money/payment', 'карта, реквизиты, банк, счет, платеж → alert/admin, no AI send'],
         ['wrong target', 'не мое объявление / ошиблись контактом → false_positive archive'],
@@ -8184,6 +8272,7 @@ function LeadFlowSection() {
     {
       title: 'Context / decision',
       color: '#93c5fd',
+      lightColor: '#0969da',
       gates: [
         ['agent_context', 'orders.db + event graph + lcb/broker read-model before writer'],
         ['CRM/event override', 'confirmed event forces production path; active/pending controls writer mode'],
@@ -8194,6 +8283,7 @@ function LeadFlowSection() {
     {
       title: 'Draft / review',
       color: '#c4b5fd',
+      lightColor: '#8250df',
       gates: [
         ['writer mode', 'LCB/Broker prompt mode by stage: intake, sales, contract, production, content'],
         ['dual draft judge', 'primary/challenger/arbiter can block ambiguous or risky answer'],
@@ -8204,6 +8294,7 @@ function LeadFlowSection() {
     {
       title: 'Delivery / loop',
       color: '#6ee7b7',
+      lightColor: '#1a7f37',
       gates: [
         ['freshness reread', 'latest 20 messages must match source tail before delivery'],
         ['channel caps', 'TG anti-flood, VK drain/rate, WA direct only with explicit send window'],
@@ -8682,27 +8773,27 @@ function LeadFlowSection() {
         </div>
 
         {/* Gate map */}
-        <div style={{background:'rgba(15,23,42,.5)', border:'1px solid rgba(148,163,184,.18)', borderRadius:9, padding:'9px 10px', display:'grid', gap:8}}>
+        <div className="pipeline-gates">
           <div style={{display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap'}}>
-            <div style={{fontSize:10.5, fontWeight:900, color:'#e2e8f0', textTransform:'uppercase', letterSpacing:.45}}>Pipeline gates</div>
-            <div style={{fontSize:8.5, color:'var(--muted)'}}>все точки, где поток может быть остановлен, пропущен дальше или переведен в review/queue</div>
+            <div className="pipeline-gates-title">Pipeline gates</div>
+            <div className="pipeline-gates-sub">все точки, где поток может быть остановлен, пропущен дальше или переведен в review/queue</div>
           </div>
           <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(185px,1fr))', gap:6}}>
             {pipelineGates.map(group => (
-              <div key={group.title} style={{background:'rgba(2,6,23,.42)', border:`1px solid ${group.color}44`, borderRadius:7, padding:'7px 8px', minWidth:0}}>
-                <div style={{fontSize:9.5, fontWeight:850, color:group.color, marginBottom:5}}>{group.title}</div>
+              <div key={group.title} className="pipeline-gate-card" style={{'--gate-accent': group.color, '--gate-accent-light': group.lightColor || group.color}}>
+                <div className="pipeline-gate-heading">{group.title}</div>
                 <div style={{display:'grid', gap:4}}>
                   {group.gates.map(([gate, desc]) => (
-                    <div key={`${group.title}:${gate}`} title={desc} style={{display:'grid', gridTemplateColumns:'72px 1fr', gap:5, alignItems:'start'}}>
-                      <code style={{fontSize:7.7, color:group.color, background:'rgba(148,163,184,.08)', padding:'1px 4px', borderRadius:4, whiteSpace:'normal', lineHeight:1.25}}>{gate}</code>
-                      <div style={{fontSize:8.2, color:'#cbd5e1', lineHeight:1.25}}>{desc}</div>
+                    <div key={`${group.title}:${gate}`} title={desc} className="pipeline-gate-row">
+                      <code className="pipeline-gate-code">{gate}</code>
+                      <div className="pipeline-gate-desc">{desc}</div>
                     </div>
                   ))}
                 </div>
               </div>
             ))}
           </div>
-          <div style={{fontSize:8.2, color:'#94a3b8', lineHeight:1.35}}>
+          <div className="pipeline-gates-owner">
             Gate owner stays in code: <code style={{fontSize:8}}>unified_dm_responder.py</code>, <code style={{fontSize:8}}>followup_presend.py</code>, <code style={{fontSize:8}}>wa_baileys_webhook.py</code>, channel adapters and follow-up agents.
           </div>
         </div>
