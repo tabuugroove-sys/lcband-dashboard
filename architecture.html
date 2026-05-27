@@ -795,7 +795,7 @@
               <div class="step-num">2</div>
               <div>
                 <h3>Dedup и hard routing</h3>
-                <p><code>handle()</code> сначала проверяет recent handled claim, band member route, broker candidate/client route, musician/aggregator/payment gates. Legacy <code>tg_responder.py</code> для band-member сразу выходит до payment chain. Если owner всё же зациклится, <code>agent_watchdog.py</code> или <code>codex_loop_guard</code> ловит повторяющийся AI-purpose/input по <code>ai_timeline.jsonl</code> и ставит общий temporary LLM-блок через <code>llm_budget_guard</code>. Страница <code>cost.html</code> поверх этого же timeline группирует близкие AI-вызовы в work pools и показывает итог пачки без запуска нового агента.</p>
+                <p><code>handle()</code> сначала проверяет recent handled claim, band member route, broker candidate/client route, musician/aggregator/payment/refusal gates. Эти ветки могут завершить поток до LCB writer.</p>
               </div>
             </div>
             <div class="step">
@@ -809,21 +809,21 @@
               <div class="step-num">4</div>
               <div>
                 <h3>Классификация</h3>
-                <p>Classifier даёт verdict: lead, event organizer, broker, contractor, tech, musician, spam, refusal или unclear. Low-risk classifiers/extractors сначала пробуют <code>NVIDIA NIM Layer 0</code> из <code>runtime_config.nvidia_layer0_purposes</code>; при missing key, 429, timeout, empty/invalid JSON сразу падают в текущий <code>gpt-5.3-spark</code> → Claude chain. Генерация текста и pre-send review остаются на <code>gpt-5.5</code>.</p>
+                <p>Classifier даёт verdict: lead, event organizer, broker, contractor, tech, musician, spam, refusal или unclear. Модельный fallback может меняться, но owner-логика остаётся здесь: verdict выбирает route, а не создаёт второго writer.</p>
               </div>
             </div>
             <div class="step">
               <div class="step-num">5</div>
               <div>
                 <h3>Writer mode и draft</h3>
-                <p><code>_suggest_lcb_mode()</code> выбирает mode по последнему сообщению, verdict и CRM: intake/sales/contract/production/event_day/content/complex_request. Второй dual-draft reviewer запускается только по deterministic risk-сигналам или force flag.</p>
+                <p><code>_suggest_lcb_mode()</code> выбирает mode по последнему сообщению, verdict и CRM. Текст LCB client branch генерируется через <code>lcb_writer.py</code>.</p>
               </div>
             </div>
             <div class="step">
               <div class="step-num">6</div>
               <div>
                 <h3>Freshness + pre-send</h3>
-                <p>Перед отправкой заново читается tail переписки. Если он изменился, draft не отправляется. Потом идёт единый pre-send review. Для organiser/event contact handoff он разрешает только контакт из <code>allowed_contact</code> и блокирует phone/social leaks.</p>
+                <p>Перед отправкой заново читается tail переписки. Если он изменился, draft не отправляется. Потом идёт pre-send review и transport-specific send/queue.</p>
               </div>
             </div>
             <div class="step">
@@ -845,7 +845,7 @@
             <tbody>
               <tr>
                 <td><b>Band member</b></td>
-                <td><code>unified_dm_responder.py</code> → <code>band_member_reply.py</code>; legacy <code>tg_responder.py</code> не запускает payment chain. Один smart-text JSON pass, только факты по подтверждённым event'ам; <code>topic=payment</code> молчит без отдельного payment classifier.</td>
+                <td><code>unified_dm_responder.py</code> → <code>band_member_reply.py</code>; только факты по подтверждённым event'ам. LCB sales writer не запускается.</td>
               </tr>
               <tr>
                 <td><b>Broker contractor/client</b></td>
@@ -853,7 +853,7 @@
               </tr>
               <tr>
                 <td><b>Payment / money intent</b></td>
-                <td>Hard block + notify admin; <code>classify_payment_intent</code> сначала проверяет кэш и <code>gpt-5.3-spark</code>, затем эскалирует в chain только при неуверенности. Исключение: <code>payment_event_handler.py</code> ловит просьбу Кириллу сделать счёт в ЭДО, ставит внутренний reminder в рабочем окне Bali 10:00-24:00, затем по подтверждению Кирилла ставит <code>invoice_loaded</code> и создаёт approval-драфт без автоотправки.</td>
+                <td>Hard block + notify admin / payment-event owner. Клиенту AI не отвечает деньгами как обычный LCB writer.</td>
               </tr>
               <tr>
                 <td><b>Refusal</b></td>
@@ -869,7 +869,7 @@
               </tr>
               <tr>
                 <td><b>Lead / active organizer</b></td>
-                <td>LCB writer draft → optional deterministic dual-draft risk review → freshness guard → pre-send → transport.</td>
+                <td>LCB writer draft → freshness guard → pre-send → transport.</td>
               </tr>
             </tbody>
           </table>
@@ -970,10 +970,10 @@
         <div class="card">
           <div class="card-title">4 подключения из dashboard</div>
           <div class="list">
-            <div class="row"><b>TG realtime</b><span><code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code> — основной realtime TG socket; слушает NewMessage/push и отдаёт DM в LCB writer или broker handler по routing.</span></div>
+            <div class="row"><b>TG realtime</b><span><code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code> — основной realtime TG socket; слушает NewMessage/push и отдаёт DM в routing.</span></div>
             <div class="row"><b>TG follow-up session</b><span><code>tg_followup.py</code> / <code>tg_session_followup.session</code> — отдельная follow-up session; live/dry-run статус показывается как connection health, но это не основной realtime socket.</span></div>
-            <div class="row"><b>VK service</b><span>Kate Mobile + Service API health/read path; VK adapter может выполнять VK-side действия, но это не LCB writer.</span></div>
-            <div class="row"><b>WhatsApp Baileys</b><span>WA connected/materializer path; outbound не через WA Web, а через native WhatsApp Desktop + computer-use queue.</span></div>
+            <div class="row"><b>VK service</b><span><code>vk_longpoll_listener.py</code> + <code>vk_auto_responder.py</code>: VK read/trigger/send path; adapter не становится LCB writer.</span></div>
+            <div class="row"><b>WhatsApp Baileys</b><span><code>wa_baileys/</code> materializer для input/history; outbound не через WA Web, а через native WhatsApp Desktop + <code>wa_cu_agent.py</code>.</span></div>
           </div>
           <div style="margin-top:12px">
             <span class="pill blue">4 connections</span>
@@ -982,7 +982,7 @@
         <div class="card">
           <div class="card-title">Не считать отдельными подключениями</div>
           <div class="list">
-            <div class="row"><b>Output send</b><span>TG/VK send и WA Desktop queue — действия после writer/gates, а не новые health connections.</span></div>
+            <div class="row"><b>Output send</b><span>TG/VK send и WA Desktop queue — действия после route/writer/gates, а не новые health connections.</span></div>
             <div class="row"><b>Browser Walk</b><span>Обход event/group источников и сверка пропущенных постов; результат дедупится с realtime, но это не connection card.</span></div>
             <div class="row"><b>Export/backfill</b><span>Разовое чтение истории в <code>orders.db.message_events</code> / legacy cache; не отдельная память и не постоянное подключение.</span></div>
           </div>
