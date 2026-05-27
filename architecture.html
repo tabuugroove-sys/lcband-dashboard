@@ -1023,6 +1023,10 @@
             <h3>Budget guard с результатом</h3>
             <p>GPT/Codex имеет отдельный call-cap; follow-up/write может пройти общий guard, но watchdog блокирует purpose, если серия AI-вызовов не приводит к свежему sent-событию.</p>
           </div>
+          <div class="node warn">
+            <h3>Payment-семантика через AI</h3>
+            <p>Kirill EDO invoice-loaded решает <code>payment_event_handler</code>: active/reminded/escalated request context → AI verdict → approval draft. Regex допускается только для механических ID, не как смысловой send/skip gate.</p>
+          </div>
         </div>
       </div>
     </section>
