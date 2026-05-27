@@ -803,7 +803,7 @@
               <div class="step-num">3</div>
               <div>
                 <h3>Context сборка</h3>
-                <p><code>lead_context_enricher.get_or_enrich()</code>, <code>resolve_context</code>, <code>lcb_event_context</code> и CRM lookup собирают prompt context. <code>tg_whitelist.json</code> short-circuit'ит контакт в <code>do_not_touch</code> до AI/writer.</p>
+                <p><code>agent_context.get_agent_context()</code> — единый read entry для responder: messages, CRM/order, lead-card, event-card, graph/promises. Внутренние adapters (<code>lead_context_enricher</code>, <code>resolve_context</code>, <code>lcb_event_context</code>) больше не читаются responder'ом как независимые контексты.</p>
               </div>
             </div>
             <div class="step">

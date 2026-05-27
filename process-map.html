@@ -297,11 +297,11 @@
       {
         group:'dm', name:'LCB Event SSoT', label:'lcb_orders.json → lcb_event_context.py',
         file:'lcb_event_context.py', schedule:'read-only library',
-        why:'Единая физическая LCB картотека: writer/dashboard/event-ops читают один event-store вместо ad-hoc сборки нескольких источников.',
+        why:'Единая физическая LCB картотека: writer/dashboard/event-ops читают один event-store вместо ad-hoc сборки нескольких источников. Для responder live-read теперь проходит через agent_context.py как единый facade.',
         input:'lcb_orders.json',
         action:'read event, organizer, roles, promises, stage, writer-mode history, waiting flags',
         output:'LCB event-card / prompt block',
-        logic:['lcb_orders.py владеет JSON persistence','lead_context_enricher dual-write → orders.db.contact_context/event_context','lcb_writer_mode_history пишется только при смене mode или CRM stage','lcb_event_context.py не пишет и не запускает AI','thread_context_extract через promise_extractor одним AI-запросом пишет event graph + promises + refs','promise_extractor не гасит durable tech/contractor dependencies без явного resolution','обновляется через owners: inbound enricher, outbound_recorder, orders_db, event_graph.py → orders.db.eg_*','аналог broker_orders.json + broker_order_context для LCB'],
+        logic:['agent_context.py = один read entry для unified_dm_responder','lcb_orders.py владеет JSON persistence','lead_context_enricher dual-write → orders.db.contact_context/event_context','lcb_writer_mode_history пишется только при смене mode или CRM stage','lcb_event_context.py не пишет и не запускает AI','thread_context_extract через promise_extractor одним AI-запросом пишет event graph + promises + refs','promise_extractor не гасит durable tech/contractor dependencies без явного resolution','обновляется через owners: inbound enricher, outbound_recorder, orders_db, event_graph.py → orders.db.eg_*','аналог broker_orders.json + broker_order_context для LCB'],
       },
       {
         group:'broker', name:'Broker Casting', label:'com.lcband.broker-casting',
