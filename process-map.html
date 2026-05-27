@@ -286,6 +286,13 @@
         input:'wa_computer_use_queue.json', action:'open chat + type/paste + explicit approve', output:'WA message + mark-sent',
         logic:['только native WhatsApp Desktop','никакого Playwright send','manual confirmation before Send','mark-sent фиксирует audit trail'],
       },
+      {
+        group:'dm', name:'WA Auto Ack Sender', label:'com.lcband.wa-auto-sender',
+        file:'wa_auto_sender.py --once', schedule:'каждую минуту',
+        why:'Доводит короткие безопасные WA acknowledgement до sent без ручного Codex send.',
+        input:'wa_computer_use_queue.json items with send_mode=auto_pipeline', action:'localhost Baileys /send + rate guard', output:'WA message + queue sent + outbound_recorder',
+        logic:['только auto_send_reason=manual_context_ack','только source=unified_dm_responder','не трогает обычные WA drafts','max 1/run','использует уже linked Baileys daemon, не WA Web'],
+      },
 
       {
         group:'broker', name:'Broker Dialog Owner', label:'broker_dialog_agent.py',

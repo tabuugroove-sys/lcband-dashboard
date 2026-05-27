@@ -706,7 +706,7 @@
           <div class="connection-card">
             <h3>WhatsApp Baileys</h3>
             <div class="role-row"><b>input</b><code>wa_baileys/</code> materializer обновляет WA cache и message history.</div>
-            <div class="role-row"><b>output</b>Не WA Web: approved draft идёт в native WhatsApp Desktop через <code>wa_cu_agent.py</code>.</div>
+            <div class="role-row"><b>output</b>Обычные drafts идут в native WhatsApp Desktop через <code>wa_cu_agent.py</code>; короткий <code>manual_context_ack</code> может отправить <code>wa_auto_sender.py</code> через linked Baileys.</div>
             <div class="role-row"><b>write</b><code>wa_cache/</code> и outbound mark-sent сходятся обратно в memory/context.</div>
           </div>
         </div>
@@ -975,7 +975,7 @@
             <div class="row"><b>TG realtime</b><span><code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code> — основной realtime TG socket; слушает NewMessage/push и отдаёт DM в routing.</span></div>
             <div class="row"><b>TG follow-up session</b><span><code>tg_followup.py</code> / <code>tg_session_followup.session</code> — отдельная follow-up session; live/dry-run статус показывается как connection health, но это не основной realtime socket.</span></div>
             <div class="row"><b>VK service</b><span><code>vk_longpoll_listener.py</code> + <code>vk_auto_responder.py</code>: VK read/trigger/send path; adapter не становится LCB writer.</span></div>
-            <div class="row"><b>WhatsApp Baileys</b><span><code>wa_baileys/</code> materializer для input/history; outbound не через WA Web, а через native WhatsApp Desktop + <code>wa_cu_agent.py</code>.</span></div>
+            <div class="row"><b>WhatsApp Baileys</b><span><code>wa_baileys/</code> materializer для input/history; обычный outbound через native WhatsApp Desktop + <code>wa_cu_agent.py</code>, узкий auto-ack через <code>wa_auto_sender.py</code>.</span></div>
           </div>
           <div style="margin-top:12px">
             <span class="pill blue">4 connections</span>
@@ -984,7 +984,7 @@
         <div class="card">
           <div class="card-title">Не считать отдельными подключениями</div>
           <div class="list">
-            <div class="row"><b>Output send</b><span>TG/VK send и WA Desktop queue — действия после route/writer/gates, а не новые health connections.</span></div>
+            <div class="row"><b>Output send</b><span>TG/VK send, WA Desktop queue и WA auto-ack — действия после route/writer/gates, а не новые health connections.</span></div>
             <div class="row"><b>Browser Walk</b><span>Обход event/group источников и сверка пропущенных постов; результат дедупится с realtime, но это не connection card.</span></div>
             <div class="row"><b>Export/backfill</b><span>Разовое чтение истории в <code>orders.db.message_events</code> / legacy cache; не отдельная память и не постоянное подключение.</span></div>
           </div>
