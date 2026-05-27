@@ -10006,6 +10006,13 @@ function App() {
 
           {activeTab === 'overview' && (
             <>
+              <FunnelSplitSections
+                allLeads={data.allLeads || []}
+                archived={data.allArchived || []}
+                pendingDrafts={data.pendingDrafts || []}
+                sessionLog={sessionLog || null}
+                fallbackFunnel={data.funnel || []}
+              />
               <OverviewStatsSection stats={overviewStats} followupPlan={followupPlan} />
               <StatusSection
                 status={data.status}
@@ -10029,13 +10036,6 @@ function App() {
                   tgWeek={data.tgFunnel?.week}
                 />
               </div>
-              <FunnelSplitSections
-                allLeads={data.allLeads || []}
-                archived={data.allArchived || []}
-                pendingDrafts={data.pendingDrafts || []}
-                sessionLog={sessionLog || null}
-                fallbackFunnel={data.funnel || []}
-              />
               <CartotekaSection data={leadContext} />
               <RecentSentMessagesSection data={recentSent} />
               <FollowupsSection followups={data.followups} />
