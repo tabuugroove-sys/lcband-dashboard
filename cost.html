@@ -282,6 +282,29 @@ tr:last-child td { border-bottom: none; }
 .fader-process-row .claude-day { color:var(--warn); text-align:right; font-weight:700; }
 .fader-process-row .codex-day { color:var(--accent); text-align:right; font-weight:700; }
 .fader-process-empty { color:var(--muted); font-size:11px; }
+/* 28.05.2026 — AI call-guard hard-limit faders (отдельно от Codex↔Claude routing) */
+.guard-row { margin-top: 10px; }
+.guard-row:first-of-type { margin-top: 4px; }
+.guard-row-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:4px; }
+.guard-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; }
+.guard-readout { font-size:11px; font-family:'SF Mono','Menlo','Consolas',monospace; font-weight:700; }
+.guard-readout.green  { color: var(--ok, #2da44e); }
+.guard-readout.yellow { color: var(--warn, #d97706); }
+.guard-readout.red    { color: var(--danger, #cf222e); }
+.guard-meter { position:relative; height:7px; border-radius:5px; background:var(--panel-2,#eaeef2); overflow:hidden; border:1px solid var(--border); }
+.guard-meter-fill { position:absolute; left:0; top:0; bottom:0; border-radius:5px; transition:width .15s ease; }
+.guard-meter-fill.green  { background: var(--ok, #2da44e); }
+.guard-meter-fill.yellow { background: var(--warn, #d97706); }
+.guard-meter-fill.red    { background: var(--danger, #cf222e); }
+.guard-slider-row { display:flex; align-items:center; gap:10px; margin-top:6px; }
+.guard-slider-row input[type=range] { flex:1; height:4px; -webkit-appearance:none; appearance:none; background:transparent; cursor:pointer; }
+.guard-slider-row input[type=range]::-webkit-slider-runnable-track { height:4px; border-radius:4px; background: linear-gradient(90deg, var(--accent,#3a82f7) var(--guard-val,0%), var(--border) var(--guard-val,0%)); }
+.guard-slider-row input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:15px; height:15px; border-radius:50%; background:var(--accent,#3a82f7); border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.3); margin-top:-6px; }
+.guard-slider-row input[type=range]::-moz-range-track { height:4px; border-radius:4px; background:var(--border); }
+.guard-slider-row input[type=range]::-moz-range-progress { height:4px; border-radius:4px; background:var(--accent,#3a82f7); }
+.guard-slider-row input[type=range]::-moz-range-thumb { width:15px; height:15px; border-radius:50%; background:var(--accent,#3a82f7); border:2px solid #fff; }
+.guard-val { width:52px; text-align:right; font-size:12px; font-weight:700; font-family:'SF Mono','Menlo','Consolas',monospace; }
+.guard-val.unlimited { color:var(--muted); font-weight:400; }
 .impact-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -606,6 +629,27 @@ a:hover { text-decoration: underline; }
     <div class="impact-cell"><span class="lbl">Saved % нед</span><span class="val good" id="ri-saved">—</span></div>
     <div class="impact-cell"><span class="lbl">Δ скорости</span><span class="val" id="ri-speed">—</span></div>
   </div>
+</div>
+
+<div class="card" id="guard-limits" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>🛡️ AI call guard — hard limits</span>
+    <span id="guard-status" class="routing-status">guard: загрузка…</span>
+  </h2>
+  <div class="label" style="margin:-4px 0 10px 0;">
+    Жёсткий потолок числа фоновых LLM-вызовов на провайдера (окна 24ч и 5ч). Когда счётчик упирается в лимит —
+    <code>llm_budget_guard.allow_llm_call()</code> блокирует этого провайдера, пока окно не откатится. Это <b>не</b> routing-фейдер
+    (тот решает «кого предпочесть»), а аварийный потолок «сколько вообще можно». Двигай фейдер — агенты подхватят за ~30с.
+    Полоска = текущий расход против выбранного лимита (зелёный → жёлтый у warn → красный на лимите). <code>0 = ∞</code> (без потолка).
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin:0 0 12px 0;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+      <input type="checkbox" id="guard-enabled-toggle">
+      <span>Guard включён</span>
+    </label>
+    <span id="guard-enabled-note" style="font-size:11px;color:var(--muted);margin-left:auto;">выключить = лимиты игнорируются, провайдеры не блокируются по счётчику</span>
+  </div>
+  <div class="routing-grid" id="guard-faders-grid"></div>
 </div>
 
 <div class="grid">
@@ -1385,6 +1429,189 @@ async function loadRoutingControls() {
     status.textContent = 'config: live · ' + new Date().toLocaleTimeString('ru-RU').slice(0, 5);
   } catch (err) {
     status.textContent = 'config: backend offline — ' + err.message;
+  }
+}
+
+// ── 🛡️ AI call guard — hard-limit faders ──────────────────────────────
+const GUARD_PROVIDERS = [
+  { key: 'codex',  label: '🔵 Codex',  max24: 3000, step24: 50, max5: 1000, step5: 25 },
+  { key: 'claude', label: '🟣 Claude', max24: 1500, step24: 50, max5: 600,  step5: 20 },
+  { key: 'gemini', label: '🟡 Gemini', max24: 3000, step24: 50, max5: 1000, step5: 25 },
+];
+let _guardStatus = { providers: {} };
+
+function guardLevelClass(count, max, warn) {
+  if (max > 0 && count >= max) return 'red';
+  if (warn > 0 && count >= warn) return 'yellow';
+  return 'green';
+}
+
+function buildGuardCards() {
+  const grid = document.getElementById('guard-faders-grid');
+  if (!grid || grid.children.length) return;
+  for (const p of GUARD_PROVIDERS) {
+    const div = document.createElement('div');
+    div.className = 'fader-card';
+    div.dataset.provider = p.key;
+    div.innerHTML = `
+      <div class="fader-title">${esc(p.label)}</div>
+      <div class="guard-row" data-win="max_calls_24h">
+        <div class="guard-row-head">
+          <span class="guard-label">24ч окно</span>
+          <span class="guard-readout" data-fld="read">— / —</span>
+        </div>
+        <div class="guard-meter"><div class="guard-meter-fill" data-fld="bar" style="width:0%"></div></div>
+        <div class="guard-slider-row">
+          <input type="range" min="0" max="${p.max24}" step="${p.step24}" value="0" data-prov="${p.key}" data-win="max_calls_24h" data-count="0">
+          <span class="guard-val" data-fld="val">0</span>
+        </div>
+      </div>
+      <div class="guard-row" data-win="max_calls_5h">
+        <div class="guard-row-head">
+          <span class="guard-label">5ч окно</span>
+          <span class="guard-readout" data-fld="read">— / —</span>
+        </div>
+        <div class="guard-meter"><div class="guard-meter-fill" data-fld="bar" style="width:0%"></div></div>
+        <div class="guard-slider-row">
+          <input type="range" min="0" max="${p.max5}" step="${p.step5}" value="0" data-prov="${p.key}" data-win="max_calls_5h" data-count="0">
+          <span class="guard-val" data-fld="val">0</span>
+        </div>
+      </div>`;
+    grid.appendChild(div);
+  }
+}
+
+// Recompute one window row (readout + meter + value) from a limit + live count.
+function paintGuardRow(row, limit, count, warn) {
+  const lim = Math.max(0, Number(limit) || 0);
+  const cnt = Math.max(0, Number(count) || 0);
+  const pct = lim > 0 ? clampPct(100 * cnt / lim) : 0;
+  const cls = guardLevelClass(cnt, lim, warn);
+  const read = row.querySelector('[data-fld="read"]');
+  const bar = row.querySelector('[data-fld="bar"]');
+  const val = row.querySelector('[data-fld="val"]');
+  if (read) {
+    read.textContent = `${cnt} / ${lim > 0 ? lim : '∞'}` + (lim > 0 ? ` · ${pct.toFixed(0)}%` : '');
+    read.className = 'guard-readout ' + cls;
+  }
+  if (bar) {
+    bar.style.width = pct + '%';
+    bar.className = 'guard-meter-fill ' + cls;
+  }
+  if (val) {
+    val.textContent = lim > 0 ? lim : '∞';
+    val.classList.toggle('unlimited', lim === 0);
+  }
+}
+
+function renderGuardCards(status) {
+  status = status || {};
+  _guardStatus = status;
+  const toggle = document.getElementById('guard-enabled-toggle');
+  if (toggle && document.activeElement !== toggle) toggle.checked = !!status.enabled;
+  const note = document.getElementById('guard-enabled-note');
+  if (note) note.textContent = status.enabled
+    ? 'guard активен — провайдер блокируется на лимите счётчика'
+    : '⚠ guard ВЫКЛЮЧЕН — лимиты не применяются';
+  const providers = status.providers || {};
+  for (const p of GUARD_PROVIDERS) {
+    const card = document.querySelector(`#guard-faders-grid .fader-card[data-provider="${p.key}"]`);
+    if (!card) continue;
+    const g = providers[p.key] || {};
+    const counts = g.counts || {};
+    const limits = g.limits || {};
+    const windows = [
+      { win: 'max_calls_24h', count: Number(counts.calls_24h || 0), warn: Number(limits.warn_calls_24h || 0) },
+      { win: 'max_calls_5h',  count: Number(counts.calls_5h  || 0), warn: Number(limits.warn_calls_5h  || 0) },
+    ];
+    for (const w of windows) {
+      const row = card.querySelector(`.guard-row[data-win="${w.win}"]`);
+      if (!row) continue;
+      const slider = row.querySelector('input[type=range]');
+      const limit = Number(limits[w.win] || 0);
+      slider.dataset.count = String(w.count);
+      slider.dataset.warn = String(w.warn);
+      if (document.activeElement !== slider) {
+        slider.value = Math.min(Number(slider.max), limit);
+        slider.style.setProperty('--guard-val', (Number(slider.max) > 0 ? clampPct(100 * limit / Number(slider.max)) : 0) + '%');
+      }
+      // Paint readout with the TRUE configured limit (not slider-clamped) so a
+      // limit above the slider max still shows accurate usage feedback.
+      paintGuardRow(row, limit, w.count, w.warn);
+    }
+  }
+}
+
+let _guardBound = false;
+function bindGuardControls() {
+  const grid = document.getElementById('guard-faders-grid');
+  if (!grid || _guardBound) return;
+  _guardBound = true;
+  let pending;
+
+  // Live feedback while dragging — no network.
+  grid.addEventListener('input', e => {
+    const slider = e.target;
+    if (slider.tagName !== 'INPUT' || slider.type !== 'range') return;
+    const row = slider.closest('.guard-row');
+    const count = Number(slider.dataset.count || 0);
+    const warn = Number(slider.dataset.warn || 0);
+    slider.style.setProperty('--guard-val', (Number(slider.max) > 0 ? clampPct(100 * (+slider.value) / Number(slider.max)) : 0) + '%');
+    paintGuardRow(row, +slider.value, count, warn);
+  });
+
+  // Commit on release → POST single-field deep-merge.
+  grid.addEventListener('change', e => {
+    const slider = e.target;
+    if (slider.tagName !== 'INPUT' || slider.type !== 'range') return;
+    const prov = slider.dataset.prov;
+    const win = slider.dataset.win;
+    const value = Math.max(0, +slider.value);
+    clearTimeout(pending);
+    pending = setTimeout(() => saveGuard({ provider: prov, limits: { [win]: value } }), 350);
+  });
+
+  const toggle = document.getElementById('guard-enabled-toggle');
+  if (toggle) toggle.addEventListener('change', () => saveGuard({ enabled: toggle.checked }));
+}
+
+async function saveGuard(body) {
+  const status = document.getElementById('guard-status');
+  const token = ensureAdminToken(true);
+  if (!token) { if (status) status.textContent = 'guard: нужен admin token'; return; }
+  try {
+    if (status) status.textContent = 'guard: сохраняю…';
+    const bu = await loadBackend();
+    const res = await fetch(bu + '/api/llm_guard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Token': token },
+      body: JSON.stringify(Object.assign({ updated_by: 'cost_page_guard' }, body)),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 403) { localStorage.removeItem('lcband_admin_token'); _adminToken = ''; }
+      throw new Error(data.error || ('HTTP ' + res.status));
+    }
+    renderGuardCards(data.status || {});
+    if (status) status.textContent = 'guard: сохранено · агенты подхватят ~30с · ' + new Date().toLocaleTimeString('ru-RU').slice(0, 5);
+  } catch (err) {
+    if (status) status.textContent = 'guard: ошибка — ' + err.message;
+  }
+}
+
+async function loadGuardControls() {
+  const status = document.getElementById('guard-status');
+  try {
+    const bu = await loadBackend();
+    const res = await fetch(bu + '/api/llm_guard', { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    buildGuardCards();
+    bindGuardControls();
+    renderGuardCards(data);
+    if (status) status.textContent = 'guard: live · ' + new Date().toLocaleTimeString('ru-RU').slice(0, 5);
+  } catch (err) {
+    if (status) status.textContent = 'guard: backend offline — ' + err.message;
   }
 }
 
@@ -2273,6 +2500,8 @@ loadRemoteSources();
 setInterval(loadRemoteSources, 5000);
 loadRoutingControls();
 setInterval(loadRoutingControls, 30000);
+loadGuardControls();
+setInterval(loadGuardControls, 30000);
 
 // ────────── LIVE AI calls feed ──────────
 let _liveLastTs = '';
