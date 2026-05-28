@@ -756,6 +756,11 @@
             promises, refs, raw message events. Агент создания event взаимодействует с этим слоем через
             владельцев event graph/context, а не через отдельную картотеку.
           </div>
+          <div class="list" style="margin-top:12px">
+            <div class="row"><b>TG folders</b><span><code>funnel_folder_sync.py</code> читает статус только из <code>orders.db</code>: active status задаёт funnel-папку, <code>archived=1</code> уходит в <code>Отмены</code>, legacy TG-only контакты очищаются из active folders.</span></div>
+            <div class="row"><b>post-event</b><span><code>funnel_autoheal.py</code> переводит paid/concert с прошедшей <code>event_date</code> в <code>Отзыв/контент</code>; folder sync добавляет <code>Отзыв/фото</code> и снимает <code>ОПЛАТИЛА</code>.</span></div>
+            <div class="row"><b>protected</b><span>Служебные папки и <code>lcb_roster.INTERNAL_TEAM</code> не трогаются как папки; активный лид может иметь funnel-папку плюс protected role, но archived protected не кладётся в <code>Отмены</code>.</span></div>
+          </div>
           <div style="margin-top:12px">
             <span class="pill teal">single CRM SSoT</span>
           </div>

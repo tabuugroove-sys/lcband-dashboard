@@ -447,14 +447,14 @@
         file:'funnel_autoheal.py', schedule:'daily 02:15',
         why:'Автоматически чинит stale-stage переходы, чтобы лиды не висели месяцами в неправильной стадии.',
         input:'orders.db + stage age', action:'apply stale rules', output:'updated statuses/history',
-        logic:['ежедневный maintenance','консервативные переходы','paid/protected stages не понижает'],
+        logic:['ежедневный maintenance','консервативные переходы','paid/concert с прошедшей event_date → Отзыв/контент','protected stages не понижает'],
       },
       {
         group:'funnel', name:'Funnel Folder Sync', label:'com.lcband.funnel-folder-sync',
         file:'funnel_folder_sync.py', schedule:'каждые 30 мин',
         why:'Синхронизирует TG folder semantics с CRM-воронкой.',
         input:'TG folders + orders.db', action:'map folders to stages', output:'status/folder alignment',
-        logic:['cancel status = CRM archive + TG Отмены','учитывает protected folders','не двигает ОПЛАТИЛА','активный лид снимается из Отмены','пишет logs/funnel_folder_sync.log'],
+        logic:['orders.db status = единственный owner TG funnel-папки','archived=1 → TG Отмены, включая AI-skip/legacy skip statuses','Отзыв/контент снимает TG ОПЛАТИЛА и ставит Отзыв/фото','protected folders + lcb_roster.INTERNAL_TEAM не трогаются как папки','активный лид может иметь funnel-папку плюс protected role','TG-only legacy контакты очищаются из active folders','ОПЛАТИЛА остаётся для paid upcoming/unknown date','пишет logs/funnel_folder_sync.log'],
       },
       {
         group:'funnel', name:'Funnel Maintenance', label:'com.lcband.funnel-maintenance',
