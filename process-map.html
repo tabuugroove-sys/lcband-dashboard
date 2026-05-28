@@ -228,7 +228,7 @@
         file:'tg_followup.py', schedule:'daily 10:09 MSK',
         why:'Готовит follow-up drafts по расписанию, но не трогает оплативших, музыкантов, подрядчиков и близкие event date.',
         input:'orders.db + DM history', action:'eligible follow-up + review', output:'presend viewer draft / skip log',
-        logic:['direct send только при LCB_FOLLOWUP_DIRECT_SEND=1','default output = pending_approvals viewer_only','protected skip для ОПЛАТИЛА/confirmed/musician/contractor/vendor','content mode: если клиент написал что видео грузятся, но media не появились, просит переотправить вместо дубля','стоп за 3 дня до мероприятия','cap 15 sends/run'],
+        logic:['direct send только при LCB_FOLLOWUP_DIRECT_SEND=1','default output = pending_approvals viewer_only','protected skip для ОПЛАТИЛА/confirmed/musician/contractor/vendor','customer_decision wait: если варианты ушли заказчику/паре/руководителю, без точной даты пауза 3 дня','content mode: если клиент написал что видео грузятся, но media не появились, просит переотправить вместо дубля','стоп за 3 дня до мероприятия','cap 15 sends/run'],
       },
       {
         group:'dm', name:'VK Responder', label:'com.lcband.vk-responder',

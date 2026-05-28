@@ -1195,7 +1195,7 @@ const PROCESS_RULES = {
     interval: 'Ежедневно в 10:09 MSK',
     desc: 'TG-only scheduled follow-up. По умолчанию пишет только viewer-only draft в presend viewer; прямой send включается явно через LCB_FOLLOWUP_DIRECT_SEND=1.',
     rules: [
-      'LCB active follow-up: ежедневная contextual-проверка; 3 дня только для cold outreach / явного snooze',
+      'LCB active follow-up: ежедневная contextual-проверка; customer_decision после передачи вариантов заказчику/паре/руководителю = пауза 3 дня без точной даты',
       'Protected skip: ОПЛАТИЛА/confirmed, музыканты, подрядчики, vendor/internal contacts',
       'WA_DIRECT не отправляет напрямую: draft уходит в presend viewer, Desktop queue только при explicit direct-send window',
       '🔴 22.04: hard-regex pre-check через refusal_guard.scan_history_for_refusal (общий модуль с tg_responder) — инцидент @lisitsyna_law 20.04, регекс теперь единый в refusal_guard.py',
