@@ -434,6 +434,7 @@
     }
     .conn-dot-ok    { background: var(--ok);   box-shadow: 0 0 8px var(--ok); }
     .conn-dot-err   { background: var(--err);  box-shadow: 0 0 8px var(--err); animation: pulse-err 1.5s ease infinite; }
+    .conn-dot-deg   { background: #fbbf24;     box-shadow: 0 0 8px #fbbf24; }
     .conn-dot-unk   { background: var(--muted); }
     @keyframes pulse-err {
       0%, 100% { opacity: 1; }
@@ -1375,10 +1376,10 @@ function _fmtAgo(lastCheck) {
 
 function ConnectionRow({ title, status, reason, lastCheck }) {
   const st = status || 'unknown';
-  const dotCls = st === 'ok' ? 'conn-dot-ok' : st === 'error' ? 'conn-dot-err' : 'conn-dot-unk';
-  const label  = st === 'ok' ? 'Подключено' : st === 'error' ? 'Соединение потеряно' : 'Нет данных';
-  const labelColor = st === 'ok' ? 'var(--ok)' : st === 'error' ? '#f87171' : 'var(--muted)';
-  const accountColor = st === 'ok' ? '#60a5fa' : '#f87171';
+  const dotCls = st === 'ok' ? 'conn-dot-ok' : st === 'error' ? 'conn-dot-err' : st === 'degraded' ? 'conn-dot-deg' : 'conn-dot-unk';
+  const label  = st === 'ok' ? 'Подключено' : st === 'error' ? 'Соединение потеряно' : st === 'degraded' ? 'Офлайн (драфты в бот)' : 'Нет данных';
+  const labelColor = st === 'ok' ? 'var(--ok)' : st === 'error' ? '#f87171' : st === 'degraded' ? '#fbbf24' : 'var(--muted)';
+  const accountColor = st === 'ok' ? '#60a5fa' : st === 'degraded' ? '#fbbf24' : '#f87171';
   const timeAgo = _fmtAgo(lastCheck);
   return (
     <div className="conn-card" style={{marginBottom:8}}>
