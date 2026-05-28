@@ -1785,10 +1785,21 @@ function bindProcessPopover() {
 function dualSparklineSVG(systemData, userData) {
   // Activity Monitor style: filled area для System (red) и User (blue) поверх.
   // Шкала фиксированная: 0 → max(всех значений, 200%) — чтобы overload spike виден.
-  const allValues = [...(systemData||[]), ...(userData||[])];
-  const dMax = Math.max(Math.max(...allValues, 100), 200);
-  const w = 280, h = 60, n = (systemData||[]).length || 60;
-  if (n < 2) return '<div style="height:60px;"></div>';
+  const rawSystem = Array.isArray(systemData) ? systemData : [];
+  const rawUser = Array.isArray(userData) ? userData : [];
+  const n = Math.max(rawSystem.length, rawUser.length, 2);
+  function normalise(data) {
+    const pad = Array(Math.max(0, n - data.length)).fill(0);
+    return [...pad, ...data.slice(-n)].map(v => {
+      const num = Number(v);
+      return Number.isFinite(num) ? Math.max(0, num) : 0;
+    });
+  }
+  const sys = normalise(rawSystem);
+  const usr = normalise(rawUser);
+  const allValues = [...sys, ...usr];
+  const dMax = Math.max(...allValues, 100, 200);
+  const w = 280, h = 60;
   const step = w / (n - 1);
   function pathArea(data) {
     const pts = data.map((v, i) => `${(i*step).toFixed(1)},${(h - (v/dMax)*h).toFixed(1)}`);
@@ -1801,10 +1812,10 @@ function dualSparklineSVG(systemData, userData) {
   const sustY = (h - (100/dMax)*h).toFixed(1);
   return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="display:block;max-width:100%;overflow:hidden;">
     <line x1="0" y1="${sustY}" x2="${w}" y2="${sustY}" stroke="var(--muted)" stroke-width="0.5" stroke-dasharray="3,3" />
-    <path d="${pathArea(userData)}"   fill="rgba(0,122,255,0.18)" />
-    <path d="${pathArea(systemData)}" fill="rgba(255,59,48,0.20)" />
-    <path d="${pathLine(userData)}"   fill="none" stroke="#007aff" stroke-width="1.2" />
-    <path d="${pathLine(systemData)}" fill="none" stroke="#ff3b30" stroke-width="1.2" />
+    <path d="${pathArea(usr)}" fill="rgba(0,122,255,0.18)" />
+    <path d="${pathArea(sys)}" fill="rgba(255,59,48,0.20)" />
+    <path d="${pathLine(usr)}" fill="none" stroke="#007aff" stroke-width="1.2" />
+    <path d="${pathLine(sys)}" fill="none" stroke="#ff3b30" stroke-width="1.2" />
   </svg>`;
 }
 function renderBurn(d) {
