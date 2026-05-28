@@ -686,8 +686,9 @@
           <div class="connection-card">
             <h3>TG realtime</h3>
             <div class="role-row"><b>input</b><code>tg_realtime_monitor.py</code> + <code>tg_session_monitor.session</code>: DM/event NewMessage.</div>
-            <div class="role-row"><b>output</b>Не writer и не output-owner. Send выполняется отдельной TG operation после gates.</div>
+            <div class="role-row"><b>output</b>Не writer. DM send после gates выполняется через live realtime client, без открытия второй TG-сессии.</div>
             <div class="role-row"><b>write</b>Inbound → <code>orders.db.message_events</code> → context refresh.</div>
+            <div class="role-row"><b>calls</b>TG call service messages пишутся как call touchpoint и ставят <code>operator_no_autoreply</code>: после звонка агент не пишет сам.</div>
             <div class="role-row"><b>reaction</b>Если DM-agent решил не писать текст, listener может поставить лёгкий TG 👍 только для коротких безопасных ack/wait сообщений.</div>
             <div class="role-row"><b>blacklist</b><code>tg_whitelist.json</code> → context <code>do_not_touch</code>; manual blacklist не получает read-ack.</div>
           </div>
@@ -972,7 +973,7 @@
         <div class="card">
           <div class="card-title">4 подключения из dashboard</div>
           <div class="list">
-            <div class="row"><b>TG realtime</b><span><code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code> — основной realtime TG socket; слушает NewMessage/push и отдаёт DM в routing.</span></div>
+            <div class="row"><b>TG realtime</b><span><code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code> — основной realtime TG socket; слушает NewMessage/push, отдаёт DM в routing и даёт live send-adapter без второй сессии.</span></div>
             <div class="row"><b>TG follow-up session</b><span><code>tg_followup.py</code> / <code>tg_session_followup.session</code> — отдельная follow-up session; live/dry-run статус показывается как connection health, но это не основной realtime socket.</span></div>
             <div class="row"><b>VK service</b><span><code>vk_longpoll_listener.py</code> + <code>vk_auto_responder.py</code>: VK read/trigger/send path; adapter не становится LCB writer.</span></div>
             <div class="row"><b>WhatsApp Baileys</b><span><code>wa_baileys/</code> materializer для input/history; обычный outbound через native WhatsApp Desktop + <code>wa_cu_agent.py</code>, узкий auto-ack через <code>wa_auto_sender.py</code>.</span></div>
