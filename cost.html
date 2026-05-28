@@ -545,22 +545,21 @@ a:hover { text-decoration: underline; }
     <span style="font-size:11px;color:var(--muted);" id="routing-mode-current">—</span>
   </h2>
   <div class="label" style="margin:-4px 0 10px 0;">
-    Один глобальный режим выбирает primary-модель для <b>всего</b> CLI-трафика (перекрывает per-category фейдеры).
-    Единое правило отказа: <b id="xfb-rule">упал primary → один раз пробуем второй провайдер; оба упали → no-send</b>.
+    Primary split применяется ко <b>всем</b> CLI-call'ам (не per-category; перекрывает фейдеры).
+    Единое правило отказа: <b id="xfb-rule">упал primary → один раз пробуем второго провайдера; оба упали → no-send</b>.
   </div>
   <div id="routing-mode-buttons" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
   <div id="routing-mode-providers" style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);"></div>
   <div id="routing-mode-toast" style="margin-top:6px;font-size:13px;"></div>
-  <details style="margin-top:12px;">
-    <summary style="cursor:pointer;color:var(--muted);font-size:12px;">⚙️ Legacy presets (по purpose) — advanced</summary>
-    <div style="margin-top:8px;">
-      <div id="preset-buttons" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;"></div>
-      <div class="label" style="margin-top:8px;">
-        Старые presets quality/balanced/economy/codex_first. Перекрываются глобальным режимом выше (кроме «custom»).
-        <span id="preset-current"></span>
-      </div>
-      <div id="preset-toast" style="margin-top:6px;font-size:13px;"></div>
-    </div>
+  <details style="margin-top:10px;">
+    <summary style="cursor:pointer;color:var(--muted);font-size:11px;">📄 Routing contract (1 режим, 1 правило)</summary>
+    <ol style="margin:6px 0 0 0;padding-left:18px;font-size:11px;color:var(--muted);line-height:1.5;">
+      <li>Один режим = primary-провайдер для всех CLI-call'ов.</li>
+      <li>Primary упал + cross-fallback="all" → один раз пробуем второго.</li>
+      <li>Упали оба → no-send/blocker (sender-слой не шлёт).</li>
+      <li>Режим с Claude-долей &gt; 0 или cross-fallback="all" требует Claude budget &gt; 0.</li>
+      <li>Per-category фейдеры не решают роутинг, пока режим валиден.</li>
+    </ol>
   </details>
 </div>
 
@@ -2402,68 +2401,8 @@ async function loadAiPools() {
 loadAiPools();
 setInterval(loadAiPools, 10000);
 
-// ────────── ROUTING PRESETS ──────────
-async function loadPresets() {
-  const bu = await loadBackend();
-  if (!bu) return;
-  try {
-    const r = await fetch(bu + '/api/runtime_config/presets', {cache:'no-store'});
-    const d = await r.json();
-    const cur = d.current_preset || 'custom';
-    document.getElementById('preset-current').textContent =
-      'Активен: ' + (cur === 'custom' ? 'custom (не из presets)' : cur);
-    const container = document.getElementById('preset-buttons');
-    if (!container) return;
-    // Order: quality / balanced / codex_first / economy
-    const order = ['quality','balanced','codex_first','economy'];
-    container.innerHTML = order.map(k => {
-      const p = d.presets[k];
-      if (!p) return '';
-      const isActive = k === cur;
-      const bg = isActive ? 'background:rgba(0,112,243,0.14);border-color:var(--accent);' : '';
-      return `<button onclick="applyPreset('${k}')" title="${esc(p.description)}" style="
-        padding:10px 12px;
-        border:1.5px solid var(--border);
-        border-radius:8px;
-        background:var(--panel-2,#fafafa);
-        cursor:pointer;
-        text-align:left;
-        font-size:13px;
-        line-height:1.35;
-        transition:all .15s;
-        ${bg}">
-        <div style="font-weight:600;margin-bottom:3px;">${esc(p.label)}</div>
-        <div style="font-size:11px;color:var(--muted);">${esc(p.description.slice(0,100))}</div>
-      </button>`;
-    }).join('');
-  } catch (e) { /* silent */ }
-}
-async function applyPreset(key) {
-  const bu = await loadBackend();
-  const toast = document.getElementById('preset-toast');
-  toast.innerHTML = '<span class="muted">⏳ применяется…</span>';
-  try {
-    const r = await fetch(bu + '/api/runtime_config/preset', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({preset: key}),
-    });
-    const j = await r.json();
-    if (j.error) {
-      toast.innerHTML = '<span style="color:var(--danger);">❌ ' + esc(j.error) + '</span>';
-    } else {
-      toast.innerHTML = '<span style="color:var(--ok);">✅ ' + esc(j.label || key) +
-        ' applied · агенты подхватят за 30s</span>';
-      setTimeout(() => { toast.innerHTML = ''; loadPresets(); load(); }, 2500);
-    }
-  } catch (e) {
-    toast.innerHTML = '<span style="color:var(--danger);">❌ ' + esc(e.message) + '</span>';
-  }
-}
-loadPresets();
-setInterval(loadPresets, 15000);
-
 // ── Unified routing mode (28.05) — single global control ───────────────
+// (Legacy presets quality/balanced/economy/codex_first удалены — один контрол.)
 const _ROUTING_MODE_ORDER = ['codex_only','mostly_codex','balanced','claude_only'];
 let _routingModeState = null;
 
@@ -2490,7 +2429,7 @@ async function loadRoutingMode() {
         ? 'упал primary → сразу skip/blocker (cross-fallback выкл)'
         : (scope === 'client'
             ? 'client-visible: упал primary → пробуем второго; иначе skip'
-            : 'упал primary → один раз пробуем второй провайдер; оба упали → no-send');
+            : 'все CLI-call защищены: упал primary → один раз пробуем второго; оба упали → no-send');
     }
 
     const cont = document.getElementById('routing-mode-buttons');
