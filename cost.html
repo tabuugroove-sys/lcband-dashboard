@@ -108,8 +108,8 @@ tr:last-child td { border-bottom: none; }
   min-width:0;
 }
 .thread-hourly-chart {
-  width:230px;
-  height:28px;
+  width:360px;
+  height:50px;
   display:flex;
   align-items:center;
   gap:5px;
@@ -117,7 +117,7 @@ tr:last-child td { border-bottom: none; }
   border:1px solid rgba(0,112,243,.22);
   border-radius:6px;
   background:rgba(0,112,243,.045);
-  flex:0 0 230px;
+  flex:0 0 360px;
 }
 .thread-hourly-label {
   color:var(--accent);
@@ -126,13 +126,42 @@ tr:last-child td { border-bottom: none; }
   letter-spacing:0;
   text-transform:none;
 }
+.thread-hourly-inner {
+  min-width:0;
+  flex:1 1 auto;
+}
 .thread-hourly-svg {
-  width:190px;
-  height:20px;
+  width:100%;
+  height:22px;
   display:block;
 }
 .thread-hourly-svg .track { fill:rgba(0,112,243,.10); }
 .thread-hourly-svg .barh { fill:rgba(0,112,243,.78); rx:1; }
+.thread-hourly-chart.cli {
+  border-color:rgba(255,149,0,.28);
+  background:rgba(255,149,0,.055);
+}
+.thread-hourly-chart.cli .thread-hourly-label { color:var(--warn); }
+.thread-hourly-chart.cli .thread-hourly-svg .track { fill:rgba(255,149,0,.12); }
+.thread-hourly-chart.cli .thread-hourly-svg .barh { fill:rgba(255,149,0,.82); }
+.thread-hourly-axis {
+  display:grid;
+  grid-template-columns:repeat(6, 1fr);
+  gap:0;
+  margin-top:1px;
+  color:var(--muted);
+  font-size:9px;
+  line-height:1;
+  font-family:'SF Mono','Menlo','Consolas',monospace;
+}
+.thread-hourly-axis span { text-align:center; }
+.thread-hourly-caption {
+  color:var(--muted);
+  font-size:9px;
+  line-height:1;
+  margin-top:3px;
+  white-space:nowrap;
+}
 .thread-hourly-chart.empty {
   border-color:rgba(108,108,112,.18);
   background:rgba(108,108,112,.045);
@@ -140,8 +169,8 @@ tr:last-child td { border-bottom: none; }
 .thread-hourly-chart.empty .thread-hourly-label { color:var(--muted); }
 .thread-hourly-chart.empty .barh { fill:rgba(108,108,112,.22); }
 @media (max-width: 980px) {
-  .thread-hourly-chart { width:154px; flex-basis:154px; }
-  .thread-hourly-svg { width:116px; }
+  .thread-hourly-chart { width:230px; flex-basis:230px; }
+  .thread-hourly-caption { display:none; }
   .heavy-thread-status-text { max-width:50vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 }
 .routing-grid {
@@ -622,6 +651,10 @@ a:hover { text-decoration: underline; }
     <span class="heavy-thread-header-right">
       <span class="thread-hourly-chart empty" id="heavy-thread-hourly" aria-label="24h hourly token spend">
         <span class="thread-hourly-label">24h</span>
+        <svg class="thread-hourly-svg" viewBox="0 0 190 20" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </span>
+      <span class="thread-hourly-chart cli empty" id="codex-cli-hourly" aria-label="24h hourly Codex CLI GPT token spend">
+        <span class="thread-hourly-label">CLI</span>
         <svg class="thread-hourly-svg" viewBox="0 0 190 20" preserveAspectRatio="none" aria-hidden="true"></svg>
       </span>
       <span class="heavy-thread-status-text" style="font-size:11px;color:var(--muted);" id="heavy-thread-status">loading…</span>
@@ -1864,29 +1897,52 @@ function fmtTokens(n) {
   return String(Math.round(n));
 }
 
-function renderThreadHourlyChart(summary) {
-  const el = document.getElementById('heavy-thread-hourly');
+function renderHourlyTokenChart(elId, buckets, opts = {}) {
+  const el = document.getElementById(elId);
   if (!el) return;
-  const buckets = Array.isArray(summary?.desktop_tokens_hourly_24h)
-    ? summary.desktop_tokens_hourly_24h.slice(-24)
-    : [];
-  const padded = Array.from({ length: 24 }, (_, i) => buckets[i] || { tokens: 0, events: 0, start_iso: '' });
+  const sourceBuckets = Array.isArray(buckets) ? buckets.slice(-24) : [];
+  const padded = Array.from({ length: 24 }, (_, i) => sourceBuckets[i] || { tokens: 0, events: 0, start_iso: '' });
   const maxTokens = Math.max(1, ...padded.map(b => Number(b.tokens || 0)));
   const total = padded.reduce((sum, b) => sum + Number(b.tokens || 0), 0);
   el.classList.toggle('empty', total <= 0);
-  el.title = `24h hourly token spend: ${fmtTokens(total)}`;
+  const sourceName = opts.sourceName || 'token spend';
+  const caption = opts.caption || `${sourceName} · last 24h by hour`;
+  el.title = `${sourceName}, last 24h by Sao Paulo hour: ${fmtTokens(total)}`;
   const rects = padded.map((b, i) => {
     const tokens = Number(b.tokens || 0);
-    const h = tokens > 0 ? Math.max(2, Math.round(18 * tokens / maxTokens)) : 1;
+    const h = tokens > 0 ? Math.max(2, Math.round(20 * tokens / maxTokens)) : 1;
     const x = i * 7.75;
-    const y = 19 - h;
+    const y = 21 - h;
     const ts = b.start_iso ? fmtTimeSP(b.start_iso) : '';
-    const title = `${ts} · ${fmtTokens(tokens)} · ${Number(b.events || 0)} events`;
+    const title = `${ts} SP · ${sourceName} ${fmtTokens(tokens)} · ${Number(b.events || 0)} events`;
     return `<rect class="barh" x="${x.toFixed(2)}" y="${y}" width="5.4" height="${h}"><title>${esc(title)}</title></rect>`;
   }).join('');
-  el.innerHTML = `<span class="thread-hourly-label">24h</span>` +
-    `<svg class="thread-hourly-svg" viewBox="0 0 190 20" preserveAspectRatio="none" aria-hidden="true">` +
-    `<rect class="track" x="0" y="19" width="190" height="1"></rect>${rects}</svg>`;
+  const tickIndexes = [0, 5, 10, 15, 20, 23];
+  const ticks = tickIndexes.map(i => {
+    const b = padded[i] || {};
+    const label = b.start_iso ? fmtTimeSP(b.start_iso).slice(0, 2) + 'h' : '—';
+    return `<span>${esc(label)}</span>`;
+  }).join('');
+  el.innerHTML = `<span class="thread-hourly-label">${esc(opts.label || 'SP')}</span>` +
+    `<span class="thread-hourly-inner">` +
+      `<svg class="thread-hourly-svg" viewBox="0 0 190 22" preserveAspectRatio="none" aria-hidden="true">` +
+      `<rect class="track" x="0" y="21" width="190" height="1"></rect>${rects}</svg>` +
+      `<span class="thread-hourly-axis">${ticks}</span>` +
+      `<span class="thread-hourly-caption">${esc(caption)}</span>` +
+    `</span>`;
+}
+
+function renderThreadHourlyChart(summary) {
+  renderHourlyTokenChart('heavy-thread-hourly', summary?.desktop_tokens_hourly_24h, {
+    label: 'SP',
+    sourceName: 'desktop use',
+    caption: 'desktop use · last 24h by hour',
+  });
+  renderHourlyTokenChart('codex-cli-hourly', summary?.cli_exec_tokens_hourly_24h, {
+    label: 'CLI',
+    sourceName: 'CLI GPT exec',
+    caption: 'CLI GPT exec · last 24h by hour',
+  });
 }
 
 function heavyPreview(thread) {
@@ -1931,8 +1987,12 @@ function renderHeavyCodexThreads(data) {
   const growthAlerts = Number(summary.growth_alert_threads || rows.filter(t => t.growth_alert).length || 0);
   const tokens24h = Number(summary.desktop_tokens_24h || 0);
   const tokens7d = Number(summary.desktop_tokens_7d || 0);
+  const cliTokens24h = Number(summary.cli_exec_tokens_24h || 0);
+  const cliTokens7d = Number(summary.cli_exec_tokens_7d || 0);
   const active24h = Number(summary.desktop_active_threads_24h || 0);
   const active7d = Number(summary.desktop_active_threads_7d || 0);
+  const cliActive24h = Number(summary.cli_exec_active_threads_24h || 0);
+  const cliActive7d = Number(summary.cli_exec_active_threads_7d || 0);
   const live = _codexThreadLiveSpeed;
   renderThreadHourlyChart(summary);
   const liveText = live
@@ -1955,7 +2015,7 @@ function renderHeavyCodexThreads(data) {
       : 'нет Desktop threads в guard';
   }
   if (windowEl) {
-    windowEl.textContent = `token spend: 24h ${fmtTokens(tokens24h)} (${active24h} threads) · 7d ${fmtTokens(tokens7d)} (${active7d} threads)`;
+    windowEl.textContent = `Desktop use: 24h ${fmtTokens(tokens24h)} (${active24h} threads), 7d ${fmtTokens(tokens7d)} (${active7d}) · CLI GPT exec: 24h ${fmtTokens(cliTokens24h)} (${cliActive24h} calls), 7d ${fmtTokens(cliTokens7d)} (${cliActive7d}) · chart hours in SP time`;
   }
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="8" class="muted">нет Desktop threads в guard</td></tr>';
