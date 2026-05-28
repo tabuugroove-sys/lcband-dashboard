@@ -539,17 +539,29 @@ a:hover { text-decoration: underline; }
   </div>
 </div>
 
-<div class="card" style="margin-bottom:18px;">
+<div class="card" id="routing-mode-card" style="margin-bottom:18px;">
   <h2 style="display:flex;justify-content:space-between;align-items:center;">
-    <span>🎛️ Routing preset</span>
-    <span style="font-size:11px;color:var(--muted);" id="preset-current">—</span>
+    <span>🎚️ Routing mode</span>
+    <span style="font-size:11px;color:var(--muted);" id="routing-mode-current">—</span>
   </h2>
-  <div id="preset-buttons" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;"></div>
-  <div class="label" style="margin-top:8px;">
-    Один клик меняет routing всех strategist/review/generation purposes. Подробности при наведении.
-    Для точечной настройки конкретного purpose — см. таблицу «🎯 Воронка» ниже.
+  <div class="label" style="margin:-4px 0 10px 0;">
+    Один глобальный режим выбирает primary-модель для <b>всего</b> CLI-трафика (перекрывает per-category фейдеры).
+    Единое правило отказа: <b id="xfb-rule">упал primary → один раз пробуем второй провайдер; оба упали → no-send</b>.
   </div>
-  <div id="preset-toast" style="margin-top:6px;font-size:13px;"></div>
+  <div id="routing-mode-buttons" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
+  <div id="routing-mode-providers" style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);"></div>
+  <div id="routing-mode-toast" style="margin-top:6px;font-size:13px;"></div>
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;color:var(--muted);font-size:12px;">⚙️ Legacy presets (по purpose) — advanced</summary>
+    <div style="margin-top:8px;">
+      <div id="preset-buttons" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;"></div>
+      <div class="label" style="margin-top:8px;">
+        Старые presets quality/balanced/economy/codex_first. Перекрываются глобальным режимом выше (кроме «custom»).
+        <span id="preset-current"></span>
+      </div>
+      <div id="preset-toast" style="margin-top:6px;font-size:13px;"></div>
+    </div>
+  </details>
 </div>
 
 <div class="card" style="margin-bottom:18px;">
@@ -604,11 +616,16 @@ a:hover { text-decoration: underline; }
 
 <div class="card" id="routing-limits" style="margin-bottom:18px;">
   <h2 style="display:flex;justify-content:space-between;align-items:center;">
-    <span>🧭 Routing фейдеры</span>
+    <span>🧭 Per-category faders <span style="font-weight:400;font-size:11px;color:var(--muted);">advanced</span></span>
     <span id="routing-status" class="routing-status">config: загрузка…</span>
   </h2>
+  <details>
+  <summary style="cursor:pointer;color:var(--muted);font-size:12px;margin:-4px 0 8px 0;">
+    Тонкий split Codex ↔ Claude по категориям. ⚠️ Глобальный <b>Routing mode</b> выше перекрывает эти фейдеры
+    (пока он не «custom»). Открой только если нужен раздельный режим по категориям.
+  </summary>
   <div class="label" style="margin:-4px 0 8px 0;">
-    Здесь живут фейдеры Codex ↔ Claude. Weekly usage-полоски подняты выше: сразу после real-time burn графиков.
+    Weekly usage-полоски подняты выше: сразу после real-time burn графиков.
   </div>
   <div id="codex-fallback-row" style="display:flex;align-items:center;gap:10px;margin:0 0 12px 0;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;flex-wrap:wrap;">
     <span style="font-size:12px;color:var(--muted);">Если Codex CLI упал — Layer 2:</span>
@@ -629,6 +646,7 @@ a:hover { text-decoration: underline; }
     <div class="impact-cell"><span class="lbl">Saved % нед</span><span class="val good" id="ri-saved">—</span></div>
     <div class="impact-cell"><span class="lbl">Δ скорости</span><span class="val" id="ri-speed">—</span></div>
   </div>
+  </details>
 </div>
 
 <div class="card" id="guard-limits" style="margin-bottom:18px;">
@@ -2444,6 +2462,110 @@ async function applyPreset(key) {
 }
 loadPresets();
 setInterval(loadPresets, 15000);
+
+// ── Unified routing mode (28.05) — single global control ───────────────
+const _ROUTING_MODE_ORDER = ['codex_only','mostly_codex','balanced','claude_only'];
+let _routingModeState = null;
+
+async function loadRoutingMode() {
+  const bu = await loadBackend();
+  if (!bu) return;
+  try {
+    const r = await fetch(bu + '/api/runtime_config/routing_mode', {cache:'no-store'});
+    const d = await r.json();
+    if (d.error) return;
+    _routingModeState = d;
+    const byKey = {}; (d.modes||[]).forEach(m => byKey[m.key] = m);
+    const cur = d.current_mode || '';
+
+    const curEl = document.getElementById('routing-mode-current');
+    if (curEl) curEl.textContent = cur
+      ? ('Активен: ' + ((byKey[cur]||{}).label || cur))
+      : 'Активен: custom (per-category faders)';
+
+    const ruleEl = document.getElementById('xfb-rule');
+    if (ruleEl) {
+      const scope = d.cross_fallback_scope || 'all';
+      ruleEl.textContent = scope === 'none'
+        ? 'упал primary → сразу skip/blocker (cross-fallback выкл)'
+        : (scope === 'client'
+            ? 'client-visible: упал primary → пробуем второго; иначе skip'
+            : 'упал primary → один раз пробуем второй провайдер; оба упали → no-send');
+    }
+
+    const cont = document.getElementById('routing-mode-buttons');
+    if (cont) {
+      cont.innerHTML = _ROUTING_MODE_ORDER.map(k => {
+        const m = byKey[k]; if (!m) return '';
+        const active = k === cur;
+        const bg = active ? 'background:rgba(0,112,243,0.16);border-color:var(--accent);'
+                          : 'background:var(--panel-2,#fafafa);';
+        const warn = m.ready ? ''
+          : '<div style="font-size:10px;color:var(--warn,#d97706);margin-top:3px;">⚠ включит бюджет</div>';
+        return `<button onclick="applyRoutingMode('${k}')" style="
+          padding:12px 10px;border:1.5px solid var(--border);border-radius:10px;
+          cursor:pointer;text-align:center;transition:all .15s;${bg}">
+          <div style="font-weight:700;font-size:13px;">${esc(m.label)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${m.codex_pct}/${m.claude_pct}</div>
+          <div style="font-size:9px;color:var(--muted);margin-top:1px;">Codex / Claude</div>
+          ${warn}
+        </button>`;
+      }).join('');
+    }
+
+    const provEl = document.getElementById('routing-mode-providers');
+    if (provEl) {
+      const p = d.providers || {};
+      const chip = (name, info) => {
+        const ok = info && info.funded;
+        const col = ok ? 'var(--ok,#2da44e)' : 'var(--danger,#cf222e)';
+        const v = info ? `${info.max_calls_24h}/day` : '—';
+        return `<span><span style="color:${col};">●</span> ${name}: ${ok ? 'funded' : 'budget 0'} (${v})</span>`;
+      };
+      provEl.innerHTML = chip('Codex', p.codex) + chip('Claude', p.claude)
+        + (d.guard_enabled ? '' : ' <span style="color:var(--muted);">(guard выкл — лимиты игнорируются)</span>');
+    }
+  } catch (e) { /* silent */ }
+}
+
+async function applyRoutingMode(mode) {
+  const bu = await loadBackend();
+  const toast = document.getElementById('routing-mode-toast');
+  // I2 UI-guard: нельзя молча уйти в режим, чей провайдер на budget=0.
+  // Сервер авто-включит бюджет, но требуем явное подтверждение (block).
+  const st = _routingModeState;
+  if (st) {
+    const m = (st.modes || []).find(x => x.key === mode);
+    if (m && !m.ready) {
+      const need = (m.required_providers || []).filter(p => !((st.providers[p]||{}).funded));
+      const ok = window.confirm(
+        `Режим «${m.label}» требует бюджет: ${need.join(', ')} (сейчас 0).\n` +
+        `Применить и авто-включить бюджет этих провайдеров? Иначе routing работать не сможет.`);
+      if (!ok) return;
+    }
+  }
+  if (toast) toast.innerHTML = '<span class="muted">⏳ применяется…</span>';
+  try {
+    const r = await fetch(bu + '/api/runtime_config/routing_mode', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mode}),
+    });
+    const j = await r.json();
+    if (j.error) {
+      if (toast) toast.innerHTML = '<span style="color:var(--danger);">❌ ' + esc(j.error) + '</span>';
+    } else {
+      const fundedKeys = j.auto_funded ? Object.keys(j.auto_funded) : [];
+      const fundedNote = fundedKeys.length ? ' · авто-включён бюджет: ' + fundedKeys.join(', ') : '';
+      if (toast) toast.innerHTML = '<span style="color:var(--ok);">✅ ' + esc(j.label || mode) +
+        ' · агенты подхватят ~30с' + esc(fundedNote) + '</span>';
+      setTimeout(() => { if (toast) toast.innerHTML = ''; loadRoutingMode(); loadRoutingControls(); load(); }, 2500);
+    }
+  } catch (e) {
+    if (toast) toast.innerHTML = '<span style="color:var(--danger);">❌ ' + esc(e.message) + '</span>';
+  }
+}
+loadRoutingMode();
+setInterval(loadRoutingMode, 30000);
 
 // ────────── REMOTE Claude sessions ──────────
 function ageDot(sec) {
