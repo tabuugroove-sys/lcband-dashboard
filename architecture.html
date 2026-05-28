@@ -826,7 +826,7 @@
               <div class="step-num">6</div>
               <div>
                 <h3>Freshness + pre-send</h3>
-                <p>Перед отправкой заново читается tail переписки. Если он изменился, draft не отправляется. Потом идёт pre-send review и transport-specific send/queue.</p>
+                <p>Перед отправкой заново читается tail переписки. Если он изменился, draft не отправляется. Потом идёт единый OutboundReview: duplicate, media, price, payment, contact handoff и AI-review возвращают один result с blocker/decision. Transport gates остаются финальным DeliveryGuard.</p>
               </div>
             </div>
             <div class="step">
