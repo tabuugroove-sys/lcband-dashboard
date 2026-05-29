@@ -1098,6 +1098,22 @@ const PROCESS_RULES = {
       'Скрипты: event_ops_logistics_agent.py → event_ops_bot.py | log: /tmp/event_ops_logistics.log',
     ],
   },
+  proc_event_ops_group_approval: {
+    name: 'Event Ops Group Approval (5h)',
+    interval: 'Каждые 5 часов (RunAtLoad + StartInterval 18000)',
+    desc: 'Пока рабочая TG-группа артистов под событие не создана — раз в 5 часов кладёт в commander-бот approval-сообщение с кнопками «✅ Создать / ❌ Не создавать». Группу реально создаёт только клик ✅.',
+    rules: [
+      'Источник: event_ops_state.json → event_groups[event_id] где wanted=true и created=false',
+      'Throttle 5 ч внутри propose_group_creation (last_proposed_at_ts) — повторно не спамит',
+      'Approval-текст Михаилу: шапка события + кого добавлю (@usernames) + name-free бриф для группы',
+      'Бриф в группу БЕЗ имён артистов и БЕЗ денег (_group_post_from_order + _assert_no_budget)',
+      'Финансы по событию идут отдельно в urgent-бот, в группу никогда',
+      'Кнопка ✅ Создать → bot_commander egrp:create → event_ops_bot.py create-group (Telethon CreateChatRequest, нужна живая tg_session)',
+      'Кнопка ❌ → approval rejected, группа не создаётся',
+      'Участники: performer-роли из event-карточки + recruit-замены; отказавшихся в карточке нет',
+      'Скрипт: event_ops_bot.py propose-pending-groups | log: /tmp/event_ops_group_approval.log',
+    ],
+  },
   proc_funnel_keeper: {
     name: 'Funnel Keeper (единый smart-процесс воронки)',
     interval: 'Каждые 5 мин (chain после conv-cache-sync)',
