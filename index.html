@@ -1071,7 +1071,7 @@ const PROCESS_RULES = {
   proc_event_ops_logistics: {
     name: 'Event Ops Logistics (10m)',
     interval: 'Каждые 10 мин',
-    desc: 'Закрывает обещания event_ops по логистике и performer-coordination: организаторские факты идут в event/band-chat, запросы к участникам (например костюм LAZ) уходят performer-у с дедупом',
+    desc: 'Закрывает обещания event_ops по логистике и performer-coordination: организаторские факты идут в event/band-chat, запросы к участникам (например костюм LAZ) уходят performer-у с дедупом; ставит в очередь создание band-group с составом под approval',
     rules: [
       'Источник: event_ops_log.jsonl — ищет последний ask-organizer-logistics и ответы организатора после него',
       'Парсит только прямые факты: сет-тайминги, перерыв, сдвиг, парковку, оплату парковочного талона, контакт на площадке',
@@ -1081,7 +1081,10 @@ const PROCESS_RULES = {
       'Performer-coordination: lcb_orders.json → lcb_event_context.iter_performer_coordination_requests → target performer thread; требует source media из conversation_cache',
       'Пример: @alenkakashparova просит костюм LAZ → @larzyy получает текст + фото; клиенту отвечает LCB writer после факта',
       'Дедуп: event_ops_state.json по source_msg_id + semantic sent_facts — похожие повторы организатора не дублируют отправку',
-      'Скрипты: event_ops_logistics_agent.py → event_ops_bot.py | log: /tmp/event_ops_logistics.log',
+      'Band-group: для любого event с заполненным составом (≥2 резолвящихся TG-участника) и без tg_chat_id — sync_band_group_creation ставит в pending_approvals заявку «создать группу». Реальное создание Telethon (tg_session) только после ✅ Михаила в @lcband_notify_bot',
+      'В band-group уходит брифинг состава + площадка/тайминг/стиль, но ФИНАНСЫ запрещены (hard-guard в dashboard_backend и send_pending_approval: гонорар/предоплата/маржа/бюджет/₽ → block)',
+      'Дедуп band-group: одна заявка на event_id (любой статус pending/sent/rejected/blocked не пере-queue-ится), плюс tg_chat_id в event_planning.json фиксируется ДО отправки брифинга',
+      'Скрипты: event_ops_logistics_agent.py → event_ops_bot.py → dashboard_backend /api/event/create_tg_group (queue) → send_pending_approval.py (create_band_group) | log: /tmp/event_ops_logistics.log',
     ],
   },
   proc_funnel_keeper: {
