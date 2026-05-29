@@ -3147,7 +3147,7 @@ function _orgStageLabel(orderStatus) {
 }
 
 function BrokerOrderCard({ order }) {
-  const [expanded, setExpanded] = React.useState(true);
+  const [expanded, setExpanded] = React.useState(false);
   const orgStageLabel = _orgStageLabel(order.status);
   // 16.05.2026: hover на карточку → панель переписки клиента справа.
   const chatCtx = React.useContext(ChatContext);
@@ -3188,17 +3188,22 @@ function BrokerOrderCard({ order }) {
               // Цветной бейдж возраста поста (правило пользователя 16.05):
               //   <2д   🟢 свежий
               //   2-3д  🟡 граница, ещё можно ловить
-              //   >3д   🔴 протух — клиент скорее всего уже выбрал
+              //   >3д   🔴 протух — cleanup закроет только early/waiting стадии
               const a = order.post_age_days;
-              const tier = a < 2 ? 'fresh' : a < 3 ? 'border' : 'stale';
+              const staleClosable = ['intake', 'waiting_client_budget', 'brief_pending', 'brief_sent', 'contractor_replied']
+                .includes(String(order.status || '').toLowerCase());
+              const tier = a < 2 ? 'fresh' : a < 3 ? 'border' : (staleClosable ? 'stale' : 'old');
               const bg = tier === 'fresh' ? 'rgba(52,211,153,.15)'
                        : tier === 'border' ? 'rgba(251,191,36,.15)'
-                       : 'rgba(248,113,113,.18)';
+                       : tier === 'stale' ? 'rgba(248,113,113,.18)'
+                       : 'rgba(148,163,184,.10)';
               const fg = tier === 'fresh' ? '#34d399'
                        : tier === 'border' ? '#fbbf24'
-                       : '#f87171';
+                       : tier === 'stale' ? '#f87171'
+                       : '#94a3b8';
               const label = a < 1 ? 'свежий'
                           : tier === 'stale' ? `протух (${a.toFixed(a < 10 ? 1 : 0)}д)`
+                          : tier === 'old' ? `старый пост (${a.toFixed(a < 10 ? 1 : 0)}д)`
                           : `${a.toFixed(a < 10 ? 1 : 0)}д назад`;
               return (
                 <span title={`пост в event-чате: ${order.post_dt || ''}`}
@@ -3697,6 +3702,7 @@ function BrokerRelayNowLane({ data }) {
 }
 
 function BrokerOrdersList({ data, error, selectedFilter, clearFilter }) {
+  const [collapsed, setCollapsed] = React.useState(true);
   if (!data) return null;
   if (error || !data.items || data.items.length === 0) {
     return (
@@ -3729,36 +3735,62 @@ function BrokerOrdersList({ data, error, selectedFilter, clearFilter }) {
   }
   return (
     <div className="section" style={{ marginTop: 14 }}>
-      <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
         <span>
           Активные брокер-заказы
           <span style={{ color: '#94a3b8', fontWeight: 600, marginLeft: 6 }}>
             · {items.length}{selectedFilter ? ` из ${data.total}` : ''}
           </span>
         </span>
-        {selectedFilter && (
-          <button onClick={clearFilter}
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {selectedFilter && (
+            <button onClick={clearFilter}
+                    style={{
+                      padding: '3px 10px', fontSize: 11, fontWeight: 600,
+                      background: 'rgba(34,211,238,.15)', color: '#22d3ee',
+                      border: '1px solid rgba(34,211,238,.5)',
+                      borderRadius: 12, cursor: 'pointer',
+                    }}>
+              фильтр: {selectedFilter.row === 'top' ? '🧑‍💼' : selectedFilter.row === 'code' ? '🏷️' : '🤝'} {selectedFilter.label} ✕
+            </button>
+          )}
+          <button onClick={() => setCollapsed(v => !v)}
                   style={{
-                    padding: '3px 10px', fontSize: 11, fontWeight: 600,
-                    background: 'rgba(34,211,238,.15)', color: '#22d3ee',
-                    border: '1px solid rgba(34,211,238,.5)',
-                    borderRadius: 12, cursor: 'pointer',
-                  }}>
-            фильтр: {selectedFilter.row === 'top' ? '🧑‍💼' : selectedFilter.row === 'code' ? '🏷️' : '🤝'} {selectedFilter.label} ✕
+                    width: 30, height: 26, display: 'inline-flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: 14, fontWeight: 800,
+                    background: 'rgba(255,255,255,.04)', color: '#cbd5e1',
+                    border: '1px solid rgba(255,255,255,.12)', borderRadius: 6,
+                    cursor: 'pointer',
+                  }}
+                  title={collapsed ? 'Развернуть активные broker-заказы' : 'Свернуть активные broker-заказы'}
+                  aria-label={collapsed ? 'Развернуть активные broker-заказы' : 'Свернуть активные broker-заказы'}>
+            {collapsed ? '▾' : '▴'}
           </button>
-        )}
+        </span>
       </div>
-      <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
-        ⏳ ждём ответ  ✅ готов к relay  🎯 в кастинге  📤 у клиента  🥉 не выбран  💎 over budget  ❌ отказался  &nbsp;·&nbsp;
-        vs ceiling: ✓ под  ~ на  ⚠ выше  &nbsp;·&nbsp;
-        🎁 standard package · 🛡️ quality gate passed
-      </div>
-      {items.length === 0 ? (
-        <div style={{ color: '#94a3b8', fontSize: 12, fontStyle: 'italic' }}>
-          (в этой стадии заказов нет)
+      {collapsed ? (
+        <div style={{
+          color: '#94a3b8', fontSize: 12, padding: '8px 10px',
+          background: 'rgba(255,255,255,.025)', border: '1px solid rgba(255,255,255,.06)',
+          borderRadius: 6,
+        }}>
+          Свернуто: {items.length} активных broker-заказов. Нажми стрелку, чтобы раскрыть.
         </div>
       ) : (
-        items.map(o => <BrokerOrderCard key={o.id} order={o} />)
+        <>
+          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
+            ⏳ ждём ответ  ✅ готов к relay  🎯 в кастинге  📤 у клиента  🥉 не выбран  💎 over budget  ❌ отказался  &nbsp;·&nbsp;
+            vs ceiling: ✓ под  ~ на  ⚠ выше  &nbsp;·&nbsp;
+            🎁 standard package · 🛡️ quality gate passed
+          </div>
+          {items.length === 0 ? (
+            <div style={{ color: '#94a3b8', fontSize: 12, fontStyle: 'italic' }}>
+              (в этой стадии заказов нет)
+            </div>
+          ) : (
+            items.map(o => <BrokerOrderCard key={o.id} order={o} />)
+          )}
+        </>
       )}
     </div>
   );

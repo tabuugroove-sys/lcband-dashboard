@@ -24,6 +24,22 @@
   .meta { color:var(--muted); font-size:12px; margin-bottom:18px; }
   .order-card { background:var(--card); border:1px solid var(--border); border-radius:8px;
                 padding:18px; margin-bottom:16px; }
+  .orders-section { margin-top:24px; }
+  .orders-header { display:flex; align-items:center; justify-content:space-between;
+                   gap:12px; margin-bottom:10px; padding:10px 12px;
+                   background:rgba(255,255,255,0.03); border:1px solid var(--border);
+                   border-radius:8px; }
+  .orders-title { font-size:13px; font-weight:700; text-transform:uppercase;
+                  letter-spacing:0.8px; color:var(--muted); }
+  .orders-toggle { width:30px; height:26px; display:inline-flex; align-items:center;
+                   justify-content:center; background:rgba(255,255,255,0.04);
+                   border:1px solid var(--border); border-radius:6px; color:var(--fg);
+                   font-size:14px; font-weight:800; cursor:pointer; }
+  .orders-toggle:hover { border-color:var(--accent); color:var(--accent); }
+  .orders-body.is-collapsed { display:none; }
+  .orders-collapsed-note { color:var(--muted); font-size:12px; padding:8px 10px;
+                           background:rgba(255,255,255,0.025);
+                           border:1px solid rgba(255,255,255,0.06); border-radius:6px; }
   .order-header { display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;
                   margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border); }
   .order-title { font-size:18px; font-weight:600; }
@@ -154,6 +170,8 @@
   /* Light theme overrides — matches html[data-theme="light"] convention */
   html[data-theme="light"] body { background:#fafbfc; color:#1f2328; }
   html[data-theme="light"] .order-card { background:#fff !important; border-color:#d0d7de !important; }
+  html[data-theme="light"] .orders-header { background:#fff; border-color:#d0d7de; }
+  html[data-theme="light"] .orders-collapsed-note { background:#f6f8fa; border-color:#d0d7de; }
   html[data-theme="light"] .order-header { border-bottom-color:#d0d7de; }
   html[data-theme="light"] .vendor-card { background:#f6f8fa !important; border-color:#d0d7de !important; }
   html[data-theme="light"] .order-summary .cell { background:#f6f8fa; }
@@ -367,6 +385,22 @@ function renderOrder(o) {
   </div>`;
 }
 
+var _brokerOrdersCollapsed = true;
+
+function toggleBrokerOrders() {
+  _brokerOrdersCollapsed = !_brokerOrdersCollapsed;
+  const body = document.getElementById('orders-body');
+  const btn = document.getElementById('orders-toggle');
+  const note = document.getElementById('orders-collapsed-note');
+  if (body) body.classList.toggle('is-collapsed', _brokerOrdersCollapsed);
+  if (note) note.style.display = _brokerOrdersCollapsed ? 'block' : 'none';
+  if (btn) {
+    btn.textContent = _brokerOrdersCollapsed ? '▾' : '▴';
+    btn.title = _brokerOrdersCollapsed ? 'Развернуть активные broker-заказы' : 'Свернуть активные broker-заказы';
+    btn.setAttribute('aria-expanded', String(!_brokerOrdersCollapsed));
+  }
+}
+
 // ── Roster split-pane ────────────────────────────────────────────────
 var _activeCatIdx = null;
 
@@ -506,9 +540,28 @@ async function load() {
       `Реестр vendors: <strong>${m.roster_size}</strong> · ` +
       `Обновлено ${(m.generated_at||'').slice(11,19)}`;
 
-    const html = data.orders.map(renderOrder).join('');
-    document.getElementById('orders').innerHTML = html ||
-      '<div class="empty">Активных заказов нет.</div>';
+    const ordersHtml = data.orders.map(renderOrder).join('');
+    const collapsed = _brokerOrdersCollapsed;
+    document.getElementById('orders').innerHTML = `
+      <section class="orders-section">
+        <div class="orders-header">
+          <div>
+            <div class="orders-title">Активные broker-заказы · ${data.orders.length}</div>
+            <div style="font-size:11px;color:var(--muted)">Протухшие early-stage заявки закрывает broker-state-repair автоматически.</div>
+          </div>
+          <button class="orders-toggle" id="orders-toggle"
+                  onclick="toggleBrokerOrders()"
+                  title="${collapsed ? 'Развернуть активные broker-заказы' : 'Свернуть активные broker-заказы'}"
+                  aria-label="${collapsed ? 'Развернуть активные broker-заказы' : 'Свернуть активные broker-заказы'}"
+                  aria-expanded="${String(!collapsed)}">${collapsed ? '▾' : '▴'}</button>
+        </div>
+        <div class="orders-collapsed-note" id="orders-collapsed-note" style="${collapsed ? '' : 'display:none'}">
+          Свернуто: ${data.orders.length} активных broker-заказов. Нажми стрелку, чтобы раскрыть.
+        </div>
+        <div class="orders-body ${collapsed ? 'is-collapsed' : ''}" id="orders-body">
+          ${ordersHtml || '<div class="empty">Активных заказов нет.</div>'}
+        </div>
+      </section>`;
   } catch (e) {
     document.getElementById('meta').innerHTML =
       `<span style="color:var(--red)">Ошибка: ${escHtml(e.message)}</span>`;
