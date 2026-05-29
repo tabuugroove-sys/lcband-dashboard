@@ -506,6 +506,33 @@ a:hover { text-decoration: underline; }
 
 <div class="card" style="margin-bottom:18px;">
   <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>🖥️ CLI burn — Activity Monitor style</span>
+    <span style="font-size:11px;color:var(--muted);">load = real rate ÷ sustainable rate · refresh 3s</span>
+  </h2>
+  <div id="burn-cards" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:10px;"></div>
+  <div class="limit-budget-grid" id="cost-limit-budget-grid" style="margin:10px 0 14px 0;">
+    <div class="limit-budget-card">Claude/Codex budget ledger loading…</div>
+  </div>
+  <table id="burn-procs" style="width:100%;">
+    <thead><tr>
+      <th>Process (service · purpose)</th>
+      <th style="text-align:right">Calls 15m</th>
+      <th style="text-align:right">Bucket</th>
+      <th style="text-align:right">Load %</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+  <div id="process-popover" class="process-popover" style="display:none;"></div>
+  <div class="label" style="margin-top:6px;">
+    «Load» = burn rate (за 15 мин) ÷ sustainable rate (если 100% → лимит ровно к концу недели).
+    🟢 &lt;80% sustainable · 🟠 80-150% ускоренный · 🔴 &gt;150% OVERLOAD.
+    Sparkline = 15 мин (1 точка на 15 sec).
+    Claude Max и ChatGPT Plus — независимые лимиты, два отдельных бара.
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
     <span>🔴 Live AI calls — реал-тайм routing</span>
     <span style="font-size:11px;color:var(--muted);">
       <label><input type="checkbox" id="live-pause" /> пауза</label>
@@ -583,33 +610,6 @@ a:hover { text-decoration: underline; }
     Активные Claude Code сессии на других машинах (POST statusLine на /api/claude_statusline_ingest).
     🟢 ping &lt;90s · 🟡 90-300s · 🔴 stale &gt;300s.
     Их 5h/7d % limit учитываются в общем Max-бакете — но локальный realtime_burn их не видит.
-  </div>
-</div>
-
-<div class="card" style="margin-bottom:18px;">
-  <h2 style="display:flex;justify-content:space-between;align-items:center;">
-    <span>🖥️ CLI burn — Activity Monitor style</span>
-    <span style="font-size:11px;color:var(--muted);">load = real rate ÷ sustainable rate · refresh 3s</span>
-  </h2>
-  <div id="burn-cards" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:10px;"></div>
-  <div class="limit-budget-grid" id="cost-limit-budget-grid" style="margin:10px 0 14px 0;">
-    <div class="limit-budget-card">Claude/Codex budget ledger loading…</div>
-  </div>
-  <table id="burn-procs" style="width:100%;">
-    <thead><tr>
-      <th>Process (service · purpose)</th>
-      <th style="text-align:right">Calls 15m</th>
-      <th style="text-align:right">Bucket</th>
-      <th style="text-align:right">Load %</th>
-    </tr></thead>
-    <tbody></tbody>
-  </table>
-  <div id="process-popover" class="process-popover" style="display:none;"></div>
-  <div class="label" style="margin-top:6px;">
-    «Load» = burn rate (за 15 мин) ÷ sustainable rate (если 100% → лимит ровно к концу недели).
-    🟢 &lt;80% sustainable · 🟠 80-150% ускоренный · 🔴 &gt;150% OVERLOAD.
-    Sparkline = 15 мин (1 точка на 15 sec).
-    Claude Max и ChatGPT Plus — независимые лимиты, два отдельных бара.
   </div>
 </div>
 
