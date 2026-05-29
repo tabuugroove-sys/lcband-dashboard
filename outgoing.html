@@ -223,11 +223,15 @@ function renderWaQueue() {
   list.innerHTML = `<div class="wa-grid">${WA_QUEUE_ITEMS.map(it => {
     const title = it.recipient || it.phone || 'unknown';
     const source = [it.source, it.source_key].filter(Boolean).join(' · ');
+    const isFollowup = it.source === 'wa_followup';
     const command = it.status === 'queued'
-      ? `python3 wa_cu_agent.py instruction --id ${escHtml(it.id)}`
+      ? (it.auto_sender_eligible
+          ? '⏳ авто-отправка ≤1 мин (wa_auto_sender)'
+          : `python3 wa_cu_agent.py instruction --id ${escHtml(it.id)}`)
       : '';
+    const approveLabel = isFollowup ? 'Approve → авто-отправка' : 'Approve → queued';
     const actions = it.status === 'pending_approval'
-      ? `<button class="approve" data-wa-action="approve" data-id="${escHtml(it.id)}">Approve → queued</button>
+      ? `<button class="approve" data-wa-action="approve" data-id="${escHtml(it.id)}">${approveLabel}</button>
          <button class="cancel" data-wa-action="cancel" data-id="${escHtml(it.id)}">Cancel</button>`
       : `<button class="cancel" data-wa-action="cancel" data-id="${escHtml(it.id)}">Cancel</button>`;
     return `<div class="wa-card ${escHtml(it.status)}">
