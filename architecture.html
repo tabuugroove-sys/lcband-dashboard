@@ -708,7 +708,7 @@
           <div class="connection-card">
             <h3>WhatsApp Baileys</h3>
             <div class="role-row"><b>input</b><code>wa_baileys/</code> materializer обновляет WA cache и message history.</div>
-            <div class="role-row"><b>output</b>Обычные drafts идут в native WhatsApp Desktop через <code>wa_cu_agent.py</code>; короткий <code>manual_context_ack</code> может отправить <code>wa_auto_sender.py</code> через linked Baileys.</div>
+            <div class="role-row"><b>output</b>Обычные drafts идут в native WhatsApp Desktop через <code>wa_cu_agent.py</code>: <code>pending_approval</code> сначала вручную approve → <code>queued</code>; короткий <code>manual_context_ack</code> может отправить <code>wa_auto_sender.py</code> через linked Baileys.</div>
             <div class="role-row"><b>write</b><code>wa_cache/</code> и outbound mark-sent сходятся обратно в memory/context.</div>
           </div>
         </div>
@@ -990,7 +990,7 @@
             <div class="row"><b>TG realtime</b><span><code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code> — основной realtime TG socket; слушает NewMessage/push, отдаёт DM в routing и даёт live send-adapter без второй сессии.</span></div>
             <div class="row"><b>TG follow-up session</b><span><code>tg_followup.py</code> / <code>tg_session_followup.session</code> — отдельная follow-up session; live/dry-run статус показывается как connection health, но это не основной realtime socket.</span></div>
             <div class="row"><b>VK service</b><span><code>vk_longpoll_listener.py</code> + <code>vk_auto_responder.py</code>: VK read/trigger/send path; adapter не становится LCB writer.</span></div>
-            <div class="row"><b>WhatsApp Baileys</b><span><code>wa_baileys/</code> materializer для input/history; обычный outbound через native WhatsApp Desktop + <code>wa_cu_agent.py</code>, узкий auto-ack через <code>wa_auto_sender.py</code>.</span></div>
+            <div class="row"><b>WhatsApp Baileys</b><span><code>wa_baileys/</code> materializer для input/history; обычный outbound через native WhatsApp Desktop + <code>wa_cu_agent.py</code> после approve, узкий auto-ack через <code>wa_auto_sender.py</code>.</span></div>
           </div>
           <div style="margin-top:12px">
             <span class="pill blue">4 connections</span>
