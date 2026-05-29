@@ -997,6 +997,20 @@ function isOverdue(order) {
 
 // ── Process rules data ────────────────────────────────────────────────────────
 const PROCESS_RULES = {
+  proc_broker_sourcing: {
+    name: 'Sourcing-детект (вербовка → broker)',
+    interval: 'Каждые 4ч · KILL-SWITCH LCB_BROKER_SOURCING (по умолчанию OFF)',
+    desc: 'Ловит, когда Миша вербует ВНЕШНЕГО подрядчика под чужой клиентский гиг, и уводит close-follow-up на КЛИЕНТА через broker pipeline (а не на подрядчика)',
+    rules: [
+      'Сканит свежие исходящие TG-DM Миши (LOOKBACK 5д), дедуп по fingerprint треда',
+      'AI-судья (Opus): «это вербовка подрядчика под клиентский заказ?» + подбор клиентского ордера по дате/городу/формату',
+      'is_recruiting & conf≥0.7 → карточка в approval-bot (bsrc:-кнопки): связать @подрядчик с [клиент]? ✅/❌',
+      'На ✅ → broker_orders.create/find + assign_contractor + mark_client_relayed(relay_at) → broker_client_followup дожимает КЛИЕНТА',
+      'Подрядчик в активном broker_order → tg_followup его СКИПАЕТ (guard, инцидент pasha_eliseev 43× burn)',
+      'Ручной линк: /broker_source @act @client. Default OFF — включается осознанно (live routing денежных сделок)',
+      'Скрипт: broker_sourcing_agent.py | log: /tmp/broker_sourcing_agent.log | state: broker_sourcing_state.json',
+    ],
+  },
   proc_unanswered_inbound_watcher: {
     name: 'Заигнорили клиента (watchdog)',
     interval: 'Каждые 10 мин',
