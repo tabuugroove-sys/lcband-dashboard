@@ -440,9 +440,16 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.4; }
     }
-    .conn-info { flex: 1; }
+    .conn-info { flex: 1; min-width: 0; }
     .conn-label { font-size: 13px; font-weight: 600; }
     .conn-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .conn-tg-grid {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px; margin-bottom: 8px;
+    }
+    @media (max-width: 720px) {
+      .conn-tg-grid { grid-template-columns: 1fr; }
+    }
     .conn-sessions { display: flex; gap: 8px; margin-top: 8px; }
     .conn-session-chip {
       font-size: 10px; padding: 2px 8px; border-radius: 10px;
@@ -1404,7 +1411,7 @@ function _fmtAgo(lastCheck) {
   } catch { return lastCheck; }
 }
 
-function ConnectionRow({ title, status, reason, lastCheck }) {
+function ConnectionRow({ title, status, reason, lastCheck, compact }) {
   const st = status || 'unknown';
   const dotCls = st === 'ok' ? 'conn-dot-ok' : st === 'error' ? 'conn-dot-err' : st === 'degraded' ? 'conn-dot-deg' : 'conn-dot-unk';
   const label  = st === 'ok' ? 'Подключено' : st === 'error' ? 'Соединение потеряно' : st === 'degraded' ? 'Офлайн (драфты в бот)' : 'Нет данных';
@@ -1412,7 +1419,7 @@ function ConnectionRow({ title, status, reason, lastCheck }) {
   const accountColor = st === 'ok' ? '#60a5fa' : st === 'degraded' ? '#fbbf24' : '#f87171';
   const timeAgo = _fmtAgo(lastCheck);
   return (
-    <div className="conn-card" style={{marginBottom:8}}>
+    <div className="conn-card" style={compact ? {marginBottom:0, height:'100%'} : {marginBottom:8}}>
       <div className={`conn-dot ${dotCls}`} />
       <div className="conn-info">
         <div style={{fontSize:11,color:'var(--muted)',fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,marginBottom:2}}>
@@ -1445,30 +1452,35 @@ function ConnectionStatus({ connection, vkConnection, waConnection }) {
   return (
     <div className="section">
       <div className="section-title">Соединения</div>
-      {connection?.realtime && (
-        <ConnectionRow
-          title="TG realtime"
-          status={connection.realtime.status}
-          reason={connection.realtime.reason}
-          lastCheck={connection.realtime.lastCheck || connection?.lastCheck}
-        />
-      )}
-      {connection?.paymentEvents && (
-        <ConnectionRow
-          title="TG payment events"
-          status={connection.paymentEvents.status}
-          reason={connection.paymentEvents.reason}
-          lastCheck={connection?.lastCheck}
-        />
-      )}
-      {connection?.followup && (
-        <ConnectionRow
-          title="TG follow-up session"
-          status={connection.followup.status}
-          reason={connection.followup.reason}
-          lastCheck={connection?.lastCheck}
-        />
-      )}
+      <div className="conn-tg-grid">
+        {connection?.realtime && (
+          <ConnectionRow
+            compact
+            title="TG realtime"
+            status={connection.realtime.status}
+            reason={connection.realtime.reason}
+            lastCheck={connection.realtime.lastCheck || connection?.lastCheck}
+          />
+        )}
+        {connection?.paymentEvents && (
+          <ConnectionRow
+            compact
+            title="TG payment events"
+            status={connection.paymentEvents.status}
+            reason={connection.paymentEvents.reason}
+            lastCheck={connection?.lastCheck}
+          />
+        )}
+        {connection?.followup && (
+          <ConnectionRow
+            compact
+            title="TG follow-up session"
+            status={connection.followup.status}
+            reason={connection.followup.reason}
+            lastCheck={connection?.lastCheck}
+          />
+        )}
+      </div>
       {vkConnection && vkConnection.status !== 'unknown' && (
         <ConnectionRow
           title="🌐 VK (Kate Mobile + Service)"
