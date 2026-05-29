@@ -695,7 +695,7 @@
           <div class="connection-card">
             <h3>TG follow-up session</h3>
             <div class="role-row"><b>input/read</b><code>tg_followup.py</code> + <code>tg_session_followup.session</code>: follow-up scan/read/run, включая due <code>self_to_them</code> promises.</div>
-            <div class="role-row"><b>role gate</b><code>followup_presend.protected_followup_reason</code> останавливает musician/performer/vendor/internal роли из contact role stores до <code>lcb_writer</code>.</div>
+            <div class="role-row"><b>role gate</b><code>_load_followup_candidates</code> + <code>followup_presend.protected_followup_reason</code>: musician/performer/vendor/internal роли не становятся кандидатами для <code>lcb_writer</code>.</div>
             <div class="role-row"><b>output</b>Если не dry-run, отправка проходит через <code>lcb_writer</code> → единый <code>presend_review</code> → write-back.</div>
             <div class="role-row"><b>не daemon owner</b>Отдельная session-card, но не основной realtime socket.</div>
           </div>
@@ -1022,7 +1022,7 @@
         <div class="grid2">
           <div class="node warn">
             <h3>Не плодить writer'ов</h3>
-            <p>Follow-up, listeners и transports только находят событие и доставляют результат. Текст LCB пишет один writer; protected-role gate отсекает musician/performer/vendor/internal контакты до writer, auto-follow-up не пушит оплату/предоплату и чистит payment step из draft/adapt.</p>
+            <p>Follow-up, listeners и transports только находят событие и доставляют результат. Текст LCB пишет один writer; protected-role gate отсекает musician/performer/vendor/internal контакты до candidate list, а sourcing close-follow-up остаётся на клиентской стороне.</p>
           </div>
           <div class="node warn">
             <h3>Не делать broker внутри LCB</h3>
