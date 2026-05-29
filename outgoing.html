@@ -95,6 +95,37 @@
   html[data-theme="light"] .user-name { color:#656d76; }
 
   .empty { text-align:center; padding:30px; color:var(--muted); font-style:italic; }
+  .wa-panel { background:var(--card); border:1px solid var(--border); border-radius:8px;
+              padding:14px; margin:0 0 16px; }
+  .wa-panel-head { display:flex; justify-content:space-between; align-items:flex-start;
+                   gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+  .wa-panel-title { font-size:15px; font-weight:700; }
+  .wa-panel-note { color:var(--muted); font-size:12px; max-width:780px; margin-top:2px; }
+  .wa-refresh { border:1px solid var(--border); background:transparent; color:var(--fg);
+                border-radius:6px; padding:5px 9px; font-size:12px; cursor:pointer; }
+  .wa-refresh:hover { border-color:var(--accent); color:var(--accent); }
+  .wa-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:10px; }
+  .wa-card { border:1px solid var(--border); border-radius:8px; padding:11px 12px;
+             background:rgba(255,255,255,0.025); }
+  .wa-card.pending_approval { border-left:3px solid var(--orange); }
+  .wa-card.queued { border-left:3px solid var(--accent); }
+  .wa-card.cancelled { opacity:.65; }
+  .wa-top { display:flex; justify-content:space-between; gap:10px; margin-bottom:8px; }
+  .wa-recipient { font-weight:700; color:var(--fg); word-break:break-word; }
+  .wa-source { color:var(--muted); font-size:11px; margin-top:2px; word-break:break-word; }
+  .wa-status { font-size:11px; border-radius:3px; padding:2px 6px; white-space:nowrap; height:fit-content; }
+  .wa-status.pending_approval { background:rgba(240,136,62,.18); color:var(--orange); }
+  .wa-status.queued { background:rgba(88,166,255,.15); color:var(--accent); }
+  .wa-text { white-space:pre-wrap; color:var(--fg); font-size:12px; max-height:92px;
+             overflow:auto; border-top:1px dashed var(--border); padding-top:8px; }
+  .wa-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .wa-actions button { border:1px solid var(--border); border-radius:6px; padding:5px 9px;
+                       font-size:12px; cursor:pointer; background:transparent; color:var(--fg); }
+  .wa-actions button.approve { border-color:rgba(63,185,80,.45); color:var(--green); }
+  .wa-actions button.cancel { border-color:rgba(248,81,73,.45); color:var(--red); }
+  .wa-command { color:var(--muted); font-size:11px; margin-top:8px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  html[data-theme="light"] .wa-panel { background:#fff; border-color:#d0d7de; }
+  html[data-theme="light"] .wa-card { background:#f6f8fa; border-color:#d0d7de; }
 </style>
 </head>
 <body>
@@ -108,6 +139,20 @@
   </div>
 </div>
 <div class="meta" id="meta">Загрузка…</div>
+<section class="wa-panel" id="wa-panel">
+  <div class="wa-panel-head">
+    <div>
+      <div class="wa-panel-title">WhatsApp approval queue</div>
+      <div class="wa-panel-note">
+        WA follow-up остаётся manual/approved: approve переводит draft в queued для native WhatsApp Desktop.
+        Auto-sender не отправляет эти follow-up автоматически.
+      </div>
+    </div>
+    <button class="wa-refresh" id="wa-refresh">Обновить</button>
+  </div>
+  <div id="wa-queue-meta" class="meta">Загрузка WA queue…</div>
+  <div id="wa-queue-list"></div>
+</section>
 <div class="filters">
   <button class="filter-btn active" data-filter="all">Все</button>
   <button class="filter-btn" data-filter="sent">✅ Отправлено</button>
@@ -160,6 +205,82 @@ function fmtTime(iso) {
 
 let ALL_ITEMS = [];
 let CURRENT_FILTER = 'all';
+let WA_QUEUE_ITEMS = [];
+
+function renderWaQueue() {
+  const list = document.getElementById('wa-queue-list');
+  const meta = document.getElementById('wa-queue-meta');
+  if (!list || !meta) return;
+  const counts = WA_QUEUE_ITEMS.reduce((acc, it) => {
+    acc[it.status] = (acc[it.status] || 0) + 1;
+    return acc;
+  }, {});
+  meta.innerHTML = `pending: <strong>${counts.pending_approval || 0}</strong> · queued: <strong>${counts.queued || 0}</strong>`;
+  if (!WA_QUEUE_ITEMS.length) {
+    list.innerHTML = '<div class="empty" style="padding:16px">Нет pending/queued WhatsApp drafts.</div>';
+    return;
+  }
+  list.innerHTML = `<div class="wa-grid">${WA_QUEUE_ITEMS.map(it => {
+    const title = it.recipient || it.phone || 'unknown';
+    const source = [it.source, it.source_key].filter(Boolean).join(' · ');
+    const command = it.status === 'queued'
+      ? `python3 wa_cu_agent.py instruction --id ${escHtml(it.id)}`
+      : '';
+    const actions = it.status === 'pending_approval'
+      ? `<button class="approve" data-wa-action="approve" data-id="${escHtml(it.id)}">Approve → queued</button>
+         <button class="cancel" data-wa-action="cancel" data-id="${escHtml(it.id)}">Cancel</button>`
+      : `<button class="cancel" data-wa-action="cancel" data-id="${escHtml(it.id)}">Cancel</button>`;
+    return `<div class="wa-card ${escHtml(it.status)}">
+      <div class="wa-top">
+        <div>
+          <div class="wa-recipient">${escHtml(title)}</div>
+          <div class="wa-source">${escHtml(source || it.id)}</div>
+        </div>
+        <span class="wa-status ${escHtml(it.status)}">${escHtml(it.status)}</span>
+      </div>
+      <div class="wa-text">${escHtml(it.text || it.text_preview || '')}</div>
+      ${command ? `<div class="wa-command">${command}</div>` : ''}
+      <div class="wa-actions">${actions}</div>
+    </div>`;
+  }).join('')}</div>`;
+
+  list.querySelectorAll('[data-wa-action]').forEach(btn => {
+    btn.onclick = () => mutateWaQueue(btn.dataset.waAction, btn.dataset.id);
+  });
+}
+
+async function loadWaQueue() {
+  const base = await getBackendUrl();
+  const meta = document.getElementById('wa-queue-meta');
+  try {
+    const r = await fetch(`${base}/api/wa_cu_queue?status=pending_approval,queued&limit=60`, { cache:'no-store' });
+    const data = await r.json();
+    if (!r.ok || data.ok === false) throw new Error(data.error || `HTTP ${r.status}`);
+    WA_QUEUE_ITEMS = data.items || [];
+    renderWaQueue();
+  } catch (e) {
+    if (meta) meta.innerHTML = `<span style="color:var(--red)">WA queue error: ${escHtml(e.message)}</span>`;
+  }
+}
+
+async function mutateWaQueue(action, id) {
+  if (!id) return;
+  if (action === 'cancel' && !confirm('Cancel this WhatsApp queue item?')) return;
+  const base = await getBackendUrl();
+  const endpoint = action === 'approve' ? 'approve' : 'cancel';
+  try {
+    const r = await fetch(`${base}/api/wa_cu_queue/${endpoint}`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id, note:'via dashboard', reason:'via dashboard' }),
+    });
+    const data = await r.json();
+    if (!r.ok || data.ok === false) throw new Error(data.error || `HTTP ${r.status}`);
+    await loadWaQueue();
+  } catch (e) {
+    alert(`WA ${action} failed: ${e.message}`);
+  }
+}
 
 function render() {
   const search = document.getElementById('search').value.toLowerCase().trim();
@@ -247,8 +368,12 @@ document.querySelectorAll('.filter-btn').forEach(b => {
 });
 document.getElementById('search').oninput = render;
 
+document.getElementById('wa-refresh').onclick = loadWaQueue;
+
 load();
+loadWaQueue();
 setInterval(load, 60000); // refresh каждую минуту
+setInterval(loadWaQueue, 60000);
 </script>
 </body>
 </html>
