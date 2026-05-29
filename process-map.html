@@ -234,8 +234,8 @@
         group:'dm', name:'VK Responder', label:'com.lcband.vk-responder',
         file:'vk_auto_responder.py', schedule:'longpoll trigger + safety schedule',
         why:'Отвечает на VK DM, где Telegram responder неприменим.',
-        input:'VK DM dialogs', action:'Opus decision + send + verify', output:'VK reply, orders.db bridge history',
-        logic:['re-read dialog перед send','post-send verify через VK API','drain queue при лимитах','отсекает спам/подрядчиков'],
+        input:'VK DM dialogs', action:'journal VK history → Opus decision + send + verify', output:'VK reply, orders.db.message_events, orders.db bridge history',
+        logic:['re-read dialog перед send','read-side journal в message_events','post-send verify через VK API','drain queue при лимитах','отсекает спам/подрядчиков'],
       },
       {
         group:'dm', name:'VK Auto Pitch', label:'com.lcband.vk-auto-pitch',
@@ -588,9 +588,9 @@
       {
         group:'infra', name:'IG Conv Cache Sync', label:'com.lcband.ig-conv-cache-sync',
         file:'ig_conv_cache.py sync-all --amount ...', schedule:'каждые 10 мин',
-        why:'Держит Instagram DM cache локально, чтобы IG follow-up имел историю без live scraping.',
-        input:'IG DM threads', action:'incremental sync', output:'ig_conversation_cache/*.jsonl',
-        logic:['append-only per username','no Sheet writes','source for IG follow-up'],
+        why:'Держит Instagram DM cache и canonical raw journal свежими, чтобы IG follow-up имел историю без live scraping.',
+        input:'IG DM threads', action:'incremental sync + auth refresh on LoginRequired', output:'ig_conversation_cache/*.jsonl, orders.db.message_events',
+        logic:['append-only per username','message_events write через message_event_log','no Sheet writes','source for IG follow-up'],
       },
       {
         group:'infra', name:'WA Backup', label:'com.lcband.wa-backup',
