@@ -1453,6 +1453,14 @@ function ConnectionStatus({ connection, vkConnection, waConnection }) {
           lastCheck={connection.realtime.lastCheck || connection?.lastCheck}
         />
       )}
+      {connection?.paymentEvents && (
+        <ConnectionRow
+          title="TG payment events"
+          status={connection.paymentEvents.status}
+          reason={connection.paymentEvents.reason}
+          lastCheck={connection?.lastCheck}
+        />
+      )}
       {connection?.followup && (
         <ConnectionRow
           title="TG follow-up session"
