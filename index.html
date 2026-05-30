@@ -1084,6 +1084,7 @@ const PROCESS_RULES = {
       'Full card создаётся через POST /api/events с шаблоном состава/финансов/заказчика',
       'После создания запускает auto_enrich: unified_message_store читает TG/WA/VK/IG raw JSONL + contract artifacts и заполняет event fields/evidence',
       'Если auto_enrich подтверждает другую дату по договору/переписке — синхронизирует event_date обратно в orders.db',
+      'После создания запускает event_ops_bot.intake_event_lineup: Opus резолвит обещанный состав; незакрытый выбор (напр. сакс/клавиши) → open promise организатору + hold брифов музыкантов; закрыто → брифы идут по составу',
       'НЕ создаёт band-chat, НЕ добавляет артистов, НЕ отправляет клиенту/команде сообщения',
       'Логирует в session_actions: event создан, нужно дозаполнить гонорары/договор/финансы',
       'Скрипты: event_stub_updater.py / event_watcher.py | logs: /tmp/event_stub_updater.log, /tmp/event_watcher.log',
