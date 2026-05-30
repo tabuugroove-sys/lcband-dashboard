@@ -550,19 +550,32 @@ a:hover { text-decoration: underline; }
     <span>Итоги пулов AI-запросов</span>
     <span style="font-size:11px;color:var(--muted);" id="ai-pools-status">loading…</span>
   </h2>
-  <table id="ai-pools" style="width:100%;">
+  <div style="font-size:12px;font-weight:600;color:var(--muted);margin:2px 0 6px 0;">🔥 Топ по расходу токенов</div>
+  <table id="ai-pools-top" style="width:100%;margin-bottom:4px;">
     <thead><tr>
       <th>Когда</th>
       <th>Пул</th>
-      <th>Вызовы</th>
       <th>Итог</th>
       <th style="text-align:right">Tokens</th>
     </tr></thead>
     <tbody></tbody>
   </table>
+  <details id="ai-pools-details">
+    <summary style="cursor:pointer;color:var(--muted);font-size:12px;margin:6px 0;">📋 Все пулы (<span id="ai-pools-count">0</span>) — развернуть</summary>
+    <table id="ai-pools" style="width:100%;">
+      <thead><tr>
+        <th>Когда</th>
+        <th>Пул</th>
+        <th>Вызовы</th>
+        <th>Итог</th>
+        <th style="text-align:right">Tokens</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </details>
   <div class="label" style="margin-top:6px;">
     Группирует близкие события из <code>ai_timeline.jsonl</code> и показывает итог работы пачки: ok/skip/block/fail или “decision не залогирован”.
-    Это наблюдение, не новый агент и не второй источник правды.
+    Топ-блок всегда показывает пулы с самым большим расходом токенов за окно. Это наблюдение, не новый агент и не второй источник правды.
   </div>
 </div>
 
@@ -2368,6 +2381,10 @@ async function loadBurn() {
 loadBurn();
 setInterval(loadBurn, 15000);
 
+function _poolTokens(p) {
+  return Number(p.input_tok || 0) + Number(p.output_tok || 0);
+}
+
 function renderAiPools(d) {
   const tbody = document.querySelector('#ai-pools tbody');
   const status = document.getElementById('ai-pools-status');
@@ -2376,6 +2393,9 @@ function renderAiPools(d) {
   if (status) {
     status.textContent = d?.error ? d.error : `${pools.length} pools · gap ${d?.gap_sec || 90}s`;
   }
+  const countEl = document.getElementById('ai-pools-count');
+  if (countEl) countEl.textContent = pools.length;
+  renderAiPoolsTop(pools);
   if (!pools.length) {
     tbody.innerHTML = '<tr><td colspan="5" class="muted">пулов за окно нет</td></tr>';
     return;
@@ -2401,6 +2421,33 @@ function renderAiPools(d) {
       <td><div class="pool-purpose-pills">${purposes}</div></td>
       <td><div class="pool-outcome ${esc(outcomeClass)}">${esc(p.outcome || '')}</div></td>
       <td style="text-align:right" class="cost">${Number(p.input_tok || 0)}→${Number(p.output_tok || 0)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAiPoolsTop(pools) {
+  const tbody = document.querySelector('#ai-pools-top tbody');
+  if (!tbody) return;
+  if (!pools.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="muted">пулов за окно нет</td></tr>';
+    return;
+  }
+  const top = pools.slice().sort((a, b) => _poolTokens(b) - _poolTokens(a)).slice(0, 5);
+  tbody.innerHTML = top.map(p => {
+    const total = _poolTokens(p);
+    const outcomeClass = String(p.outcome_status || '').toLowerCase();
+    const services = Object.entries(p.services || {}).map(([n, c]) => `${n} ${c}`).join(', ');
+    return `<tr class="pool-row" title="${esc(services)}">
+      <td>
+        <div class="cost">${fmtTimeSP(p.start_ts)}</div>
+        <div class="pool-meta">${Number(p.duration_sec || 0).toFixed(0)}s</div>
+      </td>
+      <td>
+        <div style="font-weight:600;">${esc(p.label || 'AI pool')}</div>
+        <div class="pool-meta">${esc(services || 'service unknown')}</div>
+      </td>
+      <td><div class="pool-outcome ${esc(outcomeClass)}">${esc(p.outcome || '')}</div></td>
+      <td style="text-align:right" class="cost"><b>${total}</b><div class="pool-meta">${Number(p.input_tok || 0)}→${Number(p.output_tok || 0)}</div></td>
     </tr>`;
   }).join('');
 }
