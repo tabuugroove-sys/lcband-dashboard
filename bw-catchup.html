@@ -220,6 +220,8 @@ td.ok      { color:var(--green); }
 <script>
 const BASE = 'http://127.0.0.1:8878';
 
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
 function fmtAgo(isoStr) {
   if (!isoStr) return '';
   const diff = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
@@ -295,9 +297,9 @@ async function load() {
       feed.innerHTML = events.map(ev => `
         <div class="feed-row">
           <span class="feed-ts">${fmtTime(ev.ts)}</span>
-          <span class="feed-chat">@${ev.chat_id}</span>
+          <span class="feed-chat">@${esc(ev.chat_id)}</span>
           <span class="feed-verdict ${verdictClass(ev.verdict)}">${verdictLabel(ev.verdict)}</span>
-          <span style="font-size:11px;color:var(--muted);margin-left:auto">msg #${ev.msg_id}</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:auto">msg #${esc(ev.msg_id)}</span>
         </div>
       `).join('');
     }
@@ -370,8 +372,8 @@ async function load() {
     } else {
       leadsWrap.innerHTML = `<div class="lead-list">${leads.map(l => `
         <div class="lead-item">
-          <div class="who">@${l.author||'?'}</div>
-          <div class="meta">${l.source_chat||''} · ${l.date||''} · ${l.format||l.kind||''} · ${l.city||''}</div>
+          <div class="who">@${esc(l.author||'?')}</div>
+          <div class="meta">${esc(l.source_chat||'')} · ${esc(l.date||'')} · ${esc(l.format||l.kind||'')} · ${esc(l.city||'')}</div>
         </div>
       `).join('')}</div>`;
     }
@@ -426,9 +428,9 @@ async function load() {
       vkFeed.innerHTML = pitches.map(p => `
         <div class="feed-row">
           <span class="feed-ts">${fmtTime(p.ts)}</span>
-          <span class="feed-chat">@${p.vk_id || p.id || '?'}</span>
+          <span class="feed-chat">@${esc(p.vk_id || p.id || '?')}</span>
           <span class="feed-verdict ${actionCls(p.action)}">${actionLabel(p.action)}</span>
-          <span style="font-size:11px;color:var(--muted);margin-left:8px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(p.reason||'').slice(0,80)}</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:8px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((p.reason||'').slice(0,80))}</span>
         </div>
       `).join('');
     }

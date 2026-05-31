@@ -283,6 +283,7 @@
     return 'http://localhost:8878';
   }
 
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   function parseDate(s) {
     if (!s) return null;
     // expected YYYY-MM-DD
@@ -453,7 +454,7 @@
       const d = parseDate(ev.date);
       r.innerHTML = `
         <div class="date">${d ? fmtRu(d) : '—'}</div>
-        <div class="title"><a href="./events.html#${encodeURIComponent(ev.id)}" style="color:inherit;text-decoration:none">${ev.title || ev.id}</a></div>
+        <div class="title"><a href="./events.html#${encodeURIComponent(ev.id)}" style="color:inherit;text-decoration:none">${esc(ev.title || ev.id)}</a></div>
         <div class="members">${ev.members_count || 0} чел</div>
         <div class="fee">${ev.members_total_fee ? Math.round(ev.members_total_fee).toLocaleString('ru-RU') + ' ₽' : '—'}</div>
       `;
