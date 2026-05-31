@@ -862,7 +862,11 @@
               </tr>
               <tr>
                 <td><b>Contractor question</b></td>
-                <td><code>tg_contact_roles.json</code> роли <code>contractor_*</code>/<code>lcb_musician</code> + вопрос без money intent → <code>band_member_reply.py</code> с recent coordination context. <code>do_not_touch</code> защищает от client writer, но не глушит рабочий factual reply.</td>
+                <td><code>tg_contact_roles.json</code> роли <code>contractor_*</code>/<code>lcb_musician</code> + вопрос без money intent → <code>band_member_reply.py</code> в <code>CONTRACTOR COORDINATION MODE</code> с recent coordination context. <code>do_not_touch</code> защищает от client writer, но не глушит рабочий factual reply.</td>
+              </tr>
+              <tr>
+                <td><b>Contractor referral</b></td>
+                <td>Доверенный подрядчик/музыкант прислал <code>@handle</code> с referral-маркером → контакт индексируется как <code>contractor_other</code> и добавляется в <code>coordination_candidate_threads.json</code>; при первом входящем сразу включается contractor coordination route.</td>
               </tr>
               <tr>
                 <td><b>Payment / money intent</b></td>
@@ -942,6 +946,7 @@
           <div class="lane-label">Replies</div>
           <div class="lane-flow">
             <div class="lane-chip"><b>contractor DM</b>append history</div>
+            <div class="lane-chip"><b>@referral</b>index contractor</div>
             <div class="lane-chip"><b>contractor question</b>performer-safe reply</div>
             <div class="lane-chip"><b>client DM</b>update broker status</div>
             <div class="lane-chip"><b>closed order</b>alert only</div>
