@@ -899,13 +899,14 @@
         <div class="section-num">3</div>
         <div>
           <div class="section-label">Broker pipeline отключён</div>
-          <div class="section-desc">Live scope: только кавер-группа и in-pool solo; broker route gated by <code>LCB_BROKER_ENABLED</code></div>
+          <div class="section-desc">Live scope: кавер-группа, in-pool solo и direct Noize Drum; broker route gated by <code>LCB_BROKER_ENABLED</code></div>
         </div>
       </div>
       <div class="card">
         <div class="note" style="margin-bottom:12px">
-          С 31.05.2026 broker/intake/outbound по умолчанию выключены: <code>broker_request</code>,
-          <code>drum_show</code> и <code>abstract</code> нормализуются в <code>skip</code>.
+          С 31.05.2026 broker/intake/outbound по умолчанию выключены: <code>broker_request</code>
+          и <code>abstract</code> нормализуются в <code>skip</code>. <code>drum_show</code>
+          остаётся прямым Noize Drum лидом.
           Повторное включение только явным <code>LCB_BROKER_ENABLED=1</code>.
         </div>
         <div class="flow-row five">
