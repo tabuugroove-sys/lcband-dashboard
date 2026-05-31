@@ -688,7 +688,8 @@ a:hover { text-decoration: underline; }
     Жёсткий потолок числа фоновых LLM-вызовов на провайдера (окна 24ч и 5ч). Когда счётчик упирается в лимит —
     <code>llm_budget_guard.allow_llm_call()</code> блокирует этого провайдера, пока окно не откатится. Это <b>не</b> routing-фейдер
     (тот решает «кого предпочесть»), а аварийный потолок «сколько вообще можно». Двигай фейдер — агенты подхватят за ~30с.
-    Полоска = текущий расход против выбранного лимита (зелёный → жёлтый у warn → красный на лимите). <code>0 = ∞</code> (без потолка).
+    Полоска = текущий расход против выбранного лимита (зелёный → жёлтый у warn → красный на лимите).
+    Отдельно действует анти-повтор: одинаковый <code>purpose+contact+source_hash+prompt</code> имеет свой лимит на 24ч.
   </div>
   <div style="display:flex;align-items:center;gap:10px;margin:0 0 12px 0;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;">
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
@@ -697,6 +698,7 @@ a:hover { text-decoration: underline; }
     </label>
     <span id="guard-enabled-note" style="font-size:11px;color:var(--muted);margin-left:auto;">выключить = лимиты игнорируются, провайдеры не блокируются по счётчику</span>
   </div>
+  <div id="guard-fingerprint-note" style="font-size:12px;color:var(--muted);margin:-4px 0 12px 0;padding:0 12px;">anti-repeat: загрузка…</div>
   <div class="routing-grid" id="guard-faders-grid"></div>
 </div>
 
@@ -1562,6 +1564,14 @@ function renderGuardCards(status) {
     ? 'guard активен — провайдер блокируется на лимите счётчика'
     : '⚠ guard ВЫКЛЮЧЕН — лимиты не применяются';
   const providers = status.providers || {};
+  const fp = status.fingerprint_guard || {};
+  const fpNote = document.getElementById('guard-fingerprint-note');
+  if (fpNote) {
+    const max = Number(fp.max_calls_24h || 0);
+    fpNote.textContent = max > 0
+      ? `anti-repeat: ${max} LLM/review/fingerprint за 24ч · active ${Number(fp.active_entries_24h || 0)} · blocked ${Number(fp.blocked_entries_24h || 0)}`
+      : 'anti-repeat: выключен';
+  }
   for (const p of GUARD_PROVIDERS) {
     const card = document.querySelector(`#guard-faders-grid .fader-card[data-provider="${p.key}"]`);
     if (!card) continue;
@@ -2409,6 +2419,14 @@ function renderAiPools(d) {
       .map(([name, count]) => `${name} ${count}`)
       .join(', ');
     const outcomeClass = String(p.outcome_status || '').toLowerCase();
+    const itemLines = (p.items || []).slice(0, 4).map(item => {
+      const user = item.username ? '@' + item.username + ': ' : '';
+      const kind = [item.kind, item.current_status, item.value_signal].filter(Boolean).join(' · ');
+      const attn = item.needs_attention ? ' · attention' : '';
+      const summary = item.summary ? ' — ' + item.summary : '';
+      return `<div class="pool-meta" title="${esc(item.reason || '')}">${esc(user + (kind || item.status || item.purpose || 'result') + attn + summary)}</div>`;
+    }).join('');
+    const secondary = p.secondary_outcome ? `<div class="pool-meta">${esc(p.secondary_outcome)}</div>` : '';
     return `<tr class="pool-row" title="${esc(services)}">
       <td>
         <div class="cost">${fmtTimeSP(p.start_ts)}</div>
@@ -2419,7 +2437,11 @@ function renderAiPools(d) {
         <div class="pool-meta">${esc(services || 'service unknown')}</div>
       </td>
       <td><div class="pool-purpose-pills">${purposes}</div></td>
-      <td><div class="pool-outcome ${esc(outcomeClass)}">${esc(p.outcome || '')}</div></td>
+      <td>
+        <div class="pool-outcome ${esc(outcomeClass)}">${esc(p.outcome || '')}</div>
+        ${secondary}
+        ${itemLines}
+      </td>
       <td style="text-align:right" class="cost">${Number(p.input_tok || 0)}→${Number(p.output_tok || 0)}</td>
     </tr>`;
   }).join('');
@@ -2437,6 +2459,7 @@ function renderAiPoolsTop(pools) {
     const total = _poolTokens(p);
     const outcomeClass = String(p.outcome_status || '').toLowerCase();
     const services = Object.entries(p.services || {}).map(([n, c]) => `${n} ${c}`).join(', ');
+    const secondary = p.secondary_outcome ? `<div class="pool-meta">${esc(p.secondary_outcome)}</div>` : '';
     return `<tr class="pool-row" title="${esc(services)}">
       <td>
         <div class="cost">${fmtTimeSP(p.start_ts)}</div>
@@ -2446,7 +2469,7 @@ function renderAiPoolsTop(pools) {
         <div style="font-weight:600;">${esc(p.label || 'AI pool')}</div>
         <div class="pool-meta">${esc(services || 'service unknown')}</div>
       </td>
-      <td><div class="pool-outcome ${esc(outcomeClass)}">${esc(p.outcome || '')}</div></td>
+      <td><div class="pool-outcome ${esc(outcomeClass)}">${esc(p.outcome || '')}</div>${secondary}</td>
       <td style="text-align:right" class="cost"><b>${total}</b><div class="pool-meta">${Number(p.input_tok || 0)}→${Number(p.output_tok || 0)}</div></td>
     </tr>`;
   }).join('');
@@ -2711,7 +2734,11 @@ function liveModelName(e) {
     }
     return 'API-запросы';
   }
-  if (e.kind === 'llm_budget_guard') return e.model || e.service || 'budget guard';
+  if (e.kind === 'llm_budget_guard') {
+    const reason = String(e.reason || e.detail || '').toLowerCase();
+    if (reason.includes('same fingerprint')) return 'anti-repeat guard';
+    return e.model || e.service || 'budget guard';
+  }
   return e.model || e.service || (e.kind === 'codex_cli_fail' ? 'codex_cli_fail' : e.kind) || 'unknown_model';
 }
 async function loadLive() {
