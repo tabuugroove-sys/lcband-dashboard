@@ -192,17 +192,11 @@
   }
   .sections-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
     align-items: start;
   }
   .sections-grid .section { margin-bottom: 0; }
-  @media (max-width: 1300px) {
-    .sections-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
-  @media (max-width: 760px) {
-    .sections-grid { grid-template-columns: 1fr; }
-  }
   .section-header {
     display: flex; align-items: center; gap: 8px;
     margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px;
@@ -267,9 +261,20 @@
     cursor: pointer; padding: 4px; font-size: 12px;
   }
   table.section-table .row-actions button:hover { color: var(--red); }
-  table.event-card-table th:nth-child(1) { width: 32%; }
-  table.event-card-table th:nth-child(2) { width: 43%; }
-  table.event-card-table th:nth-child(3) { width: 25%; }
+  table.event-card-table { table-layout: auto; }
+  table.event-card-table th { white-space: normal; }
+  table.event-card-table th:nth-child(1) { width: 24%; }
+  table.event-card-table th:nth-child(2) { width: 44%; }
+  table.event-card-table th:nth-child(3) { width: 32%; }
+  table.event-card-table textarea {
+    width: 100%; min-height: 34px; max-height: 180px;
+    background: transparent; border: 1px solid transparent;
+    color: var(--text); padding: 6px 8px; outline: none; font: inherit;
+    font-size: 13px; border-radius: 3px; resize: vertical;
+    overflow-wrap: anywhere; white-space: pre-wrap;
+  }
+  table.event-card-table textarea:hover { border-color: var(--border); }
+  table.event-card-table textarea:focus { border-color: var(--blue); background: var(--panel); }
   table.section-table .stacked-cell {
     display: grid; gap: 6px; padding: 6px;
   }
@@ -280,7 +285,8 @@
     color: var(--muted); font-size: 10px; line-height: 1.2;
     text-transform: uppercase; letter-spacing: 0.25px;
   }
-  table.section-table .cell-field input { padding: 5px 7px; }
+  table.section-table .cell-field input,
+  table.section-table .cell-field textarea { padding: 5px 7px; }
 
   .add-row-btn, .add-section-btn, .add-field-btn {
     margin-top: 8px; padding: 6px 10px;
@@ -1149,6 +1155,17 @@
         ${otherSections ? `<div class="sections-grid">${otherSections}</div>` : ''}
       </div>
     `;
+    autoGrowEventCardTextareas(container);
+  }
+
+  function autoGrowTextarea(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+  }
+
+  function autoGrowEventCardTextareas(root = document) {
+    root.querySelectorAll('table.event-card-table textarea').forEach(autoGrowTextarea);
   }
 
   const EVENT_CARD_TITLE_KEYS = ['Название', 'Поле', 'Статья', 'Вопрос', 'Параметр', 'item', 'name'];
@@ -1181,8 +1198,8 @@
       ? `<a href="${escapeAttr(sval.trim())}" target="_blank" rel="noopener" class="open-link" title="Открыть в новой вкладке">🔗</a>`
       : '';
     return `<div class="cell-wrap">
-      <input type="text" class="${isNum ? 'num-cell' : ''}" value="${escapeAttr(sval)}"
-             oninput="updateCell(${sIdx}, ${rIdx}, '${escapeAttr(key)}', this.value)">
+      <textarea rows="1" class="${isNum ? 'num-cell' : ''}"
+                oninput="updateCell(${sIdx}, ${rIdx}, '${escapeAttr(key)}', this.value); autoGrowTextarea(this)">${escapeHtml(sval)}</textarea>
       ${linkBtn}
     </div>`;
   }
