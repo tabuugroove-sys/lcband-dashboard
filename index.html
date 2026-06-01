@@ -1004,6 +1004,19 @@ function isOverdue(order) {
 
 // ── Process rules data ────────────────────────────────────────────────────────
 const PROCESS_RULES = {
+  proc_calendar_sync: {
+    name: 'Календарь: автозавод подтверждённых событий',
+    interval: 'Каждые 30 мин · detect+notify (auto-push после шаринга календаря на SA)',
+    desc: 'Сам находит оплаченные/подтверждённые события, которых ещё нет в Google Calendar, резолвит правильный состав и заводит карточку (или уведомляет, если автозапись недоступна)',
+    rules: [
+      'Источник «оплачено»: orders.db status=ОПЛАТИЛА/Концерт; «подтверждено»: lcb_orders.json event.status=confirmed',
+      'Дедуп по (дата, контакт-якорь): телефон → username → имя; weak-anchor дубль-оболочки lcb отбрасываются',
+      'Только будущие даты; диф против календаря по дате+телефону/username/имени (idempotent, не плодит дубли)',
+      'Состав: есть lcb-событие с тредами → resolve_production_lineup (Opus судит по перепискам с вокалистами/оргом); иначе intended из формата+участников+ростера',
+      'Запись: Google Calendar API через service account (нужен шаринг календаря на SA + Calendar API в GCP). Нет доступа → план в calendar_sync_plan.json + notify-bot (дедуп новых)',
+      'Скрипт: event_calendar_sync.py | log: calendar_sync_cron.log | plan: calendar_sync_plan.json | state: calendar_sync_notify_state.json',
+    ],
+  },
   proc_broker_sourcing: {
     name: 'Sourcing-детект (вербовка → broker)',
     interval: 'Каждые 4ч · KILL-SWITCH LCB_BROKER_SOURCING (по умолчанию OFF)',
