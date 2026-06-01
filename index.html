@@ -1560,6 +1560,38 @@ function ActionButtons() {
   );
 }
 
+function RecoveryActions() {
+  return (
+    <div className="section">
+      <div className="section-title">Recovery</div>
+      <div style={{display:'flex', gap:12, alignItems:'flex-start', flexWrap:'wrap'}}>
+        <RestartAllButton />
+        <div className="action-btns" style={{flex:'1 1 260px', marginTop:0}}>
+          <a href="https://t.me/lcband_notify_bot?text=/restart"
+             className="action-btn action-btn-restart"
+             target="_blank" rel="noopener"
+             title="Fallback: команда в Telegram bot остаётся доступной, даже если данные дашборда не загрузились">
+            🔄 Bot /restart
+          </a>
+          <a href="https://t.me/lcband_notify_bot?text=/status"
+             className="action-btn action-btn-status"
+             target="_blank" rel="noopener">
+            📊 Bot /status
+          </a>
+          <button
+            className="action-btn"
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{background:'rgba(96,165,250,0.14)', color:'#60a5fa', borderColor:'rgba(96,165,250,0.35)'}}
+          >
+            ↻ Reload page
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AwakeGuardButton() {
   const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
   const [state, setState] = React.useState(null);
@@ -10238,6 +10270,14 @@ function App() {
                title="Что пропустил TG Monitor — добавил BW">
               <span>🔍</span><span>BW catch-up</span>
             </a>
+            <a href="https://t.me/lcband_notify_bot?text=/restart"
+               style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:700, textDecoration:'none',
+                       background:'rgba(16,185,129,0.14)', color:'#34d399', border:'1px solid rgba(16,185,129,0.35)',
+                       display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
+               target="_blank" rel="noopener"
+               title="Fallback restart через bot — доступен даже когда основной data fetch упал">
+              <span>🔄</span><span>Restart</span>
+            </a>
             <ThemeHeaderButton />
             <button
               className="refresh-btn"
@@ -10253,13 +10293,34 @@ function App() {
       {/* Error */}
       {error && (
         <div className="err-box">
-          ⚠️ {error}
-          <small>
-            Убедитесь что Google Sheets доступна публично.<br/>
-            Запустите: <code>python3 sync_dashboard_data.py</code>
-          </small>
+          <div style={{display:'flex', justifyContent:'space-between', gap:12, alignItems:'flex-start', flexWrap:'wrap'}}>
+            <div>
+              ⚠️ {error}
+              <small>
+                Backend/данные сейчас недоступны. Кнопки восстановления ниже остаются
+                доступными независимо от загрузки Dashboard rows.
+              </small>
+            </div>
+            <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+              <a href="https://t.me/lcband_notify_bot?text=/restart"
+                 className="action-btn action-btn-restart"
+                 style={{marginTop:0, padding:'7px 10px'}}
+                 target="_blank" rel="noopener">
+                🔄 Bot /restart
+              </a>
+              <button
+                className="action-btn"
+                type="button"
+                onClick={() => window.location.reload()}
+                style={{marginTop:0, padding:'7px 10px', background:'rgba(96,165,250,0.14)', color:'#60a5fa', borderColor:'rgba(96,165,250,0.35)'}}
+              >
+                ↻ Reload
+              </button>
+            </div>
+          </div>
         </div>
       )}
+      {error && !data && <RecoveryActions />}
 
       {/* Loading skeleton */}
       {loading && !rows && <SkeletonCards />}
