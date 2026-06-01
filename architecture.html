@@ -155,6 +155,56 @@
       font-size: 12px;
       line-height: 1.45;
     }
+    .block-menu {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin: 22px 0 28px;
+    }
+    .block-menu details {
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 8px;
+      background: rgba(255,255,255,.035);
+      overflow: hidden;
+    }
+    .block-menu summary {
+      cursor: pointer;
+      padding: 11px 13px;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 850;
+      list-style: none;
+    }
+    .block-menu summary::-webkit-details-marker { display: none; }
+    .block-menu summary::after {
+      content: "+";
+      float: right;
+      color: var(--gold);
+      font-weight: 900;
+    }
+    .block-menu details[open] summary::after { content: "-"; }
+    .block-links {
+      display: grid;
+      gap: 5px;
+      border-top: 1px solid rgba(255,255,255,.07);
+      padding: 9px;
+    }
+    .block-links a {
+      display: block;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 7px;
+      background: rgba(0,0,0,.12);
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.3;
+      padding: 7px 9px;
+      text-decoration: none;
+    }
+    .block-links a:hover {
+      color: var(--text);
+      border-color: rgba(231,189,71,.32);
+      background: rgba(231,189,71,.07);
+    }
 
     .card {
       border: 1px solid rgba(255,255,255,.09);
@@ -629,7 +679,7 @@
       .hdr { flex-direction: column; align-items: flex-start; gap: 10px; }
       .wrap { width: min(100vw - 28px, 1220px); padding-top: 24px; }
       .page-title { font-size: 40px; }
-      .grid2, .grid3, .actual-grid, .flow-row, .flow-row.five, .lane, .converge, .sequence-map, .connection-grid, .shared-flow { grid-template-columns: 1fr; }
+      .block-menu, .grid2, .grid3, .actual-grid, .flow-row, .flow-row.five, .lane, .converge, .sequence-map, .connection-grid, .shared-flow { grid-template-columns: 1fr; }
       .arrow-col, .converge-arrow, .seq-arrow { transform: rotate(90deg); min-height: 26px; }
       .shared-agent { min-height: 180px; }
       .row { grid-template-columns: 1fr; gap: 5px; }
@@ -671,6 +721,53 @@
       <code>orders.db</code> и read-model'ы, LCB client text пишет один writer, а broker-переписки
       уводятся в отдельный broker state до LCB writer.
     </p>
+    <nav class="block-menu" aria-label="Подменю архитектуры">
+      <details open>
+        <summary>Схема целиком</summary>
+        <div class="block-links">
+          <a href="#connections-overview">4 подключения</a>
+          <a href="#writer-modes">Writer modes</a>
+          <a href="#orders-state">orders.db</a>
+          <a href="#message-memory">Память переписок</a>
+        </div>
+      </details>
+      <details>
+        <summary>Входящее сообщение</summary>
+        <div class="block-links">
+          <a href="#actual-runtime">Runtime sequence</a>
+          <a href="#actual-branches">Главные развилки</a>
+        </div>
+      </details>
+      <details>
+        <summary>Прошедшие мероприятия</summary>
+        <div class="block-links">
+          <a href="#post-event-owner">Owner chain</a>
+          <a href="#post-event-content">Content follow-up</a>
+          <a href="#post-event-safety">Границы</a>
+        </div>
+      </details>
+      <details>
+        <summary>Broker</summary>
+        <div class="block-links">
+          <a href="#broker-intake">Public intake</a>
+          <a href="#broker-transitions">State transitions</a>
+          <a href="#broker-boundaries">Границы LCB/Broker</a>
+        </div>
+      </details>
+      <details>
+        <summary>Подключения</summary>
+        <div class="block-links">
+          <a href="#connectors-live">4 health cards</a>
+          <a href="#connectors-actions">Actions only</a>
+        </div>
+      </details>
+      <details>
+        <summary>Ownership rules</summary>
+        <div class="block-links">
+          <a href="#rules-ownership">Главные правила</a>
+        </div>
+      </details>
+    </nav>
 
     <section class="section" id="map">
       <div class="section-head">
@@ -680,7 +777,7 @@
           <div class="section-desc">Текущие owners и направления данных в production-коде</div>
         </div>
       </div>
-      <div class="card">
+      <div class="card" id="connections-overview">
         <div class="card-title">4 подключения: transport health отдельно, owner текста отдельно</div>
         <div class="connection-grid">
           <div class="connection-card">
@@ -740,7 +837,7 @@
         </div>
       </div>
       <div class="grid3" style="margin-top:12px">
-        <div class="card">
+        <div class="card" id="writer-modes">
           <div class="card-title">Writer modes в коде</div>
           <div class="list">
             <div class="row"><b>intake</b><span>Понять запрос, дату, формат, кто пишет и что нужно уточнить.</span></div>
@@ -754,7 +851,7 @@
             <div class="row"><b>complex_request</b><span>Сложный/короткий формат, нестандартная цена, часовой запрос, БН/оборудование.</span></div>
           </div>
         </div>
-        <div class="card">
+        <div class="card" id="orders-state">
           <div class="card-title">orders.db</div>
           <div class="note">
             Сюда сливаются заказы и операционная история: funnel status, contacts, history, event graph,
@@ -770,7 +867,7 @@
             <span class="pill teal">single CRM SSoT</span>
           </div>
         </div>
-        <div class="card">
+        <div class="card" id="message-memory">
           <div class="card-title">Память переписок</div>
           <div class="note">
             Канонически вся переписка должна сходиться в один raw-log: <code>orders.db.message_events</code>.
@@ -794,7 +891,7 @@
         </div>
       </div>
       <div class="actual-grid">
-        <div class="card">
+        <div class="card" id="actual-runtime">
           <div class="card-title">Runtime sequence</div>
           <div class="actual-stack">
             <div class="step">
@@ -849,7 +946,7 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" id="actual-branches">
           <div class="card-title">Главные развилки</div>
           <table class="rule-table">
             <thead>
@@ -898,15 +995,51 @@
       </div>
     </section>
 
-    <section class="section" id="broker">
+    <section class="section" id="post-event">
       <div class="section-head">
         <div class="section-num">3</div>
+        <div>
+          <div class="section-label">Прошедшие мероприятия</div>
+          <div class="section-desc">Post-event ownership: закрыть event, собрать отзыв/фото/видео и не возвращать клиента в sales</div>
+        </div>
+      </div>
+      <div class="grid3">
+        <div class="card" id="post-event-owner">
+          <div class="card-title">Owner chain</div>
+          <div class="list">
+            <div class="row"><b>stage move</b><span><code>funnel_autoheal.py</code> переводит paid/concert с прошедшей <code>event_date</code> в <code>Отзыв/контент</code>.</span></div>
+            <div class="row"><b>TG folder</b><span><code>funnel_folder_sync.py</code> держит рабочую папку <code>Отзыв/фото</code> как post-event stage.</span></div>
+            <div class="row"><b>context</b><span><code>lead_context_enricher.py</code> задаёт <code>recommended_action</code>: попросить контент, проверить диск или попросить переотправить недогруз.</span></div>
+          </div>
+        </div>
+        <div class="card" id="post-event-content">
+          <div class="card-title">Content follow-up</div>
+          <div class="list">
+            <div class="row"><b>writer mode</b><span><code>unified_dm_responder.py</code> / <code>lcb_writer.py</code> используют mode <code>content</code>: фото, видео, отзыв, съёмка, запись концерта после подтверждённого события.</span></div>
+            <div class="row"><b>positive reply</b><span>Если клиент уже ответил позитивно, следующий шаг — тепло поблагодарить и мягко спросить про фото/видео/отзыв, без upsell.</span></div>
+            <div class="row"><b>follow-up</b><span><code>tg_followup.py</code> подхватывает content follow-up только когда карточка явно говорит, что действие за нами.</span></div>
+          </div>
+        </div>
+        <div class="card" id="post-event-safety">
+          <div class="card-title">Границы</div>
+          <div class="list">
+            <div class="row"><b>no sales</b><span>Прошедшее мероприятие не возвращается в generic sales/follow-up. Цель — отзыв/материалы/разрешение на портфолио.</span></div>
+            <div class="row"><b>no manual one-shot</b><span><code>post_event_yula.py</code> остаётся историческим one-shot; постоянный владелец — общий DM/follow-up pipeline.</span></div>
+            <div class="row"><b>write-back</b><span>После отправки/получения материалов запись должна сходиться обратно в <code>orders.db.message_events</code>, context и event state.</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="broker">
+      <div class="section-head">
+        <div class="section-num">4</div>
         <div>
           <div class="section-label">Broker public intake ограничен</div>
           <div class="section-desc">Live scope: broker runtime работает; public chat broker intake gated by <code>LCB_PUBLIC_BROKER_INTAKE_ENABLED</code></div>
         </div>
       </div>
-      <div class="card">
+      <div class="card" id="broker-intake">
         <div class="note" style="margin-bottom:12px">
           С 01.06.2026 выключен только новый broker/intake из широких event-chat постов:
           public <code>broker_request</code> и <code>abstract</code> нормализуются в <code>skip</code>,
@@ -931,7 +1064,7 @@
           </div>
         </div>
       </div>
-      <div class="card" style="margin-top:12px">
+      <div class="card" id="broker-transitions" style="margin-top:12px">
         <div class="card-title">Broker state transitions</div>
         <div class="lane">
           <div class="lane-label">Intake</div>
@@ -972,7 +1105,7 @@
           </div>
         </div>
       </div>
-      <div class="grid2" style="margin-top:12px">
+      <div class="grid2" id="broker-boundaries" style="margin-top:12px">
         <div class="card">
           <div class="card-title">LCB не смешивать с broker</div>
           <div class="note">
@@ -998,14 +1131,14 @@
 
     <section class="section" id="connectors">
       <div class="section-head">
-        <div class="section-num">4</div>
+        <div class="section-num">5</div>
         <div>
           <div class="section-label">Подключения к мессенджерам</div>
           <div class="section-desc">В dashboard их четыре; send/browser/export ниже — действия, не новые connection health-сущности</div>
         </div>
       </div>
       <div class="grid2">
-        <div class="card">
+        <div class="card" id="connectors-live">
           <div class="card-title">4 подключения из dashboard</div>
           <div class="list">
             <div class="row"><b>TG realtime</b><span><code>tg_realtime_monitor.py</code> держит <code>tg_session_monitor.session</code> — основной realtime TG socket; слушает NewMessage/push, отдаёт DM в routing и даёт live send-adapter без второй сессии.</span></div>
@@ -1017,7 +1150,7 @@
             <span class="pill blue">4 connections</span>
           </div>
         </div>
-        <div class="card">
+        <div class="card" id="connectors-actions">
           <div class="card-title">Не считать отдельными подключениями</div>
           <div class="list">
             <div class="row"><b>Output send</b><span>TG/VK send, WA Desktop queue и WA auto-ack — действия после route/writer/gates, а не новые health connections.</span></div>
@@ -1033,13 +1166,13 @@
 
     <section class="section" id="rules">
       <div class="section-head">
-        <div class="section-num">5</div>
+        <div class="section-num">6</div>
         <div>
           <div class="section-label">Правила ownership</div>
           <div class="section-desc">Что должна удерживать архитектура</div>
         </div>
       </div>
-      <div class="card">
+      <div class="card" id="rules-ownership">
         <div class="grid2">
           <div class="node warn">
             <h3>Не плодить writer'ов</h3>
@@ -1073,6 +1206,7 @@
   <nav class="side-nav">
     <a href="#map">Схема</a>
     <a href="#actual">Как есть</a>
+    <a href="#post-event">Прошедшие</a>
     <a href="#broker">Broker</a>
     <a href="#connectors">Подключения</a>
     <a href="#rules">Правила</a>
