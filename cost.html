@@ -2702,6 +2702,20 @@ setInterval(loadGuardControls, 30000);
 
 // ────────── LIVE AI calls feed ──────────
 let _liveLastTs = '';
+let _liveLoading = false;
+const _liveSeenEventIds = new Set();
+function liveEventId(e) {
+  return [
+    e.ts || '',
+    e.kind || '',
+    e.service || '',
+    e.model || '',
+    e.raw_purpose || e.purpose || '',
+    e.input_tok == null ? '' : String(e.input_tok),
+    e.output_tok == null ? '' : String(e.output_tok),
+    e.reason || '',
+  ].join('|');
+}
 function modelDot(service, kind, model) {
   const s = ((model||'') + ' ' + (service||'')).toLowerCase();
   if (kind === 'llm_budget_guard') return '⛔';
@@ -2742,12 +2756,14 @@ function liveModelName(e) {
   return e.model || e.service || (e.kind === 'codex_cli_fail' ? 'codex_cli_fail' : e.kind) || 'unknown_model';
 }
 async function loadLive() {
+  if (_liveLoading) return;
   if (document.getElementById('live-pause')?.checked) {
     document.getElementById('live-status').textContent = '⏸ paused';
     return;
   }
   const bu = await loadBackend();
   if (!bu) return;
+  _liveLoading = true;
   try {
     const includeKinds = 'ai_call,api_call,api_error,codex_cli_fail,codex_cli_cooldown,llm_budget_guard';
     const url = bu + '/api/recent_ai_calls?include_kinds=' + encodeURIComponent(includeKinds) + '&limit=50' + (_liveLastTs ? '&since_ts=' + encodeURIComponent(_liveLastTs) : '');
@@ -2763,6 +2779,9 @@ async function loadLive() {
       _liveLastTs = j.newest_ts || _liveLastTs;
       const wasNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
       events.forEach(e => {
+        const eventId = liveEventId(e);
+        if (_liveSeenEventIds.has(eventId)) return;
+        _liveSeenEventIds.add(eventId);
         const t = fmtTimeSP(e.ts);
         const dot = modelDot(e.service, e.kind, e.model);
         const color = modelColor(e.service, e.kind, e.model);
@@ -2783,11 +2802,16 @@ async function loadLive() {
       });
       // Trim — храним max 200 lines в DOM
       while (feed.children.length > 200) feed.removeChild(feed.firstChild);
+      while (_liveSeenEventIds.size > 500) {
+        _liveSeenEventIds.delete(_liveSeenEventIds.values().next().value);
+      }
       if (wasNearBottom) feed.scrollTop = feed.scrollHeight;
     }
     document.getElementById('live-status').textContent = '🟢 last SP: ' + fmtTimeSP(Date.now());
   } catch (e) {
     document.getElementById('live-status').textContent = '❌ ' + e.message;
+  } finally {
+    _liveLoading = false;
   }
 }
 // Initial load (без since_ts → берёт last 50)
