@@ -696,7 +696,7 @@
   async function loadEventList() {
     try {
       const [d, stubsResp, leadsResp] = await Promise.all([
-        api('/events'),
+        api('/events?include_unlinked=1'),
         api('/event_stubs?with_date_only=1').catch(() => ({stubs: []})),
         api('/leads_with_dates').catch(() => ({leads: []})),
       ]);
@@ -1437,7 +1437,7 @@
 
   async function _fetchCalendarData() {
     try {
-      const evs = await api('/events');
+      const evs = await api('/events?include_unlinked=1');
       CAL_EVENTS = evs.events || [];
     } catch (e) {
       console.warn('[cal] /api/events failed:', e.message);
