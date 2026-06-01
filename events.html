@@ -267,6 +267,20 @@
     cursor: pointer; padding: 4px; font-size: 12px;
   }
   table.section-table .row-actions button:hover { color: var(--red); }
+  table.event-card-table th:nth-child(1) { width: 32%; }
+  table.event-card-table th:nth-child(2) { width: 43%; }
+  table.event-card-table th:nth-child(3) { width: 25%; }
+  table.section-table .stacked-cell {
+    display: grid; gap: 6px; padding: 6px;
+  }
+  table.section-table .cell-field {
+    display: grid; gap: 2px; margin: 0;
+  }
+  table.section-table .cell-field span {
+    color: var(--muted); font-size: 10px; line-height: 1.2;
+    text-transform: uppercase; letter-spacing: 0.25px;
+  }
+  table.section-table .cell-field input { padding: 5px 7px; }
 
   .add-row-btn, .add-section-btn, .add-field-btn {
     margin-top: 8px; padding: 6px 10px;
@@ -1137,7 +1151,90 @@
     `;
   }
 
+  const EVENT_CARD_TITLE_KEYS = ['Название', 'Поле', 'Статья', 'Вопрос', 'Параметр', 'item', 'name'];
+  const EVENT_CARD_COMMENT_KEYS = ['Комментарий', 'Комментарий/статус', 'Заметка', 'Note', 'Notes', 'comment', 'comments', 'notes'];
+
+  function pickFirstKey(keys, candidates) {
+    const lowerMap = new Map(keys.map(k => [String(k).toLowerCase(), k]));
+    for (const cand of candidates) {
+      const found = lowerMap.get(String(cand).toLowerCase());
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function eventCardRowShape(row) {
+    const keys = Object.keys(row || {});
+    const titleKey = pickFirstKey(keys, EVENT_CARD_TITLE_KEYS) || keys[0] || 'Название';
+    let commentKeys = keys.filter(k => EVENT_CARD_COMMENT_KEYS.some(c => String(c).toLowerCase() === String(k).toLowerCase()));
+    if (!commentKeys.length) commentKeys = ['Комментарий'];
+    let infoKeys = keys.filter(k => k !== titleKey && !commentKeys.includes(k));
+    if (!infoKeys.length) infoKeys = ['Информация'];
+    return { titleKey, infoKeys, commentKeys };
+  }
+
+  function renderCardCellInput(sIdx, rIdx, key, value) {
+    const sval = String(value === undefined ? '' : value);
+    const isNum = typeof value === 'number' || (typeof value === 'string' && /^\d+(\.\d+)?$/.test(value));
+    const isUrl = /^https?:\/\//i.test(sval.trim());
+    const linkBtn = isUrl
+      ? `<a href="${escapeAttr(sval.trim())}" target="_blank" rel="noopener" class="open-link" title="Открыть в новой вкладке">🔗</a>`
+      : '';
+    return `<div class="cell-wrap">
+      <input type="text" class="${isNum ? 'num-cell' : ''}" value="${escapeAttr(sval)}"
+             oninput="updateCell(${sIdx}, ${rIdx}, '${escapeAttr(key)}', this.value)">
+      ${linkBtn}
+    </div>`;
+  }
+
+  function renderEventCardCell(row, sIdx, rIdx, keys) {
+    if (keys.length === 1) {
+      const key = keys[0];
+      return renderCardCellInput(sIdx, rIdx, key, row[key]);
+    }
+    return `<div class="stacked-cell">${keys.map(key => `
+      <label class="cell-field">
+        <span>${escapeHtml(key)}</span>
+        ${renderCardCellInput(sIdx, rIdx, key, row[key])}
+      </label>
+    `).join('')}</div>`;
+  }
+
+  function renderEventCardSection(section, idx) {
+    const rows = section.rows || [];
+    const bodyRows = rows.map((row, ri) => {
+      const shape = eventCardRowShape(row);
+      return `
+        <tr>
+          <td>${renderEventCardCell(row, idx, ri, [shape.titleKey])}</td>
+          <td>${renderEventCardCell(row, idx, ri, shape.infoKeys)}</td>
+          <td>${renderEventCardCell(row, idx, ri, shape.commentKeys)}</td>
+          <td class="row-actions">
+            <button title="Удалить строку" onclick="deleteRow(${idx}, ${ri})">×</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="section" data-section-idx="${idx}">
+        <div class="section-header">
+          <input type="text" value="${escapeAttr(section.name || '')}"
+                 oninput="renameSection(${idx}, this.value)">
+          <button class="icon-btn" title="Удалить секцию" onclick="deleteSection(${idx})">🗑</button>
+        </div>
+        <table class="section-table event-card-table">
+          <thead><tr><th>A Название</th><th>B Информация</th><th>C Комментарий</th><th></th></tr></thead>
+          <tbody>${bodyRows || ''}</tbody>
+        </table>
+        <button class="add-row-btn" onclick="addRow(${idx})">+ Строка</button>
+      </div>
+    `;
+  }
+
   function renderSection(section, idx, opts = {}) {
+    if (!opts.featured) return renderEventCardSection(section, idx);
+
     const rows = section.rows || [];
     // Collect all unique columns from all rows
     const allKeys = [...new Set(rows.flatMap(r => Object.keys(r)))];
