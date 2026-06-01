@@ -902,16 +902,17 @@
       <div class="section-head">
         <div class="section-num">3</div>
         <div>
-          <div class="section-label">Broker pipeline отключён</div>
-          <div class="section-desc">Live scope: кавер-группа, in-pool solo и direct Noize Drum; broker route gated by <code>LCB_BROKER_ENABLED</code></div>
+          <div class="section-label">Broker public intake ограничен</div>
+          <div class="section-desc">Live scope: broker runtime работает; public chat broker intake gated by <code>LCB_PUBLIC_BROKER_INTAKE_ENABLED</code></div>
         </div>
       </div>
       <div class="card">
         <div class="note" style="margin-bottom:12px">
-          С 31.05.2026 broker/intake/outbound по умолчанию выключены: <code>broker_request</code>
-          и <code>abstract</code> нормализуются в <code>skip</code>. <code>drum_show</code>
-          остаётся прямым Noize Drum лидом.
-          Повторное включение только явным <code>LCB_BROKER_ENABLED=1</code>.
+          С 01.06.2026 выключен только новый broker/intake из широких event-chat постов:
+          public <code>broker_request</code> и <code>abstract</code> нормализуются в <code>skip</code>,
+          пока явно не включён <code>LCB_PUBLIC_BROKER_INTAKE_ENABLED=1</code> для curated exceptions.
+          Существующие broker-заказы, contractor/client replies, follow-up и operator-owned flows
+          продолжают работать. <code>LCB_BROKER_ENABLED=0</code> — только аварийный full-off.
         </div>
         <div class="flow-row five">
           <div class="node src">
