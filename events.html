@@ -6,10 +6,11 @@
 <title>LC Band — Согласование events</title>
 <style>
   :root {
-    --bg: #0d1117; --panel: #161b22; --panel-2: #1f262e;
-    --border: #30363d; --text: #e6edf3; --muted: #8b949e;
-    --blue: #58a6ff; --green: #3fb950; --orange: #f0883e;
-    --red: #f85149; --purple: #bc8cff;
+    --bg: #f4f6f9; --panel: #ffffff; --panel-2: #f8fafc;
+    --border: #d8e0ea; --text: #172033; --muted: #687387;
+    --blue: #1d6fd8; --green: #18803a; --orange: #c26213;
+    --red: #c83a32; --purple: #7654c7;
+    --shadow: 0 10px 28px rgba(23, 32, 51, 0.08);
   }
   * { box-sizing: border-box; }
   body {
@@ -19,6 +20,7 @@
   header {
     padding: 14px 24px; border-bottom: 1px solid var(--border);
     background: var(--panel); display: flex; align-items: center; gap: 16px;
+    box-shadow: 0 1px 0 rgba(23, 32, 51, 0.04);
   }
   header h1 { margin: 0; font-size: 17px; font-weight: 600; }
   header .nav-links { margin-left: auto; display: flex; gap: 14px; }
@@ -40,7 +42,7 @@
   .events-sidebar {
     background: var(--panel); border: 1px solid var(--border);
     border-radius: 8px; padding: 12px; height: fit-content;
-    position: sticky; top: 14px;
+    position: sticky; top: 14px; box-shadow: var(--shadow);
   }
   .events-sidebar h2 {
     margin: 0 0 10px; font-size: 12px; color: var(--muted);
@@ -52,7 +54,7 @@
     margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s;
   }
   .event-card:hover { border-color: var(--blue); }
-  .event-card.active { border-color: var(--purple); background: rgba(188,140,255,0.1); }
+  .event-card.active { border-color: var(--purple); background: #f1edff; }
   .event-card .title { font-weight: 600; font-size: 13px; }
   .event-card .date { font-size: 11px; color: var(--muted); margin-top: 2px; }
   .event-card .stats { font-size: 11px; color: var(--muted); margin-top: 4px; }
@@ -61,15 +63,15 @@
   .event-card.negotiating { border-left: 3px solid #f5c518; }
   .event-card.lead { border-left: 3px dotted var(--green); }
   .event-card[data-chat-q] { cursor: pointer; }
-  .event-card[data-chat-q]:hover { background: rgba(88,166,255,0.08); }
+  .event-card[data-chat-q]:hover { background: #eef6ff; }
   .sidebar-group-title {
     margin: 12px 0 6px; font-size: 10px; color: var(--muted);
     text-transform: uppercase; letter-spacing: 0.45px;
   }
   .chat-panel {
     position: fixed; top: 0; right: 0; bottom: 0;
-    width: min(440px, 100vw); background: #0e0e18;
-    border-left: 1px solid var(--border); box-shadow: -6px 0 24px rgba(0,0,0,.4);
+    width: min(440px, 100vw); background: var(--panel);
+    border-left: 1px solid var(--border); box-shadow: -6px 0 24px rgba(23,32,51,.16);
     display: flex; flex-direction: column; z-index: 90;
     transform: translateX(100%); transition: transform .22s ease;
   }
@@ -77,7 +79,7 @@
   .chat-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 14px 16px; border-bottom: 1px solid var(--border);
-    background: rgba(255,255,255,.02);
+    background: var(--panel-2);
   }
   .chat-title { font-weight: 700; font-size: 15px; }
   .chat-sub { font-size: 11px; color: var(--muted); }
@@ -94,8 +96,8 @@
     max-width: 82%; padding: 7px 10px; border-radius: 12px;
     font-size: 13px; line-height: 1.35; word-wrap: break-word; white-space: pre-wrap;
   }
-  .chat-msg-in { align-self: flex-start; background: rgba(255,255,255,.06); border-top-left-radius: 4px; }
-  .chat-msg-out { align-self: flex-end; background: rgba(34,197,94,.18); border-top-right-radius: 4px; }
+  .chat-msg-in { align-self: flex-start; background: #eef2f7; border-top-left-radius: 4px; }
+  .chat-msg-out { align-self: flex-end; background: #dff5e7; border-top-right-radius: 4px; }
   .chat-msg-time { font-size: 10px; color: var(--muted); margin-top: 2px; }
   .chat-loading { padding: 30px; text-align: center; color: var(--muted); font-size: 12px; }
   .chat-error {
@@ -114,7 +116,7 @@
   /* Main panel — event detail */
   .event-detail {
     background: var(--panel); border: 1px solid var(--border);
-    border-radius: 8px; padding: 18px;
+    border-radius: 8px; padding: 18px; box-shadow: var(--shadow);
   }
   .event-header {
     display: flex; gap: 12px; align-items: flex-start;
@@ -181,6 +183,25 @@
   .section {
     margin-bottom: 22px; background: var(--panel-2);
     border: 1px solid var(--border); border-radius: 6px; padding: 12px;
+  }
+  .sections-layout { display: grid; gap: 14px; }
+  .featured-section {
+    background: #fffdf7;
+    border-color: #e2c86f;
+    box-shadow: inset 4px 0 0 #d6a900;
+  }
+  .sections-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    align-items: start;
+  }
+  .sections-grid .section { margin-bottom: 0; }
+  @media (max-width: 1300px) {
+    .sections-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 760px) {
+    .sections-grid { grid-template-columns: 1fr; }
   }
   .section-header {
     display: flex; align-items: center; gap: 8px;
@@ -399,6 +420,37 @@
   .toast.error { background: rgba(248,81,73,0.2); border: 1px solid var(--red); color: var(--red); }
 </style>
   <link rel="stylesheet" href="_theme.css">
+  <style>
+    html[data-theme="light"] .events-sidebar,
+    html[data-theme="light"] .event-detail,
+    html[data-theme="light"] .section,
+    html[data-theme="light"] .notes-area,
+    html[data-theme="light"] .cal-wrap {
+      background: var(--panel) !important;
+    }
+    html[data-theme="light"] .event-card,
+    html[data-theme="light"] .cal-toolbar,
+    html[data-theme="light"] .cal-week-header,
+    html[data-theme="light"] .cal-cell.outside,
+    html[data-theme="light"] .notes-area textarea {
+      background: var(--panel-2) !important;
+    }
+    html[data-theme="light"] .featured-section {
+      background: #fffdf7 !important;
+    }
+    html[data-theme="light"] .event-card.active {
+      background: #f1edff !important;
+    }
+    html[data-theme="light"] .event-card[data-chat-q]:hover {
+      background: #eef6ff !important;
+    }
+    html[data-theme="light"] .chat-panel,
+    html[data-theme="light"] .chat-header,
+    html[data-theme="light"] .chat-msg-in,
+    html[data-theme="light"] .chat-msg-out {
+      color: var(--text) !important;
+    }
+  </style>
   <script src="_theme.js"></script>
   <script src="_nav.js"></script>
 </head>
@@ -1069,10 +1121,23 @@
 
   function renderSections() {
     const container = document.getElementById('sections-container');
-    container.innerHTML = (CURRENT_EVENT.sections || []).map((s, idx) => renderSection(s, idx)).join('');
+    const sections = CURRENT_EVENT.sections || [];
+    const compositionIdx = sections.findIndex(s => String(s.name || '').trim().toLowerCase() === 'состав');
+    const composition = compositionIdx >= 0 ? renderSection(sections[compositionIdx], compositionIdx, { featured: true }) : '';
+    const otherSections = sections
+      .map((section, idx) => ({ section, idx }))
+      .filter(item => item.idx !== compositionIdx)
+      .map(item => renderSection(item.section, item.idx))
+      .join('');
+    container.innerHTML = `
+      <div class="sections-layout">
+        ${composition}
+        ${otherSections ? `<div class="sections-grid">${otherSections}</div>` : ''}
+      </div>
+    `;
   }
 
-  function renderSection(section, idx) {
+  function renderSection(section, idx, opts = {}) {
     const rows = section.rows || [];
     // Collect all unique columns from all rows
     const allKeys = [...new Set(rows.flatMap(r => Object.keys(r)))];
@@ -1132,7 +1197,7 @@
     }).filter(Boolean).join(' · ') : '';
 
     return `
-      <div class="section">
+      <div class="section ${opts.featured ? 'featured-section' : ''}" data-section-idx="${idx}">
         <div class="section-header">
           <input type="text" value="${escapeAttr(section.name || '')}"
                  oninput="renameSection(${idx}, this.value)">
@@ -1225,11 +1290,10 @@
     if (!CURRENT_EVENT) return;
     const idx = (CURRENT_EVENT.sections || []).findIndex(s => s.name === 'Финансы');
     if (idx < 0) return;
-    // Поиск DOM-узла секции Финансы по позиции среди .section в #event-detail
+    // Секции могут визуально переупорядочиваться, поэтому ищем по исходному индексу.
     const detail = document.getElementById('event-detail');
     if (!detail) return;
-    const sectionEls = detail.querySelectorAll('.section');
-    const targetEl = sectionEls[idx];
+    const targetEl = detail.querySelector(`.section[data-section-idx="${idx}"]`);
     if (!targetEl) return;
     // Запоминаем активный элемент (focus + selection) чтобы вернуть после re-render
     const active = document.activeElement;
