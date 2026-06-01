@@ -2705,6 +2705,7 @@ let _liveLastTs = '';
 let _liveLoading = false;
 const _liveSeenEventIds = new Set();
 function liveEventId(e) {
+  if (e.event_id) return String(e.event_id);
   return [
     e.ts || '',
     e.kind || '',
