@@ -967,7 +967,8 @@
             <p>
               <code>event_ops_state.json</code> хранит только рабочие решения:
               <code>lineup_resolve</code> cache, <code>musician_availability</code>,
-              <code>drummer_recruited</code>, <code>sax_recruited</code>,
+              <code>drummer_recruited</code>, <code>bass_recruited</code>,
+              <code>sax_recruited</code>,
               <code>*_declined</code>, pending approvals. Это не raw-message SSoT.
             </p>
           </div>
@@ -1013,8 +1014,11 @@
           <code>4 чел</code> = Ирина + Стас + Павел + сакс/клавиши;
           <code>6 чел</code> = Ирина + Стас + Павел + сакс/клавиши + Juan + Alex bass.
           LAZ/Teddy добавляются только если продан или явно обсуждён третий вокал.
-          Сакс-пул: <code>leochirisax</code>, <code>stereosax</code> (Афанасьев),
-          <code>distant_spaceee</code>. Keys-пул: <code>bolshakovkeys</code>.
+          Бас: <code>id1262817151</code> (Alex bass) — если не закреплён,
+          event-ops спрашивает наличие через approval-gated личку, а не повторяет
+          ручной <code>/event_lineup</code> prompt. Сакс-пул: <code>leochirisax</code>,
+          <code>stereosax</code> (Афанасьев), <code>distant_spaceee</code>.
+          Keys-пул: <code>bolshakovkeys</code>.
           Если ответ ещё не подтверждает участие, человек остаётся <code>pending/?</code>.
         </div>
 
