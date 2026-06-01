@@ -160,22 +160,29 @@
   }
   .upcoming-row {
     display: grid;
-    grid-template-columns: 110px 1fr 80px 100px;
-    gap: 12px; padding: 8px 0;
+    grid-template-columns: 96px 1fr 96px 92px 96px;
+    gap: 10px; padding: 8px 0;
     border-bottom: 1px solid var(--border); font-size: 13px;
   }
   .upcoming-row:last-child { border: none; }
+  .upcoming-head {
+    display: grid;
+    grid-template-columns: 96px 1fr 96px 92px 96px;
+    gap: 10px; padding: 0 0 6px;
+    font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .03em;
+  }
+  .upcoming-head .num, .upcoming-row .num {
+    text-align: right; font-variant-numeric: tabular-nums;
+  }
   .upcoming-row .date {
     color: var(--info); font-weight: 600; font-variant-numeric: tabular-nums;
   }
-  .upcoming-row .title { color: var(--text); }
-  .upcoming-row .members {
-    color: var(--muted); text-align: right; font-size: 12px;
-  }
-  .upcoming-row .fee {
-    color: var(--ok); text-align: right; font-size: 12px;
-    font-variant-numeric: tabular-nums;
-  }
+  .upcoming-row .title { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .upcoming-row .client { color: var(--text); text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .upcoming-row .band   { color: var(--muted); text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .upcoming-row .margin { color: var(--ok); text-align: right; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .upcoming-row .margin.neg { color: var(--err, #e06c6c); }
   .empty { color: var(--muted); padding: 12px; text-align: center; }
 
   .note {
@@ -236,7 +243,9 @@
   async function fetchEvents() {
     try {
       const bu = await getBackendBase();
-      const r = await fetch(`${bu}/api/events`, { cache: 'no-store' });
+      // include_unlinked=1: paid events whose order link date-mismatches get
+      // dropped by the main filter — pull all planned cards so finances show.
+      const r = await fetch(`${bu}/api/events?include_unlinked=1`, { cache: 'no-store' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
       return j.events || [];
@@ -448,15 +457,25 @@
       upcomingEl.innerHTML = '<div class="empty">Ничего на ближайшие 90 дней</div>';
       return;
     }
+    const money = n => n ? Math.round(n).toLocaleString('ru-RU') + ' ₽' : '—';
+    const head = document.createElement('div');
+    head.className = 'upcoming-head';
+    head.innerHTML = `<div>Дата</div><div>Событие</div><div class="num">Клиент</div><div class="num">Музыканты</div><div class="num">Маржа</div>`;
+    upcomingEl.appendChild(head);
     for (const ev of rows) {
       const r = document.createElement('div');
       r.className = 'upcoming-row';
       const d = parseDate(ev.date);
+      const akWe = ev.agency_mode === 'we_pay' && ev.agency_amount;
+      const clientHint = (ev.client_nal || ev.client_bn)
+        ? `нал ${money(ev.client_nal)} · перевод ${money(ev.client_bn)}` + (akWe ? ` · АК −${money(ev.agency_amount)} (мы)` : '')
+        : '';
       r.innerHTML = `
         <div class="date">${d ? fmtRu(d) : '—'}</div>
         <div class="title"><a href="./events.html#${encodeURIComponent(ev.id)}" style="color:inherit;text-decoration:none">${esc(ev.title || ev.id)}</a></div>
-        <div class="members">${ev.members_count || 0} чел</div>
-        <div class="fee">${ev.members_total_fee ? Math.round(ev.members_total_fee).toLocaleString('ru-RU') + ' ₽' : '—'}</div>
+        <div class="client num" title="${clientHint}">${money(ev.client_total)}</div>
+        <div class="band num" title="${ev.members_count || 0} чел">${money(ev.members_total_fee)}</div>
+        <div class="margin num ${ev.margin < 0 ? 'neg' : ''}">${money(ev.margin)}</div>
       `;
       upcomingEl.appendChild(r);
     }
