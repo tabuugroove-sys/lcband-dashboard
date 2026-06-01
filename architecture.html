@@ -808,7 +808,7 @@
               <div class="step-num">2</div>
               <div>
                 <h3>Dedup и hard routing</h3>
-                <p><code>handle()</code> сначала проверяет recent handled claim, band member route, broker candidate/client route, musician/aggregator/payment gates и contractor coordination questions. Эти ветки могут завершить поток до LCB writer.</p>
+                <p><code>handle()</code> сначала проверяет recent handled claim, band member route, broker candidate/client route, musician/aggregator/payment gates и contractor coordination messages. Эти ветки могут завершить поток до LCB writer.</p>
               </div>
             </div>
             <div class="step">
@@ -865,8 +865,8 @@
                 <td>Запись в <code>broker_orders.json</code> history/status; LCB writer не запускается.</td>
               </tr>
               <tr>
-                <td><b>Contractor question</b></td>
-                <td><code>tg_contact_roles.json</code> роли <code>contractor_*</code>/<code>lcb_musician</code> + вопрос без money intent → <code>band_member_reply.py</code> в <code>CONTRACTOR COORDINATION MODE</code> с recent coordination context. <code>do_not_touch</code> защищает от client writer, но не глушит рабочий factual reply.</td>
+                <td><b>Contractor coordination</b></td>
+                <td><code>tg_contact_roles.json</code> роли <code>contractor_*</code>/<code>lcb_musician</code> + вопрос/короткий рабочий статус без money intent → <code>band_member_reply.py</code> в <code>CONTRACTOR COORDINATION MODE</code> с recent coordination context. Если факта нет, безопасный fallback отвечает, что уточним и вернёмся. <code>do_not_touch</code> защищает от client writer, но не глушит вежливый рабочий ответ.</td>
               </tr>
               <tr>
                 <td><b>Contractor referral</b></td>
