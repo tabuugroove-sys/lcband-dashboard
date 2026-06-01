@@ -470,11 +470,20 @@
       const clientHint = (ev.client_nal || ev.client_bn)
         ? `нал ${money(ev.client_nal)} · перевод ${money(ev.client_bn)}` + (akWe ? ` · АК −${money(ev.agency_amount)} (мы)` : '')
         : '';
+      // Состав пофамильно + сколько отправлено каждому из гонорара.
+      const mem = ev.members || [];
+      const bandHint = mem.length
+        ? mem.map(m => `${m.name}${m.role ? ' (' + m.role + ')' : ''}: отправлено ${money(m.paid)} из ${money(m.fee)}`
+                        + (m.remaining > 0 ? ` · остаток ${money(m.remaining)}` : ' ✓')).join('\n')
+        : `${ev.members_count || 0} чел`;
+      const bandCell = ev.band_paid
+        ? `${money(ev.band_paid)} <span style="color:var(--muted)">/ ${money(ev.members_total_fee)}</span>`
+        : money(ev.members_total_fee);
       r.innerHTML = `
         <div class="date">${d ? fmtRu(d) : '—'}</div>
         <div class="title"><a href="./events.html#${encodeURIComponent(ev.id)}" style="color:inherit;text-decoration:none">${esc(ev.title || ev.id)}</a></div>
         <div class="client num" title="${clientHint}">${money(ev.client_total)}</div>
-        <div class="band num" title="${ev.members_count || 0} чел">${money(ev.members_total_fee)}</div>
+        <div class="band num" title="${bandHint.replace(/"/g, '&quot;')}">${bandCell}</div>
         <div class="margin num ${ev.margin < 0 ? 'neg' : ''}">${money(ev.margin)}</div>
       `;
       upcomingEl.appendChild(r);
