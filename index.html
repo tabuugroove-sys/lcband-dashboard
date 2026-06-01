@@ -1029,6 +1029,7 @@ const PROCESS_RULES = {
       'Время копится только 09:00–23:00 MSK — ночные сообщения ждут утра',
       'AI-судья (Opus): клиент реально ждёт ответа vs «спасибо/завтра отправлю» (мяч у клиента)',
       'awaiting_us=true → one-shot notify_bot (не громкий urgent_bot), повтор раз в 6ч, max 3, снятие при ответе',
+      'Просроченные self_to_them promises → один notify/urgent alert на promise_id, затем watcher ждёт закрытия без reminder 2/3',
       'Скрипт: unanswered_inbound_watcher.py | log: /tmp/unanswered_inbound_watcher.log | state: unanswered_watcher_state.json',
     ],
   },

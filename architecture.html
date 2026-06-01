@@ -733,7 +733,7 @@
           successful send / mark-sent → <code>outbound_recorder.record_outbound(namespace="lcb")</code> →
           <code>orders.db.message_events</code> → context refresh/promises. Если send закрывает due <code>self_to_them</code>
           event promise, <code>tg_followup</code> помечает его <code>done</code> в <code>event_graph</code>, чтобы следующий tick не повторил действие.
-          Просроченные <code>self_to_them</code> promises дополнительно ловит <code>unanswered_inbound_watcher.py</code> и шлёт notify.
+          Просроченные <code>self_to_them</code> promises дополнительно ловит <code>unanswered_inbound_watcher.py</code> и шлёт один notify без повторных reminder 2/3.
           Daily <code>com.lcband.promise-debt-watcher</code> в 09:30 МСК запускает тот же owner в <code>--daily-promises</code>
           режиме и поднимает невыполненные обещания через urgent transport: <code>LCBAND_URGENT</code> →
           <code>ESCALATION</code> → живой <code>@lcband_notify_bot</code> fallback, чтобы удалённый urgent/escalation bot не терял alert.
