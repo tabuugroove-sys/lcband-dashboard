@@ -687,7 +687,7 @@
             <h3>TG realtime</h3>
             <div class="role-row"><b>input</b><code>tg_realtime_monitor.py</code> + <code>tg_session_monitor.session</code>: DM/event NewMessage.</div>
             <div class="role-row"><b>output</b>Не writer. DM send после gates выполняется через live realtime client, без открытия второй TG-сессии.</div>
-            <div class="role-row"><b>write</b>Inbound → <code>orders.db.message_events</code> → context refresh.</div>
+            <div class="role-row"><b>write</b>Inbound/manual outgoing → <code>orders.db.message_events</code> → context refresh + <code>promise_extractor</code>.</div>
             <div class="role-row"><b>calls</b>TG call service messages пишутся как call touchpoint и ставят <code>operator_no_autoreply</code>: после звонка агент не пишет сам.</div>
             <div class="role-row"><b>reaction</b>Если DM-agent решил не писать текст, listener может поставить лёгкий TG 👍 только для коротких безопасных ack/wait сообщений.</div>
             <div class="role-row"><b>blacklist</b><code>tg_whitelist.json</code> → context <code>do_not_touch</code>; manual blacklist не получает read-ack.</div>
@@ -733,6 +733,7 @@
           successful send / mark-sent → <code>outbound_recorder.record_outbound(namespace="lcb")</code> →
           <code>orders.db.message_events</code> → context refresh/promises. Если send закрывает due <code>self_to_them</code>
           event promise, <code>tg_followup</code> помечает его <code>done</code> в <code>event_graph</code>, чтобы следующий tick не повторил действие.
+          Просроченные <code>self_to_them</code> promises дополнительно ловит <code>unanswered_inbound_watcher.py</code> и шлёт notify.
         </div>
       </div>
       <div class="grid3" style="margin-top:12px">
