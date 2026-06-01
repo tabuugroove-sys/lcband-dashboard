@@ -1115,7 +1115,7 @@ const PROCESS_RULES = {
       'Throttle 5 ч внутри propose_group_creation (last_proposed_at_ts) — повторно не спамит',
       'Approval-текст Михаилу: шапка события + кого добавлю (@usernames) + name-free бриф для группы',
       'Бриф в группу БЕЗ имён артистов и БЕЗ денег (_group_post_from_order + _assert_no_budget)',
-      'Финансы по событию идут отдельно в urgent-бот, в группу никогда',
+      'Финансы по событию идут отдельно через urgent transport: urgent/escalation → @lcband_notify_bot fallback; в группу никогда',
       'Кнопка ✅ Создать → bot_commander egrp:create → event_ops_bot.py create-group (Telethon CreateChatRequest, нужна живая tg_session)',
       'Кнопка ❌ → approval rejected, группа не создаётся',
       'Участники: performer-роли из event-карточки + recruit-замены; отказавшихся в карточке нет',

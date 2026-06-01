@@ -735,7 +735,8 @@
           event promise, <code>tg_followup</code> помечает его <code>done</code> в <code>event_graph</code>, чтобы следующий tick не повторил действие.
           Просроченные <code>self_to_them</code> promises дополнительно ловит <code>unanswered_inbound_watcher.py</code> и шлёт notify.
           Daily <code>com.lcband.promise-debt-watcher</code> в 09:30 МСК запускает тот же owner в <code>--daily-promises</code>
-          режиме и поднимает невыполненные обещания как urgent.
+          режиме и поднимает невыполненные обещания через urgent transport: <code>LCBAND_URGENT</code> →
+          <code>ESCALATION</code> → живой <code>@lcband_notify_bot</code> fallback, чтобы удалённый urgent/escalation bot не терял alert.
         </div>
       </div>
       <div class="grid3" style="margin-top:12px">
