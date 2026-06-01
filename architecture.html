@@ -736,6 +736,7 @@
         <div class="block-links">
           <a href="#actual-runtime">Runtime sequence</a>
           <a href="#actual-branches">Главные развилки</a>
+          <a href="#musician-replies-flow">Ответы музыкантов</a>
         </div>
       </details>
       <details>
@@ -878,6 +879,149 @@
           <div style="margin-top:12px">
             <span class="pill teal">one memory layer</span>
           </div>
+        </div>
+      </div>
+
+      <div class="card" id="musician-replies-flow">
+        <div class="card-title">Ответ музыканта → состав event'а</div>
+        <p class="note">
+          Это не ручная правка карточки. Ответ музыканта сначала сохраняется как raw-message,
+          потом общий context owner превращает переписку в <code>event_threads</code>, а event-ops
+          читает уже этот SSoT и решает, кто confirmed / pending / unavailable.
+        </p>
+        <div class="flow-row five">
+          <div class="node src">
+            <h3>1. TG private DM</h3>
+            <p>
+              Музыкант отвечает в личке: «могу», «не могу», «поставь за мной»,
+              «уточню», присылает репертуар или задаёт вопрос по дате.
+            </p>
+          </div>
+          <div class="arrow-col">→</div>
+          <div class="node connect">
+            <h3>2. realtime owner</h3>
+            <p>
+              <code>tg_realtime_monitor.py</code> ловит входящее через
+              <code>tg_session_monitor.session</code> и передаёт в DM pipeline.
+              Outgoing/manual replies также попадают в тот же лог.
+            </p>
+          </div>
+          <div class="arrow-col">→</div>
+          <div class="node store">
+            <h3>3. raw message SSoT</h3>
+            <p>
+              <code>message_event_log.py</code> пишет событие в
+              <code>orders.db.message_events</code>. Это canonical история переписки;
+              JSON/cache слои не являются источником отправки или статуса.
+            </p>
+          </div>
+        </div>
+
+        <div class="flow-row five">
+          <div class="node writer">
+            <h3>4. hard route</h3>
+            <p>
+              <code>unified_dm_responder.py</code> проверяет <code>lcb_roster.py</code>
+              и <code>tg_contact_roles.json</code>. Роли <code>lcb_musician</code>,
+              <code>resident_*</code> и coordination-candidates уходят в
+              <code>band_member_reply.py</code>, а не в client writer.
+            </p>
+          </div>
+          <div class="arrow-col">→</div>
+          <div class="node store">
+            <h3>5. context extraction</h3>
+            <p>
+              <code>lead_context_enricher.py</code> читает
+              <code>orders.db.message_events</code>, собирает командные треды вокруг
+              конкретной даты и пишет <code>event_threads</code>:
+              <code>availability</code>, <code>thread_status</code>,
+              <code>thread_summary</code>, <code>last_message_ts</code>.
+            </p>
+          </div>
+          <div class="arrow-col">→</div>
+          <div class="node store">
+            <h3>6. event SSoT</h3>
+            <p>
+              <code>lcb_orders.refresh_contact()</code> материализует обновлённый
+              event-card в <code>lcb_orders.json</code>. Для production это главный
+              read-model: дата, формат, organizer, participants, event_threads,
+              coordination_requests.
+            </p>
+          </div>
+        </div>
+
+        <div class="flow-row five">
+          <div class="node broker">
+            <h3>7. lineup resolve</h3>
+            <p>
+              <code>event_ops_bot.resolve_production_lineup()</code> читает
+              <code>lcb_orders.json.event_threads</code> + свежие recruit-диалоги из
+              <code>orders.db.message_events</code>. Он не верит сырой карточке
+              <code>event_planning.json</code> и не считает silence подтверждением.
+            </p>
+          </div>
+          <div class="arrow-col">→</div>
+          <div class="node state">
+            <h3>8. operational cache</h3>
+            <p>
+              <code>event_ops_state.json</code> хранит только рабочие решения:
+              <code>lineup_resolve</code> cache, <code>musician_availability</code>,
+              <code>drummer_recruited</code>, <code>sax_recruited</code>,
+              <code>*_declined</code>, pending approvals. Это не raw-message SSoT.
+            </p>
+          </div>
+          <div class="arrow-col">→</div>
+          <div class="node out">
+            <h3>9. visible surfaces</h3>
+            <p>
+              <code>events.html</code>, briefing, band-chat approval и repertoire
+              должны показывать один resolved lineup: confirmed, pending, unavailable
+              и gaps. В группу добавляем только состав нужного размера и формата,
+              который продан/обсуждён с organizer.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid3" style="margin-top:12px">
+          <div class="seq-card primary">
+            <b>Что обновляется сразу</b>
+            <p>
+              <code>orders.db.message_events</code> получает входящее сообщение.
+              Это единственное место, где доказывается сам факт ответа музыканта.
+            </p>
+          </div>
+          <div class="seq-card state">
+            <b>Что обновляется после context refresh</b>
+            <p>
+              <code>lead_context_store.json</code> как legacy mirror,
+              <code>orders.db contact_context/event_context</code> и
+              <code>lcb_orders.json.event_threads</code>.
+            </p>
+          </div>
+          <div class="seq-card broker">
+            <b>Что обновляет event-ops</b>
+            <p>
+              <code>event_ops_state.json</code> хранит кэш решений и статусы рекрутинга,
+              чтобы не спрашивать одного и того же музыканта повторно.
+            </p>
+          </div>
+        </div>
+
+        <div class="return-strip">
+          <b>Правило состава:</b>
+          <code>4 чел</code> = Ирина + Стас + Павел + сакс/клавиши;
+          <code>6 чел</code> = Ирина + Стас + Павел + сакс/клавиши + Juan + Alex bass.
+          LAZ/Teddy добавляются только если продан или явно обсуждён третий вокал.
+          Сакс-пул: <code>leochirisax</code>, <code>stereosax</code> (Афанасьев),
+          <code>distant_spaceee</code>. Keys-пул: <code>bolshakovkeys</code>.
+          Если ответ ещё не подтверждает участие, человек остаётся <code>pending/?</code>.
+        </div>
+
+        <div class="list">
+          <div class="row"><b>confirmed</b><span>Явное согласие на эту дату/роль: «могу», «ставь за мной», «подтверждаю», либо диалог, где Михаил закрепил дату после согласия.</span></div>
+          <div class="row"><b>unavailable</b><span>Явный отказ или занятость: «не могу», «занят», «гастроль», «не получится». Это создаёт gap и запускает replacement path.</span></div>
+          <div class="row"><b>pending</b><span>Молчит, «уточню», вопрос без финального согласия, прислал материалы без подтверждения даты. Не считать готовым составом.</span></div>
+          <div class="row"><b>gap</b><span>Проданная роль отсутствует или кандидат отказал. Event-ops предлагает спросить следующий pool candidate, но реальная личка идёт только через approval/send owner.</span></div>
         </div>
       </div>
     </section>
