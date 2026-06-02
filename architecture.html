@@ -1110,7 +1110,7 @@
               </tr>
               <tr>
                 <td><b>Broker contractor/client</b></td>
-                <td>Запись в <code>broker_orders.json</code> history/status; LCB writer не запускается.</td>
+                <td>Запись в <code>broker_orders.json</code> history/status; contractor reply → <code>broker_relay_to_client</code> через <code>broker_dialog_agent</code>; LCB writer не запускается.</td>
               </tr>
               <tr>
                 <td><b>Contractor coordination</b></td>
@@ -1241,6 +1241,7 @@
           <div class="lane-label">Replies</div>
           <div class="lane-flow">
             <div class="lane-chip"><b>contractor DM</b>append history</div>
+            <div class="lane-chip"><b>contractor answer</b>queue client relay</div>
             <div class="lane-chip"><b>@referral</b>index contractor</div>
             <div class="lane-chip"><b>contractor question</b>performer-safe reply</div>
             <div class="lane-chip"><b>client DM</b>update broker status</div>
