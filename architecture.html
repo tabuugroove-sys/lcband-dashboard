@@ -1063,7 +1063,7 @@
               <div class="step-num">3</div>
               <div>
                 <h3>Context сборка</h3>
-                <p><code>agent_context.get_agent_context()</code> — единый read entry для responder: messages, CRM/order, lead-card, event-card, graph/promises. Внутренние adapters (<code>lead_context_enricher</code>, <code>resolve_context</code>, <code>lcb_event_context</code>) больше не читаются responder'ом как независимые контексты.</p>
+                <p><code>agent_context.get_agent_context()</code> — единый read entry для responder: messages, CRM/order, lead-card, event-card, graph/promises. <code>status=Посредник</code> или <code>next_action=BROKER:...</code> выбирает broker event-card через <code>broker_order_context.py</code>; иначе LCB card идёт через <code>lcb_event_context.py</code>.</p>
               </div>
             </div>
             <div class="step">
