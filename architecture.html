@@ -888,7 +888,7 @@
         <p class="note">
           Это не ручная правка карточки. Ответ музыканта сначала сохраняется как raw-message,
           потом общий context owner превращает переписку в <code>event_threads</code>, а event-ops
-          читает уже этот SSoT и решает, кто confirmed / pending / unavailable.
+          читает уже этот SSoT и решает, кто confirmed / negotiating / pending / unavailable.
         </p>
         <div class="flow-row five">
           <div class="node src">
@@ -977,9 +977,9 @@
             <h3>9. visible surfaces</h3>
             <p>
               <code>events.html</code>, briefing, band-chat approval и repertoire
-              должны показывать один resolved lineup: confirmed, pending, unavailable
-              и gaps. В группу добавляем только состав нужного размера и формата,
-              который продан/обсуждён с organizer.
+              должны показывать один resolved lineup: confirmed, negotiating/pending,
+              unavailable и gaps. Negotiating отображается как участник состава
+              под вопросом, не как confirmed.
             </p>
           </div>
         </div>
@@ -1019,11 +1019,13 @@
           ручной <code>/event_lineup</code> prompt. Сакс-пул: <code>leochirisax</code>,
           <code>stereosax</code> (Афанасьев), <code>distant_spaceee</code>.
           Keys-пул: <code>bolshakovkeys</code>.
-          Если ответ ещё не подтверждает участие, человек остаётся <code>pending/?</code>.
+          Если ответ ещё не подтверждает участие или бюджет/тайминг не закрыты,
+          человек остаётся <code>negotiating/pending/?</code>.
         </div>
 
         <div class="list">
-          <div class="row"><b>confirmed</b><span>Явное согласие на эту дату/роль: «могу», «ставь за мной», «подтверждаю», либо диалог, где Михаил закрепил дату после согласия.</span></div>
+          <div class="row"><b>confirmed</b><span>Явное финальное согласие на эту дату/роль: «ставь за мной», «подтверждаю», либо диалог, где Михаил закрепил дату, условия и финальное go после согласия.</span></div>
+          <div class="row"><b>negotiating</b><span>Исполнитель может/готов, но бюджет, тайминг, дата, состав или финальное go ещё не закрыты. В карточке это «под вопросом».</span></div>
           <div class="row"><b>unavailable</b><span>Явный отказ или занятость: «не могу», «занят», «гастроль», «не получится». Это создаёт gap и запускает replacement path.</span></div>
           <div class="row"><b>pending</b><span>Молчит, «уточню», вопрос без финального согласия, прислал материалы без подтверждения даты. Не считать готовым составом.</span></div>
           <div class="row"><b>gap</b><span>Проданная роль отсутствует или кандидат отказал. Event-ops предлагает спросить следующий pool candidate, но реальная личка идёт только через approval/send owner.</span></div>
