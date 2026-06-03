@@ -1104,7 +1104,7 @@
               <div class="step-num">6</div>
               <div>
                 <h3>Freshness + pre-send</h3>
-                <p>Перед отправкой заново читается tail переписки. Если он изменился, draft не отправляется. Потом идёт единый OutboundReview: duplicate, media, price, payment, contact handoff и AI-review возвращают один result с blocker/decision. Transport gates остаются финальным DeliveryGuard.</p>
+                <p>Перед отправкой заново читается tail переписки. Если он изменился, draft не отправляется. Потом идёт единый OutboundReview: duplicate, media, price, payment, contact handoff и AI-review возвращают один result с blocker/decision. Media gate блокирует повтор уже отправленного видео-URL, когда клиент просит конкретный/другой ролик, и переводит это в media_request. Transport gates остаются финальным DeliveryGuard.</p>
               </div>
             </div>
             <div class="step">
