@@ -2434,6 +2434,7 @@ function renderAiPools(d) {
       </td>
       <td>
         <div style="font-weight:600;">${esc(p.label || 'AI pool')}</div>
+        ${p.dominant_purpose ? `<div class="pool-meta">dominant: ${esc(p.dominant_purpose)} · ${Number(p.dominant_tokens || 0)} tok</div>` : ''}
         <div class="pool-meta">${esc(services || 'service unknown')}</div>
       </td>
       <td><div class="pool-purpose-pills">${purposes}</div></td>
@@ -2467,6 +2468,7 @@ function renderAiPoolsTop(pools) {
       </td>
       <td>
         <div style="font-weight:600;">${esc(p.label || 'AI pool')}</div>
+        ${p.dominant_purpose ? `<div class="pool-meta">dominant: ${esc(p.dominant_purpose)} · ${Number(p.dominant_tokens || 0)} tok</div>` : ''}
         <div class="pool-meta">${esc(services || 'service unknown')}</div>
       </td>
       <td><div class="pool-outcome ${esc(outcomeClass)}">${esc(p.outcome || '')}</div>${secondary}</td>
