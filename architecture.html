@@ -1012,6 +1012,9 @@
             <p>
               <code>event_ops_state.json</code> хранит кэш решений и статусы рекрутинга,
               чтобы не спрашивать одного и того же музыканта повторно.
+              Direct confirmed-brief разрешён только по approved
+              <code>plan_participants</code> / group participants, не по сырому
+              <code>lcb_orders.participants</code>.
             </p>
           </div>
         </div>
@@ -1036,6 +1039,7 @@
 
         <div class="list">
           <div class="row"><b>confirmed</b><span>Явное финальное согласие на эту дату/роль: «ставь за мной», «подтверждаю», либо диалог, где Михаил закрепил дату, условия и финальное go после согласия.</span></div>
+          <div class="row"><b>confirmed-brief</b><span>Личная отправка «подтверждаю работу» берёт право из approved <code>event_ops_state.event_groups[*].plan_participants</code>; если плана нет — только из явного финального evidence, не из рекомендации/availability.</span></div>
           <div class="row"><b>negotiating</b><span>Исполнитель может/готов, но бюджет, тайминг, дата, состав или финальное go ещё не закрыты. В карточке это «под вопросом».</span></div>
           <div class="row"><b>unavailable</b><span>Явный отказ или занятость: «не могу», «занят», «гастроль», «не получится». Это создаёт gap и запускает replacement path.</span></div>
           <div class="row"><b>pending</b><span>Молчит, «уточню», вопрос без финального согласия, прислал материалы без подтверждения даты. Не считать готовым составом.</span></div>
