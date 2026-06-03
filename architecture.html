@@ -957,8 +957,11 @@
             <p>
               <code>event_ops_bot.resolve_production_lineup()</code> читает
               <code>lcb_orders.json.event_threads</code> + свежие recruit-диалоги из
-              <code>orders.db.message_events</code>. Он не верит сырой карточке
-              <code>event_planning.json</code> и не считает silence подтверждением.
+              <code>orders.db.message_events</code>, плюс client-side thread
+              организатора для проданного состава. Он не верит сырой карточке
+              <code>event_planning.json</code>, не считает silence подтверждением
+              и поднимает незакрытые альтернативы состава как
+              <code>open_decision</code>.
             </p>
           </div>
           <div class="arrow-col">→</div>
@@ -1021,6 +1024,10 @@
           Keys-пул: <code>bolshakovkeys</code>.
           Если ответ ещё не подтверждает участие или бюджет/тайминг не закрыты,
           человек остаётся <code>negotiating/pending/?</code>.
+          Если в переписке организатора осталась развилка вроде
+          <code>клавиши или саксофон</code> без более позднего явного выбора,
+          event-ops ставит <code>clarify_target=organizer</code>; чистый
+          rider-only слот остаётся внутренним <code>bandleader</code>-решением.
         </div>
 
         <div class="list">
