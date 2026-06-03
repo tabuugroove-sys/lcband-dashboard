@@ -1108,7 +1108,7 @@ const PROCESS_RULES = {
   proc_event_ops_logistics: {
     name: 'Event Ops Logistics (10m)',
     interval: 'Каждые 10 мин',
-    desc: 'Закрывает обещания event_ops по логистике и performer-coordination: организаторские факты идут в event/band-chat, запросы к участникам (например костюм LAZ) уходят performer-у с дедупом',
+    desc: 'Закрывает обещания event_ops по логистике, performer-coordination и production-записи: организаторские факты идут в event/band-chat, запросы к участникам и tech/sound contact уходят с дедупом',
     rules: [
       'Источник: event_ops_log.jsonl — ищет последний ask-organizer-logistics и ответы организатора после него',
       'Парсит только прямые факты: сет-тайминги, перерыв, сдвиг, парковку, оплату парковочного талона, контакт на площадке',
@@ -1116,8 +1116,9 @@ const PROCESS_RULES = {
       'Отправляет только новые/изменившиеся факты, без повторения всего адреса, состава и старого тайминга',
       'Если есть новая схема подъезда — пересылает вложение следом',
       'Performer-coordination: lcb_orders.json → lcb_event_context.iter_performer_coordination_requests → target performer thread; требует source media из conversation_cache',
+      'Recording request: после rider-ready сигнала выбирает активного tech/sound contact и спрашивает master/stereo out либо поканально/multitrack',
       'Пример: @alenkakashparova просит костюм LAZ → @larzyy получает текст + фото; клиенту отвечает LCB writer после факта',
-      'Дедуп: event_ops_state.json по source_msg_id + semantic sent_facts — похожие повторы организатора не дублируют отправку',
+      'Дедуп: event_ops_state.json по source_msg_id / semantic sent_facts / recording_requests + orders.db.message_events source=event_ops_recording_request',
       'Скрипты: event_ops_logistics_agent.py → event_ops_bot.py | log: /tmp/event_ops_logistics.log',
     ],
   },
