@@ -819,7 +819,7 @@
           <div class="seq-arrow">→</div>
           <div class="seq-card primary">
             <b>Owner split + <code>unified_dm_responder.py</code></b>
-            <p>Broker, band-member, payment/refusal gates срабатывают до текста. Только LCB client branch идёт в <code>lcb_writer.py</code>.</p>
+            <p>Broker, band-member, payment/refusal gates срабатывают до текста. Только LCB client branch идёт в <code>lcb_writer.py</code>. Stale-lead follow-up ведёт <code>funnel_maintenance.py</code>: writer card берётся из актуального <code>contact_context</code>, а после presend ok owner auto-sends; viewer-only остаётся explicit kill-switch.</p>
           </div>
           <div class="seq-arrow">→</div>
           <div class="seq-card">
