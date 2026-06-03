@@ -1218,6 +1218,20 @@
           Существующие broker-заказы, contractor/client replies, follow-up и operator-owned flows
           продолжают работать. <code>LCB_BROKER_ENABLED=0</code> — только аварийный full-off.
         </div>
+        <div class="note" style="margin-bottom:12px">
+          <b>🥁 Drum owner-path (03.06.2026).</b> Публичная <code>drum_show</code> заявка из event-чата —
+          это core public scope (не глушится public-intake гейтом). Её владелец —
+          <code>telegram_monitor.send_drum_proposal</code>: он шлёт Noize pitch / бриф
+          <code>@vadimnoize</code> и пишет CRM-строку в <code>orders.db</code>. После питча/брифа он же
+          вызывает <code>drum_broker_link.ensure_drum_broker_order</code>, который материализует
+          стандартный Noize <code>broker_order</code> (candidate ТОЛЬКО <code>@vadimnoize</code>). Так
+          <code>orders.db</code> остаётся CRM, а <code>broker_orders.json</code> становится SSoT второй
+          воронки для drum-заявок (раньше они были для broker-воронки невидимы). Статус по факту:
+          питч клиенту → <code>client_relayed</code>; только бриф Вадиму → <code>brief_sent</code>;
+          нет города/тайминга → <code>waiting_client_budget</code>. MSK-гейт <code>broker_orders.create</code>
+          для <code>drum_show</code> снят (Noize мульти-город: Москва / Челябинск / Дубай).
+          Direct/private DM drum остаётся в LCB writer и в broker не уходит.
+        </div>
         <div class="flow-row five">
           <div class="node src">
             <h3>Broker opportunity</h3>
@@ -1241,6 +1255,7 @@
           <div class="lane-label">Intake</div>
           <div class="lane-flow">
             <div class="lane-chip"><b>opportunity</b>group/event source</div>
+            <div class="lane-chip"><b>drum_show public</b>send_drum_proposal → ensure broker_order (@vadimnoize)</div>
             <div class="lane-chip"><b>budget missing</b>ask client budget</div>
             <div class="lane-chip"><b>waiting_client_budget</b>hold retry window</div>
             <div class="lane-chip"><b>budget reply</b>return to casting</div>
