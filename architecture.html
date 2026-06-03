@@ -959,7 +959,11 @@
               <code>lcb_orders.json.event_threads</code> + свежие recruit-диалоги из
               <code>orders.db.message_events</code>, плюс client-side thread
               организатора для проданного состава. Он не верит сырой карточке
-              <code>event_planning.json</code>, не считает silence подтверждением
+              <code>event_planning.json</code>. Если у события есть TG-группа,
+              <code>event_ops_logistics_agent</code> сначала синкает актуальное
+              членство группы в <code>tg_group_lineup_cache.json</code>; stale group
+              ids без production-card пропускаются, чтобы не блокировать refresh
+              остальных карточек. Резолвер не считает silence подтверждением
               и поднимает незакрытые альтернативы состава как
               <code>open_decision</code>.
             </p>
