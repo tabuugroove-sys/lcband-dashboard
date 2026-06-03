@@ -1035,6 +1035,10 @@
           <code>клавиши или саксофон</code> без более позднего явного выбора,
           event-ops ставит <code>clarify_target=organizer</code>; чистый
           rider-only слот остаётся внутренним <code>bandleader</code>-решением.
+          Organizer-side факты и casting-side переписки разделены: рекомендации,
+          условия и availability музыкантов живут в <code>event_threads</code> /
+          <code>coordination_requests</code>, но не становятся
+          <code>participants</code> без финального go.
         </div>
 
         <div class="list">
