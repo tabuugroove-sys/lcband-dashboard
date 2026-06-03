@@ -844,7 +844,7 @@
           <div class="card-title">Writer modes в коде</div>
           <div class="list">
             <div class="row"><b>intake</b><span>Понять запрос, дату, формат, кто пишет и что нужно уточнить.</span></div>
-            <div class="row"><b>sales</b><span>Состав, цена, promo, аргументация без лишних upsell. Outdoor/mass drum-show считает через <code>price_canon</code>: сначала количество барабанщиков + суммарный тайминг, потом только общий итог.</span></div>
+            <div class="row"><b>sales</b><span>Состав, цена, promo, аргументация без лишних upsell. Фольклорные/цыганские/казачьи составы hard unavailable: без обещаний подбора, из близкого только арабский/восточный вариант. Outdoor/mass drum-show считает через <code>price_canon</code>: сначала количество барабанщиков + суммарный тайминг, потом только общий итог.</span></div>
             <div class="row"><b>agency package</b><span>Для посредника с датой и площадкой writer может собрать ready package: составы, цены, что входит/не входит, promo.</span></div>
             <div class="row"><b>vendor promo</b><span>Для запросов по подрядчикам writer берёт конкретные vendor assets из roster/media; общая LCB-папка не заменяет нужные vendor URLs.</span></div>
             <div class="row"><b>contract</b><span>Договор, реквизиты, подтверждения, без самостоятельных money-replies; рабочие контакты event-подрядчиков можно передавать через presend handoff, verified phone — только если он явно разрешён в event/roster.</span></div>
@@ -1231,7 +1231,7 @@
           <div class="arrow-col">→</div>
           <div class="node broker">
             <h3>Casting + relay</h3>
-            <p>Подбор подрядчика, проверка маржи, стандартные sax/Noize пакеты из roster/media и relay клиенту. Для <code>drum_show</code> contractor-side route идёт только через <code>broker_vendor_roster.json:drum_show</code>: <code>@vadimnoize</code> / Noize основной, московские backup-подрядчики допускаются только с media-index; клиентский Noize pitch с промо и московским гонораром уходит параллельно с director brief, без ожидания ответа подрядчика.</p>
+            <p>Подбор подрядчика, проверка маржи, стандартные sax/Noize пакеты из roster/media и relay клиенту. Этно-scope в broker сейчас только арабский/восточный; фольклорные/цыганские/казачьи/национальные ансамбли не кастятся. Для <code>drum_show</code> contractor-side route идёт только через <code>broker_vendor_roster.json:drum_show</code>: <code>@vadimnoize</code> / Noize основной, московские backup-подрядчики допускаются только с media-index; клиентский Noize pitch с промо и московским гонораром уходит параллельно с director brief, без ожидания ответа подрядчика.</p>
           </div>
         </div>
       </div>
