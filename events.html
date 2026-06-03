@@ -693,6 +693,16 @@
   window.scheduleChatPanel = scheduleChatPanel;
   window.cancelChatPanelOpen = cancelChatPanelOpen;
 
+  function canonicalEventId(id) {
+    return String(id || '').replace(/^lcb:/, '');
+  }
+
+  async function loadStubEvent(id) {
+    const eid = canonicalEventId(id);
+    if (!eid) return;
+    await loadEvent(eid);
+  }
+
   async function loadEventList() {
     try {
       const [d, stubsResp, leadsResp] = await Promise.all([
@@ -723,7 +733,7 @@
           title: s.title || s.client_thread || '(stub)',
           date: s.hint_date || '',
           stats: s.status_label || (isContract ? 'договор / ждём предоплату' : 'переговоры'),
-          onclick: '',
+          onclick: s.stub_id ? `loadStubEvent('${String(s.stub_id || '').replace(/'/g, "\\'")}')` : '',
           chatQ: chat?.q || '',
           chatChannel: chat?.channel || 'TG',
         };
@@ -1554,6 +1564,9 @@
         if (ev._kind === 'stub') {
           pcls += ' stub';
           stateLabel = 'подтвердили/договор/ждём оплату';
+          if (ev.id) {
+            click = `onclick="loadStubEvent('${String(ev.id || '').replace(/'/g, "\\'")}')"`;
+          }
           tip = `Pre-paid заявка (${ev._stage}): ${ev._thread || ''}\n${stateLabel}\nИсточник: lcb_orders.json`;
         } else if (ev._kind === 'lead') {
           const stage = (ev._stage || '').toLowerCase();
