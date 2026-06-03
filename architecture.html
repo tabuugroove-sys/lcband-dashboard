@@ -844,7 +844,7 @@
           <div class="card-title">Writer modes в коде</div>
           <div class="list">
             <div class="row"><b>intake</b><span>Понять запрос, дату, формат, кто пишет и что нужно уточнить.</span></div>
-            <div class="row"><b>sales</b><span>Состав, цена, promo, аргументация без лишних upsell.</span></div>
+            <div class="row"><b>sales</b><span>Состав, цена, promo, аргументация без лишних upsell. Outdoor/mass drum-show считает через <code>price_canon</code>: сначала количество барабанщиков + суммарный тайминг, потом только общий итог.</span></div>
             <div class="row"><b>agency package</b><span>Для посредника с датой и площадкой writer может собрать ready package: составы, цены, что входит/не входит, promo.</span></div>
             <div class="row"><b>vendor promo</b><span>Для запросов по подрядчикам writer берёт конкретные vendor assets из roster/media; общая LCB-папка не заменяет нужные vendor URLs.</span></div>
             <div class="row"><b>contract</b><span>Договор, реквизиты, подтверждения, без самостоятельных money-replies; рабочие контакты event-подрядчиков можно передавать через presend handoff, verified phone — только если он явно разрешён в event/roster.</span></div>
@@ -1104,7 +1104,7 @@
               <div class="step-num">6</div>
               <div>
                 <h3>Freshness + pre-send</h3>
-                <p>Перед отправкой заново читается tail переписки. Если он изменился, draft не отправляется. Потом идёт единый OutboundReview: duplicate, media, price, payment, contact handoff и AI-review возвращают один result с blocker/decision. Media gate блокирует повтор уже отправленного видео-URL, когда клиент просит конкретный/другой ролик, и переводит это в media_request. Transport gates остаются финальным DeliveryGuard.</p>
+                <p>Перед отправкой заново читается tail переписки. Если он изменился, draft не отправляется. Потом идёт единый OutboundReview: duplicate, media, price, payment, contact handoff и AI-review возвращают один result с blocker/decision. Price gate берёт LCB/Noize/outdoor drum totals из <code>price_canon</code>. Media gate блокирует повтор уже отправленного видео-URL, когда клиент просит конкретный/другой ролик, и переводит это в media_request. Transport gates остаются финальным DeliveryGuard.</p>
               </div>
             </div>
             <div class="step">
