@@ -9779,7 +9779,12 @@ function CartotekaSection({ data }) {
   if (!data) return (
     <div className="section" style={{ marginTop: 14 }}>
       <div className="section-title">🗂 Картотека лидов</div>
-      <div style={{ color: '#888', fontSize: 13, padding: '8px 0' }}>загрузка...</div>
+      <a
+        href="./context_cards.html"
+        style={{ color: '#60a5fa', fontSize: 13, padding: '8px 0', display: 'inline-block', textDecoration: 'none' }}
+      >
+        открыть картотеку ↗
+      </a>
     </div>
   );
 
@@ -10016,13 +10021,6 @@ function App() {
       const r = await fetch(`${bu}/api/followup_plan`, { cache: 'no-store' });
       if (r.ok) setFollowupPlan(await r.json());
     } catch {}
-
-    // ── Картотека лидов: LCB read-model + live broker_orders cards ──
-    try {
-      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
-      const r = await fetch(`${bu}/api/context_cards?limit=100`, { cache: 'no-store' });
-      if (r.ok) setLeadContext(await r.json());
-    } catch { /* backend offline → section shows empty state */ }
 
     try {
       const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
