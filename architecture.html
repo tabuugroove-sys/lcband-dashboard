@@ -1027,10 +1027,15 @@
               После rider-ready сигнала <code>sync_event_recording_requests()</code>
               один раз спрашивает активного tech/sound contact, сможет ли он
               записать выступление поканально/multitrack или хотя бы
-              master/stereo out. Дедуп идёт через
+              master/stereo out. В день события
+              <code>sync_event_recording_fallbacks()</code> может один раз
+              дожать master/stereo у звукача и попросить event-группу взять
+              флешку/накопитель для записи с пульта. Дедуп идёт через
               <code>event_ops_state.event_groups[*].recording_requests</code> и
               <code>orders.db.message_events</code> source
-              <code>event_ops_recording_request</code>.
+              <code>event_ops_recording_request</code> /
+              <code>event_ops_recording_master_followup</code> /
+              <code>event_ops_recording_usb_group_prompt</code>.
             </p>
           </div>
         </div>

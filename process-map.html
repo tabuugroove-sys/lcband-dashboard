@@ -393,9 +393,9 @@
         file:'event_ops_logistics_agent.py', schedule:'каждые 10 мин',
         why:'Закрывает логистические, performer-coordination и production-запись вопросы по оплаченным events без ручного пересказа.',
         input:'event_ops_log.jsonl + organizer replies + lcb_orders.json event_slice.coordination_requests + tech/sound event_threads',
-        action:'extract logistics delta / send performer check / ask sound recording capability',
-        output:'event update + band-chat delta / performer DM with source media / tech DM about master or multitrack recording',
-        logic:['парсит тайминг/заезд/парковку/contact','lcb_event_context → coordination_requests → performer thread','recording request after rider-ready signal','source media required for performer asks','event_ops_state dedupe','не раскрывает приватные финансы'],
+        action:'extract logistics delta / send performer check / ask sound recording capability / push master recording fallback',
+        output:'event update + band-chat delta / performer DM with source media / tech DM about master or multitrack recording / group USB prompt',
+        logic:['парсит тайминг/заезд/парковку/contact','lcb_event_context → coordination_requests → performer thread','recording request after rider-ready signal','event-day master/stereo follow-up + флешка в event-группу','source media required for performer asks','event_ops_state dedupe','не раскрывает приватные финансы'],
       },
       {
         group:'events', name:'Event Enrich', label:'com.lcband.event-enrich',
