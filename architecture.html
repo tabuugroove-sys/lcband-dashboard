@@ -977,7 +977,9 @@
               <code>lineup_resolve</code> cache, <code>musician_availability</code>,
               <code>drummer_recruited</code>, <code>bass_recruited</code>,
               <code>sax_recruited</code>,
-              <code>*_declined</code>, pending approvals. Это не raw-message SSoT.
+              <code>*_declined</code>, pending approvals и привязку вручную созданных
+              TG-групп через <code>event_ops_bot discover-group</code>. Это не
+              raw-message SSoT.
             </p>
           </div>
           <div class="arrow-col">→</div>
@@ -1018,6 +1020,10 @@
               <code>lcb_orders.participants</code>. За день до события с явным
               <code>IEM</code>/<code>in-ear</code> в карточке event-ops один раз
               напоминает TG-группе артистов взять проводные наушники.
+              Точечные operator-directed сообщения в уже созданную event-группу
+              идут через <code>event_ops_bot operator-group-message</code>; платежные
+              формулировки требуют явный <code>--allow-finance</code> и логируются
+              в <code>event_ops_log.jsonl</code>.
               После rider-ready сигнала <code>sync_event_recording_requests()</code>
               один раз спрашивает активного tech/sound contact, сможет ли он
               записать выступление поканально/multitrack или хотя бы
