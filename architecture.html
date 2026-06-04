@@ -1026,15 +1026,22 @@
               <code>event_ops_bot operator-organizer-message</code>; платежные
               формулировки требуют явный <code>--allow-finance</code> и логируются
               в <code>event_ops_log.jsonl</code> / <code>message_events</code>.
-              После rider-ready сигнала <code>sync_event_recording_requests()</code>
-              один раз спрашивает активного tech/sound contact, сможет ли он
-              записать выступление поканально/multitrack или хотя бы
-              master/stereo out. В день события
+              После rider-ready сигнала режим
+              <code>sync_event_media_capture_requests()</code> один раз закрывает
+              live-video capture: если известен видеограф, пишет ему; иначе
+              организатору — просит договориться, чтобы видеограф поснимал
+              выступление LCB, и фиксирует как потом забрать исходники/ссылку
+              для монтажа. В той же цепочке sound contact получает запрос
+              записать звук с пульта поканально/multitrack или хотя бы
+              master/stereo out для синхронизации с видео. В день события
               <code>sync_event_recording_fallbacks()</code> может один раз
               дожать master/stereo у звукача и попросить event-группу взять
-              флешку/накопитель для записи с пульта. Дедуп идёт через
+              флешку/накопитель для записи с пульта под монтаж. Дедуп идёт через
+              <code>event_ops_state.event_groups[*].media_capture_requests</code>,
               <code>event_ops_state.event_groups[*].recording_requests</code> и
               <code>orders.db.message_events</code> source
+              <code>event_ops_media_capture_organizer_request</code> /
+              <code>event_ops_media_capture_videographer_request</code> /
               <code>event_ops_recording_request</code> /
               <code>event_ops_recording_master_followup</code> /
               <code>event_ops_recording_usb_group_prompt</code>.
