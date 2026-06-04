@@ -1021,9 +1021,11 @@
               <code>IEM</code>/<code>in-ear</code> в карточке event-ops один раз
               напоминает TG-группе артистов взять проводные наушники.
               Точечные operator-directed сообщения в уже созданную event-группу
-              идут через <code>event_ops_bot operator-group-message</code>; платежные
+              идут через <code>event_ops_bot operator-group-message</code>, а
+              короткие вопросы организатору через
+              <code>event_ops_bot operator-organizer-message</code>; платежные
               формулировки требуют явный <code>--allow-finance</code> и логируются
-              в <code>event_ops_log.jsonl</code>.
+              в <code>event_ops_log.jsonl</code> / <code>message_events</code>.
               После rider-ready сигнала <code>sync_event_recording_requests()</code>
               один раз спрашивает активного tech/sound contact, сможет ли он
               записать выступление поканально/multitrack или хотя бы
