@@ -447,8 +447,51 @@
       display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px; margin-bottom: 8px;
     }
+    .conn-actions {
+      flex: 0 0 auto;
+      display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+      min-width: 88px;
+    }
+    .conn-reconnect-btn {
+      height: 28px;
+      padding: 0 9px;
+      border-radius: 7px;
+      border: 1px solid rgba(96,165,250,.34);
+      background: rgba(37,99,235,.12);
+      color: #93c5fd;
+      font-size: 10px;
+      font-weight: 800;
+      font-family: inherit;
+      letter-spacing: .2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s ease, border-color .15s ease, color .15s ease;
+    }
+    .conn-reconnect-btn:hover:not(:disabled) {
+      background: rgba(37,99,235,.22);
+      border-color: rgba(147,197,253,.6);
+      color: #bfdbfe;
+    }
+    .conn-reconnect-btn:disabled {
+      opacity: .62;
+      cursor: wait;
+    }
+    .conn-action-msg {
+      min-height: 12px;
+      max-width: 112px;
+      font-size: 9px;
+      line-height: 1.2;
+      text-align: right;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     @media (max-width: 720px) {
       .conn-tg-grid { grid-template-columns: 1fr; }
+      .conn-card { align-items: flex-start; }
+      .conn-actions { min-width: 82px; }
     }
     .conn-sessions { display: flex; gap: 8px; margin-top: 8px; }
     .conn-session-chip {
@@ -1428,7 +1471,104 @@ function _fmtAgo(lastCheck) {
   } catch { return lastCheck; }
 }
 
-function ConnectionRow({ title, status, reason, lastCheck, compact }) {
+function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect }) {
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState('');
+  const targetLabels = Array.isArray(labels) ? labels.filter(Boolean) : [];
+
+  async function getOrPromptToken() {
+    let t = localStorage.getItem('lcband_admin_token') || '';
+    if (!t) {
+      t = (window.prompt('Admin token (~/lcband/.env: DASHBOARD_ADMIN_TOKEN):') || '').trim();
+      if (!t) return null;
+      localStorage.setItem('lcband_admin_token', t);
+    }
+    return t;
+  }
+
+  async function probeBackend(url, timeoutMs = 4000) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const r = await fetch(`${url}/api/health`, {signal: ctrl.signal, mode: 'cors'});
+      clearTimeout(t);
+      if (!r.ok) return {ok: false, reason: `HTTP ${r.status}`};
+      const j = await r.json();
+      return {ok: !!j.ok, reason: 'live'};
+    } catch (e) {
+      clearTimeout(t);
+      return {ok: false, reason: String(e.message || e).slice(0, 120)};
+    }
+  }
+
+  async function resolveBackend() {
+    const candidates = [
+      {url: backendUrl, label: 'cloudflare tunnel'},
+      {url: 'http://127.0.0.1:8878', label: 'localhost'},
+    ];
+    for (const c of candidates) {
+      if (!c.url) continue;
+      const probe = await probeBackend(c.url);
+      if (probe.ok) return c;
+    }
+    return null;
+  }
+
+  async function reconnect() {
+    if (busy || !targetLabels.length) return;
+    const token = await getOrPromptToken();
+    if (!token) return;
+    setBusy(true);
+    setMsg('');
+    try {
+      const pick = await resolveBackend();
+      if (!pick) {
+        setMsg('backend off');
+        return;
+      }
+      const r = await fetch(`${pick.url}/api/restart_agents`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json', 'X-Admin-Token': token},
+        body: JSON.stringify({labels: targetLabels, stagger_sec: 0.15}),
+      });
+      const j = await r.json();
+      if (r.status === 403) {
+        localStorage.removeItem('lcband_admin_token');
+        setMsg('bad token');
+      } else if (!r.ok) {
+        setMsg((j.error || `HTTP ${r.status}`).slice(0, 42));
+      } else {
+        const failed = Number(j.failed || 0);
+        const ok = Number(j.ok || 0);
+        const total = Number(j.total || targetLabels.length);
+        setMsg(failed ? `${ok}/${total} ok` : 'restarted');
+        setTimeout(() => onAfterReconnect && onAfterReconnect(), 2500);
+      }
+    } catch (e) {
+      setMsg(String(e.message || e).slice(0, 42));
+    } finally {
+      setBusy(false);
+      setTimeout(() => setMsg(''), 15000);
+    }
+  }
+
+  return (
+    <div className="conn-actions">
+      <button
+        type="button"
+        className="conn-reconnect-btn"
+        onClick={reconnect}
+        disabled={busy || !targetLabels.length}
+        title={`${title}: ${targetLabels.join(', ')}`}
+      >
+        {busy ? '...' : 'Reconnect'}
+      </button>
+      <div className="conn-action-msg" title={msg}>{msg}</div>
+    </div>
+  );
+}
+
+function ConnectionRow({ title, status, reason, lastCheck, compact, reconnect, backendUrl, onAfterReconnect }) {
   const st = status || 'unknown';
   const dotCls = st === 'ok' ? 'conn-dot-ok' : st === 'error' ? 'conn-dot-err' : st === 'degraded' ? 'conn-dot-deg' : 'conn-dot-unk';
   const label  = st === 'ok' ? 'Подключено' : st === 'error' ? 'Соединение потеряно' : st === 'degraded' ? 'Офлайн (драфты в бот)' : 'Нет данных';
@@ -1450,11 +1590,19 @@ function ConnectionRow({ title, status, reason, lastCheck, compact }) {
         )}
         {timeAgo && <div className="conn-sub">Проверено: {timeAgo}</div>}
       </div>
+      {reconnect && (
+        <ConnectionReconnectButton
+          labels={reconnect.labels}
+          title={reconnect.title || title}
+          backendUrl={backendUrl}
+          onAfterReconnect={onAfterReconnect}
+        />
+      )}
     </div>
   );
 }
 
-function ConnectionStatus({ connection, vkConnection, waConnection }) {
+function ConnectionStatus({ connection, vkConnection, waConnection, backendUrl, onAfterReconnect }) {
   const sessionReasons = connection?.sessionReasons || {};
   const firstSessionReason = Object.values(sessionReasons).find(Boolean) || '';
   const tgReason = connection?.reason || firstSessionReason;
@@ -1477,6 +1625,9 @@ function ConnectionStatus({ connection, vkConnection, waConnection }) {
             status={connection.realtime.status}
             reason={connection.realtime.reason}
             lastCheck={connection.realtime.lastCheck || connection?.lastCheck}
+            reconnect={{labels:['com.lcband.realtime-gateway'], title:'TG realtime reconnect'}}
+            backendUrl={backendUrl}
+            onAfterReconnect={onAfterReconnect}
           />
         )}
         {connection?.paymentEvents && (
@@ -1486,6 +1637,9 @@ function ConnectionStatus({ connection, vkConnection, waConnection }) {
             status={connection.paymentEvents.status}
             reason={connection.paymentEvents.reason}
             lastCheck={connection?.lastCheck}
+            reconnect={{labels:['com.lcband.realtime-gateway'], title:'TG payment events reconnect'}}
+            backendUrl={backendUrl}
+            onAfterReconnect={onAfterReconnect}
           />
         )}
         {connection?.followup && (
@@ -1495,6 +1649,9 @@ function ConnectionStatus({ connection, vkConnection, waConnection }) {
             status={connection.followup.status}
             reason={connection.followup.reason}
             lastCheck={connection?.lastCheck}
+            reconnect={{labels:['com.lcband.tg-followup'], title:'TG follow-up reconnect'}}
+            backendUrl={backendUrl}
+            onAfterReconnect={onAfterReconnect}
           />
         )}
       </div>
@@ -1504,6 +1661,9 @@ function ConnectionStatus({ connection, vkConnection, waConnection }) {
           status={vkConnection.status}
           reason={vkReason}
           lastCheck={vkConnection.lastCheck}
+          reconnect={{labels:['com.lcband.vk-health-check','com.lcband.vk-monitor'], title:'VK reconnect'}}
+          backendUrl={backendUrl}
+          onAfterReconnect={onAfterReconnect}
         />
       )}
       {waConnection && waConnection.status !== 'unknown' && (
@@ -1512,6 +1672,9 @@ function ConnectionStatus({ connection, vkConnection, waConnection }) {
           status={waConnection.status}
           reason={waConnection.detail || ''}
           lastCheck={waConnection.lastCheck}
+          reconnect={{labels:['com.lcband.wa-baileys','com.lcband.wa-baileys-webhook'], title:'WhatsApp Baileys reconnect'}}
+          backendUrl={backendUrl}
+          onAfterReconnect={onAfterReconnect}
         />
       )}
     </div>
@@ -10167,6 +10330,8 @@ function App() {
     [data?.allLeads]
   );
 
+  const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+
   const timeStr = updatedAt
     ? updatedAt.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' })
     : null;
@@ -10341,7 +10506,13 @@ function App() {
       {/* Content */}
       {data && (
         <>
-          <ConnectionStatus connection={data.connection} vkConnection={data.vkConnection} waConnection={data.waConnection} />
+          <ConnectionStatus
+            connection={data.connection}
+            vkConnection={data.vkConnection}
+            waConnection={data.waConnection}
+            backendUrl={backendUrl}
+            onAfterReconnect={() => load(true)}
+          />
           <TabBar
             activeTab={activeTab}
             setActiveTab={setActiveTab}
