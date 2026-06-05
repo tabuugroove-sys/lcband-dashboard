@@ -541,7 +541,7 @@
         file:'agent_watchdog.py', schedule:'каждые 30 мин',
         why:'Следит, что launchd-агенты живы, и поднимает тревогу/рестартит упавшие или зацикленные.',
         input:'launchctl status + heartbeat files + ai_timeline.jsonl', action:'detect stale/down/AI-loop agents', output:'restart/alert/log + temporary LLM purpose block',
-        logic:['проверяет daemon/stale SLA','ловит повторяющиеся AI-вызовы одного purpose/input','ставит общий LLM circuit breaker через llm_budget_guard','codex_loop_guard тоже пишет этот shared runtime block, чтобы fallback не обходил блок','не заменяет самих агентов','защищает unattended mode'],
+        logic:['проверяет daemon/stale SLA','перезапускает repeated last_exit!=0 / dashboard FAIL через bounded kickstart','ловит повторяющиеся AI-вызовы одного purpose/input','ставит общий LLM circuit breaker через llm_budget_guard','codex_loop_guard тоже пишет этот shared runtime block, чтобы fallback не обходил блок','не заменяет самих агентов','защищает unattended mode'],
       },
       {
         group:'infra', name:'Tunnel Watcher', label:'com.lcband.tunnel-watcher',

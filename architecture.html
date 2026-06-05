@@ -1411,7 +1411,7 @@
           </div>
           <div class="node warn">
             <h3>Не обходить agents руками</h3>
-            <p>Если поведение принадлежит agent/process, исправляется владелец, а не выполняется одноразовый workaround.</p>
+            <p>Если поведение принадлежит agent/process, исправляется владелец, а не выполняется одноразовый workaround. Повторный <code>last_exit!=0</code> / dashboard <code>FAIL</code> закрывает <code>agent_watchdog.py</code>: bounded <code>kickstart</code>, alert и state, без ручного запуска production scripts.</p>
           </div>
           <div class="node warn">
             <h3>Budget guard с результатом</h3>
