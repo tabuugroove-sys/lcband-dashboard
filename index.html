@@ -7911,17 +7911,48 @@ let CHAT_BACKEND = (location.port === '8878') ? '' : 'http://127.0.0.1:8878';
 // Public Cloudflare tunnel URL, published by tunnel_watcher.py. If present,
 // overrides the 127.0.0.1 fallback so the chat works on GitHub Pages (no mixed
 // content — tunnel terminates HTTPS).
+async function probeBackendBase(url, timeoutMs = 2500) {
+  if (!url && location.port !== '8878') return false;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(`${url}/api/health`, {
+      signal: ctrl.signal,
+      mode: 'cors',
+      cache: 'no-store',
+    });
+    if (!r.ok) return false;
+    const j = await r.json();
+    return !!j.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const BACKEND_READY = (async () => {
   if (CHAT_BACKEND === '') return;
   if (location.protocol === 'file:' || location.hostname === '127.0.0.1' || location.hostname === 'localhost') return;
+  const candidates = [];
   try {
     const r = await fetch('./backend_url.json', { cache: 'no-store' });
-    if (!r.ok) return;
-    const j = await r.json();
-    if (j && typeof j.url === 'string' && /^https:\/\//.test(j.url)) {
-      CHAT_BACKEND = j.url;
+    if (r.ok) {
+      const j = await r.json();
+      if (j && typeof j.url === 'string' && /^https:\/\//.test(j.url)) {
+        candidates.push(j.url);
+      }
     }
   } catch { /* leave fallback */ }
+  candidates.push(CHAT_BACKEND, 'http://127.0.0.1:8878');
+  for (const url of [...new Set(candidates.filter(Boolean))]) {
+    if (await probeBackendBase(url)) {
+      CHAT_BACKEND = url;
+      console.info('[backend] selected', url);
+      return;
+    }
+  }
+  console.warn('[backend] no backend probe succeeded; keeping fallback', CHAT_BACKEND);
 })();
 const ChatContext = React.createContext(null);
 // Module-level cache: q → { meta, messages }. Survives panel open/close so
