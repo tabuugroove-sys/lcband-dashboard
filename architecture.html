@@ -948,7 +948,10 @@
               <code>lcb_orders.refresh_contact()</code> материализует обновлённый
               event-card в <code>lcb_orders.json</code>. Для production это главный
               read-model: дата, формат, organizer, participants, event_threads,
-              coordination_requests.
+              coordination_requests. Контрактные факты для календаря сверяются
+              со свежей перепиской в <code>orders.db.message_events</code>: выбранная
+              цена/состав после финального подтверждения перекрывает старые CRM
+              и event-context варианты.
             </p>
           </div>
         </div>
