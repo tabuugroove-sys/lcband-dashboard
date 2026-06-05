@@ -1418,7 +1418,7 @@
           </div>
           <div class="node warn">
             <h3>Payment-семантика через AI</h3>
-            <p>Kirill EDO invoice-loaded решает <code>payment_event_handler</code>: active/reminded/escalated request context → AI verdict → approval draft. Regex допускается только для механических ID, не как смысловой send/skip gate.</p>
+            <p>Kirill EDO invoice-loaded решает <code>payment_event_handler</code>: active/reminded/escalated request context → AI verdict → approval draft. Клиентские PDF-платёжки идут через <code>payment_vision</code> → <code>event_payment_balance</code>, сумма/остаток пишутся в <code>event_planning.json</code>. Regex допускается только для механических ID, не как смысловой send/skip gate.</p>
           </div>
         </div>
       </div>
