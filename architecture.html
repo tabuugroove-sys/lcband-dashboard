@@ -1088,7 +1088,7 @@
           <div class="row"><b>negotiating</b><span>Исполнитель может/готов, но бюджет, тайминг, дата, состав или финальное go ещё не закрыты. В карточке это «под вопросом».</span></div>
           <div class="row"><b>unavailable</b><span>Явный отказ или занятость: «не могу», «занят», «гастроль», «не получится». Это создаёт gap и запускает replacement path.</span></div>
           <div class="row"><b>pending</b><span>Молчит, «уточню», вопрос без финального согласия, прислал материалы без подтверждения даты. Не считать готовым составом.</span></div>
-          <div class="row"><b>gap</b><span>Проданная роль отсутствует или кандидат отказал. Event-ops предлагает спросить следующий pool candidate, но реальная личка идёт только через approval/send owner; past event и stale approval text с другой датой блокируются до отправки.</span></div>
+          <div class="row"><b>gap</b><span>Проданная роль отсутствует или кандидат отказал. Event-ops предлагает спросить следующий pool candidate, но реальная личка идёт только через approval/send owner; past event, stale approval text с другой датой и protected internal roles вроде payment_partner_ip блокируются до отправки.</span></div>
         </div>
       </div>
     </section>

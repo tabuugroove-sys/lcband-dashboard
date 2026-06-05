@@ -1179,7 +1179,7 @@ const PROCESS_RULES = {
       'Кнопка ✅ Создать → bot_commander egrp:create → event_ops_bot.py create-group (Telethon CreateChatRequest, нужна живая tg_session)',
       'Кнопка ❌ → approval rejected, группа не создаётся',
       'Участники: performer-роли из event-карточки + recruit-замены; отказавшихся в карточке нет',
-      'Recruit-approval для музыкантов fail-closed по дате: past event не предлагается, а stale pending text с другой датой не отправляется по ✅',
+      'Recruit/add approval для музыкантов fail-closed: past event не предлагается, stale text с другой датой не отправляется по ✅, protected internal roles вроде payment_partner_ip не добавляются в артист-группу',
       'Скрипт: event_ops_bot.py propose-pending-groups | log: /tmp/event_ops_group_approval.log',
     ],
   },
