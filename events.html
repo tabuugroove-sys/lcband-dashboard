@@ -557,13 +557,27 @@
   }
 
   async function api(path, opts = {}) {
-    const base = await getBackendUrl();
-    const r = await fetch(`${base}/api${path}`, opts);
-    if (!r.ok) {
-      const txt = await r.text();
-      throw new Error(`${r.status}: ${txt.slice(0, 200)}`);
+    const { timeoutMs = 0, ...fetchOpts } = opts || {};
+    let timer = null;
+    if (timeoutMs && !fetchOpts.signal) {
+      const controller = new AbortController();
+      fetchOpts.signal = controller.signal;
+      timer = setTimeout(() => controller.abort(), timeoutMs);
     }
-    return await r.json();
+    const base = await getBackendUrl();
+    try {
+      const r = await fetch(`${base}/api${path}`, fetchOpts);
+      if (!r.ok) {
+        const txt = await r.text();
+        throw new Error(`${r.status}: ${txt.slice(0, 200)}`);
+      }
+      return await r.json();
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw new Error(`timeout ${timeoutMs}ms: ${path}`);
+      throw e;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   function toast(msg, kind = 'success') {
@@ -704,13 +718,23 @@
   }
 
   async function loadEventList() {
+    const list = document.getElementById('events-list');
+    if (list && !list.querySelector('.event-card')) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">Загружаю events...</div>';
+    }
     try {
-      const [d, stubsResp, leadsResp] = await Promise.all([
-        api('/events?include_unlinked=1'),
-        api('/event_stubs?with_date_only=1').catch(() => ({stubs: []})),
-        api('/leads_with_dates').catch(() => ({leads: []})),
+      const [eventsResult, stubsResult, leadsResult] = await Promise.allSettled([
+        api('/events?include_unlinked=1', {timeoutMs: 15000}),
+        api('/event_stubs?with_date_only=1', {timeoutMs: 15000}),
+        api('/leads_with_dates', {timeoutMs: 12000}),
       ]);
-      const list = document.getElementById('events-list');
+      const errors = [];
+      const d = eventsResult.status === 'fulfilled' ? eventsResult.value : {events: []};
+      const stubsResp = stubsResult.status === 'fulfilled' ? stubsResult.value : {stubs: []};
+      const leadsResp = leadsResult.status === 'fulfilled' ? leadsResult.value : {leads: []};
+      if (eventsResult.status === 'rejected') errors.push(`/events: ${eventsResult.reason.message}`);
+      if (stubsResult.status === 'rejected') errors.push(`/event_stubs: ${stubsResult.reason.message}`);
+      if (leadsResult.status === 'rejected') errors.push(`/leads_with_dates: ${leadsResult.reason.message}`);
       const events = (d.events || []).map(ev => ({
         kind: 'event',
         group: 'paid',
@@ -764,7 +788,8 @@
         (a.rank - b.rank) || String(a.date || '9999-99-99').localeCompare(String(b.date || '9999-99-99'))
       );
       if (!rows.length) {
-        list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">Нет events</div>';
+        const suffix = errors.length ? `<br><span style="color:var(--red)">API: ${escapeHtml(errors.join(' · '))}</span>` : '';
+        list.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:8px">Нет events${suffix}</div>`;
         return;
       }
       const activeId = CURRENT_EVENT?.id;
@@ -796,7 +821,9 @@
             <div class="date">${row.date || '—'}</div>
             <div class="stats">${escapeHtml(row.stats || '')}</div>
           </div>`;
-      }).join('');
+      }).join('') + (errors.length
+        ? `<div style="color:var(--red);font-size:11px;padding:8px">Часть API не ответила: ${escapeHtml(errors.join(' · '))}</div>`
+        : '');
       bindEventCardChatHandlers();
     } catch (e) {
       document.getElementById('events-list').innerHTML =
@@ -1446,25 +1473,27 @@
   }
 
   async function _fetchCalendarData() {
-    try {
-      const evs = await api('/events?include_unlinked=1');
-      CAL_EVENTS = evs.events || [];
-    } catch (e) {
-      console.warn('[cal] /api/events failed:', e.message);
+    const [eventsResult, stubsResult, leadsResult] = await Promise.allSettled([
+      api('/events?include_unlinked=1', {timeoutMs: 15000}),
+      api('/event_stubs?with_date_only=1', {timeoutMs: 15000}),
+      api('/leads_with_dates', {timeoutMs: 12000}),
+    ]);
+    if (eventsResult.status === 'fulfilled') {
+      CAL_EVENTS = eventsResult.value.events || [];
+    } else {
+      console.warn('[cal] /api/events failed:', eventsResult.reason.message);
       CAL_EVENTS = [];
     }
-    try {
-      const stubs = await api('/event_stubs?with_date_only=1');
-      CAL_STUBS = stubs.stubs || [];
-    } catch (e) {
-      console.warn('[cal] /api/event_stubs failed:', e.message);
+    if (stubsResult.status === 'fulfilled') {
+      CAL_STUBS = stubsResult.value.stubs || [];
+    } else {
+      console.warn('[cal] /api/event_stubs failed:', stubsResult.reason.message);
       CAL_STUBS = [];
     }
-    try {
-      const leads = await api('/leads_with_dates');
-      CAL_LEADS = leads.leads || [];
-    } catch (e) {
-      console.warn('[cal] /api/leads_with_dates failed:', e.message);
+    if (leadsResult.status === 'fulfilled') {
+      CAL_LEADS = leadsResult.value.leads || [];
+    } else {
+      console.warn('[cal] /api/leads_with_dates failed:', leadsResult.reason.message);
       CAL_LEADS = [];
     }
   }
@@ -1630,8 +1659,8 @@
 
   // Init
   (async () => {
-    await refreshEventsDashboard({force: true});
     renderCalendarView();
+    await refreshEventsDashboard({force: true});
     // Refresh data every 60s. If an event is open, don't replace the editor,
     // but still refresh the left sidebar so newly materialized orders appear.
     setInterval(async () => {
