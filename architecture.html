@@ -1026,6 +1026,12 @@
               <code>event_ops_bot operator-organizer-message</code>; платежные
               формулировки требуют явный <code>--allow-finance</code> и логируются
               в <code>event_ops_log.jsonl</code> / <code>message_events</code>.
+              Выбранные клиентом репертуар/костюмы event-ops берёт из
+              <code>orders.db.message_events</code>, готовит
+              <code>event_group_client_materials</code> approval, а в TG-группу
+              отправляет только после кнопки <code>egmat:post</code>: caption
+              собирается finance-free из <code>lcb_orders</code>, source msg_id
+              клиента пересылаются следом.
               После rider-ready сигнала режим
               <code>sync_event_media_capture_requests()</code> один раз закрывает
               live-video capture: если известен видеограф, пишет ему; иначе
