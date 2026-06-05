@@ -925,8 +925,9 @@
             <h3>4. hard route</h3>
             <p>
               <code>unified_dm_responder.py</code> проверяет <code>lcb_roster.py</code>
-              и <code>tg_contact_roles.json</code>. Роли <code>lcb_musician</code>,
-              <code>resident_*</code> и coordination-candidates уходят в
+              <code>tg_contact_roles.json</code> и operational performer entries в
+              <code>tg_whitelist.json</code>. Роли <code>lcb_musician</code>,
+              <code>resident_*</code>, recruited performers и coordination-candidates уходят в
               <code>band_member_reply.py</code>, а не в client writer.
             </p>
           </div>
@@ -1173,7 +1174,7 @@
               </tr>
               <tr>
                 <td><b>Contractor coordination</b></td>
-                <td><code>tg_contact_roles.json</code> роли <code>contractor_*</code>/<code>lcb_musician</code> + вопрос/короткий рабочий статус без money intent → <code>band_member_reply.py</code> в <code>CONTRACTOR COORDINATION MODE</code> с recent coordination context. Если факта нет, безопасный fallback отвечает, что уточним и вернёмся. <code>do_not_touch</code> защищает от client writer, но не глушит вежливый рабочий ответ.</td>
+                <td><code>tg_contact_roles.json</code> роли <code>contractor_*</code>/<code>lcb_musician</code> или <code>tg_whitelist.json</code> recruited performer + вопрос/короткий рабочий статус без money/fee intent → <code>band_member_reply.py</code> в <code>CONTRACTOR COORDINATION MODE</code> с recent coordination context. Если факта нет, безопасный fallback отвечает, что уточним и вернёмся. <code>do_not_touch</code> защищает от client writer, но не глушит вежливый рабочий ответ.</td>
               </tr>
               <tr>
                 <td><b>Contractor referral</b></td>
