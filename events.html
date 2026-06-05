@@ -711,31 +711,39 @@
     return String(id || '').replace(/^lcb:/, '');
   }
 
+  async function fetchEventsDashboardData() {
+    const [eventsResult, stubsResult, leadsResult] = await Promise.allSettled([
+      api('/events?include_unlinked=1', {timeoutMs: 15000}),
+      api('/event_stubs?with_date_only=1', {timeoutMs: 15000}),
+      api('/leads_with_dates', {timeoutMs: 12000}),
+    ]);
+    const errors = [];
+    if (eventsResult.status === 'rejected') errors.push(`/events: ${eventsResult.reason.message}`);
+    if (stubsResult.status === 'rejected') errors.push(`/event_stubs: ${stubsResult.reason.message}`);
+    if (leadsResult.status === 'rejected') errors.push(`/leads_with_dates: ${leadsResult.reason.message}`);
+    return {
+      events: eventsResult.status === 'fulfilled' ? (eventsResult.value.events || []) : [],
+      stubs: stubsResult.status === 'fulfilled' ? (stubsResult.value.stubs || []) : [],
+      leads: leadsResult.status === 'fulfilled' ? (leadsResult.value.leads || []) : [],
+      errors,
+    };
+  }
+
   async function loadStubEvent(id) {
     const eid = canonicalEventId(id);
     if (!eid) return;
     await loadEvent(eid);
   }
 
-  async function loadEventList() {
+  async function loadEventList(data = null) {
     const list = document.getElementById('events-list');
     if (list && !list.querySelector('.event-card')) {
       list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">Загружаю events...</div>';
     }
     try {
-      const [eventsResult, stubsResult, leadsResult] = await Promise.allSettled([
-        api('/events?include_unlinked=1', {timeoutMs: 15000}),
-        api('/event_stubs?with_date_only=1', {timeoutMs: 15000}),
-        api('/leads_with_dates', {timeoutMs: 12000}),
-      ]);
-      const errors = [];
-      const d = eventsResult.status === 'fulfilled' ? eventsResult.value : {events: []};
-      const stubsResp = stubsResult.status === 'fulfilled' ? stubsResult.value : {stubs: []};
-      const leadsResp = leadsResult.status === 'fulfilled' ? leadsResult.value : {leads: []};
-      if (eventsResult.status === 'rejected') errors.push(`/events: ${eventsResult.reason.message}`);
-      if (stubsResult.status === 'rejected') errors.push(`/event_stubs: ${stubsResult.reason.message}`);
-      if (leadsResult.status === 'rejected') errors.push(`/leads_with_dates: ${leadsResult.reason.message}`);
-      const events = (d.events || []).map(ev => ({
+      const payload = data || await fetchEventsDashboardData();
+      const errors = payload.errors || [];
+      const events = (payload.events || []).map(ev => ({
         kind: 'event',
         group: 'paid',
         rank: 0,
@@ -745,7 +753,7 @@
         stats: `${ev.linked_order_status || 'оплачен'} · ${ev.members_count || 0} участников · ${fmtRu(ev.members_total_fee || 0)} ₽`,
         onclick: `loadEvent('${String(ev.id || '').replace(/'/g, "\\'")}')`,
       }));
-      const stubs = (stubsResp.stubs || []).map(s => {
+      const stubs = (payload.stubs || []).map(s => {
         const chat = chatTargetFromThread(s.client_thread, '');
         const statusGroup = s.status_group || (s.stage === 'confirmed' ? 'contract' : 'negotiation');
         const isContract = statusGroup === 'contract' || statusGroup === 'prepayment';
@@ -762,7 +770,7 @@
           chatChannel: chat?.channel || 'TG',
         };
       });
-      const leads = (leadsResp.leads || []).map(l => {
+      const leads = (payload.leads || []).map(l => {
         const stage = l.stage || 'lead';
         const rank = (stage === 'contract' || stage === 'prepayment') ? 1
           : (stage === 'negotiating' ? 2 : 3);
@@ -1472,30 +1480,12 @@
     return d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
   }
 
-  async function _fetchCalendarData() {
-    const [eventsResult, stubsResult, leadsResult] = await Promise.allSettled([
-      api('/events?include_unlinked=1', {timeoutMs: 15000}),
-      api('/event_stubs?with_date_only=1', {timeoutMs: 15000}),
-      api('/leads_with_dates', {timeoutMs: 12000}),
-    ]);
-    if (eventsResult.status === 'fulfilled') {
-      CAL_EVENTS = eventsResult.value.events || [];
-    } else {
-      console.warn('[cal] /api/events failed:', eventsResult.reason.message);
-      CAL_EVENTS = [];
-    }
-    if (stubsResult.status === 'fulfilled') {
-      CAL_STUBS = stubsResult.value.stubs || [];
-    } else {
-      console.warn('[cal] /api/event_stubs failed:', stubsResult.reason.message);
-      CAL_STUBS = [];
-    }
-    if (leadsResult.status === 'fulfilled') {
-      CAL_LEADS = leadsResult.value.leads || [];
-    } else {
-      console.warn('[cal] /api/leads_with_dates failed:', leadsResult.reason.message);
-      CAL_LEADS = [];
-    }
+  async function _fetchCalendarData(data = null) {
+    const payload = data || await fetchEventsDashboardData();
+    CAL_EVENTS = payload.events || [];
+    CAL_STUBS = payload.stubs || [];
+    CAL_LEADS = payload.leads || [];
+    for (const err of payload.errors || []) console.warn('[cal]', err);
   }
 
   function renderCalendarView() {
@@ -1650,9 +1640,10 @@
     const now = Date.now();
     if (!force && now - LAST_AUTO_REFRESH_AT < 55000) return;
     LAST_AUTO_REFRESH_AT = now;
+    const data = await fetchEventsDashboardData();
     await Promise.all([
-      _fetchCalendarData(),
-      loadEventList(),
+      _fetchCalendarData(data),
+      loadEventList(data),
     ]);
     if (!CURRENT_EVENT) _paintCalendar();
   }
