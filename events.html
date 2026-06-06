@@ -1187,11 +1187,33 @@
     root.querySelectorAll('table.event-card-table textarea').forEach(autoGrowTextarea);
   }
 
+  // Чек-лист layout: пункт/название (label) — слева, значение/коммент/инфо — справа.
+  // Порядок колонок в данных бывает обратным (напр. «Значение | Поле»), поэтому
+  // переставляем по семантике ключа, а не по тому, как они легли в JSON.
+  const SECTION_LABEL_KEYS = ['поле', 'item', 'пункт', 'статья', 'роль', 'название', 'параметр'];
+  const SECTION_VALUE_KEYS = ['значение', 'value', 'note', 'комментарий', 'коммент', 'информация', 'инфо', 'описание'];
+  function orderSectionCols(cols) {
+    const rank = (c) => {
+      const k = String(c).trim().toLowerCase();
+      if (SECTION_LABEL_KEYS.includes(k)) return 0;   // checklist item → left
+      if (SECTION_VALUE_KEYS.includes(k)) return 2;   // comment / info → right
+      return 1;                                        // everything else keeps its place
+    };
+    // stable sort: внутри одного ранга сохраняем исходный порядок колонок
+    return cols
+      .map((c, i) => ({ c, i, r: rank(c) }))
+      .sort((a, b) => (a.r - b.r) || (a.i - b.i))
+      .map((x) => x.c);
+  }
+
   function renderSection(section, idx, opts = {}) {
     const rows = section.rows || [];
     // Collect all unique columns from all rows
     const allKeys = [...new Set(rows.flatMap(r => Object.keys(r)))];
-    const cols = allKeys.length ? allKeys : ['item', 'value'];
+    // «Состав» (featured) — широкая ростер-таблица, её порядок колонок не трогаем.
+    const cols = opts.featured
+      ? (allKeys.length ? allKeys : ['item', 'value'])
+      : orderSectionCols(allKeys.length ? allKeys : ['item', 'value']);
 
     const headerRow = cols.map(c =>
       `<th>${escapeHtml(c)} <button class="icon-btn" title="Удалить колонку" onclick="deleteColumn(${idx}, '${escapeAttr(c)}')">×</button></th>`
