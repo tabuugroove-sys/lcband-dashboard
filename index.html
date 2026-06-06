@@ -3594,7 +3594,7 @@ const BROKER_ORG_STAGES = [
   { key: 'budget_wait', label: 'Ждём бюджет', statuses: ['waiting_client_budget'] },
   { key: 'brief_sent', label: 'Бриф ушёл',    statuses: ['brief_sent', 'contractor_replied'] },
   { key: 'pitched',    label: 'Питч клиенту', statuses: ['client_relayed', 'contractor_relayed'] },
-  { key: 'thinking',   label: 'Думает',       statuses: ['client_replied'] },
+  { key: 'thinking',   label: 'Думает / Фолоуап', statuses: ['client_replied', 'client_followup_sent'] },
   { key: 'won',        label: 'Согласовали',  statuses: ['closed_won'] },
   { key: 'lost',       label: 'Отказ',        statuses: ['closed_lost'] },
 ];
