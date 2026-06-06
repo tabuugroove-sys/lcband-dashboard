@@ -58,6 +58,12 @@
         margin-left: 16px;
         margin-right: 440px;
       }
+      /* 06.06: переписка слева (hover брокер-заказа) — зеркалим сдвиг на левый край */
+      body.chat-open-left .app {
+        max-width: calc(100vw - 440px - 16px);
+        margin-left: 440px;
+        margin-right: 16px;
+      }
     }
 
     /* Шире → KPI-плитки могут быть 4-6 в ряд */
@@ -3424,6 +3430,7 @@ function BrokerOrderCard({ order }) {
     username: _uname,
     client: order.client_name || _uname,
     channel: 'TG',
+    side: 'left',  // 06.06: переписка брокер-заказа выезжает слева
   });
   const _onCardEnter = _canChat ? () => {
     clearTimeout(hoverTimer.current);
@@ -3507,6 +3514,7 @@ function BrokerOrderCard({ order }) {
         </div>
       </div>
       {expanded && (
+        <>
         <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', background: 'rgba(0,0,0,.18)' }}>
           {/* LEFT — ORGANIZER */}
           <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,.06)' }}>
@@ -3555,6 +3563,23 @@ function BrokerOrderCard({ order }) {
             )}
           </div>
         </div>
+        {/* 📋 ОПИСАНИЕ ЕВЕНТА — внизу при клике (06.06) */}
+        <div style={{ padding: '10px 12px', borderTop: '1px solid rgba(255,255,255,.06)', background: 'rgba(0,0,0,.18)' }}>
+          <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+            📋 Описание заказа
+          </div>
+          <div style={{ fontSize: 12.5, color: '#cbd5e1', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+            {order.original_request || order.block_reason || '(описание не заполнено)'}
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {order.event_date && <span>📅 {order.event_date}</span>}
+            {order.event_location && <span>📍 {order.event_location}</span>}
+            {order.guests && <span>👥 {order.guests}</span>}
+            <span>💰 {_fmtRub(order.budget_rub) || order.budget || '—'}</span>
+            {order.margin_pct ? <span>маржа {order.margin_pct.toFixed(0)}%</span> : null}
+          </div>
+        </div>
+        </>
       )}
     </div>
   );
@@ -10098,8 +10123,13 @@ function App() {
   // На десктопе при открытом чате сдвигаем .app так, чтобы правая граница
   // упиралась в левый край слайд-панели (440px)
   useEffect(() => {
-    document.body.classList.toggle('chat-open', !!chatTarget);
-    return () => document.body.classList.remove('chat-open');
+    const _leftSide = !!chatTarget && chatTarget.side === 'left';
+    document.body.classList.toggle('chat-open', !!chatTarget && !_leftSide);
+    document.body.classList.toggle('chat-open-left', _leftSide);
+    return () => {
+      document.body.classList.remove('chat-open');
+      document.body.classList.remove('chat-open-left');
+    };
   }, [chatTarget]);
 
   useEffect(() => {
