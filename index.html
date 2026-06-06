@@ -3822,7 +3822,9 @@ function BrokerFunnelArea() {
   if (!data) return null;
   return (
     <>
-      <BrokerSummaryCards data={data} selectedFilter={selectedFilter} onFilterByCode={(code) => setSelectedFilter({row: 'code', key: code, label: code})} />
+      <BrokerSummaryCards data={data} selectedFilter={selectedFilter}
+        onFilterByCard={(key, label) => setSelectedFilter(prev =>
+          prev && prev.row === 'card' && prev.key === key ? null : { row: 'card', key, label })} />
       <BrokerPaymentLane data={data} />
       <BrokerDualFunnel data={data} selectedFilter={selectedFilter} onCellClick={onCellClick} />
       <BrokerRelayNowLane data={data} />
@@ -3831,44 +3833,58 @@ function BrokerFunnelArea() {
   );
 }
 
-// 16.05.2026 (Phase 1): summary cards сверху страницы. 8 ключевых
-// чисел — клик на цифру фильтрует список снизу.
-function BrokerSummaryCards({ data, selectedFilter, onFilterByCode }) {
+// 16.05.2026 (Phase 1): summary cards сверху страницы. 8 ключевых чисел.
+// 06.06: каждая карточка теперь активный фильтр — клик показывает привязанные
+// заказы в списке снизу (и раскрывает его). Предикаты `match` совпадают с
+// backend-счётчиками в summary, чтобы N в карточке = N в отфильтрованном списке.
+const _isBrokerReadyToPitch = (o) =>
+  (o.candidates || []).some(c => c.stage === 'replied_ready') &&
+  o.block_code !== 'needs_relay_to_client';
+
+const BROKER_CARD_DEFS = [
+  { key: 'active',             label: 'Активные',        color: '#cbd5e1', valueKey: 'active',             match: () => true },
+  { key: 'needs_relay',        label: 'Нужно переслать', color: '#f87171', valueKey: 'needs_relay',        match: o => !!o.needs_relay,                                                       highlight: true },
+  { key: 'waiting_client',     label: 'Ждём клиента',    color: '#fbbf24', valueKey: 'waiting_client',     match: o => ['missing_client_budget', 'client_thinking'].includes(o.block_code) },
+  { key: 'waiting_contractor', label: 'Ждём подрядчика', color: '#fbbf24', valueKey: 'waiting_contractor', match: o => ['contractor_no_reply', 'contractor_missing_price'].includes(o.block_code) },
+  { key: 'ready_to_pitch',     label: 'Готовы к pitch',  color: '#34d399', valueKey: 'ready_to_pitch',     match: _isBrokerReadyToPitch },
+  { key: 'no_candidates',      label: 'Нет подрядчиков', color: '#f87171', valueKey: 'no_candidates',      match: o => o.block_code === 'no_candidates' },
+  { key: 'over_ceiling',       label: 'Выше потолка',    color: '#f87171', valueKey: 'over_ceiling',       match: o => o.block_code === 'all_over_ceiling' },
+  { key: 'payment_urgent',     label: 'Оплата → Михаил', color: '#22d3ee', valueKey: 'payment_urgent',     match: o => o.block_code === 'payment_intent_needs_user',                          highlight: true },
+];
+function _brokerCardMatch(key) {
+  const def = BROKER_CARD_DEFS.find(d => d.key === key);
+  return def ? def.match : () => true;
+}
+
+function BrokerSummaryCards({ data, selectedFilter, onFilterByCard }) {
   const s = data?.summary;
   if (!s || s.active === 0) return null;
-  const cards = [
-    { label: 'Активные',      value: s.active,             color: '#cbd5e1', code: null },
-    { label: 'Нужно переслать', value: s.needs_relay,      color: '#f87171', code: 'needs_relay_to_client', highlight: s.needs_relay > 0 },
-    { label: 'Ждём клиента',   value: s.waiting_client,    color: '#fbbf24', code: 'client_thinking' },
-    { label: 'Ждём подрядчика', value: s.waiting_contractor, color: '#fbbf24', code: 'contractor_no_reply' },
-    { label: 'Готовы к pitch', value: s.ready_to_pitch,    color: '#34d399', code: null },
-    { label: 'Нет подрядчиков', value: s.no_candidates,    color: '#f87171', code: 'no_candidates' },
-    { label: 'Выше потолка',   value: s.over_ceiling,      color: '#f87171', code: 'all_over_ceiling' },
-    { label: 'Оплата → Михаил', value: s.payment_urgent,   color: '#22d3ee', code: 'payment_intent_needs_user', highlight: s.payment_urgent > 0 },
-  ];
   return (
     <div className="section" style={{ marginTop: 14 }}>
       <div className="section-title">Сводка по брокеру</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
-        {cards.map(c => {
-          const active = c.value > 0;
-          const isSelected = selectedFilter?.row === 'code' && selectedFilter?.key === c.code;
+        {BROKER_CARD_DEFS.map(c => {
+          const value = s[c.valueKey] || 0;
+          const active = value > 0;
+          const highlight = c.highlight && active;
+          const isSelected = selectedFilter?.row === 'card' && selectedFilter?.key === c.key;
           return (
-            <div key={c.label}
-                 onClick={() => active && c.code && onFilterByCode(c.code)}
+            <div key={c.key}
+                 onClick={() => active && onFilterByCard(c.key, c.label)}
+                 title={active ? 'Показать привязанные заказы в списке ниже' : 'Нет заказов в этой категории'}
                  style={{
                    padding: '12px 14px',
-                   background: c.highlight
+                   background: highlight
                      ? `linear-gradient(135deg, ${c.color}22, transparent)`
                      : (isSelected ? 'rgba(34,211,238,.18)' : 'rgba(255,255,255,.03)'),
-                   border: `1px solid ${isSelected ? '#22d3ee' : (c.highlight ? c.color + '99' : 'rgba(255,255,255,.06)')}`,
+                   border: `1px solid ${isSelected ? '#22d3ee' : (highlight ? c.color + '99' : 'rgba(255,255,255,.06)')}`,
                    borderRadius: 8,
-                   cursor: (active && c.code) ? 'pointer' : 'default',
-                   boxShadow: c.highlight ? `0 0 16px ${c.color}33` : 'none',
+                   cursor: active ? 'pointer' : 'default',
+                   boxShadow: isSelected ? '0 0 12px rgba(34,211,238,.4)' : (highlight ? `0 0 16px ${c.color}33` : 'none'),
                    transition: 'all 200ms',
                  }}>
               <div style={{ fontSize: 24, fontWeight: 800, color: active ? c.color : '#475569' }}>
-                {c.value}
+                {value}
               </div>
               <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{c.label}</div>
             </div>
@@ -3879,10 +3895,71 @@ function BrokerSummaryCards({ data, selectedFilter, onFilterByCode }) {
   );
 }
 
+// 06.06: hover на любую брокер-карточку-евент → выезжает панель переписки
+// клиента слева (как у BrokerOrderCard). 300ms задержка против дрожания.
+// Хук, а не inline в .map() — иначе нарушаются rules-of-hooks.
+function useBrokerChatHover(order, side) {
+  const chatCtx = React.useContext(ChatContext);
+  const hoverTimer = React.useRef(null);
+  const uname = (order?.client_username || '').replace(/^@/, '').trim();
+  const canChat = !!uname && !!chatCtx;
+  const openChat = () => canChat && chatCtx.openChat({
+    user_id: order.client_user_id || null,
+    username: uname,
+    client: order.client_name || uname,
+    channel: 'TG',
+    side: side || 'left',
+  });
+  const handlers = canChat ? {
+    onMouseEnter: () => { clearTimeout(hoverTimer.current); hoverTimer.current = setTimeout(openChat, 300); },
+    onMouseLeave: () => clearTimeout(hoverTimer.current),
+  } : {};
+  return { canChat, handlers };
+}
+
 // 16.05.2026 (Phase 3): «💰 Оплата → Михаил» — только финальные money-step
 // заказы: форма оплаты/сумма уже согласованы, клиент просит реквизиты/карту,
 // финальный счёт/договор или проверку платежа. Первичное уточнение нал/БН
 // делает contract writer сам. Оранжевая панель сверху всего.
+function BrokerPaymentCard({ order: o }) {
+  const { canChat, handlers } = useBrokerChatHover(o);
+  return (
+    <div {...handlers} style={{
+      padding: '10px 12px',
+      background: 'linear-gradient(135deg, rgba(34,211,238,.12), rgba(251,191,36,.08))',
+      border: '1px solid #22d3ee',
+      borderRadius: 8,
+      display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center',
+      boxShadow: '0 0 16px rgba(34,211,238,.22)',
+      cursor: canChat ? 'pointer' : 'default',
+    }}>
+      <div>
+        <div style={{ fontWeight: 700 }}>
+          💰 {o.service_label || o.service_type}
+          <span style={{ color: '#94a3b8', fontWeight: 500, marginLeft: 8 }}>
+            · @{o.client_username}
+            {o.event_date && ` · ${o.event_date}`}
+          </span>
+        </div>
+        <div style={{ color: '#22d3ee', fontSize: 12, marginTop: 3 }}>
+          ▶ {o.block_reason}
+        </div>
+      </div>
+      <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right' }}>
+        бюджет {_fmtRub(o.budget_rub) || '—'}<br/>
+        маржа {o.margin_pct ? o.margin_pct.toFixed(0) + '%' : '—'}
+      </div>
+      <a href={`https://t.me/${o.client_username}`} target="_blank" rel="noopener"
+         style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700,
+                  background: 'rgba(34,211,238,.25)', color: '#22d3ee',
+                  border: '1px solid #22d3ee', borderRadius: 4,
+                  textDecoration: 'none', whiteSpace: 'nowrap' }}>
+        Открыть TG
+      </a>
+    </div>
+  );
+}
+
 function BrokerPaymentLane({ data }) {
   const items = (data?.items || []).filter(o => o.block_code === 'payment_intent_needs_user');
   if (items.length === 0) return null;
@@ -3897,40 +3974,7 @@ function BrokerPaymentLane({ data }) {
         финальный счёт/договор или проверка платежа. Нал/БН уточняет writer.
       </div>
       <div style={{ display: 'grid', gap: 8 }}>
-        {items.map(o => (
-          <div key={o.id} style={{
-            padding: '10px 12px',
-            background: 'linear-gradient(135deg, rgba(34,211,238,.12), rgba(251,191,36,.08))',
-            border: '1px solid #22d3ee',
-            borderRadius: 8,
-            display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center',
-            boxShadow: '0 0 16px rgba(34,211,238,.22)',
-          }}>
-            <div>
-              <div style={{ fontWeight: 700 }}>
-                💰 {o.service_label || o.service_type}
-                <span style={{ color: '#94a3b8', fontWeight: 500, marginLeft: 8 }}>
-                  · @{o.client_username}
-                  {o.event_date && ` · ${o.event_date}`}
-                </span>
-              </div>
-              <div style={{ color: '#22d3ee', fontSize: 12, marginTop: 3 }}>
-                ▶ {o.block_reason}
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right' }}>
-              бюджет {_fmtRub(o.budget_rub) || '—'}<br/>
-              маржа {o.margin_pct ? o.margin_pct.toFixed(0) + '%' : '—'}
-            </div>
-            <a href={`https://t.me/${o.client_username}`} target="_blank" rel="noopener"
-               style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700,
-                        background: 'rgba(34,211,238,.25)', color: '#22d3ee',
-                        border: '1px solid #22d3ee', borderRadius: 4,
-                        textDecoration: 'none', whiteSpace: 'nowrap' }}>
-              Открыть TG
-            </a>
-          </div>
-        ))}
+        {items.map(o => <BrokerPaymentCard key={o.id} order={o} />)}
       </div>
     </div>
   );
@@ -3940,6 +3984,44 @@ function BrokerPaymentLane({ data }) {
 // 16.05.2026 (Phase 1): «🔴 Нужно переслать» — заказы где бот должен
 // прямо сейчас отправить ответ другой стороне. Самый «горячий» статус —
 // показываем перед общим списком, акцентом.
+function BrokerRelayCard({ order: o }) {
+  const { canChat, handlers } = useBrokerChatHover(o);
+  return (
+    <div {...handlers} style={{
+      padding: '10px 12px',
+      background: 'rgba(248,113,113,.08)',
+      border: '1px solid rgba(248,113,113,.4)',
+      borderRadius: 8,
+      display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center',
+      cursor: canChat ? 'pointer' : 'default',
+    }}>
+      <div>
+        <div style={{ fontWeight: 700 }}>
+          {o.service_label || o.service_type}
+          <span style={{ color: '#94a3b8', fontWeight: 500, marginLeft: 8 }}>
+            · @{o.client_username}
+            {o.event_date && ` · ${o.event_date}`}
+          </span>
+        </div>
+        <div style={{ color: '#f87171', fontSize: 12, marginTop: 3 }}>
+          ▶ {o.block_reason}
+        </div>
+      </div>
+      <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right' }}>
+        {o.candidates_count} подр.<br/>
+        {o.candidates_sent_to_client > 0 && `📤 ${o.candidates_sent_to_client} у клиента`}
+      </div>
+      <a href={`https://t.me/${o.client_username}`} target="_blank" rel="noopener"
+         style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700,
+                  background: 'rgba(248,113,113,.2)', color: '#f87171',
+                  border: '1px solid #f87171', borderRadius: 4,
+                  textDecoration: 'none', whiteSpace: 'nowrap' }}>
+        Открыть TG
+      </a>
+    </div>
+  );
+}
+
 function BrokerRelayNowLane({ data }) {
   const items = (data?.items || []).filter(o => o.needs_relay);
   if (items.length === 0) return null;
@@ -3953,39 +4035,7 @@ function BrokerRelayNowLane({ data }) {
         Бот ждёт чтобы переслать готовый ответ. Не давай этим заказам залипнуть.
       </div>
       <div style={{ display: 'grid', gap: 8 }}>
-        {items.map(o => (
-          <div key={o.id} style={{
-            padding: '10px 12px',
-            background: 'rgba(248,113,113,.08)',
-            border: '1px solid rgba(248,113,113,.4)',
-            borderRadius: 8,
-            display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center',
-          }}>
-            <div>
-              <div style={{ fontWeight: 700 }}>
-                {o.service_label || o.service_type}
-                <span style={{ color: '#94a3b8', fontWeight: 500, marginLeft: 8 }}>
-                  · @{o.client_username}
-                  {o.event_date && ` · ${o.event_date}`}
-                </span>
-              </div>
-              <div style={{ color: '#f87171', fontSize: 12, marginTop: 3 }}>
-                ▶ {o.block_reason}
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right' }}>
-              {o.candidates_count} подр.<br/>
-              {o.candidates_sent_to_client > 0 && `📤 ${o.candidates_sent_to_client} у клиента`}
-            </div>
-            <a href={`https://t.me/${o.client_username}`} target="_blank" rel="noopener"
-               style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700,
-                        background: 'rgba(248,113,113,.2)', color: '#f87171',
-                        border: '1px solid #f87171', borderRadius: 4,
-                        textDecoration: 'none', whiteSpace: 'nowrap' }}>
-              Открыть TG
-            </a>
-          </div>
-        ))}
+        {items.map(o => <BrokerRelayCard key={o.id} order={o} />)}
       </div>
     </div>
   );
@@ -3993,6 +4043,9 @@ function BrokerRelayNowLane({ data }) {
 
 function BrokerOrdersList({ data, error, selectedFilter, clearFilter }) {
   const [collapsed, setCollapsed] = React.useState(true);
+  // 06.06: клик по карточке-сводке/ячейке воронки = фильтр → авто-раскрываем
+  // список, иначе привязанные заказы остаются скрытыми под свёрнутой панелью.
+  React.useEffect(() => { if (selectedFilter) setCollapsed(false); }, [selectedFilter]);
   if (!data) return null;
   if (error || !data.items || data.items.length === 0) {
     return (
@@ -4009,9 +4062,9 @@ function BrokerOrdersList({ data, error, selectedFilter, clearFilter }) {
   if (selectedFilter) {
     if (selectedFilter.row === 'top') {
       items = items.filter(o => _orgStageKey(o.status) === selectedFilter.key);
-    } else if (selectedFilter.row === 'code') {
-      // 16.05 Phase 1: фильтр по block_code из summary cards.
-      items = items.filter(o => o.block_code === selectedFilter.key);
+    } else if (selectedFilter.row === 'card') {
+      // 06.06: фильтр по карточке сводки. Предикат совпадает со счётчиком карточки.
+      items = items.filter(_brokerCardMatch(selectedFilter.key));
     } else {
       // bot row: order matches if at least one candidate is in that stage,
       // OR if 'searching' selected and order has no candidates.
@@ -4041,7 +4094,7 @@ function BrokerOrdersList({ data, error, selectedFilter, clearFilter }) {
                       border: '1px solid rgba(34,211,238,.5)',
                       borderRadius: 12, cursor: 'pointer',
                     }}>
-              фильтр: {selectedFilter.row === 'top' ? '🧑‍💼' : selectedFilter.row === 'code' ? '🏷️' : '🤝'} {selectedFilter.label} ✕
+              фильтр: {selectedFilter.row === 'top' ? '🧑‍💼' : selectedFilter.row === 'card' ? '🏷️' : '🤝'} {selectedFilter.label} ✕
             </button>
           )}
           <button onClick={() => setCollapsed(v => !v)}
