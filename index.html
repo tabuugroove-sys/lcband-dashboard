@@ -2599,7 +2599,21 @@ function computePipeline(allLeads, archived, branchSpec) {
   const stage_followup   = stage_followup_all.filter(o => !_funnelHasUnfulfilledPromise(o));
   const stage_direct   = active.filter(o => !isAwaitingPrepayment(o) && eq('Прямой лид')(o));
   const stage_cancel_active = active.filter(any(/^(Не актуал|Отказ|Отмена)/i));
-  const stage_cancel_arch   = arch.filter(any(/(Неактуал|Не актуал|Отказ|Отмена)/i));
+  // 04.06.2026: один лид не должен висеть в двух шагах. Re-ingest вместо
+  // реактивации старой строки создаёт ДУБЛЬ: архивный «Неактуально»-труп +
+  // новая активная строка. Архивная ветка «Отмена» подтягивала труп рядом с
+  // активным шагом того же человека. Прячем архивный отказ, если у этого же
+  // лида (по username, иначе contact/client) есть АКТИВНАЯ строка в воронке.
+  const _cancelKey = (o) =>
+    String(o.username || '').trim().toLowerCase().replace(/^@/, '')
+    || ('c:' + String(o.contact || '').trim().toLowerCase())
+    || ('cl:' + String(o.client || '').trim().toLowerCase());
+  const _activeKeys = new Set(
+    active.map(_cancelKey).filter(k => k && k !== 'c:' && k !== 'cl:')
+  );
+  const stage_cancel_arch   = arch
+    .filter(any(/(Неактуал|Не актуал|Отказ|Отмена)/i))
+    .filter(o => !_activeKeys.has(_cancelKey(o)));
   const stage_cancel   = [...stage_cancel_active, ...stage_cancel_arch];
 
   const branches = [];
