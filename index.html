@@ -10081,6 +10081,74 @@ function CartotekaSection({ data }) {
   );
 }
 
+function LeadContextAuditPanel({ backendUrl }) {
+  const [audit, setAudit] = useState(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch(`${backendUrl}/api/lead_context_audit?attention=1`, { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (!cancelled) setAudit(j);
+      } catch (e) { /* offline */ }
+    };
+    if (backendUrl) load();
+    const t = setInterval(() => { if (backendUrl) load(); }, 120000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [backendUrl]);
+
+  if (!audit || !audit.available) return null;
+  const s = audit.summary || {};
+  const orders = audit.orders || [];
+
+  const issueOf = (o) => {
+    const f = o.funnel || {};
+    if (f.action === "flag" && f.note) return { tag: "воронка", text: f.note, color: "#f59e0b" };
+    const lf = (o.lineup || {}).flag;
+    if (lf) return { tag: "состав", text: lf, color: "#a78bfa" };
+    const cl = o.checklist || {};
+    if (cl.open_count) {
+      const labels = (cl.open || []).map(it => it.label).join(", ");
+      return { tag: "чек-лист", text: `открыто ${cl.open_count}/${cl.total}: ${labels}`, color: "#60a5fa" };
+    }
+    return { tag: "", text: "", color: "#888" };
+  };
+
+  return (
+    <div className="section" style={{ marginTop: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+        <h3 style={{ margin: 0 }}>🔎 Аудит лидов (8ч)</h3>
+        <span style={{ fontSize: 12, color: "var(--muted, #888)" }}>
+          {audit.generated_at ? audit.generated_at.slice(0, 16).replace("T", " ") : ""}
+          {audit.apply_fixes ? " · авто-фикс ON" : " · dry-run"}
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 13, marginBottom: 10 }}>
+        <span>авто-исправлено воронки: <b>{s.funnel_autofixed || 0}</b></span>
+        <span>флагов воронки: <b style={{ color: "#f59e0b" }}>{s.funnel_flags || 0}</b></span>
+        <span>состав: <b style={{ color: "#a78bfa" }}>{s.lineup_flags || 0}</b></span>
+        <span>пробелы чек-листа: <b style={{ color: "#60a5fa" }}>{s.checklist_gaps || 0}</b></span>
+        <span>требуют внимания: <b>{s.needs_attention || 0}</b> из {s.orders || 0}</span>
+      </div>
+      <div style={{ maxHeight: 360, overflowY: "auto" }}>
+        {orders.map((o, i) => {
+          const iss = issueOf(o);
+          return (
+            <div key={i} style={{ display: "flex", gap: 8, padding: "5px 0", borderBottom: "1px solid var(--border, #2a2a2a)", fontSize: 13 }}>
+              <span style={{ minWidth: 150, fontWeight: 600 }}>@{o.username}</span>
+              <span style={{ minWidth: 92, color: "var(--muted, #999)" }}>{o.status || "—"}</span>
+              {iss.tag ? <span style={{ minWidth: 64, color: iss.color }}>{iss.tag}</span> : null}
+              <span style={{ flex: 1, color: "var(--text, #ccc)" }}>{iss.text}</span>
+            </div>
+          );
+        })}
+        {orders.length === 0 ? <div style={{ fontSize: 13, color: "var(--muted, #888)" }}>всё чисто — расхождений нет</div> : null}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [rows,      setRows]      = useState(null);
   const [dbSnapshot, setDbSnapshot] = useState(null);
@@ -10624,6 +10692,7 @@ function App() {
                 />
               </div>
               <CartotekaSection data={leadContext} />
+              <LeadContextAuditPanel backendUrl={backendUrl} />
               <RecentSentMessagesSection data={recentSent} />
               <FollowupsSection followups={data.followups} />
             </>
