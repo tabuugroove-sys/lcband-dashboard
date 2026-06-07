@@ -1054,9 +1054,15 @@
               master/stereo out для синхронизации с видео. В день события
               <code>sync_event_recording_fallbacks()</code> может один раз
               дожать master/stereo у звукача и попросить event-группу взять
-              флешку/накопитель для записи с пульта под монтаж. Дедуп идёт через
+              флешку/накопитель для записи с пульта под монтаж. После события
+              <code>event_materials_archiver.py</code> забирает входящие
+              <code>disk.yandex.*</code> ссылки из <code>orders.db.message_events</code>,
+              привязывает их к активной event-card и сохраняет материалы в наш
+              Yandex Disk archive через <code>LCB_YANDEX_DISK_TOKEN</code> /
+              <code>LCB_EVENT_MATERIALS_YADISK_ROOT</code>. Дедуп идёт через
               <code>event_ops_state.event_groups[*].media_capture_requests</code>,
               <code>event_ops_state.event_groups[*].recording_requests</code> и
+              <code>event_ops_state.event_groups[*].material_archives</code>, плюс
               <code>orders.db.message_events</code> source
               <code>event_ops_media_capture_organizer_request</code> /
               <code>event_ops_media_capture_videographer_request</code> /
