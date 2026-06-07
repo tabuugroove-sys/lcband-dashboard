@@ -412,6 +412,35 @@
   }
   .toast.success { background: rgba(63,185,80,0.2); border: 1px solid var(--green); color: var(--green); }
   .toast.error { background: rgba(248,81,73,0.2); border: 1px solid var(--red); color: var(--red); }
+
+  /* Сводный финансовый блок наверху карточки события */
+  .fin-summary {
+    display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px; margin: 0 0 18px; padding: 12px 14px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; box-shadow: inset 3px 0 0 var(--blue);
+  }
+  @media (max-width: 1180px) { .fin-summary { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 720px)  { .fin-summary { grid-template-columns: repeat(2, 1fr); } }
+  .fin-cell {
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 4px 10px; border-left: 1px solid var(--border); min-width: 0;
+  }
+  .fin-cell:first-child { border-left: none; }
+  .fin-label {
+    font-size: 10px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.4px; white-space: nowrap;
+  }
+  .fin-value {
+    font-size: 17px; font-weight: 700; color: var(--text);
+    font-variant-numeric: tabular-nums; line-height: 1.15; word-break: break-word;
+  }
+  .fin-value.date { font-size: 14px; font-weight: 600; }
+  .fin-sub { font-size: 10px; color: var(--muted); line-height: 1.2; }
+  .fin-cell.pos .fin-value { color: var(--green); }
+  .fin-cell.neg .fin-value { color: var(--red); }
+  .fin-cell.accent { box-shadow: none; }
+  .fin-cell.accent .fin-value { color: var(--blue); }
 </style>
   <link rel="stylesheet" href="_theme.css">
   <style>
@@ -1117,6 +1146,7 @@
         body: JSON.stringify(CURRENT_EVENT),
       });
       CURRENT_EVENT = updated;
+      renderFinanceSummary();  // деньги пересчитаны бэкендом — обновим сводку наверху
       setSaveState('сохранено · ' + new Date().toLocaleTimeString('ru-RU').slice(0, 5), 'var(--green)');
       loadEventList();
     } catch (e) {
@@ -1148,6 +1178,7 @@
           <button class="delete-btn" onclick="deleteEvent()">Удалить</button>
         </div>
       </div>
+      <div id="finance-summary"></div>
       <div id="sections-container"></div>
       <button class="add-section-btn" onclick="addSection()">+ Добавить секцию</button>
       <div class="notes-area">
@@ -1156,6 +1187,63 @@
       </div>
     `;
     renderSections();
+    renderFinanceSummary();
+  }
+
+  // Сводный блок наверху карточки: даты предоплаты/постоплаты + ключевые деньги.
+  // Деньги берём из CURRENT_EVENT.finance (тот же расчёт, что в /api/events — один
+  // источник правды на бэкенде); даты — live из секции «Договор».
+  function fmtMoneyShort(n) {
+    if (n === null || n === undefined || n === '') return '—';
+    const num = Math.round(Number(n));
+    if (!isFinite(num)) return '—';
+    const sign = num < 0 ? '−' : '';
+    return sign + Math.abs(num).toLocaleString('ru-RU').replace(/ /g, ' ') + ' ₽';
+  }
+
+  function renderFinanceSummary() {
+    const el = document.getElementById('finance-summary');
+    if (!el || !CURRENT_EVENT) return;
+    const f = CURRENT_EVENT.finance || {};
+    const contract = (CURRENT_EVENT.sections || []).find(s => s.name === 'Договор');
+    const field = (name) => {
+      if (!contract) return '';
+      const row = (contract.rows || []).find(r => r && r['Поле'] === name);
+      return row ? String(row['Значение'] || '').trim() : '';
+    };
+    const prepayDate = field('Дедлайн предоплаты') || f.prepay_date || '';
+    const postpayDate = field('Дедлайн постоплаты') || f.postpay_date || '';
+
+    const bandPaid = Number(f.band_paid) || 0;
+    const bandTotal = Number(f.band_total) || 0;
+    const clientPaid = Number(f.client_paid) || 0;
+    const clientTotal = Number(f.client_total) || 0;
+    const clientNal = Number(f.client_nal) || 0;
+    const clientBn = Number(f.client_bn) || 0;
+    const kirill = Number(f.kirill) || 0;
+    const margin = Number(f.margin) || 0;
+    const marginPct = clientTotal ? Math.round((margin / clientTotal) * 100) : null;
+
+    const hasFin = CURRENT_EVENT.finance && (clientTotal || bandTotal);
+    const cells = [
+      { label: 'Предоплата', value: prepayDate || '—', cls: 'date' },
+      { label: 'Постоплата', value: postpayDate || '—', cls: 'date' },
+      { label: 'Музыкантам осталось', value: hasFin ? fmtMoneyShort(bandTotal - bandPaid) : '—',
+        sub: bandTotal ? `из ${fmtMoneyShort(bandTotal)} · выдано ${fmtMoneyShort(bandPaid)}` : '' },
+      { label: 'Клиент ещё должен', value: hasFin ? fmtMoneyShort(f.client_remaining) : '—',
+        sub: clientPaid ? `оплачено ${fmtMoneyShort(clientPaid)}` : '' },
+      { label: 'Общая сумма', value: hasFin ? fmtMoneyShort(clientTotal) : '—',
+        sub: (clientNal && clientBn) ? `${fmtMoneyShort(clientNal)} нал · ${fmtMoneyShort(clientBn)} безнал` : '' },
+      { label: 'Маржа', value: hasFin ? fmtMoneyShort(margin) : '—',
+        cls: margin >= 0 ? 'pos' : 'neg',
+        sub: hasFin ? (marginPct !== null ? `${marginPct}%` : '') + (kirill ? ` · ИП ${fmtMoneyShort(kirill)}` : '') : '' },
+    ];
+    el.innerHTML = `<div class="fin-summary">` + cells.map(c => `
+      <div class="fin-cell ${c.cls || ''}">
+        <div class="fin-label">${escapeHtml(c.label)}</div>
+        <div class="fin-value ${c.cls === 'date' ? 'date' : ''}">${escapeHtml(String(c.value))}</div>
+        ${c.sub ? `<div class="fin-sub">${escapeHtml(c.sub)}</div>` : ''}
+      </div>`).join('') + `</div>`;
   }
 
   function renderSections() {
