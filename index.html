@@ -2604,16 +2604,13 @@ function computePipeline(allLeads, archived, branchSpec) {
   // новая активная строка. Архивная ветка «Отмена» подтягивала труп рядом с
   // активным шагом того же человека. Прячем архивный отказ, если у этого же
   // лида (по username, иначе contact/client) есть АКТИВНАЯ строка в воронке.
-  const _cancelKey = (o) => {
-    const u = String(o.username || '').trim().toLowerCase().replace(/^@/, '');
-    if (u) return 'u:' + u;
-    const c = String(o.contact || '').trim().toLowerCase();
-    if (c) return 'c:' + c;
-    const cl = String(o.client || '').trim().toLowerCase();
-    if (cl) return 'cl:' + cl;
-    return '';
-  };
-  const _activeKeys = new Set(active.map(_cancelKey).filter(Boolean));
+  const _cancelKey = (o) =>
+    String(o.username || '').trim().toLowerCase().replace(/^@/, '')
+    || ('c:' + String(o.contact || '').trim().toLowerCase())
+    || ('cl:' + String(o.client || '').trim().toLowerCase());
+  const _activeKeys = new Set(
+    active.map(_cancelKey).filter(k => k && k !== 'c:' && k !== 'cl:')
+  );
   const stage_cancel_arch   = arch
     .filter(any(/(Неактуал|Не актуал|Отказ|Отмена)/i))
     .filter(o => !_activeKeys.has(_cancelKey(o)));
@@ -3238,9 +3235,8 @@ function ApprovalButtons({ approvalId, draft, username }) {
 
 
 function FunnelSplitSections({ allLeads, archived, pendingDrafts, sessionLog, fallbackFunnel }) {
-  // 15.05.2026: переименовано drum* → broker*. Содержит drum_show + нестандарт-музыку
-  // (broker_request: 1 песня / встреча гостя / новелти / прокат звука-света).
-  // 06.06: host/dj/dance/fire/animation — ПОЛНЫЙ БАН (Михаил), больше НЕ через broker.
+  // 15.05.2026: переименовано drum* → broker*. Содержит drum_show, solo показы,
+  // host, animation, dance, fire, dj — всё что идёт через broker pipeline.
   const { bandLeads, bandArchived, brokerLeads, brokerArchived } = React.useMemo(() => {
     const bandL = [], brokerL = [], bandA = [], brokerA = [];
     (allLeads || []).forEach(o => (isBrokerLead(o) ? brokerL : bandL).push(o));
