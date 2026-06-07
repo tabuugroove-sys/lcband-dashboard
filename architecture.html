@@ -1025,7 +1025,11 @@
               чтобы не спрашивать одного и того же музыканта повторно.
               Direct confirmed-brief разрешён только по approved
               <code>plan_participants</code> / group participants, не по сырому
-              <code>lcb_orders.participants</code>. За день до события с явным
+              <code>lcb_orders.participants</code>. Перед новым group/recruit/materials
+              proposal <code>cleanup_event_ops_pending_approvals()</code> истекает
+              stale approval-кнопки: past/missing event doc, <code>unknown</code>,
+              superseded <code>noanchor</code>, stale group-add и пустые/неподтверждённые
+              source-message материалы. За день до события с явным
               <code>IEM</code>/<code>in-ear</code> в карточке event-ops один раз
               напоминает TG-группе артистов взять проводные наушники.
               Точечные operator-directed сообщения в уже созданную event-группу
