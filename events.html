@@ -1223,6 +1223,7 @@
     const kirill = Number(f.kirill) || 0;
     const margin = Number(f.margin) || 0;
     const marginPct = clientTotal ? Math.round((margin / clientTotal) * 100) : null;
+    const fromContract = f.client_total_source === 'contract';
 
     const hasFin = CURRENT_EVENT.finance && (clientTotal || bandTotal);
     const cells = [
@@ -1233,7 +1234,10 @@
       { label: 'Клиент ещё должен', value: hasFin ? fmtMoneyShort(f.client_remaining) : '—',
         sub: clientPaid ? `оплачено ${fmtMoneyShort(clientPaid)}` : '' },
       { label: 'Общая сумма', value: hasFin ? fmtMoneyShort(clientTotal) : '—',
-        sub: (clientNal && clientBn) ? `${fmtMoneyShort(clientNal)} нал · ${fmtMoneyShort(clientBn)} безнал` : '' },
+        cls: fromContract ? 'accent' : '',
+        sub: [fromContract ? '📄 по договору' : '',
+              (clientNal && clientBn) ? `${fmtMoneyShort(clientNal)} нал · ${fmtMoneyShort(clientBn)} безнал` : '']
+              .filter(Boolean).join(' · ') },
       { label: 'Маржа', value: hasFin ? fmtMoneyShort(margin) : '—',
         cls: margin >= 0 ? 'pos' : 'neg',
         sub: hasFin ? (marginPct !== null ? `${marginPct}%` : '') + (kirill ? ` · ИП ${fmtMoneyShort(kirill)}` : '') : '' },
