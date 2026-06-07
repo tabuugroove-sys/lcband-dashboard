@@ -1288,7 +1288,7 @@
           <div class="arrow-col">→</div>
           <div class="node broker">
             <h3>Casting + relay</h3>
-            <p>Подбор подрядчика, проверка маржи, стандартные sax/Noize пакеты из roster/media и relay клиенту. Этно-scope в broker сейчас только арабский/восточный; фольклорные/цыганские/казачьи/национальные ансамбли не кастятся. Для <code>drum_show</code> contractor-side route идёт только через <code>broker_vendor_roster.json:drum_show</code>: <code>@vadimnoize</code> / Noize основной, московские backup-подрядчики допускаются только с media-index; клиентский Noize pitch с промо и московским гонораром уходит параллельно с director brief, без ожидания ответа подрядчика.</p>
+            <p>Подбор подрядчика, проверка маржи, стандартные sax/Noize пакеты из roster/media и relay клиенту. Перед любым broker send <code>broker_casting.cast_order</code> закрывает прошедшие <code>event_date</code> и не допускает, чтобы <code>client_username</code> стал contractor/candidate. Клиентский writer/presend получает thread из <code>orders.db.message_events</code>, не только короткий <code>original_request</code>. Этно-scope в broker сейчас только арабский/восточный; фольклорные/цыганские/казачьи/национальные ансамбли не кастятся. Для <code>drum_show</code> contractor-side route идёт только через <code>broker_vendor_roster.json:drum_show</code>: <code>@vadimnoize</code> / Noize основной, московские backup-подрядчики допускаются только с media-index; клиентский Noize pitch с промо и московским гонораром уходит параллельно с director brief, без ожидания ответа подрядчика.</p>
           </div>
         </div>
       </div>
@@ -1310,6 +1310,8 @@
             <div class="lane-chip"><b>margin gate</b>budget floor</div>
             <div class="lane-chip"><b>sax standard</b>3 curated Drive promos</div>
             <div class="lane-chip"><b>drum standard</b>Noize roster media</div>
+            <div class="lane-chip"><b>past event</b>close before candidate/materialize/send</div>
+            <div class="lane-chip"><b>identity guard</b>client username cannot be candidate</div>
             <div class="lane-chip"><b>candidate score</b>media + quality</div>
             <div class="lane-chip"><b>reconfirm</b>price not stale</div>
             <div class="lane-chip"><b>top-N relay</b>client-facing draft</div>
@@ -1330,6 +1332,7 @@
         <div class="lane" style="margin-top:10px">
           <div class="lane-label">Cleanup</div>
           <div class="lane-flow">
+            <div class="lane-chip"><b>event_date &lt; today</b>broker_casting closes before sends</div>
             <div class="lane-chip"><b>source post &gt;3d</b>broker-state-repair closes stale active cards</div>
             <div class="lane-chip"><b>terminal sync</b>CRM next_action cleared</div>
           </div>
