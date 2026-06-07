@@ -952,7 +952,10 @@
               coordination_requests. Контрактные факты для календаря сверяются
               со свежей перепиской в <code>orders.db.message_events</code>: выбранная
               цена/состав после финального подтверждения перекрывает старые CRM
-              и event-context варианты.
+              и event-context варианты. Event identity держится на клиентском
+              order/client signal + date: performer-availability и casting-side
+              оболочки <code>lcb_orders.dedup_now()</code> сливает в единственную
+              реальную карточку этой даты, а неоднозначные даты не склеивает.
             </p>
           </div>
         </div>
