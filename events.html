@@ -592,39 +592,59 @@
   let CURRENT_EVENT = null;  // full event object loaded for edit
   let SAVE_TIMEOUT = null;
 
+  let BACKEND_URL_CACHE = null;
+
   async function getBackendUrl() {
+    if (BACKEND_URL_CACHE) return BACKEND_URL_CACHE;
     try {
       const r = await fetch('./backend_url.json?_=' + Date.now());
       if (r.ok) {
         const j = await r.json();
-        if (j && j.url) return j.url.replace(/\/$/, '');
+        if (j && j.url) {
+          BACKEND_URL_CACHE = j.url.replace(/\/$/, '');
+          return BACKEND_URL_CACHE;
+        }
       }
     } catch (_) {}
-    return 'http://127.0.0.1:8878';
+    BACKEND_URL_CACHE = 'http://127.0.0.1:8878';
+    return BACKEND_URL_CACHE;
+  }
+
+  function localBackendFallback(base) {
+    return String(base || '').startsWith('http://127.0.0.1:')
+      ? []
+      : ['http://127.0.0.1:8878'];
   }
 
   async function api(path, opts = {}) {
     const { timeoutMs = 0, ...fetchOpts } = opts || {};
-    let timer = null;
-    if (timeoutMs && !fetchOpts.signal) {
-      const controller = new AbortController();
-      fetchOpts.signal = controller.signal;
-      timer = setTimeout(() => controller.abort(), timeoutMs);
-    }
     const base = await getBackendUrl();
-    try {
-      const r = await fetch(`${base}/api${path}`, fetchOpts);
-      if (!r.ok) {
-        const txt = await r.text();
-        throw new Error(`${r.status}: ${txt.slice(0, 200)}`);
+    const bases = [base, ...localBackendFallback(base)];
+    let lastError = null;
+    for (const candidate of bases) {
+      const reqOpts = {...fetchOpts};
+      let timer = null;
+      if (timeoutMs && !reqOpts.signal) {
+        const controller = new AbortController();
+        reqOpts.signal = controller.signal;
+        timer = setTimeout(() => controller.abort(), timeoutMs);
       }
-      return await r.json();
-    } catch (e) {
-      if (e && e.name === 'AbortError') throw new Error(`timeout ${timeoutMs}ms: ${path}`);
-      throw e;
-    } finally {
-      if (timer) clearTimeout(timer);
+      try {
+        const r = await fetch(`${candidate}/api${path}`, reqOpts);
+        if (!r.ok) {
+          const txt = await r.text();
+          throw new Error(`${r.status}: ${txt.slice(0, 200)}`);
+        }
+        return await r.json();
+      } catch (e) {
+        lastError = e && e.name === 'AbortError'
+          ? new Error(`timeout ${timeoutMs}ms: ${path}`)
+          : e;
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
     }
+    throw lastError || new Error(`failed: ${path}`);
   }
 
   function toast(msg, kind = 'success') {
