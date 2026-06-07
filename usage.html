@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LC Band — Usage / Лимиты</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2230; --border: #2a3240;
+    --text: #e6edf3; --muted: #8b97a7; --accent: #4493f8;
+    --ok: #2ea043; --warn: #d29922; --crit: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 16px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 12px; color: var(--text); }
+  .sub { color: var(--muted); font-size: 12.5px; margin: 0 0 18px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin: 6px 0 18px; }
+  .legend b { color: var(--text); }
+  .topbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  button {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 14px; cursor: pointer; font-size: 13px;
+  }
+  button:hover { border-color: var(--accent); }
+  .updated { color: var(--muted); font-size: 12px; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); margin-bottom: 18px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .card.wide { grid-column: 1 / -1; }
+  .bar-row { margin: 12px 0; }
+  .bar-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
+  .bar-label .pct { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .bar-label .reset { color: var(--muted); font-size: 11.5px; }
+  .track { height: 9px; background: var(--panel2); border-radius: 6px; overflow: hidden; }
+  .fill { height: 100%; border-radius: 6px; transition: width .4s ease; }
+  .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  .pill.stale { color: var(--warn); border-color: var(--warn); }
+  .pill.fresh { color: var(--ok); border-color: var(--ok); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .kpi { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 10px; }
+  .kpi div span { display: block; }
+  .kpi .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kpi .l { font-size: 11.5px; color: var(--muted); }
+  .err { color: var(--crit); font-size: 12.5px; }
+  .alert { background: rgba(248,81,73,.12); border: 1px solid var(--crit); color: #ffb4ae; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; }
+  .dim { color: var(--muted); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>Usage / Лимиты</h1>
+    <button id="refresh" onclick="loadAll()">⟳ Обновить</button>
+    <span class="updated" id="updated"></span>
+  </div>
+  <p class="sub">Лимиты подписок Claude/Codex — по всему аккаунту (все устройства и сессии). Разбивки ниже — только этот Mac.</p>
+  <div class="legend">
+    <span><b>🌍 Аккаунт</b> — общий лимит подписки, все устройства</span>
+    <span><b>💻 Этот Mac</b> — локальные логи и сессии</span>
+  </div>
+
+  <!-- ЛИМИТЫ ПОДПИСОК -->
+  <div class="grid">
+    <div class="card" id="claude-card">
+      <h2>🌍 Claude Plan (Max)</h2>
+      <div id="claude-body"><span class="dim">загрузка…</span></div>
+    </div>
+    <div class="card" id="codex-card">
+      <h2>🌍 Codex Plan (ChatGPT)</h2>
+      <div id="codex-body"><span class="dim">загрузка…</span></div>
+    </div>
+  </div>
+
+  <!-- ВЫЗОВЫ ПО АГЕНТАМ -->
+  <div class="card wide">
+    <h2>💻 Вызовы AI по агентам — последние 24ч</h2>
+    <div id="proc-body"><span class="dim">загрузка…</span></div>
+  </div>
+
+  <div class="grid" style="margin-top:14px;">
+    <!-- PROGRAMMATIC СЕГОДНЯ -->
+    <div class="card">
+      <h2>💻 Programmatic вызовы — сегодня</h2>
+      <div id="ai-body"><span class="dim">загрузка…</span></div>
+    </div>
+    <!-- СЕССИИ -->
+    <div class="card">
+      <h2>💻 Мои сессии Claude Code — 7 дней</h2>
+      <div id="sess-body"><span class="dim">загрузка…</span></div>
+    </div>
+  </div>
+
+  <p class="sub" style="margin-top:18px;">
+    Стоимость сессий — оценка <b>в эквиваленте API-цен</b> (что эти сессии стоили бы при оплате по токенам).
+    По подписке Max это не списывается деньгами; реальный потолок — % лимита выше.
+  </p>
+
+<script>
+  // ── backend resolution (как в index.html) ──────────────────────────────
+  let CHAT_BACKEND = (location.port === "8878") ? "" : "http://127.0.0.1:8878";
+  async function resolveBackend() {
+    if (CHAT_BACKEND === "") return "";
+    try {
+      const r = await fetch("./backend_url.json", { cache: "no-store" });
+      if (r.ok) {
+        const j = await r.json();
+        if (j && j.url) {
+          // проверим что туннель жив, иначе localhost
+          try {
+            const h = await fetch(`${j.url}/api/health`, { mode: "cors" });
+            if (h.ok) { CHAT_BACKEND = j.url; return CHAT_BACKEND; }
+          } catch (e) {}
+        }
+      }
+    } catch (e) {}
+    return CHAT_BACKEND; // localhost fallback
+  }
+
+  async function api(path) {
+    const base = CHAT_BACKEND;
+    const r = await fetch(`${base}${path}`, { cache: "no-store" });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+
+  function pct(n) { return (Math.round((Number(n) || 0) * 10) / 10); }
+  function barColor(p) { return p >= 85 ? "var(--crit)" : p >= 60 ? "var(--warn)" : "var(--ok)"; }
+  function num(n) { return (Number(n) || 0).toLocaleString("ru-RU"); }
+  function usd(n) { return "$" + (Number(n) || 0).toLocaleString("en-US", { maximumFractionDigits: 0 }); }
+
+  function bar(label, p, reset) {
+    const c = barColor(p);
+    return `<div class="bar-row">
+      <div class="bar-label">
+        <span>${label}</span>
+        <span><span class="pct" style="color:${c}">${pct(p)}%</span> <span class="reset">${reset || ""}</span></span>
+      </div>
+      <div class="track"><div class="fill" style="width:${Math.min(100, p)}%;background:${c}"></div></div>
+    </div>`;
+  }
+
+  function freshness(d) {
+    const stale = d.stale === true;
+    const age = d.age_seconds != null ? `${Math.round(d.age_seconds / 60)} мин назад` : "";
+    return `<span class="pill ${stale ? "stale" : "fresh"}">${stale ? "устарело" : "свежо"} · ${age}</span>`;
+  }
+
+  // ── Claude plan ────────────────────────────────────────────────────────
+  async function loadClaude() {
+    const el = document.getElementById("claude-body");
+    try {
+      const d = await api("/api/claude_plan_usage");
+      if (!d || d.available === false) { el.innerHTML = `<span class="err">снапшот недоступен</span>`; return; }
+      const w = d.windows || {};
+      const h5 = w.five_hour || {}, d7 = w.seven_day || {};
+      el.innerHTML =
+        bar("5-часовое окно", h5.used_percentage || 0, h5.reset_label) +
+        bar("Недельный лимит", d7.used_percentage || 0, d7.reset_label) +
+        `<div style="margin-top:10px">${freshness(d)}</div>`;
+    } catch (e) { el.innerHTML = `<span class="err">ошибка: ${e.message}</span>`; }
+  }
+
+  // ── Codex plan ─────────────────────────────────────────────────────────
+  async function loadCodex() {
+    const el = document.getElementById("codex-body");
+    try {
+      const d = await api("/api/codex_plan_usage");
+      if (!d || d.available === false) { el.innerHTML = `<span class="dim">Codex usage недоступен (нет auth)</span>`; return; }
+      const w = d.windows || {};
+      const h5 = w.five_hour || {}, d7 = w.seven_day || {};
+      let html = "";
+      if (h5.used_percentage != null) html += bar(h5.label || "5-часовое окно", h5.used_percentage, h5.reset_label);
+      if (d7.used_percentage != null) html += bar(d7.label || "Недельный лимит", d7.used_percentage, d7.reset_label);
+      (d.additional_windows || []).forEach(aw => { html += bar(aw.label || aw.key, aw.used_percentage, aw.reset_label); });
+      if (d.plan_type) html += `<div style="margin-top:8px"><span class="pill">план: ${d.plan_type}</span></div>`;
+      el.innerHTML = html || `<span class="dim">нет окон</span>`;
+    } catch (e) { el.innerHTML = `<span class="dim">Codex usage недоступен</span>`; }
+  }
+
+  // ── Процессы / агенты 24ч ──────────────────────────────────────────────
+  async function loadProc() {
+    const el = document.getElementById("proc-body");
+    try {
+      const d = await api("/api/process_cli_usage?hours=24");
+      const by = d.by_label || {};
+      const rows = Object.keys(by).map(k => {
+        const v = by[k] || {};
+        const total = (v.total_cli || 0) + (v.downstream_cli || 0);
+        const purposes = v.purposes || {};
+        const topP = Object.keys(purposes).sort((a, b) => purposes[b] - purposes[a]).slice(0, 2)
+          .map(p => `${p} (${purposes[p]})`).join(", ");
+        return { label: k.replace(/^com\.lcband\./, ""), total, topP };
+      }).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
+      if (!rows.length) { el.innerHTML = `<span class="dim">за 24ч вызовов нет</span>`; return; }
+      const totalAll = rows.reduce((s, r) => s + r.total, 0);
+      let html = `<div class="kpi"><div><span class="v">${num(totalAll)}</span><span class="l">всего вызовов / 24ч</span></div></div>`;
+      html += `<table><thead><tr><th>Агент</th><th class="num">Вызовов</th><th>Топ-назначения</th></tr></thead><tbody>`;
+      rows.slice(0, 15).forEach(r => {
+        html += `<tr><td class="mono">${r.label}</td><td class="num">${num(r.total)}</td><td class="dim">${r.topP || ""}</td></tr>`;
+      });
+      html += `</tbody></table>`;
+      el.innerHTML = html;
+    } catch (e) { el.innerHTML = `<span class="err">ошибка: ${e.message}</span>`; }
+  }
+
+  // ── Programmatic сегодня ───────────────────────────────────────────────
+  async function loadAi() {
+    const el = document.getElementById("ai-body");
+    try {
+      const d = await api("/api/ai_usage_breakdown");
+      const t = d.today || {};
+      const services = t.services || {};
+      let html = `<div class="kpi">
+        <div><span class="v">${num(t.calls)}</span><span class="l">вызовов</span></div>
+        <div><span class="v">${num(t.input_tok)}</span><span class="l">input ток.</span></div>
+        <div><span class="v">${num(t.output_tok)}</span><span class="l">output ток.</span></div>
+      </div>`;
+      const svcRows = Object.keys(services).map(s => {
+        const v = services[s] || {};
+        return { name: s.replace(/^cli_/, ""), calls: v.calls || 0 };
+      }).filter(r => r.calls > 0).sort((a, b) => b.calls - a.calls);
+      if (svcRows.length) {
+        html += `<table><thead><tr><th>Модель/сервис</th><th class="num">Вызовов</th></tr></thead><tbody>`;
+        svcRows.slice(0, 8).forEach(r => { html += `<tr><td class="mono">${r.name}</td><td class="num">${num(r.calls)}</td></tr>`; });
+        html += `</tbody></table>`;
+      }
+      el.innerHTML = html;
+    } catch (e) { el.innerHTML = `<span class="err">ошибка: ${e.message}</span>`; }
+  }
+
+  // ── Сессии 7д ──────────────────────────────────────────────────────────
+  async function loadSess() {
+    const el = document.getElementById("sess-body");
+    try {
+      const d = await api("/api/session_usage_breakdown?days=7");
+      const today = d.today || {}, win = d.window || {};
+      const budget = Number(d.weekly_budget_usd) || 0;
+      const winCost = Number(win.cost_usd) || 0;
+      let html = "";
+      const ra = d.runaway_alert;
+      if (ra && ra.active) {
+        const s = ra.session || {};
+        html += `<div class="alert">⚠️ Runaway-сессия: ${usd(s.cost_usd)} · <span class="mono">${(s.model || "").slice(0, 24)}</span></div>`;
+      }
+      html += `<div class="kpi">
+        <div><span class="v">${usd(today.cost_usd)}</span><span class="l">сегодня (API-эквив.)</span></div>
+        <div><span class="v">${usd(winCost)}</span><span class="l">за 7 дней</span></div>
+        <div><span class="v">${num(win.session_count)}</span><span class="l">сессий</span></div>
+      </div>`;
+      if (budget > 0) {
+        const p = (winCost / budget) * 100;
+        html += bar(`Недельный бюджет (${usd(budget)})`, p, `${usd(winCost)} / ${usd(budget)}`);
+      }
+      const ts = d.top_sessions || [];
+      if (ts.length) {
+        html += `<table style="margin-top:10px"><thead><tr><th>Топ-сессии</th><th class="num">API-экв.</th></tr></thead><tbody>`;
+        ts.slice(0, 5).forEach(s => {
+          const fp = (s.first_prompt || s.entrypoint || s.id || "").slice(0, 40);
+          html += `<tr><td class="dim">${fp || "—"}</td><td class="num">${usd(s.cost_usd)}</td></tr>`;
+        });
+        html += `</tbody></table>`;
+      }
+      el.innerHTML = html;
+    } catch (e) { el.innerHTML = `<span class="err">ошибка: ${e.message}</span>`; }
+  }
+
+  async function loadAll() {
+    document.getElementById("updated").textContent = "обновляю…";
+    await resolveBackend();
+    await Promise.allSettled([loadClaude(), loadCodex(), loadProc(), loadAi(), loadSess()]);
+    const now = new Date();
+    document.getElementById("updated").textContent =
+      "обновлено " + now.toLocaleTimeString("ru-RU") + (CHAT_BACKEND ? "" : " · localhost");
+  }
+
+  loadAll();
+  setInterval(loadAll, 60000); // авто-обновление раз в минуту
+</script>
+</body>
+</html>
