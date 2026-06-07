@@ -441,6 +441,24 @@
   .fin-cell.neg .fin-value { color: var(--red); }
   .fin-cell.accent { box-shadow: none; }
   .fin-cell.accent .fin-value { color: var(--blue); }
+
+  /* Сверка договора */
+  .reco {
+    margin: 0 0 18px; padding: 10px 14px;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .reco-head { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+  .reco-ok { color: var(--green); }
+  .reco-warn { color: var(--orange); }
+  .reco-row {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 3px 0; font-size: 12px; border-top: 1px solid var(--border);
+  }
+  .reco-row:first-of-type { border-top: none; }
+  .reco-ic { flex-shrink: 0; }
+  .reco-lbl { color: var(--text); font-weight: 500; }
+  .reco-det { color: var(--muted); }
+  .reco-row.warn .reco-lbl { color: var(--orange); }
 </style>
   <link rel="stylesheet" href="_theme.css">
   <style>
@@ -1147,6 +1165,7 @@
       });
       CURRENT_EVENT = updated;
       renderFinanceSummary();  // деньги пересчитаны бэкендом — обновим сводку наверху
+      renderReconciliation();
       setSaveState('сохранено · ' + new Date().toLocaleTimeString('ru-RU').slice(0, 5), 'var(--green)');
       loadEventList();
     } catch (e) {
@@ -1175,10 +1194,13 @@
           <button class="action-btn" onclick="resolveVenue()" title="Geocode площадку → адрес (Yandex для RU, Google для зарубежа, Nominatim fallback)">🔍 Найти адрес</button>
           <button class="action-btn" onclick="createTgGroup()" title="Draft TG-группы — approval only, не отправит ничего автоматически">💬 TG-чат draft</button>
           <button class="action-btn" onclick="postToBandChat()" title="Draft в band-chat → approval bot. Per memory feedback_band_chat_approval.">🎸 В band-чат</button>
+          <button class="action-btn" onclick="attachContractFile()" title="Загрузить PDF/скан подписанного договора прямо в карточку">📎 Договор PDF</button>
+          <button class="action-btn" onclick="attachContractUrl()" title="Вставить ссылку на договор (Google Docs / Drive)">🔗 Договор ссылка</button>
           <button class="delete-btn" onclick="deleteEvent()">Удалить</button>
         </div>
       </div>
       <div id="finance-summary"></div>
+      <div id="reco"></div>
       <div id="sections-container"></div>
       <button class="add-section-btn" onclick="addSection()">+ Добавить секцию</button>
       <div class="notes-area">
@@ -1188,6 +1210,72 @@
     `;
     renderSections();
     renderFinanceSummary();
+    renderReconciliation();
+  }
+
+  function renderReconciliation() {
+    const el = document.getElementById('reco');
+    if (!el || !CURRENT_EVENT) return;
+    const checks = (CURRENT_EVENT.finance && CURRENT_EVENT.finance.reconciliation) || [];
+    if (!checks.length) { el.innerHTML = ''; return; }
+    const ic = { ok: '✅', warn: '⚠️', info: 'ℹ️' };
+    const warns = checks.filter(c => c.status === 'warn').length;
+    const head = warns
+      ? `· <span class="reco-warn">${warns} ${warns === 1 ? 'замечание' : 'замечаний'}</span>`
+      : `· <span class="reco-ok">всё сходится</span>`;
+    el.innerHTML = `<div class="reco">
+      <div class="reco-head">🔍 Сверка договора ${head}</div>
+      ${checks.map(c => `
+        <div class="reco-row ${c.status}">
+          <span class="reco-ic">${ic[c.status] || '•'}</span>
+          <span class="reco-lbl">${escapeHtml(c.label)}</span>
+          ${c.detail ? `<span class="reco-det">${escapeHtml(c.detail)}</span>` : ''}
+        </div>`).join('')}
+    </div>`;
+  }
+
+  async function attachContractFile() {
+    if (!CURRENT_EVENT) return;
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.pdf,.doc,.docx,.png,.jpg,.jpeg,image/*';
+    inp.onchange = async () => {
+      const file = inp.files && inp.files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      setSaveState('загружаю договор…', 'var(--orange)');
+      try {
+        const base = await getBackendUrl();
+        const r = await fetch(`${base}/api/events/${encodeURIComponent(CURRENT_EVENT.id)}/attach_contract`, { method: 'POST', body: fd });
+        if (!r.ok) throw new Error((await r.text()).slice(0, 160));
+        CURRENT_EVENT = await r.json();
+        renderDetail();
+        toast('Договор приложен: ' + file.name);
+      } catch (e) {
+        setSaveState('ошибка', 'var(--red)');
+        toast('Ошибка загрузки: ' + e.message, 'error');
+      }
+    };
+    inp.click();
+  }
+
+  async function attachContractUrl() {
+    if (!CURRENT_EVENT) return;
+    const url = (prompt('Ссылка на договор (Google Docs / Drive / PDF):') || '').trim();
+    if (!url) return;
+    try {
+      const updated = await api(`/events/${encodeURIComponent(CURRENT_EVENT.id)}/attach_contract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      CURRENT_EVENT = updated;
+      renderDetail();
+      toast('Ссылка на договор добавлена');
+    } catch (e) {
+      toast('Ошибка: ' + e.message, 'error');
+    }
   }
 
   // Сводный блок наверху карточки: даты предоплаты/постоплаты + ключевые деньги.
