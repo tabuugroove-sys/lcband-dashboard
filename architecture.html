@@ -793,9 +793,9 @@
           <div class="connection-card">
             <h3>TG follow-up session</h3>
             <div class="role-row"><b>input/read</b><code>tg_followup.py</code> + <code>tg_session_followup.session</code>: follow-up scan/read/run, включая due <code>self_to_them</code> promises.</div>
-            <div class="role-row"><b>role gate</b><code>_load_followup_candidates</code> + <code>followup_presend.protected_followup_reason</code>: musician/performer/vendor/internal роли не становятся кандидатами для <code>lcb_writer</code>; targeted <code>--only</code> фильтруется до тяжёлого context-read.</div>
+            <div class="role-row"><b>role gate</b><code>_load_followup_candidates</code> + <code>followup_presend.protected_followup_reason</code>: musician/performer/vendor/internal роли не становятся кандидатами для <code>lcb_writer</code>; gate использует identity/classification из context card, не service <code>order_type</code>; targeted <code>--only</code> фильтруется до тяжёлого context-read.</div>
             <div class="role-row"><b>due gate</b>Due follow-up после нашего последнего <code>out</code> может пройти поверх stale <code>reply_now</code>/<code>waiting_for_us</code>; successful send сначала фиксирует durable sent-state, потом запускает context refresh.</div>
-            <div class="role-row"><b>queue dedupe</b><code>followup_presend.queue_presend_viewer</code>: один открытый <code>viewer_only</code> draft на контакт; <code>status</code> approval не перетирается CRM-статусом заказа.</div>
+            <div class="role-row"><b>queue dedupe</b><code>followup_presend.queue_presend_viewer</code>: один открытый <code>viewer_only</code> draft на контакт; в direct-send режиме viewer queue не блокирует отправку; <code>status</code> approval не перетирается CRM-статусом заказа.</div>
             <div class="role-row"><b>output</b>Если не dry-run, отправка проходит через <code>lcb_writer</code> → единый <code>presend_review</code> → write-back.</div>
             <div class="role-row"><b>не daemon owner</b>Отдельная session-card, но не основной realtime socket.</div>
           </div>
