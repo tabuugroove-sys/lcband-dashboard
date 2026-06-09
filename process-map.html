@@ -325,13 +325,6 @@
         logic:['не обещает видео если его нет','reference match против видео клиента','обновляет media pool','используется broker casting'],
       },
       {
-        group:'broker', name:'Broker Client Follow-up', label:'com.lcband.broker-client-followup',
-        file:'broker_client_followup_agent.py', schedule:'каждый час',
-        why:'Догоняет клиента в broker-flow после отправки вариантов или уточняющих вопросов.',
-        input:'broker_orders.json + client history', action:'decide follow-up', output:'client follow-up / skip',
-        logic:['читает историю перед сообщением','уважает refusal hard-stop','не требует ручного approval кроме money-intent'],
-      },
-      {
         group:'broker', name:'Broker Contractor Follow-up', label:'com.lcband.broker-contractor-followup',
         file:'broker_contractor_followup_agent.py', schedule:'каждый час',
         why:'Дожимает подрядчиков по цене/доступности, чтобы клиентский relay не зависал.',

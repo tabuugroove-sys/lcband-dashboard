@@ -1075,7 +1075,7 @@ const PROCESS_RULES = {
       'Сканит свежие исходящие TG-DM Миши (LOOKBACK 5д), дедуп по fingerprint треда',
       'AI-судья (Opus): «это вербовка подрядчика под клиентский заказ?» + подбор клиентского ордера по дате/городу/формату',
       'is_recruiting & conf≥0.7 → карточка в approval-bot (bsrc:-кнопки): связать @подрядчик с [клиент]? ✅/❌',
-      'На ✅ → broker_orders.create/find + assign_contractor + mark_client_relayed(relay_at) → broker_client_followup дожимает КЛИЕНТА',
+      'На ✅ → broker_orders.create/find + assign_contractor + mark_client_relayed(relay_at) → клиента дожимает основной DM-writer в broker-mode',
       'Подрядчик в активном broker_order → tg_followup его СКИПАЕТ (guard, инцидент pasha_eliseev 43× burn)',
       'Ручной линк: /broker_source @act @client. Default OFF — включается осознанно (live routing денежных сделок)',
       'Скрипт: broker_sourcing_agent.py | log: /tmp/broker_sourcing_agent.log | state: broker_sourcing_state.json',
