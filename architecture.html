@@ -1286,7 +1286,10 @@
           питч клиенту → <code>client_relayed</code>; только бриф Вадиму → <code>brief_sent</code>;
           нет города/тайминга → <code>waiting_client_budget</code>. MSK-гейт <code>broker_orders.create</code>
           для <code>drum_show</code> снят (Noize мульти-город: Москва / Челябинск / Дубай).
-          Direct/private DM drum остаётся в LCB writer и в broker не уходит.
+          Ответы Вадима обрабатывает <code>payment_event_handler</code>: если neutral auto-clarify
+          не смог собрать клиента/вопрос, owner больше не делает silent-drop — отправляет Вадиму
+          ack, пишет <code>manual_attention_required</code> и пушит alert оператору. Direct/private
+          DM drum остаётся в LCB writer и в broker не уходит.
         </div>
         <div class="flow-row five">
           <div class="node src">
