@@ -770,6 +770,12 @@
       }
     });
   }
+  function bindCalendarChatHandlers() {
+    document.querySelectorAll('.cal-pill[data-chat-q]').forEach(pill => {
+      pill.addEventListener('mouseenter', () => scheduleChatPanel(pill));
+      pill.addEventListener('mouseleave', cancelChatPanelOpen);
+    });
+  }
   window.closeChatPanel = closeChatPanel;
   window.scheduleChatPanel = scheduleChatPanel;
   window.cancelChatPanelOpen = cancelChatPanelOpen;
@@ -1799,6 +1805,7 @@
         let stateLabel = '';
         let click = '';
         let tip = '';
+        let chatAttrs = '';
         const safe = (ev.title || ev.id || '').replace(/[<>&"']/g, c =>
           ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -1809,6 +1816,10 @@
             click = `onclick="loadStubEvent('${String(ev.id || '').replace(/'/g, "\\'")}')"`;
           }
           tip = `Pre-paid заявка (${ev._stage}): ${ev._thread || ''}\n${stateLabel}\nИсточник: lcb_orders.json`;
+          const chat = chatTargetFromThread(ev._thread || '', '');
+          if (chat) {
+            chatAttrs = `data-chat-q="${escapeAttr(chat.q)}" data-chat-channel="${escapeAttr(chat.channel || 'TG')}" data-chat-title="${escapeAttr(ev.title || chat.q)}"`;
+          }
         } else if (ev._kind === 'lead') {
           const stage = (ev._stage || '').toLowerCase();
           if (stage === 'negotiating') {
@@ -1826,6 +1837,7 @@
           if (ev._username && ev._channel) {
             const ch = ev._channel.toUpperCase().startsWith('VK') ? 'VK' : 'TG';
             click = `onclick="window.open('./index.html?chat=${encodeURIComponent(ev._username)}&channel=${ch}', '_blank')"`;
+            chatAttrs = `data-chat-q="${escapeAttr(ev._username)}" data-chat-channel="${escapeAttr(ch)}" data-chat-title="${escapeAttr(ev.title || ev._username)}"`;
           }
         } else {
           switch (ev.business_state) {
@@ -1837,11 +1849,12 @@
           click = `onclick="loadEvent('${(ev.id || '').replace(/'/g, "\\'")}')"`;
           tip = (ev.title || ev.id) + (ev.members_count ? `  ·  ${ev.members_count} чел` : '') + `\n${stateLabel}`;
         }
-        pills += `<span class="${pcls}" title="${tip.replace(/"/g, '&quot;')}" ${click} style="${click ? 'cursor:pointer' : 'cursor:default;opacity:.85'}">${safe}</span>`;
+        pills += `<span class="${pcls}" title="${tip.replace(/"/g, '&quot;')}" ${click} ${chatAttrs} style="${click ? 'cursor:pointer' : 'cursor:default;opacity:.85'}">${safe}</span>`;
       }
       html += `<div class="${cls}"><div class="cal-day-num">${d.getDate()}</div>${pills}</div>`;
     }
     grid.innerHTML = html;
+    bindCalendarChatHandlers();
 
     const stamp = document.getElementById('cal-stamp');
     if (stamp) {
