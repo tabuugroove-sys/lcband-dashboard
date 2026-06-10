@@ -1786,8 +1786,6 @@ function WaInlineQrPanel({ backendUrl, active, externalState, onAfterReconnect }
       pollRef.current = null;
       return;
     }
-    const token = getStoredToken();
-    if (token) refresh();
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(() => {
       if (getStoredToken()) refresh();
@@ -2073,7 +2071,7 @@ function ConnectionRow({ title, status, reason, lastCheck, compact, reconnect, b
         <div className="conn-extra">
           <WaInlineQrPanel
             backendUrl={backendUrl}
-            active={needsRelink || !!waInlinePayload}
+            active={!!waInlinePayload}
             externalState={waInlinePayload}
             onAfterReconnect={onAfterReconnect}
           />
