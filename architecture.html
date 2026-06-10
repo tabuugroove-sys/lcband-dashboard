@@ -1193,7 +1193,7 @@
               </tr>
               <tr>
                 <td><b>Broker contractor/client</b></td>
-                <td>Запись в <code>broker_orders.json</code> history/status; contractor reply → <code>broker_relay_to_client</code> через <code>broker_dialog_agent</code>; LCB writer не запускается.</td>
+                <td>Запись в <code>broker_orders.json</code> history/status; contractor reply → <code>broker_relay_to_client</code> через <code>broker_dialog_agent</code>; пустой contractor inbound закрывается без AI, notify dedupe идёт по <code>msg_id</code>. LCB writer не запускается.</td>
               </tr>
               <tr>
                 <td><b>Contractor coordination</b></td>
