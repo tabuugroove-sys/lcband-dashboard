@@ -1667,7 +1667,7 @@ function WaQrModal({ state, onClose, onRefresh }) {
   );
 }
 
-function WaInlineQrPanel({ backendUrl, active, onAfterReconnect }) {
+function WaInlineQrPanel({ backendUrl, active, externalState, onAfterReconnect }) {
   const [state, setState] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState('');
@@ -1676,6 +1676,10 @@ function WaInlineQrPanel({ backendUrl, active, onAfterReconnect }) {
   React.useEffect(() => () => {
     if (pollRef.current) clearInterval(pollRef.current);
   }, []);
+
+  React.useEffect(() => {
+    if (externalState) setState(externalState);
+  }, [externalState]);
 
   async function probeBackend(url) {
     if (!url) return {ok: false, reason: 'empty'};
@@ -1827,7 +1831,7 @@ function WaInlineQrPanel({ backendUrl, active, onAfterReconnect }) {
   );
 }
 
-function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect, mode }) {
+function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect, mode, onWaRelinkPayload }) {
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState('');
   const [waQr, setWaQr] = React.useState(null);
@@ -1891,6 +1895,13 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
     return j;
   }
 
+  function publishWaPayload(payload) {
+    setWaQr(payload);
+    if (mode === 'wa_baileys' && onWaRelinkPayload) {
+      onWaRelinkPayload(payload);
+    }
+  }
+
   function startWaRelinkPolling(url, token) {
     if (pollRef.current) clearInterval(pollRef.current);
     let ticks = 0;
@@ -1898,7 +1909,7 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
       ticks += 1;
       try {
         const j = await fetchWaRelinkStatus(url, token);
-        setWaQr(j);
+        publishWaPayload(j);
         if (j.status === 'connected' && j.send_ready) {
           clearInterval(pollRef.current);
           pollRef.current = null;
@@ -1909,7 +1920,8 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
           pollRef.current = null;
         }
       } catch (e) {
-        setWaQr(prev => ({...(prev || {}), status:'error', reason:String(e.message || e).slice(0, 120)}));
+        const payload = {status:'error', reason:String(e.message || e).slice(0, 120)};
+        publishWaPayload(payload);
       }
     }, 2500);
   }
@@ -1924,14 +1936,14 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
     if (r.status === 403) {
       localStorage.removeItem('lcband_admin_token');
       if (allowTokenRetry) {
-        setWaQr(prev => ({...(prev || {}), status:'token_required', reason:'bad token: paste DASHBOARD_ADMIN_TOKEN'}));
+        publishWaPayload({status:'token_required', reason:'bad token: paste DASHBOARD_ADMIN_TOKEN'});
         const retryToken = await getOrPromptToken(true);
         if (retryToken) return beginWaRelink(pick, retryToken, false);
       }
       throw new Error('bad token: paste DASHBOARD_ADMIN_TOKEN and try again');
     }
     if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
-    setWaQr(j);
+    publishWaPayload(j);
     setMsg(j.qr_data_url ? 'qr ready' : (j.status || 'started'));
     startWaRelinkPolling(pick.url, token);
     setTimeout(() => onAfterReconnect && onAfterReconnect(), 2500);
@@ -1951,7 +1963,7 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
         return;
       }
       if (mode === 'wa_baileys') {
-        setWaQr({status:'starting', reason:'starting WhatsApp relink...'});
+        publishWaPayload({status:'starting', reason:'starting WhatsApp relink...'});
         await beginWaRelink(pick, token);
         return;
       }
@@ -1976,7 +1988,7 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
     } catch (e) {
       setMsg(String(e.message || e).slice(0, 42));
       if (mode === 'wa_baileys') {
-        setWaQr(prev => ({...(prev || {}), status:'error', reason:String(e.message || e).slice(0, 160)}));
+        publishWaPayload({status:'error', reason:String(e.message || e).slice(0, 160)});
       }
     } finally {
       setBusy(false);
@@ -2003,8 +2015,8 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
           const token = await getOrPromptToken();
           const pick = await resolveBackend();
           if (!token || !pick) return;
-          try { setWaQr(await fetchWaRelinkStatus(pick.url, token)); }
-          catch (e) { setWaQr(prev => ({...(prev || {}), status:'error', reason:String(e.message || e).slice(0, 120)})); }
+          try { publishWaPayload(await fetchWaRelinkStatus(pick.url, token)); }
+          catch (e) { publishWaPayload({status:'error', reason:String(e.message || e).slice(0, 120)}); }
         }}
       />
     </div>
@@ -2012,10 +2024,14 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
 }
 
 function ConnectionRow({ title, status, reason, lastCheck, compact, reconnect, backendUrl, onAfterReconnect, inlineQr }) {
+  const [waInlinePayload, setWaInlinePayload] = React.useState(null);
   const st = status || 'unknown';
   const dotCls = st === 'ok' ? 'conn-dot-ok' : st === 'error' ? 'conn-dot-err' : st === 'degraded' ? 'conn-dot-deg' : 'conn-dot-unk';
   const reasonText = String(reason || '');
   const needsRelink = /logged_out|relink_required|scan_qr|qr_pending/i.test(reasonText);
+  React.useEffect(() => {
+    if (!needsRelink && waInlinePayload) setWaInlinePayload(null);
+  }, [needsRelink, waInlinePayload]);
   const label  = st === 'ok'
     ? 'Подключено'
     : needsRelink
@@ -2050,13 +2066,15 @@ function ConnectionRow({ title, status, reason, lastCheck, compact, reconnect, b
           backendUrl={backendUrl}
           onAfterReconnect={onAfterReconnect}
           mode={reconnect.mode}
+          onWaRelinkPayload={reconnect.mode === 'wa_baileys' ? setWaInlinePayload : undefined}
         />
       )}
       {inlineQr && (
         <div className="conn-extra">
           <WaInlineQrPanel
             backendUrl={backendUrl}
-            active={needsRelink}
+            active={needsRelink || !!waInlinePayload}
+            externalState={waInlinePayload}
             onAfterReconnect={onAfterReconnect}
           />
         </div>
