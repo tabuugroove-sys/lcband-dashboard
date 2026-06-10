@@ -434,6 +434,7 @@
       background: var(--card); border: 1px solid var(--border);
       border-radius: var(--r); padding: 12px 14px;
       display: flex; align-items: center; gap: 12px;
+      flex-wrap: wrap;
     }
     .conn-dot {
       width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
@@ -449,6 +450,11 @@
     .conn-info { flex: 1; min-width: 0; }
     .conn-label { font-size: 13px; font-weight: 600; }
     .conn-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .conn-extra {
+      flex-basis: 100%;
+      margin-left: 24px;
+      margin-top: 10px;
+    }
     .conn-tg-grid {
       display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px; margin-bottom: 8px;
@@ -590,11 +596,61 @@
 	      text-transform: uppercase;
 	      cursor: pointer;
 	    }
+	    .wa-qr-inline {
+	      display: flex;
+	      align-items: center;
+	      gap: 12px;
+	      padding: 10px;
+	      border: 1px solid rgba(250,204,21,.24);
+	      border-radius: 8px;
+	      background: rgba(250,204,21,.07);
+	    }
+	    .wa-qr-inline-frame {
+	      width: 128px;
+	      height: 128px;
+	      display: grid;
+	      place-items: center;
+	      flex: 0 0 auto;
+	      border-radius: 7px;
+	      background: #fff;
+	      overflow: hidden;
+	    }
+	    .wa-qr-inline-frame img {
+	      width: 100%;
+	      height: 100%;
+	      object-fit: contain;
+	      display: block;
+	    }
+	    .wa-qr-inline-copy {
+	      min-width: 0;
+	      display: flex;
+	      flex-direction: column;
+	      gap: 6px;
+	    }
+	    .wa-qr-inline-title {
+	      font-size: 12px;
+	      font-weight: 800;
+	      color: #fde68a;
+	    }
+	    .wa-qr-inline-sub {
+	      font-size: 11px;
+	      line-height: 1.35;
+	      color: var(--muted);
+	    }
+	    .wa-qr-inline-actions {
+	      display: flex;
+	      align-items: center;
+	      gap: 8px;
+	      flex-wrap: wrap;
+	    }
 	    @media (max-width: 720px) {
 	      .conn-tg-grid { grid-template-columns: 1fr; }
 	      .conn-card { align-items: flex-start; }
+	      .conn-extra { margin-left: 0; }
 	      .conn-actions { min-width: 82px; }
 	      .wa-qr-modal { padding: 14px; }
+	      .wa-qr-inline { align-items: flex-start; }
+	      .wa-qr-inline-frame { width: 112px; height: 112px; }
 	    }
     .conn-sessions { display: flex; gap: 8px; margin-top: 8px; }
     .conn-session-chip {
@@ -1611,6 +1667,166 @@ function WaQrModal({ state, onClose, onRefresh }) {
   );
 }
 
+function WaInlineQrPanel({ backendUrl, active, onAfterReconnect }) {
+  const [state, setState] = React.useState(null);
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState('');
+  const pollRef = React.useRef(null);
+
+  React.useEffect(() => () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+  }, []);
+
+  async function probeBackend(url) {
+    if (!url) return {ok: false, reason: 'empty'};
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 1800);
+    try {
+      const r = await fetch(`${url}/api/health`, {signal: ctrl.signal, mode: 'cors'});
+      clearTimeout(t);
+      if (!r.ok) return {ok: false, reason: `HTTP ${r.status}`};
+      const j = await r.json();
+      return {ok: !!j.ok, reason: 'live'};
+    } catch (e) {
+      clearTimeout(t);
+      return {ok: false, reason: String(e.message || e).slice(0, 120)};
+    }
+  }
+
+  async function resolveBackend() {
+    const candidates = [
+      {url: backendUrl, label: 'cloudflare tunnel'},
+      {url: 'http://127.0.0.1:8878', label: 'localhost'},
+    ];
+    for (const c of candidates) {
+      if (!c.url) continue;
+      const probe = await probeBackend(c.url);
+      if (probe.ok) return c;
+    }
+    return null;
+  }
+
+  function getStoredToken() {
+    return (localStorage.getItem('lcband_admin_token') || '').trim();
+  }
+
+  async function getOrPromptToken(forcePrompt = false) {
+    if (forcePrompt) localStorage.removeItem('lcband_admin_token');
+    let t = forcePrompt ? '' : getStoredToken();
+    if (!t) {
+      t = (window.prompt('Admin token (~/lcband/.env: DASHBOARD_ADMIN_TOKEN):') || '').trim();
+    }
+    if (t) localStorage.setItem('lcband_admin_token', t);
+    return t;
+  }
+
+  async function fetchStatus(url, token) {
+    const r = await fetch(`${url}/api/wa_baileys_relink_status`, {
+      headers: {'X-Admin-Token': token},
+      cache: 'no-store',
+    });
+    const j = await r.json();
+    if (r.status === 403) {
+      localStorage.removeItem('lcband_admin_token');
+      throw new Error('bad token');
+    }
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    return j;
+  }
+
+  async function startRelink(url, token) {
+    const r = await fetch(`${url}/api/wa_baileys_relink`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-Admin-Token': token},
+      body: JSON.stringify({wait_sec: 12}),
+    });
+    const j = await r.json();
+    if (r.status === 403) {
+      localStorage.removeItem('lcband_admin_token');
+      throw new Error('bad token');
+    }
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    return j;
+  }
+
+  async function refresh({promptToken = false, relink = false} = {}) {
+    setBusy(true);
+    setMsg('');
+    try {
+      const token = promptToken ? await getOrPromptToken(true) : (getStoredToken() || await getOrPromptToken(false));
+      if (!token) return;
+      const pick = await resolveBackend();
+      if (!pick) {
+        setMsg('backend off');
+        return;
+      }
+      const j = relink ? await startRelink(pick.url, token) : await fetchStatus(pick.url, token);
+      setState(j);
+      setMsg(j.qr_data_url ? 'updated' : (j.status || 'waiting'));
+      if (j.status === 'connected' && j.send_ready) {
+        onAfterReconnect && onAfterReconnect();
+      }
+    } catch (e) {
+      setMsg(String(e.message || e).slice(0, 80));
+      setState(prev => ({...(prev || {}), status:'error', reason:String(e.message || e).slice(0, 120)}));
+    } finally {
+      setBusy(false);
+      setTimeout(() => setMsg(''), 8000);
+    }
+  }
+
+  React.useEffect(() => {
+    if (!active) {
+      setState(null);
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = null;
+      return;
+    }
+    const token = getStoredToken();
+    if (token) refresh();
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => {
+      if (getStoredToken()) refresh();
+    }, 5000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = null;
+    };
+  }, [active, backendUrl]);
+
+  if (!active) return null;
+  const connected = state?.status === 'connected' && state?.send_ready;
+  const statusText = connected ? 'connected' : (state?.reason || state?.status || msg || 'waiting for QR');
+  return (
+    <div className="wa-qr-inline">
+      <div className="wa-qr-inline-frame">
+        {state?.qr_data_url ? (
+          <img src={state.qr_data_url} alt="WhatsApp QR code" />
+        ) : (
+          <div className="wa-qr-pending">{connected ? 'Connected' : 'QR'}</div>
+        )}
+      </div>
+      <div className="wa-qr-inline-copy">
+        <div className="wa-qr-inline-title">WhatsApp linked device QR</div>
+        <div className="wa-qr-inline-sub">
+          Открой WhatsApp на телефоне: Settings → Linked devices → Link a device.
+        </div>
+        <div className="wa-qr-inline-actions">
+          <button type="button" className="wa-qr-refresh" onClick={() => refresh({relink: !state?.qr_data_url})} disabled={busy}>
+            {busy ? 'Updating...' : (state?.qr_data_url ? 'Refresh' : 'Show QR')}
+          </button>
+          {state?.status === 'error' && (
+            <button type="button" className="wa-qr-refresh" onClick={() => refresh({promptToken: true})} disabled={busy}>
+              Token
+            </button>
+          )}
+          <span className="wa-qr-status" title={statusText}>{msg || statusText}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect, mode }) {
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState('');
@@ -1795,7 +2011,7 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
   );
 }
 
-function ConnectionRow({ title, status, reason, lastCheck, compact, reconnect, backendUrl, onAfterReconnect }) {
+function ConnectionRow({ title, status, reason, lastCheck, compact, reconnect, backendUrl, onAfterReconnect, inlineQr }) {
   const st = status || 'unknown';
   const dotCls = st === 'ok' ? 'conn-dot-ok' : st === 'error' ? 'conn-dot-err' : st === 'degraded' ? 'conn-dot-deg' : 'conn-dot-unk';
   const reasonText = String(reason || '');
@@ -1835,6 +2051,15 @@ function ConnectionRow({ title, status, reason, lastCheck, compact, reconnect, b
           onAfterReconnect={onAfterReconnect}
           mode={reconnect.mode}
         />
+      )}
+      {inlineQr && (
+        <div className="conn-extra">
+          <WaInlineQrPanel
+            backendUrl={backendUrl}
+            active={needsRelink}
+            onAfterReconnect={onAfterReconnect}
+          />
+        </div>
       )}
     </div>
   );
@@ -1913,6 +2138,7 @@ function ConnectionStatus({ connection, vkConnection, waConnection, backendUrl, 
           reconnect={{labels:['com.lcband.wa-baileys','com.lcband.wa-baileys-webhook'], title:'WhatsApp Baileys reconnect', mode:'wa_baileys'}}
           backendUrl={backendUrl}
           onAfterReconnect={onAfterReconnect}
+          inlineQr
         />
       )}
     </div>
