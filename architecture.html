@@ -1208,6 +1208,10 @@
                 <td>Hard block + notify admin / payment-event owner. Клиенту AI не отвечает деньгами как обычный LCB writer.</td>
               </tr>
               <tr>
+                <td><b>Paid client / ОПЛАТИЛА</b></td>
+                <td>CRM status с <code>оплат*</code>/<code>paid</code>/<code>концерт</code> защищён от любых client auto-send: safe fast-path, status ack, refusal close и финальный draft уходят только в notify/approval handoff.</td>
+              </tr>
+              <tr>
                 <td><b>Refusal</b></td>
                 <td>Refusal close: один закрывающий ответ, затем silent close, если уже закрывали.</td>
               </tr>
