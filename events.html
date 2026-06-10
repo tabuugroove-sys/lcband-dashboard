@@ -787,7 +787,7 @@
   async function fetchEventsDashboardData() {
     const [eventsResult, stubsResult, leadsResult] = await Promise.allSettled([
       api('/events?include_unlinked=1', {timeoutMs: 15000}),
-      api('/event_stubs?with_date_only=1', {timeoutMs: 15000}),
+      api('/event_stubs?stage=lead,negotiation,confirmed&with_date_only=1', {timeoutMs: 15000}),
       api('/leads_with_dates', {timeoutMs: 12000}),
     ]);
     const errors = [];
@@ -828,16 +828,18 @@
       }));
       const stubs = (payload.stubs || []).map(s => {
         const chat = chatTargetFromThread(s.client_thread, '');
-        const statusGroup = s.status_group || (s.stage === 'confirmed' ? 'contract' : 'negotiation');
+        const stage = String(s.stage || '').toLowerCase();
+        const statusGroup = s.status_group || (stage === 'confirmed' ? 'contract' : (stage === 'lead' ? 'lead' : 'negotiation'));
         const isContract = statusGroup === 'contract' || statusGroup === 'prepayment';
+        const isLead = stage === 'lead' || statusGroup === 'lead';
         return {
           kind: 'stub',
-          group: statusGroup === 'released' ? 'released' : (isContract ? 'contract' : 'negotiating'),
-          rank: statusGroup === 'released' ? 4 : (isContract ? 1 : 2),
+          group: statusGroup === 'released' ? 'released' : (isContract ? 'contract' : (isLead ? 'lead' : 'negotiating')),
+          rank: statusGroup === 'released' ? 4 : (isContract ? 1 : (isLead ? 3 : 2)),
           id: s.stub_id,
           title: s.title || s.client_thread || '(stub)',
           date: s.hint_date || '',
-          stats: s.status_label || (isContract ? 'договор / ждём предоплату' : 'переговоры'),
+          stats: s.status_label || (isContract ? 'договор / ждём предоплату' : (isLead ? 'заявка' : 'переговоры')),
           onclick: s.stub_id ? `loadStubEvent('${String(s.stub_id || '').replace(/'/g, "\\'")}')` : '',
           chatQ: chat?.q || '',
           chatChannel: chat?.channel || 'TG',
@@ -1810,12 +1812,21 @@
           ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
 
         if (ev._kind === 'stub') {
-          pcls += ' stub';
-          stateLabel = 'подтвердили/договор/ждём оплату';
+          const stage = String(ev._stage || '').toLowerCase();
+          if (stage === 'lead') {
+            pcls += ' lead';
+            stateLabel = 'заявка';
+          } else if (stage === 'negotiation' || stage === 'negotiating') {
+            pcls += ' negotiating';
+            stateLabel = 'переговоры';
+          } else {
+            pcls += ' stub';
+            stateLabel = 'подтвердили/договор/ждём оплату';
+          }
           if (ev.id) {
             click = `onclick="loadStubEvent('${String(ev.id || '').replace(/'/g, "\\'")}')"`;
           }
-          tip = `Pre-paid заявка (${ev._stage}): ${ev._thread || ''}\n${stateLabel}\nИсточник: lcb_orders.json`;
+          tip = `Event stub (${ev._stage || 'unknown'}): ${ev._thread || ''}\n${stateLabel}\nИсточник: lcb_orders.json`;
           const chat = chatTargetFromThread(ev._thread || '', '');
           if (chat) {
             chatAttrs = `data-chat-q="${escapeAttr(chat.q)}" data-chat-channel="${escapeAttr(chat.channel || 'TG')}" data-chat-title="${escapeAttr(ev.title || chat.q)}"`;
