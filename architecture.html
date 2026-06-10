@@ -809,7 +809,7 @@
             <h3>WhatsApp Baileys</h3>
             <div class="role-row"><b>input</b><code>wa_baileys/</code> materializer обновляет WA cache и message history.</div>
             <div class="role-row"><b>output</b>Обычные drafts идут в native WhatsApp Desktop через <code>wa_cu_agent.py</code>: <code>pending_approval</code> сначала вручную approve → <code>queued</code>; короткий <code>manual_context_ack</code> может отправить <code>wa_auto_sender.py</code> через linked Baileys.</div>
-            <div class="role-row"><b>health</b><code>wa_baileys_heartbeat.json</code> различает <code>connected</code>, <code>qr_pending</code>, <code>reconnecting</code> и <code>logged_out</code>; code 401 требует relink через QR, а не простой restart.</div>
+            <div class="role-row"><b>health</b><code>wa_baileys_heartbeat.json</code> различает <code>connected</code>, <code>qr_pending</code>, <code>reconnecting</code> и <code>logged_out</code>; code 401 запускает <code>/api/wa_baileys_relink</code> и QR-модалку в dashboard, а не простой restart.</div>
             <div class="role-row"><b>write</b><code>wa_cache/</code> и outbound mark-sent сходятся обратно в memory/context.</div>
           </div>
         </div>

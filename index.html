@@ -483,22 +483,119 @@
       opacity: .62;
       cursor: wait;
     }
-    .conn-action-msg {
-      min-height: 12px;
-      max-width: 112px;
-      font-size: 9px;
+	    .conn-action-msg {
+	      min-height: 12px;
+	      max-width: 112px;
+	      font-size: 9px;
       line-height: 1.2;
       text-align: right;
       color: var(--muted);
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    @media (max-width: 720px) {
-      .conn-tg-grid { grid-template-columns: 1fr; }
-      .conn-card { align-items: flex-start; }
-      .conn-actions { min-width: 82px; }
-    }
+	      text-overflow: ellipsis;
+	      white-space: nowrap;
+	    }
+	    .wa-qr-backdrop {
+	      position: fixed;
+	      inset: 0;
+	      z-index: 80;
+	      display: grid;
+	      place-items: center;
+	      padding: 18px;
+	      background: rgba(3, 7, 18, .72);
+	      backdrop-filter: blur(10px);
+	    }
+	    .wa-qr-modal {
+	      width: min(420px, 100%);
+	      border: 1px solid rgba(148, 163, 184, .24);
+	      border-radius: 8px;
+	      background: #0b1020;
+	      box-shadow: 0 24px 80px rgba(0,0,0,.45);
+	      padding: 18px;
+	    }
+	    .wa-qr-head {
+	      display: flex;
+	      justify-content: space-between;
+	      align-items: flex-start;
+	      gap: 12px;
+	      margin-bottom: 14px;
+	    }
+	    .wa-qr-title {
+	      font-size: 14px;
+	      font-weight: 800;
+	      color: #e5e7eb;
+	    }
+	    .wa-qr-sub {
+	      margin-top: 4px;
+	      font-size: 11px;
+	      line-height: 1.35;
+	      color: var(--muted);
+	    }
+	    .wa-qr-close {
+	      width: 28px;
+	      height: 28px;
+	      border-radius: 7px;
+	      border: 1px solid rgba(148,163,184,.28);
+	      background: rgba(15,23,42,.78);
+	      color: #cbd5e1;
+	      cursor: pointer;
+	      font-weight: 800;
+	    }
+	    .wa-qr-frame {
+	      width: min(320px, 100%);
+	      aspect-ratio: 1;
+	      margin: 0 auto;
+	      display: grid;
+	      place-items: center;
+	      border-radius: 8px;
+	      background: #fff;
+	      overflow: hidden;
+	    }
+	    .wa-qr-frame img {
+	      width: 100%;
+	      height: 100%;
+	      object-fit: contain;
+	      display: block;
+	    }
+	    .wa-qr-pending {
+	      padding: 18px;
+	      text-align: center;
+	      color: #334155;
+	      font-weight: 800;
+	      font-size: 13px;
+	    }
+	    .wa-qr-actions {
+	      margin-top: 14px;
+	      display: flex;
+	      align-items: center;
+	      justify-content: space-between;
+	      gap: 10px;
+	    }
+	    .wa-qr-status {
+	      min-width: 0;
+	      color: var(--muted);
+	      font-size: 11px;
+	      overflow: hidden;
+	      text-overflow: ellipsis;
+	      white-space: nowrap;
+	    }
+	    .wa-qr-refresh {
+	      height: 30px;
+	      padding: 0 10px;
+	      border-radius: 7px;
+	      border: 1px solid rgba(96,165,250,.34);
+	      background: rgba(37,99,235,.12);
+	      color: #bfdbfe;
+	      font-size: 10px;
+	      font-weight: 800;
+	      text-transform: uppercase;
+	      cursor: pointer;
+	    }
+	    @media (max-width: 720px) {
+	      .conn-tg-grid { grid-template-columns: 1fr; }
+	      .conn-card { align-items: flex-start; }
+	      .conn-actions { min-width: 82px; }
+	      .wa-qr-modal { padding: 14px; }
+	    }
     .conn-sessions { display: flex; gap: 8px; margin-top: 8px; }
     .conn-session-chip {
       font-size: 10px; padding: 2px 8px; border-radius: 10px;
@@ -1480,10 +1577,50 @@ function _fmtAgo(lastCheck) {
   } catch { return lastCheck; }
 }
 
-function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect }) {
+function WaQrModal({ state, onClose, onRefresh }) {
+  if (!state) return null;
+  const connected = state.status === 'connected' && state.send_ready;
+  const statusText = connected
+    ? 'connected'
+    : state.reason || state.status || state.msg || 'waiting';
+  return (
+    <div className="wa-qr-backdrop" role="dialog" aria-modal="true">
+      <div className="wa-qr-modal">
+        <div className="wa-qr-head">
+          <div>
+            <div className="wa-qr-title">WhatsApp linked device</div>
+            <div className="wa-qr-sub">
+              Открой WhatsApp на телефоне: Settings → Linked devices → Link a device.
+            </div>
+          </div>
+          <button type="button" className="wa-qr-close" onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <div className="wa-qr-frame">
+          {state.qr_data_url ? (
+            <img src={state.qr_data_url} alt="WhatsApp QR code" />
+          ) : (
+            <div className="wa-qr-pending">{connected ? 'Connected' : 'Generating QR...'}</div>
+          )}
+        </div>
+        <div className="wa-qr-actions">
+          <div className="wa-qr-status" title={statusText}>{statusText}</div>
+          <button type="button" className="wa-qr-refresh" onClick={onRefresh}>Refresh</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect, mode }) {
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState('');
+  const [waQr, setWaQr] = React.useState(null);
+  const pollRef = React.useRef(null);
   const targetLabels = Array.isArray(labels) ? labels.filter(Boolean) : [];
+
+  React.useEffect(() => () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+  }, []);
 
   async function getOrPromptToken() {
     let t = localStorage.getItem('lcband_admin_token') || '';
@@ -1523,6 +1660,61 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
     return null;
   }
 
+  async function fetchWaRelinkStatus(url, token) {
+    const r = await fetch(`${url}/api/wa_baileys_relink_status`, {
+      headers: {'X-Admin-Token': token},
+      cache: 'no-store',
+    });
+    const j = await r.json();
+    if (r.status === 403) {
+      localStorage.removeItem('lcband_admin_token');
+      throw new Error('bad token');
+    }
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    return j;
+  }
+
+  function startWaRelinkPolling(url, token) {
+    if (pollRef.current) clearInterval(pollRef.current);
+    let ticks = 0;
+    pollRef.current = setInterval(async () => {
+      ticks += 1;
+      try {
+        const j = await fetchWaRelinkStatus(url, token);
+        setWaQr(j);
+        if (j.status === 'connected' && j.send_ready) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+          setMsg('connected');
+          onAfterReconnect && onAfterReconnect();
+        } else if (ticks > 60) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      } catch (e) {
+        setWaQr(prev => ({...(prev || {}), status:'error', reason:String(e.message || e).slice(0, 120)}));
+      }
+    }, 2500);
+  }
+
+  async function beginWaRelink(pick, token) {
+    const r = await fetch(`${pick.url}/api/wa_baileys_relink`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-Admin-Token': token},
+      body: JSON.stringify({wait_sec: 12}),
+    });
+    const j = await r.json();
+    if (r.status === 403) {
+      localStorage.removeItem('lcband_admin_token');
+      throw new Error('bad token');
+    }
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    setWaQr(j);
+    setMsg(j.qr_data_url ? 'qr ready' : (j.status || 'started'));
+    startWaRelinkPolling(pick.url, token);
+    setTimeout(() => onAfterReconnect && onAfterReconnect(), 2500);
+  }
+
   async function reconnect() {
     if (busy || !targetLabels.length) return;
     const token = await getOrPromptToken();
@@ -1533,6 +1725,10 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
       const pick = await resolveBackend();
       if (!pick) {
         setMsg('backend off');
+        return;
+      }
+      if (mode === 'wa_baileys') {
+        await beginWaRelink(pick, token);
         return;
       }
       const r = await fetch(`${pick.url}/api/restart_agents`, {
@@ -1573,6 +1769,17 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
         {busy ? '...' : 'Reconnect'}
       </button>
       <div className="conn-action-msg" title={msg}>{msg}</div>
+      <WaQrModal
+        state={waQr}
+        onClose={() => setWaQr(null)}
+        onRefresh={async () => {
+          const token = await getOrPromptToken();
+          const pick = await resolveBackend();
+          if (!token || !pick) return;
+          try { setWaQr(await fetchWaRelinkStatus(pick.url, token)); }
+          catch (e) { setWaQr(prev => ({...(prev || {}), status:'error', reason:String(e.message || e).slice(0, 120)})); }
+        }}
+      />
     </div>
   );
 }
@@ -1615,6 +1822,7 @@ function ConnectionRow({ title, status, reason, lastCheck, compact, reconnect, b
           title={reconnect.title || title}
           backendUrl={backendUrl}
           onAfterReconnect={onAfterReconnect}
+          mode={reconnect.mode}
         />
       )}
     </div>
@@ -1691,7 +1899,7 @@ function ConnectionStatus({ connection, vkConnection, waConnection, backendUrl, 
           status={waConnection.status}
           reason={waConnection.detail || ''}
           lastCheck={waConnection.lastCheck}
-          reconnect={{labels:['com.lcband.wa-baileys','com.lcband.wa-baileys-webhook'], title:'WhatsApp Baileys reconnect'}}
+          reconnect={{labels:['com.lcband.wa-baileys','com.lcband.wa-baileys-webhook'], title:'WhatsApp Baileys reconnect', mode:'wa_baileys'}}
           backendUrl={backendUrl}
           onAfterReconnect={onAfterReconnect}
         />
