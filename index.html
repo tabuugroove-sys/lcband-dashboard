@@ -1622,8 +1622,9 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
     if (pollRef.current) clearInterval(pollRef.current);
   }, []);
 
-  async function getOrPromptToken() {
-    let t = localStorage.getItem('lcband_admin_token') || '';
+  async function getOrPromptToken(forcePrompt = false) {
+    if (forcePrompt) localStorage.removeItem('lcband_admin_token');
+    let t = forcePrompt ? '' : (localStorage.getItem('lcband_admin_token') || '');
     if (!t) {
       t = (window.prompt('Admin token (~/lcband/.env: DASHBOARD_ADMIN_TOKEN):') || '').trim();
       if (!t) return null;
@@ -1668,7 +1669,7 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
     const j = await r.json();
     if (r.status === 403) {
       localStorage.removeItem('lcband_admin_token');
-      throw new Error('bad token');
+      throw new Error('bad token: paste DASHBOARD_ADMIN_TOKEN and try again');
     }
     if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
     return j;
@@ -1697,7 +1698,7 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
     }, 2500);
   }
 
-  async function beginWaRelink(pick, token) {
+  async function beginWaRelink(pick, token, allowTokenRetry = true) {
     const r = await fetch(`${pick.url}/api/wa_baileys_relink`, {
       method: 'POST',
       headers: {'Content-Type':'application/json', 'X-Admin-Token': token},
@@ -1706,7 +1707,12 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
     const j = await r.json();
     if (r.status === 403) {
       localStorage.removeItem('lcband_admin_token');
-      throw new Error('bad token');
+      if (allowTokenRetry) {
+        setWaQr(prev => ({...(prev || {}), status:'token_required', reason:'bad token: paste DASHBOARD_ADMIN_TOKEN'}));
+        const retryToken = await getOrPromptToken(true);
+        if (retryToken) return beginWaRelink(pick, retryToken, false);
+      }
+      throw new Error('bad token: paste DASHBOARD_ADMIN_TOKEN and try again');
     }
     if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
     setWaQr(j);
@@ -1725,9 +1731,11 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
       const pick = await resolveBackend();
       if (!pick) {
         setMsg('backend off');
+        if (mode === 'wa_baileys') setWaQr({status:'error', reason:'backend off'});
         return;
       }
       if (mode === 'wa_baileys') {
+        setWaQr({status:'starting', reason:'starting WhatsApp relink...'});
         await beginWaRelink(pick, token);
         return;
       }
@@ -1751,6 +1759,9 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
       }
     } catch (e) {
       setMsg(String(e.message || e).slice(0, 42));
+      if (mode === 'wa_baileys') {
+        setWaQr(prev => ({...(prev || {}), status:'error', reason:String(e.message || e).slice(0, 160)}));
+      }
     } finally {
       setBusy(false);
       setTimeout(() => setMsg(''), 15000);
