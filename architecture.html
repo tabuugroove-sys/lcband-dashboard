@@ -788,7 +788,7 @@
             <div class="role-row"><b>write</b>Inbound/manual outgoing → <code>orders.db.message_events</code> → context refresh + <code>promise_extractor</code>.</div>
             <div class="role-row"><b>calls</b>TG call service messages пишутся как call touchpoint и ставят <code>operator_no_autoreply</code>: после звонка агент не пишет сам.</div>
             <div class="role-row"><b>reaction</b>Если DM-agent решил не писать текст, listener может поставить лёгкий TG 👍 только для коротких безопасных ack/wait сообщений.</div>
-            <div class="role-row"><b>blacklist</b><code>tg_whitelist.json</code> → context <code>do_not_touch</code>; manual blacklist не получает read-ack.</div>
+            <div class="role-row"><b>blacklist</b><code>tg_whitelist.json</code> → context <code>do_not_touch</code>; manual blacklist не получает read-ack. Исключение: active LCB event + подтверждённые дата/бюджет + входящий вопрос про предоплату/договорные условия снимает stale suppression и возвращает поток в <code>contract</code>.</div>
           </div>
           <div class="connection-card">
             <h3>TG follow-up session</h3>
@@ -804,6 +804,12 @@
             <div class="role-row"><b>input</b><code>vk_longpoll_listener.py</code> ловит inbound и триггерит <code>vk_auto_responder.py</code>.</div>
             <div class="role-row"><b>output</b><code>vk_auto_responder.vk_send_message</code> отправляет текст, который прошёл writer/gates.</div>
             <div class="role-row"><b>write</b>VK history → <code>orders.db.message_events</code>; legacy cache только fallback.</div>
+          </div>
+          <div class="connection-card">
+            <h3>Contract autogenerate</h3>
+            <div class="role-row"><b>input</b><code>lcb_orders.json</code> events где <code>event_slice.lcb_writer_mode=contract</code> и reason <code>client_booking_confirmed</code>/<code>contract_setup_obligation</code>.</div>
+            <div class="role-row"><b>output</b><code>contracts/contract_autogenerate.py</code> создаёт DOCX-черновик в <code>contracts/generated/</code> из существующего шаблона и сразу отправляет файл в notify bot; normal LCB → <code>standard_lcb_contract_template.docx</code>, guitarist/Юрий → <code>individual_guitarist_contract_template.docx</code>. Private/cash LCB bookings идут как физлица, по умолчанию на Квокова, а performer-bound booking — на подтверждённого исполнителя.</div>
+            <div class="role-row"><b>guard</b><code>contract_autogenerate_state.json</code> хранит только fingerprint/idempotency; passport/legal guard читает паспортный блок из <code>orders.db.message_events</code> только при полном ФИО + паспортных маркерах. Display-name/username (<code>Ирина</code>, <code>Катя</code>, <code>Юрий</code>) не становятся стороной договора; если данных нет, в DOCX ставится <code>ФИО ... по паспорту</code> + blocker. Клиенту договор не отправляется без review.</div>
           </div>
           <div class="connection-card">
             <h3>WhatsApp Baileys</h3>
@@ -1054,12 +1060,27 @@
               <code>event_ops_group_client_materials</code> в
               <code>orders.db.message_events</code>, чтобы уточнение caption не
               породило повтор в группе.
+              Organizer-side запросы паспорт/авто/пропуск по уже выбранному
+              исполнителю материализуются в
+              <code>coordination_requests.request_type=requisites</code>;
+              <code>sync_performer_coordination()</code> отправляет их в личку
+              performer как text-only задачу без source media, дедупит по
+              <code>semantic_key</code> и разрешает supplement, если недавний
+              outgoing просил только паспорт, но не авто/пропуск.
               После rider-ready сигнала режим
               <code>sync_event_media_capture_requests()</code> один раз закрывает
               live-video capture: если известен видеограф, пишет ему; иначе
               организатору — просит договориться, чтобы видеограф поснимал
               выступление LCB, и фиксирует как потом забрать исходники/ссылку
-              для монтажа. В той же цепочке sound contact получает запрос
+              для монтажа. Любая договорённость о съёмке и связанной записи
+              звука идёт только после подтверждённой предоплаты и только через
+              approval: до предоплаты event-ops пишет
+              <code>skipped_prepayment_required</code>, после предоплаты создаёт
+              <code>pending_approvals</code> с кнопками
+              <code>appr:ok/no/edit</code>, но не шлёт напрямую клиенту,
+              видеографу или технику. Presend-adapt для media-capture не может
+              расширять scope в договор/паспорт/оплату.
+              В той же цепочке sound contact через approval получает запрос
               записать звук с пульта поканально/multitrack или хотя бы
               master/stereo out для синхронизации с видео. В день события
               <code>sync_event_recording_fallbacks()</code> может один раз
@@ -1160,7 +1181,7 @@
               <div class="step-num">5</div>
               <div>
                 <h3>Writer mode и draft</h3>
-                <p><code>_suggest_lcb_mode()</code> выбирает mode по последнему сообщению, verdict и CRM. Текст LCB client branch генерируется через <code>lcb_writer.py</code>.</p>
+                <p><code>_suggest_lcb_mode()</code> выбирает mode по последнему сообщению, verdict и CRM. Текст LCB client branch генерируется через <code>lcb_writer.py</code>. Узкий safe fast-path может без большого writer-AI ответить клиенту статусом по материалам, если context ждёт видео/репертуар и по той же <code>eg_event_threads</code> сущности уже открыт запрос подрядчику.</p>
               </div>
             </div>
             <div class="step">
@@ -1197,7 +1218,7 @@
               </tr>
               <tr>
                 <td><b>Contractor coordination</b></td>
-                <td><code>tg_contact_roles.json</code> роли <code>contractor_*</code>/<code>lcb_musician</code> или <code>tg_whitelist.json</code> recruited performer + вопрос/короткий рабочий статус без money/fee intent → <code>band_member_reply.py</code> в <code>CONTRACTOR COORDINATION MODE</code> с recent coordination context. Если факта нет, безопасный fallback отвечает, что уточним и вернёмся. <code>do_not_touch</code> защищает от client writer, но не глушит вежливый рабочий ответ.</td>
+                <td><code>tg_contact_roles.json</code> роли <code>contractor_*</code>/<code>lcb_musician</code> или <code>tg_whitelist.json</code> recruited performer + вопрос/короткий рабочий статус без money/fee intent → <code>band_member_reply.py</code> в <code>CONTRACTOR COORDINATION MODE</code> с recent coordination context. Event-bound подрядчики сначала читают <code>eg_event_threads</code> и свежий organizer tail из той же event-сущности; факты не смешиваются между темами: “подружу/в течение часа” закрывает созвон/контакт, но не промо, видео, фото, портфолио, репертуар или Drive-папку. Если факта нет, безопасный fallback отвечает, что уточним и вернёмся. <code>do_not_touch</code> защищает от client writer, но не глушит вежливый рабочий ответ.</td>
               </tr>
               <tr>
                 <td><b>Contractor referral</b></td>
@@ -1286,6 +1307,16 @@
           продолжают работать. <code>LCB_BROKER_ENABLED=0</code> — только аварийный full-off.
         </div>
         <div class="note" style="margin-bottom:12px">
+          <b>Public casting watch.</b> Если оператор сам размещает точечный запрос в профильном
+          TG-чате замены, owner — <code>broker_public_casting_agent.py</code>. Он читает replies к
+          root-посту через main TG session lock, AI-судьёй отсекает мусор, связывает watch с
+          <code>broker_order</code>/<code>db_order_id</code>, добавляет адекватных подрядчиков в
+          <code>candidates</code>, считает клиентскую цену как ставка подрядчика +30%, но не меньше
+          +20 000 ₽, и материализует промо в Drive-папки <code>Видео</code>, <code>Фото</code>,
+          <code>Репертуар</code>. Клиенту ничего не уходит, пока broker relay/presend не увидит
+          client-safe media и цену.
+        </div>
+        <div class="note" style="margin-bottom:12px">
           <b>🥁 Drum owner-path (03.06.2026).</b> Публичная <code>drum_show</code> заявка из event-чата —
           это core public scope (не глушится public-intake гейтом). Её владелец —
           <code>telegram_monitor.send_drum_proposal</code>: он шлёт Noize pitch / бриф
@@ -1315,7 +1346,7 @@
           <div class="arrow-col">→</div>
           <div class="node broker">
             <h3>Casting + relay</h3>
-            <p>Подбор подрядчика, проверка маржи, стандартные sax/Noize пакеты из roster/media и relay клиенту. Перед любым broker send <code>broker_casting.cast_order</code> закрывает прошедшие <code>event_date</code> и не допускает, чтобы <code>client_username</code> стал contractor/candidate. Клиентский writer/presend получает thread из <code>orders.db.message_events</code>, не только короткий <code>original_request</code>. Этно-scope в broker сейчас только арабский/восточный; фольклорные/цыганские/казачьи/национальные ансамбли не кастятся. Для <code>drum_show</code> contractor-side route идёт только через <code>broker_vendor_roster.json:drum_show</code>: <code>@vadimnoize</code> / Noize основной, московские backup-подрядчики допускаются только с media-index; клиентский Noize pitch с промо и московским гонораром уходит параллельно с director brief, без ожидания ответа подрядчика.</p>
+            <p>Подбор подрядчика, проверка маржи, public-casting replies, стандартные sax/Noize пакеты из roster/media и relay клиенту. Перед любым broker send <code>broker_casting.cast_order</code> закрывает прошедшие <code>event_date</code> и не допускает, чтобы <code>client_username</code> стал contractor/candidate. Клиентский writer/presend получает thread из <code>orders.db.message_events</code>, не только короткий <code>original_request</code>. Этно-scope в broker сейчас только арабский/восточный; фольклорные/цыганские/казачьи/национальные ансамбли не кастятся. Для <code>drum_show</code> contractor-side route идёт только через <code>broker_vendor_roster.json:drum_show</code>: <code>@vadimnoize</code> / Noize основной, московские backup-подрядчики допускаются только с media-index; клиентский Noize pitch с промо и московским гонораром уходит параллельно с director brief, без ожидания ответа подрядчика.</p>
           </div>
         </div>
       </div>
@@ -1326,6 +1357,7 @@
           <div class="lane-flow">
             <div class="lane-chip"><b>opportunity</b>group/event source</div>
             <div class="lane-chip"><b>drum_show public</b>send_drum_proposal → ensure broker_order (@vadimnoize)</div>
+            <div class="lane-chip"><b>public casting</b>watch root post → AI reply screen → candidates</div>
             <div class="lane-chip"><b>budget missing</b>ask client budget</div>
             <div class="lane-chip"><b>waiting_client_budget</b>hold retry window</div>
             <div class="lane-chip"><b>budget reply</b>return to casting</div>

@@ -770,6 +770,12 @@
       }
     });
   }
+  function bindCalendarChatHandlers() {
+    document.querySelectorAll('.cal-pill[data-chat-q]').forEach(pill => {
+      pill.addEventListener('mouseenter', () => scheduleChatPanel(pill));
+      pill.addEventListener('mouseleave', cancelChatPanelOpen);
+    });
+  }
   window.closeChatPanel = closeChatPanel;
   window.scheduleChatPanel = scheduleChatPanel;
   window.cancelChatPanelOpen = cancelChatPanelOpen;
@@ -781,7 +787,7 @@
   async function fetchEventsDashboardData() {
     const [eventsResult, stubsResult, leadsResult] = await Promise.allSettled([
       api('/events?include_unlinked=1', {timeoutMs: 15000}),
-      api('/event_stubs?with_date_only=1', {timeoutMs: 15000}),
+      api('/event_stubs?stage=lead,negotiation,confirmed&with_date_only=1', {timeoutMs: 15000}),
       api('/leads_with_dates', {timeoutMs: 12000}),
     ]);
     const errors = [];
@@ -822,16 +828,18 @@
       }));
       const stubs = (payload.stubs || []).map(s => {
         const chat = chatTargetFromThread(s.client_thread, '');
-        const statusGroup = s.status_group || (s.stage === 'confirmed' ? 'contract' : 'negotiation');
+        const stage = String(s.stage || '').toLowerCase();
+        const statusGroup = s.status_group || (stage === 'confirmed' ? 'contract' : (stage === 'lead' ? 'lead' : 'negotiation'));
         const isContract = statusGroup === 'contract' || statusGroup === 'prepayment';
+        const isLead = stage === 'lead' || statusGroup === 'lead';
         return {
           kind: 'stub',
-          group: statusGroup === 'released' ? 'released' : (isContract ? 'contract' : 'negotiating'),
-          rank: statusGroup === 'released' ? 4 : (isContract ? 1 : 2),
+          group: statusGroup === 'released' ? 'released' : (isContract ? 'contract' : (isLead ? 'lead' : 'negotiating')),
+          rank: statusGroup === 'released' ? 4 : (isContract ? 1 : (isLead ? 3 : 2)),
           id: s.stub_id,
           title: s.title || s.client_thread || '(stub)',
           date: s.hint_date || '',
-          stats: s.status_label || (isContract ? 'договор / ждём предоплату' : 'переговоры'),
+          stats: s.status_label || (isContract ? 'договор / ждём предоплату' : (isLead ? 'заявка' : 'переговоры')),
           onclick: s.stub_id ? `loadStubEvent('${String(s.stub_id || '').replace(/'/g, "\\'")}')` : '',
           chatQ: chat?.q || '',
           chatChannel: chat?.channel || 'TG',
@@ -1799,16 +1807,30 @@
         let stateLabel = '';
         let click = '';
         let tip = '';
+        let chatAttrs = '';
         const safe = (ev.title || ev.id || '').replace(/[<>&"']/g, c =>
           ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
 
         if (ev._kind === 'stub') {
-          pcls += ' stub';
-          stateLabel = 'подтвердили/договор/ждём оплату';
+          const stage = String(ev._stage || '').toLowerCase();
+          if (stage === 'lead') {
+            pcls += ' lead';
+            stateLabel = 'заявка';
+          } else if (stage === 'negotiation' || stage === 'negotiating') {
+            pcls += ' negotiating';
+            stateLabel = 'переговоры';
+          } else {
+            pcls += ' stub';
+            stateLabel = 'подтвердили/договор/ждём оплату';
+          }
           if (ev.id) {
             click = `onclick="loadStubEvent('${String(ev.id || '').replace(/'/g, "\\'")}')"`;
           }
-          tip = `Pre-paid заявка (${ev._stage}): ${ev._thread || ''}\n${stateLabel}\nИсточник: lcb_orders.json`;
+          tip = `Event stub (${ev._stage || 'unknown'}): ${ev._thread || ''}\n${stateLabel}\nИсточник: lcb_orders.json`;
+          const chat = chatTargetFromThread(ev._thread || '', '');
+          if (chat) {
+            chatAttrs = `data-chat-q="${escapeAttr(chat.q)}" data-chat-channel="${escapeAttr(chat.channel || 'TG')}" data-chat-title="${escapeAttr(ev.title || chat.q)}"`;
+          }
         } else if (ev._kind === 'lead') {
           const stage = (ev._stage || '').toLowerCase();
           if (stage === 'negotiating') {
@@ -1826,6 +1848,7 @@
           if (ev._username && ev._channel) {
             const ch = ev._channel.toUpperCase().startsWith('VK') ? 'VK' : 'TG';
             click = `onclick="window.open('./index.html?chat=${encodeURIComponent(ev._username)}&channel=${ch}', '_blank')"`;
+            chatAttrs = `data-chat-q="${escapeAttr(ev._username)}" data-chat-channel="${escapeAttr(ch)}" data-chat-title="${escapeAttr(ev.title || ev._username)}"`;
           }
         } else {
           switch (ev.business_state) {
@@ -1837,11 +1860,12 @@
           click = `onclick="loadEvent('${(ev.id || '').replace(/'/g, "\\'")}')"`;
           tip = (ev.title || ev.id) + (ev.members_count ? `  ·  ${ev.members_count} чел` : '') + `\n${stateLabel}`;
         }
-        pills += `<span class="${pcls}" title="${tip.replace(/"/g, '&quot;')}" ${click} style="${click ? 'cursor:pointer' : 'cursor:default;opacity:.85'}">${safe}</span>`;
+        pills += `<span class="${pcls}" title="${tip.replace(/"/g, '&quot;')}" ${click} ${chatAttrs} style="${click ? 'cursor:pointer' : 'cursor:default;opacity:.85'}">${safe}</span>`;
       }
       html += `<div class="${cls}"><div class="cal-day-num">${d.getDate()}</div>${pills}</div>`;
     }
     grid.innerHTML = html;
+    bindCalendarChatHandlers();
 
     const stamp = document.getElementById('cal-stamp');
     if (stamp) {
