@@ -1056,12 +1056,13 @@
               формулировки требуют явный <code>--allow-finance</code> и логируются
               в <code>event_ops_log.jsonl</code> / <code>message_events</code>.
               Выбранные клиентом репертуар/костюмы event-ops берёт из
-              <code>orders.db.message_events</code> и отправляет в TG-группу
-              без approval как узкое исключение <code>event_group_client_materials</code>:
-              caption собирается finance-free из <code>lcb_orders</code>, source
-              msg_id клиента пересылаются следом, затем агент пишет отчёт в
-              commander/notify bot. Дедуп этого auto-send не зависит от свежего
-              текста карточки: стабильный ключ строится по
+              <code>orders.db.message_events</code> и создаёт approval
+              <code>event_group_client_materials</code>; фактическая отправка
+              в TG-группу идёт только по кнопке <code>egmat:post</code> после
+              апрува. Caption собирается finance-free из <code>lcb_orders</code>,
+              source msg_id клиента пересылаются следом уже в approved callback.
+              Дедуп этого group-post не зависит от свежего текста карточки:
+              стабильный ключ строится по
               <code>event_id</code> + organizer + <code>source_message_ids</code>,
               а send-time guard дополнительно сверяет уже отправленные
               <code>event_ops_group_client_materials</code> в
