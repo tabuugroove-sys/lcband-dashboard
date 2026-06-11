@@ -1322,6 +1322,8 @@ const PROCESS_RULES = {
       'Recording request: после rider-ready сигнала выбирает активного tech/sound contact и спрашивает master/stereo out либо поканально/multitrack; в день события может дожать хотя бы master/stereo и попросить event-группу взять флешку/накопитель',
       'Пример: @alenkakashparova просит костюм LAZ → @larzyy получает текст + фото; клиенту отвечает LCB writer после факта',
       'Дедуп: event_ops_state.json по source_msg_id / semantic sent_facts / recording_requests / recording_master_followups / recording_usb_prompts + orders.db.message_events recording sources',
+      'Состав: TG-группа события = source of truth (Михаил правит вручную). Каждые 10 мин sync членства → tg_group_lineup_cache; diff (added/removed) → session action + зеркало состава в Google Calendar (блок «Состав (TG-группа)» в событии дня, mirror-only). Резолвер состава и чек-лист события читают группу даже при AI-капе',
+      'Чек-лист события (lcb_event_checklist): состав/площадка/тайминг/репертуар/договор/оплата + пропуска-машины (event_slice.vehicles: чьи номера ждём, что не передано организатору)',
       'Скрипты: event_ops_logistics_agent.py → event_ops_bot.py | log: /tmp/event_ops_logistics.log',
     ],
   },
