@@ -1001,7 +1001,10 @@
               <code>sax_recruited</code>,
               <code>*_declined</code>, pending approvals и привязку вручную созданных
               TG-групп через <code>event_ops_bot discover-group</code>. Это не
-              raw-message SSoT.
+              raw-message SSoT. Для уже созданной группы group-add также читает
+              операторские строки <code>event_planning.json → Состав</code> со
+              статусом не ниже «на утверждении» и механически резолвит короткие
+              TG-метки в canonical handles.
             </p>
           </div>
           <div class="arrow-col">→</div>
