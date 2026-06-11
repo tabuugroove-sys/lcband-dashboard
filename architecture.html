@@ -967,7 +967,10 @@
               coordination_requests. Контрактные факты для календаря сверяются
               со свежей перепиской в <code>orders.db.message_events</code>: выбранная
               цена/состав после финального подтверждения перекрывает старые CRM
-              и event-context варианты. Event identity держится на клиентском
+              и event-context варианты. Любое сохранение public-секций
+              <code>event_planning.json</code> синкает timing/venue/tech/program/lineup/
+              logistics в <code>lcb_orders.event_slice.confirmed_terms</code>, чтобы
+              composer и presend читали один материализованный факт. Event identity держится на клиентском
               order/client signal + date: performer-availability и casting-side
               оболочки <code>lcb_orders.dedup_now()</code> сливает в единственную
               реальную карточку этой даты, а неоднозначные даты не склеивает.
