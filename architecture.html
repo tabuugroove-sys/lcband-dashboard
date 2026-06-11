@@ -1071,6 +1071,10 @@
               performer как text-only задачу без source media, дедупит по
               <code>semantic_key</code> и разрешает supplement, если недавний
               outgoing просил только паспорт, но не авто/пропуск.
+              Другие organizer-side <code>need_check_performer_thread</code>
+              вопросы (тайминг/самозанятость/оборудование без фото) тоже идут
+              text-only; source media требуется только для costume/photo/reference
+              запросов.
               После rider-ready сигнала режим
               <code>sync_event_media_capture_requests()</code> один раз закрывает
               live-video capture: если известен видеограф, пишет ему; иначе
