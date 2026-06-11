@@ -886,6 +886,8 @@
             Канальные файлы вроде <code>conversation_cache/</code>, <code>vk_conversation_cache/</code>,
             <code>wa_cache/</code>, <code>ig_conversation_cache/</code> могут оставаться cache/export зеркалами,
             но это не четыре независимых памяти. Writer сначала читает unified memory/context, а legacy cache используется только как fallback/read-through.
+            <code>meta_json.author_type/truth_category</code> делит строки на три уровня:
+            входящее контрагента и ручное исходящее Михаила — source of truth; исходящее агента — <code>agent:not_truth</code>.
           </div>
           <div style="margin-top:12px">
             <span class="pill teal">one memory layer</span>
@@ -927,6 +929,8 @@
               <code>message_event_log.py</code> пишет событие в
               <code>orders.db.message_events</code>. Это canonical история переписки;
               JSON/cache слои не являются источником отправки или статуса.
+              Каждая строка получает truth-метку: <code>truth:counterparty</code>,
+              <code>truth:mikhail</code> или <code>agent:not_truth</code>.
             </p>
           </div>
         </div>
