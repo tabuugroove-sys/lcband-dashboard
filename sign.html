@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Подписание договора — Luxury Cover Band</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #fff; --text: #1c1e21; --muted: #6b7280;
+    --accent: #2f6fed; --border: #e3e5e8; --ok: #16a34a; --err: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border);
+          border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 12px; color: var(--muted);
+       text-transform: uppercase; letter-spacing: .04em; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  input[type=text] { width: 100%; padding: 10px 12px; font-size: 16px;
+    border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+  input[type=text]:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .ro { background: #f8f9fb; color: var(--text); border: 1px dashed var(--border);
+        border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; font-size: 15px; }
+  .pay-opt { display: flex; align-items: flex-start; gap: 10px; padding: 12px;
+    border: 1px solid var(--border); border-radius: 10px; margin-top: 8px; cursor: pointer; }
+  .pay-opt.sel { border-color: var(--accent); background: #f0f5ff; }
+  .pay-opt input { margin-top: 3px; }
+  .pay-sub { font-size: 13px; color: var(--muted); }
+  .contract { max-height: 380px; overflow-y: auto; border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px; font-size: 14px; background: #fcfcfd; }
+  .contract p { margin: 0 0 8px; }
+  .contract table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  .contract td { border: 1px solid var(--border); padding: 4px 6px; font-size: 13px; }
+  .consent { display: flex; gap: 10px; align-items: flex-start; margin: 16px 0;
+    font-size: 13px; color: var(--muted); }
+  .consent input { margin-top: 3px; transform: scale(1.2); }
+  button.sign { width: 100%; padding: 16px; font-size: 17px; font-weight: 600;
+    color: #fff; background: var(--accent); border: 0; border-radius: 10px; cursor: pointer; }
+  button.sign:disabled { background: #9db8ef; cursor: default; }
+  .status { text-align: center; padding: 48px 16px; }
+  .status .big { font-size: 44px; margin-bottom: 12px; }
+  .errmsg { color: var(--err); font-size: 14px; margin-top: 10px; text-align: center; }
+  .brand { text-align: center; padding: 18px 0 6px; font-weight: 700; letter-spacing: .06em; }
+  .brand span { color: var(--accent); }
+  .footer { text-align: center; color: var(--muted); font-size: 12px; padding: 12px 0 32px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">LUXURY <span>COVER BAND</span></div>
+  <div id="app"><div class="status"><div class="big">⏳</div>Загружаем договор…</div></div>
+  <div class="footer">Подпись фиксируется простой электронной подписью (63-ФЗ).<br>
+    Вопросы: luxurycoverband@gmail.com</div>
+</div>
+<script>
+const LOCAL_BACKEND = 'http://127.0.0.1:8878';
+const $app = document.getElementById('app');
+const token = new URLSearchParams(location.search).get('t') || '';
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function backendBase() {
+  try {
+    const r = await fetch('./backend_url.json?_=' + Date.now(), { cache: 'no-store' });
+    const d = await r.json();
+    if (d && d.url) return String(d.url).replace(/\/$/, '');
+  } catch (e) { /* fall through to localhost */ }
+  return LOCAL_BACKEND;
+}
+
+function showStatus(emoji, title, sub) {
+  $app.innerHTML = `<div class="card status"><div class="big">${emoji}</div>
+    <h1>${esc(title)}</h1><div class="sub">${esc(sub || '')}</div></div>`;
+}
+
+function fmtMoney(n) { return n.toLocaleString('ru-RU') + ' ₽'; }
+
+function paymentOptionHtml(key, opt, price, selected) {
+  let sub = '';
+  if (price) {
+    const pre = Math.round(price * opt.prepay_pct / 100);
+    sub = `Предоплата ${fmtMoney(pre)} · остаток ${fmtMoney(price - pre)}`;
+  } else {
+    sub = `Предоплата ${opt.prepay_pct}% при подписании, остаток — в день мероприятия`;
+  }
+  return `<label class="pay-opt${selected ? ' sel' : ''}" data-opt="${key}">
+    <input type="radio" name="payopt" value="${key}" ${selected ? 'checked' : ''}>
+    <span><b>${esc(opt.label)}</b><br><span class="pay-sub">${esc(sub)}</span></span>
+  </label>`;
+}
+
+function render(base, p) {
+  const pre = p.prefill || {};
+  const price = pre.price_amount || null;
+  const opts = pre.payment_options || {};
+  const defOpt = pre.default_payment_option || '50_50';
+  $app.innerHTML = `
+  <div class="card">
+    <h1>Договор на выступление</h1>
+    <div class="sub">Исполнитель: ${esc(pre.executor || 'ИП Щукин Кирилл Андреевич')}</div>
+    <h2>Данные мероприятия — проверьте и заполните</h2>
+    <label>Ваше ФИО (подписант) *</label>
+    <input type="text" id="f_name" value="${esc(pre.client_name)}" autocomplete="name">
+    <label>Телефон или email для связи *</label>
+    <input type="text" id="f_contact" value="" inputmode="email" autocomplete="tel">
+    <label>Дата мероприятия</label>
+    <input type="text" id="f_date" value="${esc(pre.event_date)}" placeholder="ДД.ММ.ГГГГ">
+    <label>Продолжительность выступления / количество сетов</label>
+    <input type="text" id="f_sets" value="${esc(pre.duration_sets)}" placeholder="например: 2 сета по 45 минут">
+    <label>Тайминг выступления</label>
+    <input type="text" id="f_timing" value="${esc(pre.timing)}" placeholder="например: 19:00–22:00">
+    <label>Место проведения</label>
+    <input type="text" id="f_venue" value="${esc(pre.venue)}" placeholder="площадка, адрес">
+  </div>
+  <div class="card">
+    <h2>Состав / услуга</h2>
+    <div class="ro">${esc(pre.service || '—')}</div>
+    <h2 style="margin-top:16px">Стоимость услуги</h2>
+    <div class="ro">${esc(pre.price_text || '—')}</div>
+    <h2 style="margin-top:16px">Порядок оплаты</h2>
+    ${Object.entries(opts).map(([k, o]) =>
+        paymentOptionHtml(k, o, price, k === defOpt)).join('')}
+  </div>
+  <div class="card">
+    <h2>Текст договора</h2>
+    <div class="contract">${p.contract_html || ''}</div>
+    <div class="consent">
+      <input type="checkbox" id="f_consent">
+      <span>Я ознакомился(лась) с договором и подписываю его. ${esc(pre.pep_clause || '')}</span>
+    </div>
+    <button class="sign" id="btn_sign">Подписать договор</button>
+    <div class="errmsg" id="err"></div>
+  </div>`;
+
+  document.querySelectorAll('.pay-opt').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.pay-opt').forEach(x => x.classList.remove('sel'));
+      el.classList.add('sel');
+      el.querySelector('input').checked = true;
+    });
+  });
+
+  document.getElementById('btn_sign').addEventListener('click', async () => {
+    const err = document.getElementById('err');
+    err.textContent = '';
+    const body = {
+      client_name: document.getElementById('f_name').value.trim(),
+      signer_contact: document.getElementById('f_contact').value.trim(),
+      event_date: document.getElementById('f_date').value.trim(),
+      duration_sets: document.getElementById('f_sets').value.trim(),
+      timing: document.getElementById('f_timing').value.trim(),
+      venue: document.getElementById('f_venue').value.trim(),
+      payment_option: (document.querySelector('input[name=payopt]:checked') || {}).value || '',
+      consent: document.getElementById('f_consent').checked,
+    };
+    if (!body.client_name) { err.textContent = 'Укажите ФИО подписанта.'; return; }
+    if (!body.signer_contact) { err.textContent = 'Укажите телефон или email.'; return; }
+    if (!body.consent) { err.textContent = 'Поставьте галочку согласия с договором.'; return; }
+    const btn = document.getElementById('btn_sign');
+    btn.disabled = true; btn.textContent = 'Подписываем…';
+    try {
+      const r = await fetch(`${base}/api/sign/${encodeURIComponent(token)}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (d.status === 'signed' || d.status === 'already_signed') {
+        showStatus('✅', 'Договор подписан',
+          'Спасибо! Копия подписанного договора и реквизиты для предоплаты придут вам в ближайшее время.');
+      } else if (d.status === 'expired') {
+        showStatus('⌛', 'Ссылка устарела', 'Напишите нам — пришлём новую ссылку на подписание.');
+      } else {
+        err.textContent = 'Не получилось подписать: ' + (d.reason || d.status || 'ошибка');
+        btn.disabled = false; btn.textContent = 'Подписать договор';
+      }
+    } catch (e) {
+      err.textContent = 'Ошибка сети. Проверьте интернет и попробуйте ещё раз.';
+      btn.disabled = false; btn.textContent = 'Подписать договор';
+    }
+  });
+}
+
+(async function init() {
+  if (!token) { showStatus('🔗', 'Ссылка неполная', 'В ссылке нет кода подписания. Откройте ссылку из письма целиком.'); return; }
+  const base = await backendBase();
+  let p = null;
+  try {
+    const r = await fetch(`${base}/api/sign/${encodeURIComponent(token)}`, { cache: 'no-store' });
+    p = await r.json();
+  } catch (e) {
+    showStatus('📡', 'Сервис временно недоступен', 'Попробуйте открыть ссылку через несколько минут.');
+    return;
+  }
+  if (!p || p.status === 'not_found') {
+    showStatus('❓', 'Договор не найден', 'Проверьте, что ссылка из письма скопирована целиком.');
+  } else if (p.status === 'expired' || p.status === 'void') {
+    showStatus('⌛', 'Ссылка устарела', 'Напишите нам — пришлём новую ссылку на подписание.');
+  } else if (p.status === 'signed') {
+    showStatus('✅', 'Договор уже подписан',
+      'Подписано ' + (p.signed_at || '') + ' (МСК). Если это были не вы — напишите нам.');
+  } else {
+    render(base, p);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1206,6 +1206,20 @@ function isOverdue(order) {
 
 // ── Process rules data ────────────────────────────────────────────────────────
 const PROCESS_RULES = {
+  proc_contract_signing: {
+    name: 'E-sign: онлайн-подписание договора (ПЭП)',
+    interval: 'По запросу · contract_signing.py send --event-id …',
+    desc: 'Клиент получает email со стабильной ссылкой (GitHub Pages sign.html), проверяет/заполняет данные мероприятия, выбирает предоплату 50/50 или 30/70 и подписывает договор простой электронной подписью',
+    rules: [
+      'Снимок договора берётся из сгенерированного DOCX (contract_autogenerate state), хешируется SHA-256 и замораживается — после отправки ссылки авто-перегенерация запрещена (frozen=sent_for_signing)',
+      'Состав/услуга и стоимость — read-only из карточки события; клиент заполняет ФИО, контакт, дату, сеты/продолжительность, тайминг, место',
+      'Аудит-трейл (opened/signed, IP, User-Agent, timestamps) в orders.db: sign_tokens + sign_events; подписанный снапшот в contracts/signed/ + DOCX с блоком ПЭП',
+      'После подписи — нотификация в commander-bot с полями и подписанным DOCX; ссылка живёт LCB_SIGN_TTL_DAYS (деф. 14), void через CLI',
+      'Email через SMTP (LCB_SMTP_USER/PASSWORD в .env); без SMTP ссылка создаётся и отправляется вручную через TG/WA',
+      'Страница: dashboard/sign.html (GitHub Pages, стабильный URL) → backend_url.json → tunnel → /api/sign/<token>',
+      'Скрипт: contract_signing.py | endpoints: /api/sign/<token>, /api/sign/<token>/submit, /api/sign_requests',
+    ],
+  },
   proc_calendar_sync: {
     name: 'Календарь: автозавод подтверждённых событий',
     interval: 'Каждые 30 мин · detect+notify (auto-push после шаринга календаря на SA)',
