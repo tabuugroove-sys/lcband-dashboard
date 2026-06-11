@@ -786,6 +786,7 @@
             <div class="role-row"><b>input</b><code>tg_realtime_monitor.py</code> + <code>tg_session_monitor.session</code>: DM/event NewMessage.</div>
             <div class="role-row"><b>output</b>Не writer. DM send после gates выполняется через live realtime client, без открытия второй TG-сессии.</div>
             <div class="role-row"><b>write</b>Inbound/manual outgoing → <code>orders.db.message_events</code> → context refresh + <code>promise_extractor</code>.</div>
+            <div class="role-row"><b>docs</b>Входящие документы/PDF получают file descriptor до writer. Если performer присылает документ после contract-sign request, listener строит <code>business_media_intent</code>, связывает event/organizer через <code>lcb_orders.json</code> и пересылает файл организатору с dedupe по source msg.</div>
             <div class="role-row"><b>calls</b>TG call service messages пишутся как call touchpoint и ставят <code>operator_no_autoreply</code>: после звонка агент не пишет сам.</div>
             <div class="role-row"><b>reaction</b>Если DM-agent решил не писать текст, listener может поставить лёгкий TG 👍 только для коротких безопасных ack/wait сообщений.</div>
             <div class="role-row"><b>blacklist</b><code>tg_whitelist.json</code> → context <code>do_not_touch</code>; manual blacklist не получает read-ack. Исключение: active LCB event + подтверждённые дата/бюджет + входящий вопрос про предоплату/договорные условия снимает stale suppression и возвращает поток в <code>contract</code>.</div>
@@ -913,7 +914,10 @@
             <p>
               <code>tg_realtime_monitor.py</code> ловит входящее через
               <code>tg_session_monitor.session</code> и передаёт в DM pipeline.
-              Outgoing/manual replies также попадают в тот же лог.
+              Входящие документы сначала проходят business-media intent gate:
+              contract PDF от performer может быть привязан к event и отправлен
+              organizer до обычного autoresponder. Outgoing/manual replies также
+              попадают в тот же лог.
             </p>
           </div>
           <div class="arrow-col">→</div>
