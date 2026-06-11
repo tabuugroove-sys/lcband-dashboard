@@ -1239,7 +1239,7 @@
               </tr>
               <tr>
                 <td><b>Contractor coordination</b></td>
-                <td><code>tg_contact_roles.json</code> роли <code>contractor_*</code>/<code>lcb_musician</code> или <code>tg_whitelist.json</code> recruited performer + вопрос/короткий рабочий статус без money/fee intent → <code>band_member_reply.py</code> в <code>CONTRACTOR COORDINATION MODE</code> с recent coordination context. Event-bound подрядчики сначала читают <code>eg_event_threads</code> и свежий organizer tail из той же event-сущности; факты не смешиваются между темами: “подружу/в течение часа” закрывает созвон/контакт, но не промо, видео, фото, портфолио, репертуар или Drive-папку. Equipment fallback сначала берёт свежий manual truth из исходящих Михаила, затем <code>event_planning.json</code>; если питание/220В есть, но метраж кабеля не указан, явно помечает это как уточнение у организатора. Если факта нет, безопасный fallback отвечает, что уточним и вернёмся. <code>do_not_touch</code> защищает от client writer, но не глушит вежливый рабочий ответ.</td>
+                <td><code>tg_contact_roles.json</code> роли <code>contractor_*</code>/<code>lcb_musician</code> или <code>tg_whitelist.json</code> recruited performer + вопрос/короткий рабочий статус без money/fee intent → <code>band_member_reply.py</code> в <code>CONTRACTOR COORDINATION MODE</code> с recent coordination context. Если первый ответ после агентского исходящего выглядит как недопонимание цели/роли (<code>не понял</code>, <code>вам нужно оборудование?</code>, <code>хотели предложить?</code>), <code>unified_dm_responder</code> останавливает автоответ, пишет <code>coordination_role_mismatch_misunderstanding</code> review-block и шлёт notify для разбора owner/role/presend. Event-bound подрядчики сначала читают <code>eg_event_threads</code> и свежий organizer tail из той же event-сущности; факты не смешиваются между темами: “подружу/в течение часа” закрывает созвон/контакт, но не промо, видео, фото, портфолио, репертуар или Drive-папку. Equipment fallback сначала берёт свежий manual truth из исходящих Михаила, затем <code>event_planning.json</code>; если питание/220В есть, но метраж кабеля не указан, явно помечает это как уточнение у организатора. Если факта нет, безопасный fallback отвечает, что уточним и вернёмся. <code>do_not_touch</code> защищает от client writer, но не глушит вежливый рабочий ответ.</td>
               </tr>
               <tr>
                 <td><b>Contractor referral</b></td>
@@ -1330,6 +1330,13 @@
           пока явно не включён <code>LCB_PUBLIC_BROKER_INTAKE_ENABLED=1</code> для curated exceptions.
           Существующие broker-заказы, contractor/client replies, follow-up и operator-owned flows
           продолжают работать. <code>LCB_BROKER_ENABLED=0</code> — только аварийный full-off.
+        </div>
+        <div class="note" style="margin-bottom:12px">
+          <b>TG stop groups (11.06.2026).</b> <code>telegram_monitor.CHATS</code> экспортирует
+          только активные источники; стоп-группы остаются в <code>ALL_CHATS</code> для audit, но
+          realtime, browser-walk и manual rescan их не сканируют и не постят:
+          <code>@eventchatrussia</code>, <code>@event_area</code>,
+          <code>ЗАКАЗЫ Каверы и Музыканты</code>.
         </div>
         <div class="note" style="margin-bottom:12px">
           <b>Public casting watch.</b> Если оператор сам размещает точечный запрос в профильном
