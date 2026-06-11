@@ -278,6 +278,39 @@
   }
   .summary-line strong { color: var(--text); font-variant-numeric: tabular-nums; }
 
+  .ops-checklist {
+    margin: 10px 0 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .ops-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 8px;
+  }
+  .ops-title { font-size: 12px; font-weight: 700; color: var(--text); }
+  .ops-count { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ops-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 6px;
+  }
+  .ops-item {
+    display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px;
+    align-items: start; padding: 7px 8px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 5px; min-height: 54px;
+  }
+  .ops-ic { font-size: 13px; line-height: 1.35; }
+  .ops-label { font-size: 12px; font-weight: 650; color: var(--text); }
+  .ops-detail {
+    margin-top: 2px; font-size: 11px; color: var(--muted);
+    line-height: 1.3; overflow-wrap: anywhere;
+  }
+  .ops-item.done { border-color: rgba(24,128,58,.35); }
+  .ops-item.pending { border-color: rgba(194,98,19,.45); }
+  .ops-item.todo { opacity: .78; }
+
   .notes-area {
     margin-top: 18px; padding: 12px;
     background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
@@ -1193,6 +1226,7 @@
       });
       CURRENT_EVENT = updated;
       renderFinanceSummary();  // деньги пересчитаны бэкендом — обновим сводку наверху
+      renderOpsChecklist();
       renderReconciliation();
       setSaveState('сохранено · ' + new Date().toLocaleTimeString('ru-RU').slice(0, 5), 'var(--green)');
       loadEventList();
@@ -1228,6 +1262,7 @@
         </div>
       </div>
       <div id="finance-summary"></div>
+      <div id="ops-checklist"></div>
       <div id="reco"></div>
       <div id="sections-container"></div>
       <button class="add-section-btn" onclick="addSection()">+ Добавить секцию</button>
@@ -1238,7 +1273,34 @@
     `;
     renderSections();
     renderFinanceSummary();
+    renderOpsChecklist();
     renderReconciliation();
+  }
+
+  function renderOpsChecklist() {
+    const el = document.getElementById('ops-checklist');
+    if (!el || !CURRENT_EVENT) return;
+    const items = CURRENT_EVENT.ops_checklist || [];
+    if (!items.length) { el.innerHTML = ''; return; }
+    const done = items.filter(i => i.status === 'done').length;
+    const total = items.length;
+    const icon = (status) => status === 'done' ? '✓' : (status === 'pending' ? '…' : '·');
+    el.innerHTML = `<div class="ops-checklist">
+      <div class="ops-head">
+        <div class="ops-title">Что сделано</div>
+        <div class="ops-count">${done}/${total}</div>
+      </div>
+      <div class="ops-grid">
+        ${items.map(i => `
+          <div class="ops-item ${escapeAttr(i.status || 'todo')}">
+            <div class="ops-ic">${icon(i.status)}</div>
+            <div>
+              <div class="ops-label">${escapeHtml(i.label || '')}</div>
+              ${i.detail ? `<div class="ops-detail">${escapeHtml(i.detail)}</div>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
   }
 
   function renderReconciliation() {
