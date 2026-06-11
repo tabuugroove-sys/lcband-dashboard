@@ -1251,7 +1251,7 @@
               </tr>
               <tr>
                 <td><b>Paid client / ОПЛАТИЛА</b></td>
-                <td>CRM status с <code>оплат*</code>/<code>paid</code>/<code>концерт</code> защищён от любых client auto-send: safe fast-path, status ack, refusal close и финальный draft уходят только в notify/approval handoff.</td>
+                <td>CRM status с <code>оплат*</code>/<code>paid</code>/<code>концерт</code> больше не идёт в full client writer. Non-money inbound обслуживается только режимом <code>paid_organizer_ops_ack</code>: коротко “понял / передам / уточню”, через presend, без <code>_classify/_generate</code>. Money/payment остаётся в hard-block/approval.</td>
               </tr>
               <tr>
                 <td><b>Refusal</b></td>
