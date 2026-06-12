@@ -1487,6 +1487,8 @@ const PROCESS_RULES = {
     desc: 'TG-only scheduled follow-up. По умолчанию пишет только viewer-only draft в presend viewer; прямой send включается явно через LCB_FOLLOWUP_DIRECT_SEND=1.',
     rules: [
       'LCB active follow-up: ежедневная contextual-проверка; customer_decision после передачи вариантов заказчику/паре/руководителю = пауза 3 дня без точной даты',
+      'Semantic owner: unified_dm_responder пишет contact_context.inbound_disposition; TG Follow-up читает verdict и решает только due/timing',
+      'Нет/старый inbound_disposition → defer_to_responder; waiting_until в карточке → hard snooze до даты',
       'Protected skip: ОПЛАТИЛА/confirmed, музыканты, подрядчики, vendor/internal contacts',
       'WA_DIRECT не отправляет напрямую: draft уходит в presend viewer, Desktop queue только при explicit direct-send window',
       '🔴 22.04: hard-regex pre-check через refusal_guard.scan_history_for_refusal (общий модуль с tg_responder) — инцидент @lisitsyna_law 20.04, регекс теперь единый в refusal_guard.py',
@@ -9972,6 +9974,7 @@ function LeadFlowSection() {
                   'Broker: пишет broker_orders.json; читает broker_order_context.py',
                   'read-layer не запускает AI и не отправляет сообщения',
                   'inbound обновляет через lead_context_enricher + lcb_orders.refresh_contact',
+                  'writer/outbound фиксируют inbound_disposition и offer_scope через lead_context_enricher + lcb_orders.refresh_contact',
                   'outbound от Михаила обновляет через outbound_recorder + lcb_orders.refresh_contact',
                   'CRM status/history обновляет через orders_db + lcb_orders.refresh_order',
                   'lcb_writer_mode_history фиксирует смену writer mode вместе с CRM stage',

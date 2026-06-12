@@ -227,7 +227,7 @@
         file:'tg_followup.py', schedule:'daily 10:09 MSK',
         why:'Готовит follow-up drafts по расписанию, но не трогает оплативших, музыкантов, подрядчиков и близкие event date.',
         input:'orders.db + DM history', action:'eligible follow-up + review', output:'presend viewer draft / skip log',
-        logic:['direct send только при LCB_FOLLOWUP_DIRECT_SEND=1','default output = pending_approvals viewer_only','protected skip для ОПЛАТИЛА/confirmed/musician/contractor/vendor','customer_decision wait: если варианты ушли заказчику/паре/руководителю, без точной даты пауза 3 дня','content mode: если клиент написал что видео грузятся, но media не появились, просит переотправить вместо дубля','стоп за 3 дня до мероприятия','cap 15 sends/run'],
+        logic:['direct send только при LCB_FOLLOWUP_DIRECT_SEND=1','default output = pending_approvals viewer_only','protected skip для ОПЛАТИЛА/confirmed/musician/contractor/vendor','semantic ball owner читает из contact_context.inbound_disposition, который пишет unified_dm_responder; follow-up судит только тайминг','нет/старый inbound_disposition → defer_to_responder; waiting_until → hard snooze до даты','customer_decision wait: если варианты ушли заказчику/паре/руководителю, без точной даты пауза 3 дня','content mode: если клиент написал что видео грузятся, но media не появились, просит переотправить вместо дубля','стоп за 3 дня до мероприятия','cap 15 sends/run'],
       },
       {
         group:'dm', name:'VK Responder', label:'com.lcband.vk-responder',
@@ -307,7 +307,7 @@
         input:'lcb_orders.json',
         action:'read event, organizer, roles, promises, stage, writer-mode history, waiting flags',
         output:'LCB event-card / prompt block',
-        logic:['agent_context.py = один read entry для unified_dm_responder','lcb_orders.py владеет JSON persistence','lead_context_enricher dual-write → orders.db.contact_context/event_context','lcb_writer_mode_history пишется только при смене mode или CRM stage','lcb_event_context.py не пишет и не запускает AI','thread_context_extract через promise_extractor одним AI-запросом пишет event graph + promises + refs','promise_extractor не гасит durable tech/contractor dependencies без явного resolution','обновляется через owners: inbound enricher, outbound_recorder, orders_db, event_graph.py → orders.db.eg_*','аналог broker_orders.json + broker_order_context для LCB'],
+        logic:['agent_context.py = один read entry для unified_dm_responder','lcb_orders.py владеет JSON persistence','lead_context_enricher dual-write → orders.db.contact_context/event_context','inbound_disposition и offer_scope = факты карточки; writer/outbound пишут их через lead_context_enricher → lcb_orders.refresh_contact','lcb_writer_mode_history пишется только при смене mode или CRM stage','lcb_event_context.py не пишет и не запускает AI','thread_context_extract через promise_extractor одним AI-запросом пишет event graph + promises + refs','promise_extractor не гасит durable tech/contractor dependencies без явного resolution','обновляется через owners: inbound enricher, outbound_recorder, orders_db, event_graph.py → orders.db.eg_*','аналог broker_orders.json + broker_order_context для LCB'],
       },
       {
         group:'broker', name:'Broker Casting', label:'com.lcband.broker-casting',
