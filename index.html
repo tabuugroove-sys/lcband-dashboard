@@ -2192,17 +2192,6 @@ function ActionButtons() {
            target="_blank" rel="noopener">
           📊 Статус
         </a>
-        <a href="./architecture.html"
-           className="action-btn"
-           style={{background: 'rgba(188, 140, 255, 0.15)', color: '#bc8cff', borderColor: 'rgba(188, 140, 255, 0.3)'}}>
-          🧠 Архитектура & AI
-        </a>
-        <a href="./architecture.html#ai-20-coverage"
-           className="action-btn"
-           title="AI 2.0 (unified Opus classifier) — где работает с пониманием контекста vs где ещё legacy"
-           style={{background: 'rgba(63, 185, 80, 0.15)', color: '#3fb950', borderColor: 'rgba(63, 185, 80, 0.4)'}}>
-          🟢 AI 2.0 coverage
-        </a>
         <a href="./contacts.html"
            className="action-btn"
            style={{background: 'rgba(88, 166, 255, 0.15)', color: '#58a6ff', borderColor: 'rgba(88, 166, 255, 0.3)'}}>
@@ -7302,7 +7291,6 @@ function TabBar({ activeTab, setActiveTab, newLeadsCount, attentionCount, refusa
     { id: 'timeline',   label: 'Таймлайн',    emoji: '🕒' },
     { id: 'ai',         label: 'AI',          emoji: '🤖', badge: aiCalls },
     { id: 'processes',  label: 'Процессы',    emoji: '🛡️', badge: agentsMissing },
-    { id: 'architecture2', label: 'Архитектура', emoji: '🧠' },
   ];
   return (
     <div style={{
@@ -8065,96 +8053,6 @@ function PitchLibrarySection({ pitchLibrary }) {
         ))}
       </div>
     </div>
-  );
-}
-
-function ArchitectureV2Section({ architectureV2 }) {
-  const sourceBase = 'https://github.com/tabuugroove-sys/lcband/blob/main/';
-  const sourceLink = (path, label, style = {}) => (
-    <a
-      href={`${sourceBase}${path}`}
-      target="_blank"
-      rel="noopener"
-      title={path}
-      style={{ color:'inherit', textDecoration:'none', borderBottom:'1px dotted rgba(147,197,253,.45)', ...style }}
-    >{label || path}</a>
-  );
-  return (
-    <div className="section" style={{ marginTop: 14 }}>
-      <div className="section-title">🧠 Переход архитектуры AI</div>
-      <div style={{padding:'4px 0',color:'var(--muted)',fontSize:12,marginBottom:12}}>
-        Сейчас production работает в гибриде. Цель cutover — один owner/router вместо локальных классификаций в каждом агенте.
-      </div>
-
-      <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) 54px minmax(0,1fr)',gap:12,alignItems:'stretch',marginBottom:12}}>
-        <div style={{background:'rgba(245,158,11,.08)', border:'1.5px solid rgba(245,158,11,.35)', borderRadius:9, padding:'12px 13px', display:'grid', gap:8}}>
-          <div>
-            <div style={{fontSize:13, fontWeight:900, color:'#fbbf24'}}>Сейчас: гибрид production</div>
-            <div style={{fontSize:11, color:'#cbd5e1', marginTop:3}}>Смысловые решения ещё разбросаны по нескольким владельцам.</div>
-          </div>
-          {[
-            [sourceLink('ai_classify_chain.py', 'ai_classify_chain.py', {color:'#fbbf24'}), 'ingest-посты, payment/promise, drum/Vadim, trash hard-skip'],
-            [sourceLink('smart_funnel.py', 'smart_funnel.classify_unified', {color:'#d8b4fe'}), 'уже ведёт DM funnel как AI 2.0'],
-            ['Локальные agents', 'часть route/classify решений ещё принимается внутри отдельных процессов'],
-          ].map(([name, desc]) => (
-            <div key={String(desc)} style={{background:'rgba(15,23,42,.42)',border:'1px solid rgba(148,163,184,.14)',borderRadius:7,padding:'8px 9px',fontSize:11,lineHeight:1.35}}>
-              <b>{name}</b><br/><span style={{color:'var(--muted)'}}>{desc}</span>
-            </div>
-          ))}
-        </div>
-
-        <div style={{display:'flex',alignItems:'center',justifyContent:'center',color:'#fde68a',fontSize:28}}>→</div>
-
-        <div style={{background:'rgba(20,184,166,.08)', border:'1.5px solid rgba(20,184,166,.36)', borderRadius:9, padding:'12px 13px', display:'grid', gap:8}}>
-          <div>
-            <div style={{fontSize:13, fontWeight:900, color:'#5eead4'}}>Цель: v2 owner/router</div>
-            <div style={{fontSize:11, color:'#cbd5e1', marginTop:3}}>Один входной слой решает owner/task, writers только исполняют.</div>
-          </div>
-          {[
-            [sourceLink('ai_triage_v2.py', 'ai_triage_v2.py', {color:'#5eead4'}), 'единое triage-решение по входящему событию'],
-            [sourceLink('ai_triage_v2.py', 'ai_triage_v2.route_v2()', {color:'#5eead4'}), 'будущий deterministic router; отдельного router_v2.py в production нет'],
-            ['Writers', 'исполняют готовую задачу без повторной собственной классификации'],
-          ].map(([name, desc]) => (
-            <div key={String(desc)} style={{background:'rgba(15,23,42,.42)',border:'1px solid rgba(148,163,184,.14)',borderRadius:7,padding:'8px 9px',fontSize:11,lineHeight:1.35}}>
-              <b>{name}</b><br/><span style={{color:'var(--muted)'}}>{desc}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{display:'grid',gap:9}}>
-        {[
-          ['1. Shadow', 'идёт/нужен', 'v2 читает тот же поток и пишет отдельные решения. Ничего не отправляет клиентам.', 'Сравнить v1 vs v2'],
-          ['2. Agreement', 'критерий', 'Критичные классы: LCB direct, broker, drum, refusal/payment, skip.', 'Цель: ≥95%'],
-          ['3. Canary', 'после shadow', 'Canary ещё не включён: сначала shadow/agreement, затем approval-safe трафик через v2 owner/router.', 'Без авто-риска'],
-          ['4. Cutover', 'по агентам', 'Сначала attention_auto_action, затем ingest/router владельцы, потом cleanup legacy.', 'После стабильности 2 недели'],
-        ].map(([phase, status, body, result], idx) => (
-          <div key={phase} style={{display:'grid',gridTemplateColumns:'140px minmax(0,1fr) 160px',gap:9,alignItems:'stretch'}}>
-            <div style={{background:'rgba(255,255,255,.035)',border:'1px solid rgba(148,163,184,.14)',borderRadius:7,padding:'9px 10px',fontSize:12,lineHeight:1.35}}>
-              <b>{phase}</b><br/><span style={{color:idx === 2 ? '#fbbf24' : '#5eead4',fontWeight:800}}>{status}</span>
-            </div>
-            <div style={{background:'rgba(255,255,255,.035)',border:'1px solid rgba(148,163,184,.14)',borderRadius:7,padding:'9px 10px',fontSize:12,lineHeight:1.4,color:'#cbd5e1'}}>{body}</div>
-            <div style={{background:'rgba(255,255,255,.035)',border:'1px solid rgba(148,163,184,.14)',borderRadius:7,padding:'9px 10px',fontSize:12,lineHeight:1.4,color:'#93c5fd'}}>{result}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{marginTop:12,background:'rgba(245,197,24,.08)',border:'1px solid rgba(245,197,24,.28)',borderRadius:8,padding:'10px 12px',fontSize:12,lineHeight:1.45,color:'#fde68a'}}>
-        <b>{sourceLink('ai_classify_chain.py', 'ai_classify_chain.py', {color:'#fde68a'})} остаётся до cutover.</b>{' '}
-        Удалять legacy можно только после того, как v2 стабильно закрывает ingest/payment/drum/skip маршруты, canary не даёт регрессий, и минимум 2 недели нет критичных расхождений.
-      </div>
-
-      <style>{`
-        @media (max-width: 760px) {
-          .section div[style*="grid-template-columns: minmax(0px, 1fr) 54px"] {
-            grid-template-columns: 1fr !important;
-          }
-          .section div[style*="grid-template-columns: 140px minmax"] {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
-        </div>
   );
 }
 
@@ -9739,7 +9637,6 @@ function LeadFlowSection() {
           <div style={{display:'flex', alignItems:'center', gap:7, marginBottom:6}}>
             <span style={{fontSize:13}}>🗄</span>
             <div style={{fontSize:10, fontWeight:800, color:'#5eead4', textTransform:'uppercase', letterSpacing:.5}}>Raw text archives</div>
-            <a href="./architecture.html#posts" style={{marginLeft:'auto', fontSize:9, color:'#93c5fd', textDecoration:'none'}}>подробно →</a>
           </div>
           <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:5}}>
             {[
@@ -10728,7 +10625,6 @@ function App() {
   const [todos,     setTodos]     = useState(null);
   const [leadContext, setLeadContext] = useState(null);
   const [pitchLibrary, setPitchLibrary] = useState(null);
-  const [architectureV2, setArchitectureV2] = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [refreshing,setRefreshing]= useState(false);
   const [error,     setError]     = useState(null);
@@ -10883,11 +10779,6 @@ function App() {
       if (r.ok) setPitchLibrary(await r.json());
     } catch { /* backend offline → pitches tab shows loading state */ }
 
-    try {
-      const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
-      const r = await fetch(`${bu}/api/architecture_v2`, { cache: 'no-store' });
-      if (r.ok) setArchitectureV2(await r.json());
-    } catch { /* backend offline → architecture tab shows loading state */ }
   }, []);
 
   useEffect(() => {
@@ -11060,15 +10951,6 @@ function App() {
                title="Pricing matrix — цены по сигналам клиента, бэклайн, прочие расходы">
               <span>💰</span><span>Pricing</span>
             </a>
-            <button type="button"
-               onClick={() => setActiveTab('architecture2')}
-               style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
-                       background: activeTab === 'architecture2' ? 'rgba(188,140,255,0.26)' : 'rgba(188,140,255,0.15)',
-                       color:'#bc8cff', border:'1px solid rgba(188,140,255,0.35)',
-                       display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap', cursor:'pointer'}}
-               title="Переход AI architecture: сейчас → v2 → shadow/canary/cutover">
-              <span>🧠</span><span>Архитектура</span>
-            </button>
             <div style={{position:'relative', display:'inline-flex'}}>
               <button
                 type="button"
@@ -11316,9 +11198,6 @@ function App() {
             <AIUsageSection aiUsage={data.aiUsage || {totalCalls:0, totalCost:0, skip:0, adapt:0, ok:0, services:{}}} />
           )}
 
-          {activeTab === 'architecture2' && (
-            <ArchitectureV2Section architectureV2={architectureV2} />
-          )}
 
           {showTGModal && (
             <TGFunnelModal
