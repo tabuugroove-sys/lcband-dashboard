@@ -4434,7 +4434,9 @@ function useBrokerChatHover(order, side) {
 // финальный счёт/договор или проверку платежа. Первичное уточнение нал/БН
 // делает contract writer сам. Оранжевая панель сверху всего.
 function BrokerPaymentCard({ order: o }) {
-  const { canChat, handlers } = useBrokerChatHover(o);
+  // 13.06: «Готовы платить» карточка выезжает перепиской СПРАВА (по запросу
+  // Михаила) — money-lane стоит сверху, правый край свободен, левый занят навигацией.
+  const { canChat, handlers } = useBrokerChatHover(o, 'right');
   return (
     <div {...handlers} style={{
       padding: '10px 12px',
