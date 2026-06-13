@@ -9525,7 +9525,7 @@ function LeadFlowSection() {
             return (
               <div style={{order:2, display:'flex', flexDirection:'column', gap:3}}>
                 <div style={{background:'rgba(15,23,42,.42)', border:'1px dashed rgba(148,163,184,.22)', borderRadius:7, padding:'6px 8px', fontSize:9, color:'var(--muted)', lineHeight:1.35}}>
-                  Orders.DB SSoT / Context read-layer / L3 writer layer перенесены во вкладку «Архитектура 2.0».
+                  Orders.DB SSoT / Context read-layer / L3 writer layer — на отдельной странице <a href="./architecture.html" style={{color:'#c4b5fd', fontWeight:700}}>«Архитектура 2.0»</a> (во всю ширину, светлая тема).
                 </div>
                 {/* Trigger badge — incoming arrow from Agent 1 */}
                 <div style={{background:'rgba(167,139,250,.07)', border:'1px solid rgba(167,139,250,.4)', borderRadius:6, padding:'4px 8px', fontSize:9, color:'#c4b5fd', display:'flex', alignItems:'center', gap:4}}>
@@ -11014,6 +11014,13 @@ function App() {
                        display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
                title="Broker pipeline — посреднические заказы, кастинг подрядчиков, маржа">
               <span>🤝</span><span>Broker</span>
+            </a>
+            <a href="./architecture.html"
+               style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
+                       background:'rgba(113,56,199,0.15)', color:'#7138c7', border:'1px solid rgba(113,56,199,0.4)',
+                       display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap'}}
+               title="Архитектура 2.0 — полный пайплайн на отдельной светлой странице во всю ширину">
+              <span>🗺️</span><span>Архитектура</span>
             </a>
 
             <a href="./contacts.html"
