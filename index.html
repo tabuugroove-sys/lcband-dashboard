@@ -4102,9 +4102,9 @@ function BrokerOrderCard({ order }) {
 // заказов). Между ними тонкие линии — одна линия = (broker_order × candidate).
 // Hover на ячейку или на линию подсвечивает связанный заказ полностью.
 const BROKER_ORG_STAGES = [
-  { key: 'incoming',   label: 'Поступил',     statuses: ['intake', 'brief_pending'] },
+  { key: 'incoming',   label: 'Поступил',     statuses: ['intake', 'brief_pending', 'operator_pricing_directive'] },
   { key: 'budget_wait', label: 'Ждём бюджет', statuses: ['waiting_client_budget'] },
-  { key: 'brief_sent', label: 'Бриф ушёл',    statuses: ['brief_sent', 'contractor_replied'] },
+  { key: 'brief_sent', label: 'Бриф ушёл',    statuses: ['brief_sent', 'contractor_replied', 'contractor_replied_needs_processing'] },
   { key: 'pitched',    label: 'Питч клиенту', statuses: ['client_relayed', 'contractor_relayed'] },
   { key: 'thinking',   label: 'Думает / Фолоуап', statuses: ['client_replied', 'client_followup_sent'] },
   { key: 'won',        label: 'Согласовали',  statuses: ['closed_won'] },
