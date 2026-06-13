@@ -3942,7 +3942,7 @@ function BrokerOrderCard({ order }) {
     username: _uname,
     client: order.client_name || _uname,
     channel: 'TG',
-    side: 'left',  // 06.06: переписка брокер-заказа выезжает слева
+    side: 'right',  // 13.06: все переписки справа
   });
   const _onCardEnter = _canChat ? () => {
     clearTimeout(hoverTimer.current);
@@ -4420,7 +4420,7 @@ function useBrokerChatHover(order, side) {
     username: uname,
     client: order.client_name || uname,
     channel: 'TG',
-    side: side || 'left',
+    side: side || 'right',  // 13.06: все переписки справа
   });
   const handlers = canChat ? {
     onMouseEnter: () => { clearTimeout(hoverTimer.current); hoverTimer.current = setTimeout(openChat, 300); },
@@ -8513,7 +8513,9 @@ function ChatPanel({ target, onClose }) {
   const chatEp = channel === 'VK' ? 'vk_chat' : (channel === 'WA' ? 'wa_chat' : 'chat');
   const sendEp = channel === 'VK' ? 'vk_send' : (channel === 'WA' ? null : 'send');
   const cacheKey = `${channel}:${q}`;
-  const side = target?.side === 'left' ? 'left' : 'right';
+  // 13.06: все переписки всегда выезжают справа (по запросу Михаила). Левый
+  // режим убран — даже если вызов передал side:'left', панель идёт направо.
+  const side = 'right';
 
   const fetchChat = useCallback(async (sinceId) => {
     if (!q) return;
@@ -10103,7 +10105,7 @@ function OverviewStatsSection({ stats, followupPlan }) {
       username: q,
       client: it.name || it.contact || name,
       channel: isVk ? 'VK' : (isWa ? 'WA' : 'TG'),
-      side: 'left',
+      side: 'right',  // 13.06: все переписки справа
     };
   };
 
@@ -10667,9 +10669,9 @@ function App() {
   // На десктопе при открытом чате сдвигаем .app так, чтобы правая граница
   // упиралась в левый край слайд-панели (440px)
   useEffect(() => {
-    const _leftSide = !!chatTarget && chatTarget.side === 'left';
-    document.body.classList.toggle('chat-open', !!chatTarget && !_leftSide);
-    document.body.classList.toggle('chat-open-left', _leftSide);
+    // 13.06: панель всегда справа → сдвигаем .app только под правую панель.
+    document.body.classList.toggle('chat-open', !!chatTarget);
+    document.body.classList.remove('chat-open-left');
     return () => {
       document.body.classList.remove('chat-open');
       document.body.classList.remove('chat-open-left');
