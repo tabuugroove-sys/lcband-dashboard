@@ -1530,7 +1530,7 @@ const PROCESS_RULES = {
   // на всякий случай, но не запускается. Health VK monitor покрывает proc_vk_monitor.
   // 🔴 25.04: proc_verify_posts удалён — agent читал И писал Sheet («Чаты Отчеты»),
   // плюс дублировал posts-counter с Morning Reconcile (262/24ч в его totals).
-  // Скрипт verify_daily_posts.py оставлен на диске как dead code, plist в /tmp backup.
+  // Скрипт verify_daily_posts.py удалён 13.06 (dead-code cleanup), plist давно в /tmp backup.
   proc_morning_reconcile: {
     name: 'Morning Reconcile',
     interval: 'Ежедневно (05:00 MSK)',
