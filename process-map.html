@@ -131,6 +131,13 @@
     .sal { font-weight:900; font-size:12px; }
     .salrow .pos { color:#34d399; } .salrow .neg { color:#f87171; }
     .salbonus { color:var(--gold); font-weight:800; }
+    .badges { display:flex; flex-direction:column; gap:4px; align-items:flex-end; }
+    .salbadge { border:1px solid #94a3b855; color:#94a3b8; border-radius:999px; padding:2px 7px; font-size:10px; font-weight:900; white-space:nowrap; }
+    .salbadge.pos { color:#34d399; border-color:#34d39955; background:rgba(52,211,153,.07); }
+    .salbadge.neg { color:#f87171; border-color:#f8717155; background:rgba(248,113,113,.07); }
+    .msparkwrap { display:flex; align-items:center; gap:7px; }
+    .mspark { flex:1; min-width:0; width:100%; height:28px; display:block; }
+    .mspark-cap { color:var(--muted); font-size:9px; white-space:nowrap; font-family:ui-monospace,Menlo,monospace; }
     @media (max-width:760px) {
       .hdr { align-items:flex-start; flex-direction:column; }
       .hero { grid-template-columns:1fr; }
@@ -805,6 +812,26 @@
         `</svg>`;
     }
 
+    function miniSpark(series) {
+      const S = Array.isArray(series) ? series : [];
+      if (S.length < 2) return '';
+      const W = 120, H = 26, p = 1.5;
+      const n = S.length;
+      const max = Math.max(1, ...S.map(b => Number(b.tokens) || 0));
+      const x = i => p + (W - 2 * p) * i / (n - 1);
+      const y = v => p + (H - 2 * p) - (H - 2 * p) * (Number(v) || 0) / max;
+      const pts = S.map((b, i) => `${x(i).toFixed(1)},${y(b.tokens).toFixed(1)}`);
+      const area = `M${p},${H - p} L${pts.join(' L')} L${(W - p).toFixed(1)},${H - p} Z`;
+      const cap = eff.bucket === 'day' ? '/день' : '/час';
+      return `<div class="msparkwrap">
+        <svg class="mspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+          <path d="${area}" fill="rgba(96,165,250,.15)"/>
+          <polyline points="${pts.join(' ')}" fill="none" stroke="var(--blue)" stroke-width="1.4"/>
+        </svg>
+        <span class="mspark-cap">ток ${cap}</span>
+      </div>`;
+    }
+
     function applyEffMeta() {
       const t = eff.totals || {};
       const sub = document.getElementById('effSub');
@@ -867,6 +894,7 @@
         <span class="em" title="presend-блоки + codex/vk fail + ручные правки">брак <b>${Number(e.waste) || 0}</b>${budg}</span>
         <span class="estab" style="color:${sc};border-color:${sc}55" title="good=${e.good} (отправки ${e.sends} + прошли presend ${e.presend_ok}); штраф: ручное ×3, presend ×1, fail ×0.5">Стабильность ${stTxt}</span>
       </div>
+      ${(Number(e.tokens) || 0) > 0 ? miniSpark(e.series) : ''}
       <div class="effrow salrow" title="${esc(salTitle)}">
         <span class="sal ${salCls}">💰 ЗП ${fmtSal(sal)}</span>
         <span class="em">награда ${fmtTok(e.reward)}</span>
@@ -877,6 +905,8 @@
 
     function card(s) {
       const k = kind(s.schedule);
+      const ce = (eff.by_label || {})[s.label];
+      const salBadge = ce ? `<span class="salbadge ${ce.salary > 0 ? 'pos' : (ce.salary < 0 ? 'neg' : '')}" title="зарплата агента за период">💰 ${fmtSal(ce.salary)}</span>` : '';
       return `
         <article class="card" data-group="${esc(s.group)}">
           <div class="top">
@@ -884,7 +914,10 @@
               <div class="name">${esc(s.name)}</div>
               <div class="label">${esc(s.label)}</div>
             </div>
-            <span class="badge ${k}">${esc(s.schedule)}</span>
+            <div class="badges">
+              <span class="badge ${k}">${esc(s.schedule)}</span>
+              ${salBadge}
+            </div>
           </div>
           <div class="file">${esc(s.file)}</div>
           ${cliBlock(s)}
