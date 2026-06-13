@@ -292,6 +292,13 @@
         input:'wa_computer_use_queue.json items with send_mode=auto_pipeline', action:'localhost Baileys /send + rate guard', output:'WA message + queue sent + outbound_recorder',
         logic:['только auto_send_reason=manual_context_ack','только source=unified_dm_responder','не трогает обычные WA drafts','max 1/run','использует уже linked Baileys daemon, не WA Web'],
       },
+      {
+        group:'dm', name:'IG Follow-up', label:'com.lcband.ig-followup',
+        file:'ig_followup.py run', schedule:'daily 08:00',
+        why:'Re-engagement прогретых IG-лидов: DM-предложение сотрудничества (LC Band + Noize Drum) после cooldown.',
+        input:'ig_story_reply_history.json (прогретые контакты)', action:'кандидаты reply_count≥5 и cooldown 14д → DM', output:'IG DM + ig_followup_sent.jsonl / ig_followup_state.json',
+        logic:['источник прогрева — ig_story_responder history','кандидат: reply_count≥5 И last_reply>14д И не в state','anti-flood: max 5/день, пауза 60-180с','после DAILY_CAP exit, остаток завтра','display name = LUXURY BAND'],
+      },
 
       {
         group:'broker', name:'Broker Dialog Owner', label:'broker_dialog_agent.py',
@@ -350,13 +357,6 @@
         why:'Перепроверяет pending contractor states, чтобы ответы подрядчиков не потерялись.',
         input:'pending contractor state + dialogs', action:'rescan pending replies', output:'state transition / log',
         logic:['ищет ответы после последнего запроса','закрывает пропущенные callbacks','кормит broker pipeline'],
-      },
-      {
-        group:'broker', name:'Drum Director Follow-up', label:'com.lcband.drum-director-followup',
-        file:'drum_director_followup.py', schedule:'calendar',
-        why:'Догоняет директора Noize Drum по brief-ответам, когда нужен drum-specific human/vendor signal.',
-        input:'drum brief state', action:'follow-up director', output:'director response / status',
-        logic:['короткий binary brief','без контактов клиента','обновляет drum decision state'],
       },
       {
         group:'broker', name:'Broker Public Casting', label:'com.lcband.broker-public-casting',
@@ -540,6 +540,34 @@
         why:'Собирает KPI/state в формат, который статический dashboard может быстро показать.',
         input:'orders.db + state/log files', action:'aggregate dashboard rows', output:'dashboard data / static state',
         logic:['пишет funnel/channel/process keys','если стоит, KPI freeze','не принимает бизнес-решений'],
+      },
+      {
+        group:'funnel', name:'Lead Context Enrich', label:'com.lcband.lead-context-enrich',
+        file:'lead_context_enricher.py --all', schedule:'каждые 24 ч',
+        why:'Backstop-проход AI-обогащения LCB context read-model: держит карточки активных лидов свежими (realtime inbound обогащается inline, проход редкий).',
+        input:'orders.db.message_events (последние 20 сообщений на контакт)', action:'AI извлекает сигналы → пишет context tables', output:'orders.db contact_context/event_context + legacy JSON mirror',
+        logic:['сигналы: client_intent / refusal / event_date / budget / waiting_for_us / key_asks / funnel_stage','primary store = orders.db contact_context/event_context; lead_context_store.json только legacy mirror','broker-контекст здесь НЕ хранится (broker_orders.json + broker_order_context)','в конце прохода зовёт lead_context_audit','--all backstop; trigger(username) обогащает inline на inbound'],
+      },
+      {
+        group:'funnel', name:'Unanswered Inbound Watcher', label:'com.lcband.unanswered-inbound-watcher',
+        file:'unanswered_inbound_watcher.py', schedule:'каждые 10 мин',
+        why:'Ловит hot-лид, где последнее сообщение — входящее (клиент ждёт ответа), чтобы заявка не висела без ответа сутками.',
+        input:'orders.db non-archived hot leads + last message_event', action:'last==inbound дольше порога → AI-судья «мяч у нас?» → one-shot notify', output:'notify_bot уведомление / снятие флага',
+        logic:['пороги: оплата/переговоры 2ч, остальной hot 4ч; только 09:00–23:00 MSK','«вопрос или ack» решает AI, не regex','notify_bot (не urgent): «мы должны клиенту» ≠ запрос созвона','повтор не чаще раз в 6ч, max 3, снятие при нашем ответе','инцидент @alenkakashparova: оплативший висел ~3.5 суток'],
+      },
+      {
+        group:'funnel', name:'Promise Debt Watcher', label:'com.lcband.promise-debt-watcher',
+        file:'unanswered_inbound_watcher.py --daily-promises', schedule:'daily 03:30',
+        why:'Суточный проход того же сторожа по просроченным обещаниям Михаила (open eg_promises self_to_them с истёкшим due_at).',
+        input:'orders.db eg_promises direction=self_to_them с due_at', action:'просрочка → one-shot notify со сводкой', output:'notify_bot сводка просроченных promises на контакт+event',
+        logic:['тот же скрипт что unanswered-inbound-watcher, флаг --daily-promises','ровно один one-shot notify на контакт+event, без reminder 2/3','ждёт закрытия promise, не nag-loop','notify_bot, не urgent'],
+      },
+      {
+        group:'funnel', name:'Context Cleanup', label:'com.lcband.context-cleanup',
+        file:'cleanup_duplicate_outbound.py --apply', schedule:'daily 02:30',
+        why:'Схлопывает дубли OUTBOUND-строк в orders.db.message_events, чтобы дашборд и AI не видели одно отправленное сообщение по 2-21 раза.',
+        input:'orders.db.message_events outbound clusters', action:'collapse identical outbound (channel+username+text, 24h окно) → один canonical', output:'deduped message_events (+ timestamped DB backup)',
+        logic:['phantom-источники: outbound_recorder / conv_cache / ig_conv_cache / backfill','есть реальный send → удаляет только phantom; весь кластер phantom → оставляет ранний','inbound-строки не трогает','--apply пишет, сначала делает backup','dry-run by default'],
       },
 
       {
