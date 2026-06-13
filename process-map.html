@@ -709,15 +709,20 @@
       }).join('');
     }
 
+    function setFilter(f) {
+      activeFilter = (f && groupMeta[f]) ? f : 'all';
+      document.querySelectorAll('.chip').forEach(x => x.classList.toggle('active', x.dataset.filter === activeFilter));
+      render();
+    }
     search.addEventListener('input', render);
     document.querySelectorAll('.chip').forEach(btn => {
-      btn.addEventListener('click', () => {
-        activeFilter = btn.dataset.filter;
-        document.querySelectorAll('.chip').forEach(x => x.classList.toggle('active', x === btn));
-        render();
-      });
+      btn.addEventListener('click', () => setFilter(btn.dataset.filter));
     });
-    render();
+    // Deep-link from the dashboard "Скрипты" dropdown: #intake/#dm/#broker/... selects that zone.
+    // Sections are built by render() at runtime, so the browser's native #anchor scroll lands on
+    // nothing — instead we map the hash to the matching filter chip (unknown/empty hash → "Все").
+    window.addEventListener('hashchange', () => { setFilter(location.hash.slice(1)); window.scrollTo(0, 0); });
+    setFilter(location.hash.slice(1));
     fetch(`${apiBase}/api/process_cli_usage?hours=24`, { cache:'no-store' })
       .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(j => {
