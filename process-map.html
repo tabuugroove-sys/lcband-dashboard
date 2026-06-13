@@ -107,6 +107,26 @@
     .cli-cell span { color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:.4px; }
     .cli-purpose { color:#94a3b8; font-size:11px; overflow-wrap:anywhere; }
     .empty { color:var(--muted); padding:20px; border:1px dashed var(--border); border-radius:8px; text-align:center; }
+    .effpanel { border:1px solid var(--border); background:rgba(19,19,31,.72); border-radius:8px; padding:12px 14px; margin:14px 0; }
+    .eff-head { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+    .eff-title { font-size:13px; font-weight:800; color:var(--text); }
+    .eff-sub { font-size:11px; font-weight:600; color:var(--muted); margin-left:6px; }
+    .eff-range { display:flex; gap:4px; }
+    .rbtn { border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--muted); border-radius:6px; padding:5px 9px; font-size:11px; font-weight:800; cursor:pointer; letter-spacing:.3px; }
+    .rbtn.active { color:var(--gold); border-color:rgba(245,197,24,.45); background:rgba(245,197,24,.09); }
+    .eff-chart { width:100%; }
+    .effsvg { width:100%; height:auto; display:block; }
+    .effsvg .ax { fill:var(--muted); font-size:11px; font-family:ui-monospace,Menlo,monospace; }
+    .eff-empty { color:var(--muted); text-align:center; padding:22px; font-size:12px; }
+    .eff-legend { display:flex; gap:14px; align-items:center; margin-top:6px; font-size:11px; color:var(--muted); flex-wrap:wrap; }
+    .eff-legend .dot { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+    .dot.tok { background:var(--blue); }
+    .dot.waste { background:var(--orange); }
+    .eff-note { color:var(--muted); opacity:.85; }
+    .sortlbl { font-size:11px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:.5px; margin-left:6px; }
+    .effrow { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:11px; color:#94a3b8; border-top:1px solid rgba(148,163,184,.1); padding-top:7px; }
+    .effrow .em b { color:var(--text); }
+    .estab { margin-left:auto; border:1px solid; border-radius:999px; padding:2px 8px; font-size:10px; font-weight:900; white-space:nowrap; }
     @media (max-width:760px) {
       .hdr { align-items:flex-start; flex-direction:column; }
       .hero { grid-template-columns:1fr; }
@@ -149,6 +169,24 @@
       </div>
     </div>
 
+    <div class="effpanel">
+      <div class="eff-head">
+        <div class="eff-title">Расход CLI-токенов<span class="eff-sub" id="effSub">— загрузка…</span></div>
+        <div class="eff-range">
+          <button class="rbtn active" data-range="24">ДЕНЬ</button>
+          <button class="rbtn" data-range="168">НЕДЕЛЯ</button>
+          <button class="rbtn" data-range="720">МЕСЯЦ</button>
+          <button class="rbtn" data-range="2160">3 МЕС</button>
+        </div>
+      </div>
+      <div class="eff-chart" id="effChart"></div>
+      <div class="eff-legend">
+        <span><i class="dot tok"></i>токены (input+output)</span>
+        <span><i class="dot waste"></i>брак/блоки (отн. шкала)</span>
+        <span class="eff-note" id="effNote"></span>
+      </div>
+    </div>
+
     <div class="toolbar">
       <input id="search" class="search" placeholder="Поиск: tg_responder, broker, followup, orders.db..." />
       <button class="chip active" data-filter="all">Все</button>
@@ -158,6 +196,10 @@
       <button class="chip" data-filter="events">Events</button>
       <button class="chip" data-filter="funnel">Funnel</button>
       <button class="chip" data-filter="infra">Infra</button>
+      <span class="sortlbl">Сортировка</span>
+      <button class="chip sort active" data-sort="zone">Зоны</button>
+      <button class="chip sort" data-sort="cost">Дороже→дешевле</button>
+      <button class="chip sort" data-sort="stability">Забагованнее→стабильнее</button>
     </div>
 
     <div id="content"></div>
@@ -690,7 +732,76 @@
     const search = document.getElementById('search');
     let activeFilter = 'all';
     let cliUsage = {};
-    const apiBase = (typeof CHAT_BACKEND !== 'undefined' && CHAT_BACKEND) ? CHAT_BACKEND : '';
+    let eff = { by_label:{}, series:[], totals:{}, weekly_pct:null, bucket:'hour' };
+    let effRange = 24;
+    let sortMode = 'zone';
+    let apiBase = (typeof CHAT_BACKEND !== 'undefined' && CHAT_BACKEND) ? CHAT_BACKEND : '';
+
+    function fmtTok(n) {
+      n = Number(n) || 0;
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(0) + 'k';
+      return String(n);
+    }
+    function fmtBucket(iso) {
+      if (!iso) return '';
+      if (eff.bucket === 'day') {
+        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+        return m ? `${m[3]}.${m[2]}` : iso;
+      }
+      const d = new Date(iso);
+      return isNaN(d) ? iso : String(d.getHours()).padStart(2, '0') + 'h';
+    }
+    function stabColor(s) {
+      if (s == null) return '#64748b';
+      if (s >= 80) return '#34d399';
+      if (s >= 50) return '#fbbf24';
+      return '#f87171';
+    }
+
+    function renderChart() {
+      const el = document.getElementById('effChart');
+      if (!el) return;
+      const S = Array.isArray(eff.series) ? eff.series : [];
+      if (!S.length) { el.innerHTML = '<div class="eff-empty">нет данных за период</div>'; return; }
+      const W = 1000, H = 160, padL = 12, padR = 12, padT = 12, padB = 24;
+      const iw = W - padL - padR, ih = H - padT - padB;
+      const n = S.length;
+      const maxTok = Math.max(1, ...S.map(b => Number(b.tokens) || 0));
+      const maxW = Math.max(1, ...S.map(b => Number(b.waste) || 0));
+      const x = i => padL + (n === 1 ? iw / 2 : iw * i / (n - 1));
+      const yT = v => padT + ih - ih * (Number(v) || 0) / maxTok;
+      const yW = v => padT + ih - ih * (Number(v) || 0) / maxW;
+      const tokPts = S.map((b, i) => `${x(i).toFixed(1)},${yT(b.tokens).toFixed(1)}`);
+      const wPts = S.map((b, i) => `${x(i).toFixed(1)},${yW(b.waste).toFixed(1)}`);
+      const area = `M${padL},${(padT + ih).toFixed(1)} L${tokPts.join(' L')} L${(padL + iw).toFixed(1)},${(padT + ih).toFixed(1)} Z`;
+      const dots = S.map((b, i) =>
+        `<circle cx="${x(i).toFixed(1)}" cy="${yT(b.tokens).toFixed(1)}" r="2.6" fill="var(--blue)">` +
+        `<title>${esc(fmtBucket(b.start_iso))}: ${fmtTok(b.tokens)} ток · брак ${Number(b.waste) || 0}</title></circle>`
+      ).join('');
+      const idxs = [...new Set([0, Math.floor((n - 1) / 2), n - 1])];
+      const xlab = idxs.map(i =>
+        `<text x="${x(i).toFixed(1)}" y="${H - 7}" class="ax" text-anchor="${i === 0 ? 'start' : (i === n - 1 ? 'end' : 'middle')}">${esc(fmtBucket(S[i].start_iso))}</text>`
+      ).join('');
+      el.innerHTML =
+        `<svg viewBox="0 0 ${W} ${H}" class="effsvg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">` +
+          `<path d="${area}" fill="rgba(96,165,250,.13)"/>` +
+          `<polyline points="${tokPts.join(' ')}" fill="none" stroke="var(--blue)" stroke-width="2.2"/>` +
+          `<polyline points="${wPts.join(' ')}" fill="none" stroke="var(--orange)" stroke-width="1.6" stroke-dasharray="3 2"/>` +
+          `${dots}${xlab}` +
+        `</svg>`;
+    }
+
+    function applyEffMeta() {
+      const t = eff.totals || {};
+      const sub = document.getElementById('effSub');
+      const note = document.getElementById('effNote');
+      if (sub) sub.textContent = `— ${fmtTok(t.tokens || 0)} токенов · ${Number(t.calls || 0)} вызовов`;
+      if (note) {
+        const wk = (eff.weekly_pct == null) ? '—' : eff.weekly_pct + '%';
+        note.textContent = `недельный лимит CLI: ${wk} · токены CLI = оценка (chars/4), $0 по подписке · привязка эвристична (Phase 2 = точная)`;
+      }
+    }
 
     function kind(schedule) {
       if (schedule.includes('daemon') || schedule.includes('KeepAlive')) return 'keep';
@@ -725,6 +836,21 @@
       `;
     }
 
+    function effRow(s) {
+      const e = (eff.by_label || {})[s.label];
+      if (!e) return '';
+      const st = e.stability_pct;
+      const sc = stabColor(st);
+      const stTxt = (st == null) ? '—' : st + '%';
+      const budg = e.budget_guard ? ` · 🔁${e.budget_guard}` : '';
+      return `<div class="effrow">
+        <span class="em"><b>${fmtTok(e.tokens)}</b> ток</span>
+        <span class="em">${Number(e.calls) || 0} выз.</span>
+        <span class="em" title="presend-блоки + codex/vk fail + ручные правки">брак <b>${Number(e.waste) || 0}</b>${budg}</span>
+        <span class="estab" style="color:${sc};border-color:${sc}55" title="good=${e.good} (отправки ${e.sends} + прошли presend ${e.presend_ok}); штраф: ручное ×3, presend ×1, fail ×0.5">Стабильность ${stTxt}</span>
+      </div>`;
+    }
+
     function card(s) {
       const k = kind(s.schedule);
       return `
@@ -738,6 +864,7 @@
           </div>
           <div class="file">${esc(s.file)}</div>
           ${cliBlock(s)}
+          ${effRow(s)}
           <div class="why">${esc(s.why)}</div>
           <div class="flow">
             <div class="box"><div class="box-title">вход</div><div class="box-text">${esc(s.input)}</div></div>
@@ -767,6 +894,34 @@
         return;
       }
 
+      if (sortMode !== 'zone') {
+        const v = s => (eff.by_label || {})[s.label] || {};
+        const arr = filtered.slice();
+        if (sortMode === 'cost') {
+          arr.sort((a, b) => (Number(v(b).tokens) || 0) - (Number(v(a).tokens) || 0));
+        } else {
+          // stability ascending (buggiest first); null (no client-output base) last,
+          // tie-broken among nulls by raw waste desc.
+          arr.sort((a, b) => {
+            const A = v(a).stability_pct, B = v(b).stability_pct;
+            const an = (A == null), bn = (B == null);
+            if (an && bn) return (Number(v(b).waste) || 0) - (Number(v(a).waste) || 0);
+            if (an) return 1;
+            if (bn) return -1;
+            return A - B;
+          });
+        }
+        const title = sortMode === 'cost'
+          ? 'Дороже → дешевле (по токенам)'
+          : 'Забагованнее → стабильнее (по индексу)';
+        content.innerHTML = `
+          <section class="section">
+            <div class="section-title"><span style="color:var(--gold)">●</span>${title} · ${arr.length}</div>
+            <div class="grid">${arr.map(card).join('')}</div>
+          </section>`;
+        return;
+      }
+
       content.innerHTML = Object.keys(groupMeta).map(g => {
         const rows = filtered.filter(s => s.group === g);
         if (!rows.length) return '';
@@ -781,28 +936,88 @@
 
     function setFilter(f) {
       activeFilter = (f && groupMeta[f]) ? f : 'all';
-      document.querySelectorAll('.chip').forEach(x => x.classList.toggle('active', x.dataset.filter === activeFilter));
+      document.querySelectorAll('.chip[data-filter]').forEach(x => x.classList.toggle('active', x.dataset.filter === activeFilter));
       render();
     }
+    function setSort(s) {
+      sortMode = ['zone', 'cost', 'stability'].includes(s) ? s : 'zone';
+      document.querySelectorAll('.chip[data-sort]').forEach(x => x.classList.toggle('active', x.dataset.sort === sortMode));
+      render();
+    }
+    function loadEff() {
+      const sub = document.getElementById('effSub');
+      if (sub) sub.textContent = '— загрузка…';
+      fetch(`${apiBase}/api/agent_efficiency?hours=${effRange}`, { cache:'no-store' })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+        .then(j => {
+          if (j && j.error) throw new Error(j.error);
+          eff = {
+            by_label: j.by_label || {},
+            series: j.series || [],
+            totals: j.totals || {},
+            weekly_pct: (j.weekly_pct == null ? null : j.weekly_pct),
+            bucket: j.bucket || 'hour',
+          };
+          applyEffMeta(); renderChart(); render();
+        })
+        .catch(() => {
+          eff = { by_label:{}, series:[], totals:{}, weekly_pct:null, bucket:'hour' };
+          if (sub) sub.textContent = '— endpoint недоступен (перезапусти dashboard-backend)';
+          renderChart(); render();
+        });
+    }
+    function setRange(h) {
+      effRange = Number(h) || 24;
+      document.querySelectorAll('.rbtn').forEach(x => x.classList.toggle('active', Number(x.dataset.range) === effRange));
+      loadEff();
+    }
     search.addEventListener('input', render);
-    document.querySelectorAll('.chip').forEach(btn => {
+    document.querySelectorAll('.chip[data-filter]').forEach(btn => {
       btn.addEventListener('click', () => setFilter(btn.dataset.filter));
+    });
+    document.querySelectorAll('.chip[data-sort]').forEach(btn => {
+      btn.addEventListener('click', () => setSort(btn.dataset.sort));
+    });
+    document.querySelectorAll('.rbtn').forEach(btn => {
+      btn.addEventListener('click', () => setRange(btn.dataset.range));
     });
     // Deep-link from the dashboard "Скрипты" dropdown: #intake/#dm/#broker/... selects that zone.
     // Sections are built by render() at runtime, so the browser's native #anchor scroll lands on
     // nothing — instead we map the hash to the matching filter chip (unknown/empty hash → "Все").
     window.addEventListener('hashchange', () => { setFilter(location.hash.slice(1)); window.scrollTo(0, 0); });
-    setFilter(location.hash.slice(1));
-    fetch(`${apiBase}/api/process_cli_usage?hours=24`, { cache:'no-store' })
-      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-      .then(j => {
-        cliUsage = j.by_label || {};
-        render();
-      })
-      .catch(() => {
-        cliUsage = {};
-        render();
-      });
+
+    // GitHub Pages has no same-origin backend → resolve the live API: tunnel
+    // (backend_url.json, same file index.html uses) → localhost → same-origin.
+    // First reachable wins; '' (same-origin) covers the case where the page is
+    // served from the backend itself (127.0.0.1:8878).
+    async function resolveApiBase() {
+      let tunnel = '';
+      try {
+        const r = await fetch('./backend_url.json', { cache:'no-store' });
+        if (r.ok) { const j = await r.json(); tunnel = (j && j.url) || ''; }
+      } catch (e) {}
+      const cands = [...new Set([apiBase, '', tunnel, 'http://127.0.0.1:8878'])];
+      for (const base of cands) {
+        try {
+          const r = await fetch(`${base}/api/agent_efficiency?hours=1`, { cache:'no-store' });
+          if (r.ok) { apiBase = base; return; }
+        } catch (e) {}
+      }
+    }
+
+    function loadCliUsage() {
+      fetch(`${apiBase}/api/process_cli_usage?hours=24`, { cache:'no-store' })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+        .then(j => { cliUsage = j.by_label || {}; render(); })
+        .catch(() => { cliUsage = {}; render(); });
+    }
+
+    (async () => {
+      setFilter(location.hash.slice(1));
+      await resolveApiBase();
+      loadEff();
+      loadCliUsage();
+    })();
   </script>
 </body>
 </html>
