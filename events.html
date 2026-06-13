@@ -62,6 +62,7 @@
   .event-card.contract { border-left: 3px solid var(--orange); }
   .event-card.negotiating { border-left: 3px solid #f5c518; }
   .event-card.lead { border-left: 3px dotted var(--green); }
+  .event-card.collect { border-left: 3px dashed #be185d; }
   .event-card[data-chat-q] { cursor: pointer; }
   .event-card[data-chat-q]:hover { background: #eef6ff; }
   .sidebar-group-title {
@@ -416,6 +417,13 @@
   .cal-pill.video-received {
     background: rgba(188,140,255,0.18); color: #000;
     border-left-color: var(--purple);
+  }
+  /* Прошедшее событие, материалы ещё не собраны — to-do «забрать фото/видео».
+     Dashed-полоса = pending (в отличие от solid purple «получены»). */
+  .cal-pill.awaiting-media {
+    background: rgba(236,72,153,0.16); color: #000;
+    border-left-color: #be185d;
+    border-left-style: dashed;
   }
   .cal-pill.stub {
     background: rgba(240,136,62,0.15); color: #000;
@@ -850,16 +858,21 @@
     try {
       const payload = data || await fetchEventsDashboardData();
       const errors = payload.errors || [];
-      const events = (payload.events || []).map(ev => ({
-        kind: 'event',
-        group: 'paid',
-        rank: 0,
-        id: ev.id,
-        title: ev.title || '(без названия)',
-        date: ev.date || '',
-        stats: `${ev.linked_order_status || 'оплачен'} · ${ev.members_count || 0} участников · ${fmtRu(ev.members_total_fee || 0)} ₽`,
-        onclick: `loadEvent('${String(ev.id || '').replace(/'/g, "\\'")}')`,
-      }));
+      const events = (payload.events || []).map(ev => {
+        const collect = ev.business_state === 'awaiting_media';
+        return {
+          kind: 'event',
+          group: collect ? 'collect' : 'paid',
+          rank: collect ? 0.5 : 0,
+          id: ev.id,
+          title: ev.title || '(без названия)',
+          date: ev.date || '',
+          stats: collect
+            ? `забрать фото/видео · ${ev.members_count || 0} чел`
+            : `${ev.linked_order_status || 'оплачен'} · ${ev.members_count || 0} участников · ${fmtRu(ev.members_total_fee || 0)} ₽`,
+          onclick: `loadEvent('${String(ev.id || '').replace(/'/g, "\\'")}')`,
+        };
+      });
       const stubs = (payload.stubs || []).map(s => {
         const chat = chatTargetFromThread(s.client_thread, '');
         const stage = String(s.stage || '').toLowerCase();
@@ -912,6 +925,7 @@
       const activeId = CURRENT_EVENT?.id;
       const labels = {
         paid: 'Оплаченные',
+        collect: 'Забрать фото/видео',
         contract: 'Договор / предоплата',
         negotiating: 'Переговоры',
         released: 'Снято / освобождено',
@@ -923,7 +937,7 @@
           ? `<div class="sidebar-group-title">${labels[row.group] || row.group}</div>`
           : '';
         lastGroup = row.group;
-        const cls = row.kind === 'event' ? 'paid'
+        const cls = row.kind === 'event' ? (row.group === 'collect' ? 'collect' : 'paid')
           : (row.group === 'released' ? 'lead'
           : (row.group === 'contract' ? 'contract' : row.group === 'negotiating' ? 'negotiating' : 'lead'));
         const open = row.href
@@ -1797,6 +1811,7 @@
             <span><span class="dot" style="background:var(--orange)"></span>подтвердили/договор/ждём оплату</span>
             <span><span class="dot" style="background:var(--red)"></span>предоплата получена</span>
             <span><span class="dot" style="background:var(--purple)"></span>видео/фото получены</span>
+            <span><span class="dot" style="background:#be185d"></span>забрать фото/видео</span>
           </div>
           <div class="stamp" id="cal-stamp"></div>
         </div>
@@ -1916,6 +1931,7 @@
         } else {
           switch (ev.business_state) {
             case 'video_received': pcls += ' video-received'; stateLabel = 'видео/фото получены'; break;
+            case 'awaiting_media': pcls += ' awaiting-media'; stateLabel = 'забрать фото/видео'; break;
             case 'prepaid':        pcls += ' prepaid';        stateLabel = 'предоплата получена'; break;
             case 'lineup_ready':   pcls += ' lineup-ready';   stateLabel = 'подтвердили/состав ≥4'; break;
             default:               pcls += ' lineup-ready';   stateLabel = 'подтвердили/договор/ждём оплату'; break;
@@ -1932,7 +1948,9 @@
 
     const stamp = document.getElementById('cal-stamp');
     if (stamp) {
-      stamp.textContent = `events: ${CAL_EVENTS.length} · pre-paid: ${CAL_STUBS.length} · заявки: ${CAL_LEADS.length}`;
+      const collectN = CAL_EVENTS.filter(e => e.business_state === 'awaiting_media').length;
+      stamp.textContent = `events: ${CAL_EVENTS.length} · pre-paid: ${CAL_STUBS.length} · заявки: ${CAL_LEADS.length}`
+        + (collectN ? ` · забрать: ${collectN}` : '');
     }
   }
 
