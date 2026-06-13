@@ -297,6 +297,26 @@ function renderFullConv(msgs) {
     </div>`).join('')}</div>`;
 }
 
+// id-only username ('id6224715832' / голые цифры) — НЕ настоящий @handle:
+// не печатаем битый `@id…`, показываем phone-канал (tel:/wa.me) или 'tg <id>'.
+function isIdUsername(u) {
+  const s = String(u || '').trim().replace(/^@/, '');
+  return /^id\d{4,}$/i.test(s) || /^\d{5,}$/.test(s);
+}
+function vendorHandleHtml(v) {
+  const u = String(v.username || '').trim().replace(/^@/, '');
+  if (u && !isIdUsername(u)) return '@' + escHtml(u);
+  const digits = String(v.phone || '').replace(/\D/g, '');
+  if (digits.length >= 10) {
+    const tail = digits.slice(-10);
+    return `<a href="tel:+7${tail}" style="color:var(--accent)">📞 +7${tail}</a>`
+         + ` <a href="https://wa.me/7${tail}" target="_blank" rel="noopener" style="color:var(--accent);margin-left:6px">wa</a>`;
+  }
+  return u
+    ? `<span style="color:var(--muted)" title="числовой TG id, нет @username">tg ${escHtml(u)}</span>`
+    : `<span style="color:var(--muted)">контакт уточнить</span>`;
+}
+
 function renderVendor(v) {
   const watchedClass = v.client_watched ? 'watched-yes' : 'watched-no';
   const watchedText = v.client_watched ? '👁 посмотрел' : 'не смотрел';
@@ -308,7 +328,7 @@ function renderVendor(v) {
     : `<span style="color:var(--muted);font-size:11px">нет промо</span>`;
   return `<div class="vendor-card">
     <div class="name">${escHtml(v.name || '—')}</div>
-    <div class="username hover-trigger">@${escHtml(v.username)}
+    <div class="username hover-trigger">${vendorHandleHtml(v)}
       ${renderConvPopup([{out:false,text:v.last_msg_preview||'(тыка для подгрузки)',date:v.last_contact||''}],
                        'переписка с подрядчиком')}
     </div>
@@ -478,7 +498,7 @@ function renderRosterVendor(v) {
   const notesShort = (v.notes || '').slice(0, 140) + ((v.notes || '').length > 140 ? '…' : '');
   return `<div class="roster-vendor">
     <div class="v-name">${escHtml(v.name || '—')}</div>
-    <div class="v-user">@${escHtml(v.username)}${v.geo && v.geo !== 'уточнить' ? `<span style="color:var(--muted);margin-left:8px">📍 ${escHtml(v.geo)}</span>` : ''}</div>
+    <div class="v-user">${vendorHandleHtml(v)}${v.geo && v.geo !== 'уточнить' ? `<span style="color:var(--muted);margin-left:8px">📍 ${escHtml(v.geo)}</span>` : ''}</div>
     ${v.rate_quote ? `<div class="v-rate">💰 ${escHtml(v.rate_quote)}</div>` : ''}
     ${promoHtml}
     ${mediaHtml}
