@@ -126,6 +126,20 @@
       white-space: nowrap;
     }
     .theme-header-btn:hover { filter: brightness(1.08); }
+    /* Light theme: текст максимально контрастный — чистый чёрный.
+       --text/--fg/--muted ранее наследовали тёмные значения и в light-режиме
+       выглядели низкоконтрастными (бледно-серый на белом). user rule 13.06. */
+    html[data-theme="light"] {
+      --text:  #000000;
+      --fg:    #000000;
+      --muted: #1a1a1a;
+    }
+    html[data-theme="light"] body,
+    html[data-theme="light"] .funnel-expand-title,
+    html[data-theme="light"] .funnel-lead-name,
+    html[data-theme="light"] .funnel-branch-chip-num {
+      color: #000000;
+    }
     html[data-theme="light"] .header {
       background: #ffffff;
       border-bottom-color: #e5e5e7;
