@@ -272,8 +272,8 @@
         logic:['direct WA Desktop queue только при LCB_FOLLOWUP_DIRECT_SEND=1','default output = pending_approvals viewer_only','protected skip для paid/confirmed/musician/contractor/vendor','limit 5 per run','ai_review_before_send перед queue','не отправляет сам','бан-risk ограничен отдельными cap'],
       },
       {
-        group:'dm', name:'WA Follow-up Queue', label:'wa_followup_adapter.py',
-        file:'wa_followup_adapter.py', schedule:'hourly / launchd',
+        group:'dm', name:'WA Follow-up Queue', label:'com.lcband.wa-followup',
+        file:'wa_followup_adapter.py', schedule:'каждый час',
         why:'Дожимает затихшие WA-лиды через общий follow-up engine, но не отправляет без approval.',
         input:'active WA orders + orders.db.message_events', action:'follow-up eligibility + single-draft + presend', output:'wa_computer_use_queue.json pending_approval',
         logic:['общий followup_orchestrator решает eligibility','lcb_writer.compose_followup генерит wording','ai_review_before_send перед queue','pending_approval не уходит в auto-send','wa_cu_agent approve переводит в queued','state/backoff защищает от duplicate-loop','cap 3/day и 1/contact/72h'],
