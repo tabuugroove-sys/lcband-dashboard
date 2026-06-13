@@ -358,6 +358,20 @@
         input:'drum brief state', action:'follow-up director', output:'director response / status',
         logic:['короткий binary brief','без контактов клиента','обновляет drum decision state'],
       },
+      {
+        group:'broker', name:'Broker Public Casting', label:'com.lcband.broker-public-casting',
+        file:'broker_public_casting_agent.py run', schedule:'каждые 10 мин',
+        why:'Публичные TG casting-посты: превращает адекватные отклики в broker candidates вместо ручного workaround.',
+        input:'public TG casting posts + replies', action:'watch posts → AI-фильтр откликов → broker candidate', output:'broker candidates / broker pipeline ownership',
+        logic:['public-chat counterpart к broker_sourcing_agent','broker pipeline владеет replies/pricing/promo/relay','env LCB_BROKER_PUBLIC_CASTING=1','max watch age 14 дней (LCB_PUBLIC_CASTING_MAX_AGE_DAYS)','session lock-aware на tg_session.session'],
+      },
+      {
+        group:'broker', name:'Broker Sourcing', label:'com.lcband.broker-sourcing',
+        file:'broker_sourcing_agent.py', schedule:'каждые 4 часа',
+        why:'Ловит вербовку внешнего подрядчика под клиентский гиг и уводит close-follow-up на КЛИЕНТСКУЮ сторону через broker pipeline.',
+        input:'свежие исходящие TG-DM Миши', action:'AI-судья «вербовка под клиентский заказ?» + подбор клиентского ордера → approval bot', output:'approval-bot карточка (bsrc:) → broker_order link на ✅',
+        logic:['kill-switch env LCB_BROKER_SOURCING (default OFF, RunAtLoad false)','детект — Opus, не semantic regex; механический парсинг только hint','финальный link подрядчик↔клиент подтверждает человек в боте','на ✅ bot_commander создаёт/линкует broker_order','close-follow-up ведёт КЛИЕНТА (tg_followup/DM-writer broker-mode)','инцидент pasha_eliseev: вербовка переразметила подрядчика в organizer'],
+      },
 
       {
         group:'events', name:'Event Watcher', label:'com.lcband.event-watcher',
@@ -426,6 +440,34 @@
         input:'todo state', action:'build reminders', output:'reminder log/bot',
         logic:['не customer-facing pipeline','закрывает operational follow-ups','ежедневный cadence'],
       },
+      {
+        group:'events', name:'Event Calendar Sync', label:'com.lcband.calendar-sync',
+        file:'event_calendar_sync.py --push', schedule:'каждые 30 мин',
+        why:'Оплаченное/подтверждённое событие само попадает в рабочий Google Calendar с правильным составом, без ручного заведения карточки.',
+        input:'orders.db paid/post-event statuses + lcb_orders.json confirmed events', action:'детект отсутствующих в календаре событий + resolve состава + push', output:'Google Calendar события / calendar_sync_plan.json fallback',
+        logic:['сигнал «оплачено/подтверждено» из структурных CRM/SSoT полей, не regex по смыслу','состав через resolve_production_lineup (Opus судит кто реально подтверждён)','--push пишет через service_account; без API → план в calendar_sync_plan.json','dedup против уже заведённых событий календаря','не пишет клиентам'],
+      },
+      {
+        group:'events', name:'Contract Autogenerate', label:'com.lcband.contract-autogenerate',
+        file:'contracts/contract_autogenerate.py --limit 5', schedule:'каждые 5 мин',
+        why:'Готовит черновики договоров для events, дошедших до contract setup — для внутреннего ревью, не для клиента.',
+        input:'lcb_orders.json event state', action:'генерит DOCX-драфт договора по шаблону', output:'contracts/generated/*.docx + Drive + notify',
+        logic:['lcb_orders.json = read source event state','сгенерированные DOCX — драфты для внутреннего ревью, не client send','contract_autogenerate_state.json = только idempotency ledger','--limit 5 за прогон','не отправляет клиенту'],
+      },
+      {
+        group:'events', name:'Costume Collector', label:'com.lcband.costume-collector',
+        file:'event_costume_collector.py run --send', schedule:'каждые 10 мин',
+        why:'Реагирует на нового вокалиста на подтверждённом событии и собирает костюм-папку под аппрув клиента.',
+        input:'confirmed events + new vocalist signal (lineup change)', action:'просит у нового вокалиста 2-3 сценических образа + собирает per-event папку', output:'event_costumes/<event_id>/<username>/ + approval bot bundle',
+        logic:['триггер — любой новый вокалист на confirmed событии, решает resolve_production_lineup (Opus), не regex','default DRY-RUN; live send требует --send И env LCB_COSTUME_COLLECTOR=1','сообщения вокалистам через event_ops presend (no budget/finance)','клиентский bundle только через approval bot, никогда auto-send','event_ops_bot.py импортирует READ-ONLY, не редактирует'],
+      },
+      {
+        group:'events', name:'Event Ops Group Approval', label:'com.lcband.event-ops-group-approval',
+        file:'event_ops_bot.py propose-pending-groups', schedule:'каждые 5 часов',
+        why:'Постит musician-facing апдейты в event-группу без бюджетов и опрашивает организатора по недостающей логистике.',
+        input:'event_planning.json + pending event groups', action:'propose group update + ask organizer logistics', output:'event-group message / organizer logistics запрос + event_ops_log',
+        logic:['musician-facing updates без бюджета','спрашивает организатора про parking / tech contact','логирует отправленное для аудита','organizer send window 10-21 MSK','групповые апдейты с командой идут через approval'],
+      },
 
       {
         group:'funnel', name:'Conv Cache Sync + Funnel Keeper', label:'com.lcband.conv-cache-sync',
@@ -491,13 +533,6 @@
         why:'Суточный аудит post-by-post: доказывает, что monitor/walk не пропустили валидный лид.',
         input:'event chats + orders.db + session_actions', action:'compare monitor vs walk', output:'morning_reconciliation_result.json + alert',
         logic:['обходит 24 часа','классифицирует missed candidates','alert если missed >= 1'],
-      },
-      {
-        group:'funnel', name:'Sheets to DB Sync', label:'com.lcband.sheets-to-db-sync',
-        file:'sheets_to_db_sync.py', schedule:'каждую минуту',
-        why:'Держит Google Sheet backup и orders.db согласованными без чтения Sheet как SSoT.',
-        input:'Sheet changes + orders.db', action:'sync deltas', output:'orders.db / sheet backup alignment',
-        logic:['orders.db остаётся SSoT','подхватывает ручные Sheet правки','не должен быть бизнес-логикой'],
       },
       {
         group:'funnel', name:'Dashboard Sync', label:'com.lcband.dashboard-sync',
@@ -604,6 +639,13 @@
         why:'Повторно проверяет VK диалоги/лиды, которые раньше были неуверенно классифицированы.',
         input:'VK unclear state', action:'reclassify with fresher context', output:'updated decision/state',
         logic:['не оставляет unclear навсегда','автономный recheck','не требует ручного разбора'],
+      },
+      {
+        group:'infra', name:'VPS Sync', label:'com.lcband.vps-sync',
+        file:'sync_to_vps.sh', schedule:'каждые 5 мин',
+        why:'Реплицирует state + код Mac→VPS, чтобы VPS-копия dashboard/бэкенда была свежей.',
+        input:'orders.db + key JSON state + code files (*.py, configs, dashboard/, scripts/, skills/, *.md)', action:'scp state + incremental code sync', output:'VPS C:/lcband-dashboard зеркало',
+        logic:['JSON state всегда full scp','orders.db через .new + swap (stop/restart dashboard backend), только при изменении mtime','код инкрементально tar+ssh по marker (newer than last sync)','исключает sessions/secrets/.env/service_account.json/logs/тяжёлые media','set -u, partial failures OK — лог и продолжаем'],
       },
     ];
 
