@@ -10656,6 +10656,7 @@ function App() {
   const [showTGModal, setShowTGModal] = useState(false);
   const [showProcess, setShowProcess] = useState(null);
   const [showScriptsMenu, setShowScriptsMenu] = useState(false);
+  const scriptsBtnRef = React.useRef(null);
   const [chatTarget, setChatTarget] = useState(null);
   const [aiTags, setAiTags] = useState({});
   const [aiLoading, setAiLoading] = useState(false);
@@ -10976,6 +10977,7 @@ function App() {
             </a>
             <div style={{position:'relative', display:'inline-flex'}}>
               <button
+                ref={scriptsBtnRef}
                 type="button"
                 onClick={() => setShowScriptsMenu(v => !v)}
                 onBlur={() => setTimeout(() => setShowScriptsMenu(false), 140)}
@@ -10985,8 +10987,16 @@ function App() {
                 title="Карта всех launchd-скриптов: зачем нужен каждый процесс и что он делает">
                 <span>🗺️</span><span>Скрипты</span><span style={{fontSize:10, color:'#94a3b8'}}>▾</span>
               </button>
-              {showScriptsMenu && (
-                <div style={{position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:1000, minWidth:220,
+              {showScriptsMenu && (() => {
+                // .header-nav has overflow-x:auto, which also clips vertically — an absolute
+                // dropdown would render invisibly under the nav. Anchor it as position:fixed to
+                // the button's viewport rect so it escapes the overflow container.
+                const r = scriptsBtnRef.current && scriptsBtnRef.current.getBoundingClientRect();
+                return (
+                <div style={{position:'fixed',
+                             top: r ? r.bottom + 6 : 56,
+                             right: r ? Math.max(8, window.innerWidth - r.right) : 8,
+                             zIndex:1000, minWidth:220,
                              background:'rgba(13,17,23,.98)', border:'1px solid rgba(94,234,212,.32)',
                              borderRadius:8, padding:6, boxShadow:'0 18px 48px rgba(0,0,0,.45)'}}>
                   {[
@@ -11006,7 +11016,8 @@ function App() {
                     </a>
                   ))}
                 </div>
-              )}
+                );
+              })()}
             </div>
             <a href="./broker.html"
                style={{padding:'8px 12px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none',
