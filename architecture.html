@@ -412,7 +412,7 @@
             <div class="writer lcb"><div class="wn">LCB writer</div><div class="wf">lcb_writer.py</div><div id="lcb-modes"></div></div>
             <div class="writer broker"><div class="wn">Broker writer</div><div class="wf">broker_dialog_agent</div><div id="broker-modes"></div></div>
           </div>
-          <div class="owner-note">После L3 → pre-send review (<code class="src-code">_presend_review_result</code> → <code class="src-code">ai_review_before_send</code>): strip contacts + price/payment policy. Посты и DM считаются раздельно.</div>
+          <div class="owner-note">После L3 → pre-send review (<code class="src-code">_presend_review_result</code> → <code class="src-code">ai_review_before_send</code>): strip contacts + price/payment policy без keyword payment-gate. Посты и DM считаются раздельно.</div>
         </div>
       </div>
     </div>
@@ -567,7 +567,7 @@
       {t:'Сборка контекста', a:'agent_context.get_agent_context()', f:'unified_dm_responder.py:820', kind:'in', r:['MEV','ORD','EG','CTX','LCB','BRO'], wr:[], note:'LIVE единый read-вход (refresh_lead_context=False — без AI на чтении). Даёт messages + order + event_card + promises. Раньше был «shadow» — теперь кормит writer напрямую.'},
       {t:'Классификация воронки', a:'smart_funnel.classify_unified()', f:'smart_funnel.py:416', kind:'ai', r:[], wr:['TEL'], note:'AI 2.0 — ОДИН Opus call (6 шагов: кто/инициатор/паттерн/что сказал/brand-guard/консерватизм). Не L1→L2→L3 chain. Fallback CATEGORY_STATUS dict при Opus fail.'},
       {t:'Выбор режима + текст', a:'lcb_writer (modes 1-6)', f:'lcb_writer.py', kind:'ai', r:['LCB','CTX'], wr:[], note:'Writer mode по стадии: intake/sales/contract/production/event_day/content. Текст — Opus, без hardcoded-шаблонов. Цены — из price_canon.'},
-      {t:'Pre-send review', a:'_presend_review_result → ai_review_before_send', f:'unified_dm_responder.py:4987', kind:'gate', r:[], wr:[], note:'Гейт: money/payment HARD-BLOCK (price_canon), strip contacts, duplicate guard, refusal-closure разрешён. Repairable block → переписать и перепроверить.'},
+      {t:'Pre-send review', a:'_presend_review_result → ai_review_before_send', f:'unified_dm_responder.py:4987', kind:'gate', r:[], wr:[], note:'Гейт: money/payment через AI presend (без keyword payment-gate), price_canon, strip contacts, duplicate guard, refusal-closure разрешён. Repairable block → переписать и перепроверить.'},
       {t:'Развилка отправки', a:'routing verdict', f:'unified_dm_responder.py', kind:'branch', r:[], wr:['APPR'], note:'money и ОПЛАТИЛА/paid bucket → ТОЛЬКО approval-bot (pending_approvals.json), AI не шлёт напрямую. spam/refusal/musician → skip. Иначе → auto-send.'},
       {t:'Отправка', a:'send → TG', f:'Telethon send_message', kind:'send', r:[], wr:[], note:'Один клик/один send, freshness re-read последних 20 сообщений, anti-flood. Клиент видит ответ.'},
       {t:'Post-send writeback', a:'outbound_recorder.record_outbound()', f:'outbound_recorder.py:316', kind:'write', r:[], wr:['CONV','MEV','CTX','EG','LCB'], note:'3 стадии: _record_to_cache (cache + message_event_log) → _enrich_card (enrich force) → _extract_promises (promise_extractor → eg_promises) → _refresh_lcb_orders.'},
