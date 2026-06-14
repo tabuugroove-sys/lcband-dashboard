@@ -934,13 +934,16 @@
       const sal = Number(e.salary) || 0;
       const salCls = sal > 0 ? 'pos' : (sal < 0 ? 'neg' : '');
       const bonus = Number(e.sale_bonus) || 0;
+      const manualFine = Number(e.manual_penalty) || 0;
       const salTitle = `зарплата = награда ${e.reward} (отправки ${e.sends}×${100})` +
-        (bonus ? ` + 🏆 сделка ${bonus}` : '') + ` − штраф ${e.penalty} (ручное ×3 · presend ×0.2 · fail ×0.5)`;
+        (bonus ? ` + сделка ${bonus}` : '') +
+        ` − штраф ${e.penalty} (ручное ×3 · presend ×0.2 · fail ×0.5` +
+        (manualFine ? ` · incident ${manualFine}` : '') + `)`;
       return `<div class="effrow">
         <span class="em"><b>${fmtTok(e.tokens)}</b> ток</span>
         <span class="em">${Number(e.calls) || 0} выз.</span>
         <span class="em" title="presend-блоки + codex/vk fail + ручные правки">брак <b>${Number(e.waste) || 0}</b>${budg}</span>
-        <span class="estab" style="color:${sc};border-color:${sc}55" title="good=${e.good} (отправки ${e.sends} + прошли presend ${e.presend_ok}); штраф: ручное ×3, presend ×1, fail ×0.5">Стабильность ${stTxt}</span>
+        <span class="estab" style="color:${sc};border-color:${sc}55" title="good=${e.good} (отправки ${e.sends} + прошли presend ${e.presend_ok}); штраф: ручное ×3, presend ×1, fail ×0.5, incident manual">Стабильность ${stTxt}</span>
       </div>
       ${(Number(e.tokens) || 0) > 0 ? miniSpark(e.series) : ''}
       <div class="effrow salrow" title="${esc(salTitle)}">
