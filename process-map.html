@@ -934,11 +934,14 @@
       const sal = Number(e.salary) || 0;
       const salCls = sal > 0 ? 'pos' : (sal < 0 ? 'neg' : '');
       const bonus = Number(e.sale_bonus) || 0;
+      const speed = Number(e.speed_bonus) || 0;
       const manualFine = Number(e.manual_penalty) || 0;
+      const avgMin = e.speed_bonus_avg_min == null ? '—' : `${e.speed_bonus_avg_min} мин`;
       const salTitle = `зарплата = награда ${e.reward} (отправки ${e.sends}×${100})` +
+        (speed ? ` + скорость ${speed} (${e.speed_bonus_count || 0} быстрых, среднее ${avgMin})` : '') +
         (bonus ? ` + сделка ${bonus}` : '') +
         ` − штраф ${e.penalty} (ручное ×3 · presend ×0.2 · fail ×0.5` +
-        (manualFine ? ` · incident ${manualFine}` : '') + `)`;
+        (manualFine ? ` · incident/bad КП ${manualFine}` : '') + `)`;
       return `<div class="effrow">
         <span class="em"><b>${fmtTok(e.tokens)}</b> ток</span>
         <span class="em">${Number(e.calls) || 0} выз.</span>
@@ -949,6 +952,7 @@
       <div class="effrow salrow" title="${esc(salTitle)}">
         <span class="sal ${salCls}">💰 ЗП ${fmtSal(sal)}</span>
         <span class="em">награда ${fmtTok(e.reward)}</span>
+        ${speed ? `<span class="salbonus">скорость +${fmtTok(speed)}</span>` : ''}
         ${bonus ? `<span class="salbonus">🏆 сделка +${fmtTok(bonus)}${e.sale_credits > 1 ? ' ×' + e.sale_credits : ''}</span>` : ''}
         <span class="em">штраф −${fmtTok(e.penalty)}</span>
       </div>`;
