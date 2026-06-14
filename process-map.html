@@ -935,6 +935,8 @@
       const salCls = sal > 0 ? 'pos' : (sal < 0 ? 'neg' : '');
       const bonus = Number(e.sale_bonus) || 0;
       const speed = Number(e.speed_bonus) || 0;
+      const fuBonus = Number(e.followup_send_bonus) || 0;
+      const fuNoSend = Number(e.followup_no_send_penalty) || 0;
       const kpSpeed = Number(e.kp_speed_bonus) || 0;
       const kpStale = Number(e.kp_stale_penalty) || 0;
       const manualFine = Number(e.manual_penalty) || 0;
@@ -942,9 +944,11 @@
       const kpAvgMin = e.kp_speed_bonus_avg_min == null ? '—' : `${e.kp_speed_bonus_avg_min} мин`;
       const salTitle = `зарплата = награда ${e.reward} (отправки ${e.sends}×${100})` +
         (speed ? ` + скорость ${speed} (${e.speed_bonus_count || 0} быстрых, среднее ${avgMin})` : '') +
+        (fuBonus ? ` + follow-up sent ${fuBonus} (${e.followup_send_bonus_count || 0})` : '') +
         (kpSpeed ? ` + КП быстро ${kpSpeed} (${e.kp_speed_bonus_count || 0}, среднее ${kpAvgMin})` : '') +
         (bonus ? ` + сделка ${bonus}` : '') +
         ` − штраф ${e.penalty} (ручное ×3 · presend ×0.2 · fail ×0.5` +
+        (fuNoSend ? ` · follow-up не ушел ${fuNoSend} (${e.followup_no_send_count || 0})` : '') +
         (kpStale ? ` · КП поздно ${kpStale} (${e.active_broker_without_kp || 0} live без КП)` : '') +
         (manualFine ? ` · incident/bad КП ${manualFine}` : '') + `)`;
       return `<div class="effrow">
@@ -958,8 +962,10 @@
         <span class="sal ${salCls}">💰 ЗП ${fmtSal(sal)}</span>
         <span class="em">награда ${fmtTok(e.reward)}</span>
         ${speed ? `<span class="salbonus">скорость +${fmtTok(speed)}</span>` : ''}
+        ${fuBonus ? `<span class="salbonus">follow-up +${fmtTok(fuBonus)}</span>` : ''}
         ${kpSpeed ? `<span class="salbonus">КП быстро +${fmtTok(kpSpeed)}</span>` : ''}
         ${bonus ? `<span class="salbonus">🏆 сделка +${fmtTok(bonus)}${e.sale_credits > 1 ? ' ×' + e.sale_credits : ''}</span>` : ''}
+        ${fuNoSend ? `<span class="em">follow-up не ушел −${fmtTok(fuNoSend)}</span>` : ''}
         ${kpStale ? `<span class="em">КП поздно −${fmtTok(kpStale)}</span>` : ''}
         <span class="em">штраф −${fmtTok(e.penalty)}</span>
       </div>`;

@@ -9388,27 +9388,24 @@ function CartotekaSection({ data }) {
 
 function LeadContextAuditPanel({ backendUrl }) {
   const [audit, setAudit] = useState(null);
-  const [hoveredOrder, setHoveredOrder] = useState(null);
-  const auditBackend = backendUrl || (location.port === "8878" ? "" : "http://127.0.0.1:8878");
   React.useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
-        const r = await fetch(`${auditBackend}/api/lead_context_audit?attention=1`, { cache: "no-store" });
+        const r = await fetch(`${backendUrl}/api/lead_context_audit?attention=1`, { cache: "no-store" });
         if (!r.ok) return;
         const j = await r.json();
         if (!cancelled) setAudit(j);
       } catch (e) { /* offline */ }
     };
-    load();
-    const t = setInterval(load, 120000);
+    if (backendUrl) load();
+    const t = setInterval(() => { if (backendUrl) load(); }, 120000);
     return () => { cancelled = true; clearInterval(t); };
-  }, [auditBackend]);
+  }, [backendUrl]);
 
   if (!audit || !audit.available) return null;
   const s = audit.summary || {};
   const orders = audit.orders || [];
-  const hoverMessages = hoveredOrder?.recent_messages || [];
 
   const issueOf = (o) => {
     const f = o.funnel || {};
@@ -9423,19 +9420,8 @@ function LeadContextAuditPanel({ backendUrl }) {
     return { tag: "", text: "", color: "#888" };
   };
 
-	  const fmtAuditTs = (ts) => {
-	    if (!ts) return "";
-	    return String(ts).slice(5, 16).replace("T", " ");
-	  };
-
-	  const fmtAuditDays = (value) => {
-	    if (value === null || value === undefined || value === "") return "—";
-	    const n = Number(value);
-	    return Number.isFinite(n) ? `${n.toFixed(n >= 10 ? 0 : 1)}д` : String(value);
-	  };
-
   return (
-    <div className="section" style={{ marginTop: 8, position: "relative" }} onMouseLeave={() => setHoveredOrder(null)}>
+    <div className="section" style={{ marginTop: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
         <h3 style={{ margin: 0 }}>🔎 Аудит лидов (8ч)</h3>
         <span style={{ fontSize: 12, color: "var(--muted, #888)" }}>
@@ -9451,83 +9437,19 @@ function LeadContextAuditPanel({ backendUrl }) {
         <span>требуют внимания: <b>{s.needs_attention || 0}</b> из {s.orders || 0}</span>
       </div>
       <div style={{ maxHeight: 360, overflowY: "auto" }}>
-	        {orders.map((o, i) => {
-	          const iss = issueOf(o);
-	          const crm = o.crm_table || {};
-	          const ctx = o.audit_context || {};
-	          return (
-	            <div
-	              key={i}
-	              data-lead-audit-row={o.username}
-	              onMouseEnter={() => setHoveredOrder(o)}
-	              onMouseOver={() => setHoveredOrder(o)}
-	              onPointerEnter={() => setHoveredOrder(o)}
-	              onClick={() => setHoveredOrder(o)}
-	              style={{ display: "flex", gap: 8, rowGap: 3, flexWrap: "wrap", padding: "5px 0", borderBottom: "1px solid var(--border, #2a2a2a)", fontSize: 13, cursor: "default" }}
-	            >
+        {orders.map((o, i) => {
+          const iss = issueOf(o);
+          return (
+            <div key={i} style={{ display: "flex", gap: 8, padding: "5px 0", borderBottom: "1px solid var(--border, #2a2a2a)", fontSize: 13 }}>
               <span style={{ minWidth: 150, fontWeight: 600 }}>@{o.username}</span>
               <span style={{ minWidth: 92, color: "var(--muted, #999)" }}>{o.status || "—"}</span>
-	              <span style={{ minWidth: 190, color: "var(--muted, #999)" }}>
-	                B {crm.b_posted || "—"} · C {crm.c_event_date || "—"}
-	              </span>
-	              <span style={{ minWidth: 190, color: "var(--muted, #999)" }}>
-	                Дней с последнего касания: {fmtAuditDays(ctx.days_since_last_touch)}
-	              </span>
-	              <span style={{ minWidth: 150, color: "#c4b5fd" }}>
-	                Вердикт: {ctx.verdict || "—"}
-	              </span>
-		              {iss.tag ? <span style={{ minWidth: 64, color: iss.color }}>{iss.tag}</span> : null}
-		              <span style={{ flex: "1 1 260px", minWidth: 220, color: "var(--text, #ccc)" }}>{iss.text}</span>
+              {iss.tag ? <span style={{ minWidth: 64, color: iss.color }}>{iss.tag}</span> : null}
+              <span style={{ flex: 1, color: "var(--text, #ccc)" }}>{iss.text}</span>
             </div>
           );
         })}
         {orders.length === 0 ? <div style={{ fontSize: 13, color: "var(--muted, #888)" }}>всё чисто — расхождений нет</div> : null}
       </div>
-	      {hoveredOrder ? (
-	        <div data-lead-audit-hover="1" style={{
-          position: "absolute",
-          right: 10,
-          top: 72,
-          width: 430,
-          maxHeight: 330,
-          overflowY: "auto",
-          padding: 10,
-          border: "1px solid var(--border, #2a2a2a)",
-          borderRadius: 8,
-	          background: "rgba(10, 12, 20, 0.98)",
-	          boxShadow: "0 18px 45px rgba(0,0,0,0.45)",
-	          zIndex: 30,
-	          fontSize: 12,
-	          color: "#e5e7eb"
-	        }}>
-		          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-		            <b>Переписка @{hoveredOrder.username}</b>
-		            <span style={{ color: "#94a3b8" }}>{hoverMessages.length ? `последние ${hoverMessages.length}` : "нет переписки"}</span>
-		          </div>
-		          <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid rgba(148,163,184,0.18)", color: "#94a3b8" }}>
-		            <div>Дней с последнего касания: <b style={{ color: "#e5e7eb" }}>{fmtAuditDays((hoveredOrder.audit_context || {}).days_since_last_touch)}</b></div>
-		            <div>Вердикт: <b style={{ color: "#c4b5fd" }}>{(hoveredOrder.audit_context || {}).verdict || "—"}</b></div>
-		            {(hoveredOrder.audit_context || {}).verdict_reason ? (
-		              <div style={{ marginTop: 4, color: "#e5e7eb", lineHeight: 1.35 }}>
-		                {(hoveredOrder.audit_context || {}).verdict_reason}
-		              </div>
-		            ) : null}
-	          </div>
-	          {hoverMessages.length ? hoverMessages.map((m, idx) => (
-	            <div key={idx} style={{ marginBottom: 7, paddingBottom: 7, borderBottom: "1px solid rgba(148,163,184,0.18)" }}>
-	              <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8", marginBottom: 2 }}>
-	                <span>{m.direction === "out" ? "мы" : "клиент"} · {fmtAuditTs(m.ts)}</span>
-	                <span>{m.source || ""}</span>
-	              </div>
-	              <div style={{ color: "#e5e7eb", whiteSpace: "pre-wrap", lineHeight: 1.35 }}>
-	                {m.text || (m.media ? "[media]" : "—")}
-	              </div>
-	            </div>
-	          )) : (
-	            <div style={{ color: "#94a3b8" }}>В `orders.db.message_events` нет сообщений по этому контакту.</div>
-	          )}
-        </div>
-      ) : null}
     </div>
   );
 }
