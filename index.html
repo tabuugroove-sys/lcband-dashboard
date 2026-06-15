@@ -463,6 +463,7 @@
     }
     .conn-info { flex: 1; min-width: 0; }
     .conn-label { font-size: 13px; font-weight: 600; }
+    .conn-purpose { font-size: 11px; color: var(--muted); margin-top: 1px; line-height: 1.25; }
     .conn-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
     .conn-extra {
       flex-basis: 100%;
@@ -2055,7 +2056,7 @@ function ConnectionReconnectButton({ labels, title, backendUrl, onAfterReconnect
   );
 }
 
-function ConnectionRow({ title, status, reason, lastCheck, compact, reconnect, backendUrl, onAfterReconnect, inlineQr }) {
+function ConnectionRow({ title, purpose, status, reason, lastCheck, compact, reconnect, backendUrl, onAfterReconnect, inlineQr }) {
   const [waInlinePayload, setWaInlinePayload] = React.useState(null);
   const st = status || 'unknown';
   const dotCls = st === 'ok' ? 'conn-dot-ok' : st === 'error' ? 'conn-dot-err' : st === 'degraded' ? 'conn-dot-deg' : 'conn-dot-unk';
@@ -2083,6 +2084,7 @@ function ConnectionRow({ title, status, reason, lastCheck, compact, reconnect, b
         <div style={{fontSize:11,color:'var(--muted)',fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,marginBottom:2}}>
           {title}
         </div>
+        {purpose && <div className="conn-purpose">{purpose}</div>}
         <div className="conn-label" style={{color: labelColor}}>{label}</div>
         {reason && (
           <div style={{fontSize:12,color:accountColor,marginTop:2,fontWeight:500}}>
@@ -2147,6 +2149,7 @@ function ConnectionStatus({ connection, vkConnection, waConnection, backendUrl, 
           <ConnectionRow
             compact
             title="TG payment events"
+            purpose="Платежи · обещания · drum"
             status={connection.paymentEvents.status}
             reason={connection.paymentEvents.reason}
             lastCheck={connection?.lastCheck}
@@ -2159,6 +2162,7 @@ function ConnectionStatus({ connection, vkConnection, waConnection, backendUrl, 
           <ConnectionRow
             compact
             title="TG follow-up session"
+            purpose="Follow-up клиентам"
             status={connection.followup.status}
             reason={connection.followup.reason}
             lastCheck={connection?.lastCheck}
