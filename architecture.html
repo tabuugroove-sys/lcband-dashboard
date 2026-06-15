@@ -574,7 +574,7 @@
       {t:'Bump активности', a:'orders_db.touch_activity()', f:'orders_db.py', kind:'write', r:[], wr:['ORD'], note:'Realtime owner обязан бампнуть last_activity, иначе follow-up меряет тишину от устаревшей даты.'},
     ]},
     {id:'post', ic:'📢', title:'Пост в event-чате (cold lead)', steps:[
-      {t:'NewMessage в event-чате', a:'tg_realtime_monitor → telegram_monitor.scan_cycle', f:'telegram_monitor.py', kind:'in', r:['SEEN'], wr:['SEEN'], note:'Cursor heartbeat по 18+ чатам. Cross-dedup через tg_seen_posts.jsonl, чтобы не обработать пост дважды.'},
+      {t:'NewMessage в event-чате', a:'tg_realtime_monitor → telegram_monitor.scan_cycle', f:'telegram_monitor.py', kind:'in', r:['SEEN'], wr:['SEEN'], note:'Cursor heartbeat по всем рабочим event-чатам из CHATS. @eventchatrussia, @event_area и «ЗАКАЗЫ Каверы и Музыканты» мониторятся; запрет PUBLIC_POSTING_DENY_CHAT_IDS касается только публикации наших sourcing/casting постов.'},
       {t:'Ingest-классификатор (цепочка)', a:'ai_classify_chain.classify_ingest_post()', f:'ai_classify_chain.py:775', kind:'ai', r:['AIC'], wr:['AIC','TEL'], note:'Здесь действительно цепочка: L1 Gemini Flash (conf≥0.92) → L2 Sonnet → L3 Sonnet-arbiter. Cache 14d TTL по hash текста. Verdict: music_band / drum / solo / abstract / broker_request / skip.'},
       {t:'Развилка по вердикту', a:'verdict routing', f:'telegram_monitor.py', kind:'branch', r:[], wr:[], note:'skip → mark-read (только после реального чтения). broker_request → Broker contour. music_band/drum/solo → cold pitch path.'},
       {t:'Создать/дедупнуть CRM-строку', a:'orders_db (bridge)', f:'orders_db_bridge.py', kind:'write', r:['ORD'], wr:['ORD'], note:'Перед cold-send создаётся/дедупится orders.db row. CRM — единственный SSoT воронки.'},
