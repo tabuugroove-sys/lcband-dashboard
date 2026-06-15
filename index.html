@@ -1454,11 +1454,12 @@ const PROCESS_RULES = {
   proc_payment_handler: {
     name: 'Payment Event Handler',
     interval: 'Attached to TG Realtime Monitor',
-    desc: 'Payment/promise/drum logic attached to the single TG realtime Telethon client',
+    desc: 'Payment/promise handling + contractor relay on the single TG realtime Telethon client',
     rules: [
       'Слушает private incoming/outgoing через tg_realtime_monitor.py на tg_session_monitor',
       'Catch-up replay при старте по per-peer cursor закрывает downtime gaps',
-      'Payment/promise/drum logic остаётся здесь, общий tg_responder это не дублирует',
+      'Payment/promise logic и relay ответов подрядчиков остаются здесь, общий tg_responder это не дублирует',
+      'drum_show остаётся обычным broker service_type/vendor route; не отдельный payment-owner',
       'Клиентские платёжки/PDF: document_classifier извлекает сумму платёжного поручения, handler пишет поступление и остаток в event_planning.json',
       'Kirill EDO invoice-loaded: active/reminded/escalated request state → AI/context verdict → pending approval, без semantic regex gate и без auto-send клиенту',
       'Heartbeat state: payment_event_handler_heartbeat.json; watchdog следит через realtime-gateway',
@@ -2149,7 +2150,7 @@ function ConnectionStatus({ connection, vkConnection, waConnection, backendUrl, 
           <ConnectionRow
             compact
             title="TG payment events"
-            purpose="Платежи · обещания · drum"
+            purpose="Платежи · обещания"
             status={connection.paymentEvents.status}
             reason={connection.paymentEvents.reason}
             lastCheck={connection?.lastCheck}
