@@ -1458,7 +1458,7 @@ const PROCESS_RULES = {
       'Слушает private incoming/outgoing через tg_realtime_monitor.py на tg_session_monitor',
       'Catch-up replay при старте по per-peer cursor закрывает downtime gaps',
       'Payment/promise/drum logic остаётся здесь, общий tg_responder это не дублирует',
-      'Клиентские платёжки/PDF: payment_vision извлекает сумму платёжного поручения, handler пишет поступление и остаток в event_planning.json',
+      'Клиентские платёжки/PDF: document_classifier извлекает сумму платёжного поручения, handler пишет поступление и остаток в event_planning.json',
       'Kirill EDO invoice-loaded: active/reminded/escalated request state → AI/context verdict → pending approval, без semantic regex gate и без auto-send клиенту',
       'Heartbeat state: payment_event_handler_heartbeat.json; watchdog следит через realtime-gateway',
       'Код: payment_event_handler.py | runtime log: /tmp/tg_realtime_monitor.log',
