@@ -518,7 +518,7 @@
     {id:'evops', g:'events', n:'Event Ops Logistics', f:'event_ops_logistics_agent.py', s:'10 мин', src:['SCH'], r:['LCB','MEV'], wr:['LCB','TEL'], out:['TG'], why:'Логистика/performer-coordination: lcb_event_context → performer thread с source media.'},
     {id:'evgrp', g:'events', n:'Event Ops Group Approval', f:'event_ops_bot.py propose-pending-groups', s:'5 ч', src:['SCH'], r:['EVP','MEV'], wr:['APPR'], out:['TG'], why:'Musician-facing updates в event-группу без бюджетов + опрос организатора о логистике.'},
     {id:'evenrich', g:'events', n:'Event Enrich', f:'dashboard_backend.py / unified_message_store.py', s:'on watcher + manual', src:['SCH'], r:['EVP','MEV'], wr:['EVP','ORD'], why:'Обогащает event-card из unified raw-read + sync confirmed event_date → orders.db.'},
-    {id:'evfill', g:'events', n:'Event Field Filler', f:'event_field_filler.py', s:'6 ч', src:['SCH'], r:['EVP','MEV'], wr:['EVP'], why:'Узкий дозаполнитель event-card: пустые поля + синхронизация fee/status состава из performer DM evidence без ручной правки карточки.'},
+    {id:'evfill', g:'events', n:'Event Field Filler', f:'event_field_filler.py', s:'6 ч', src:['SCH'], r:['EVP','MEV'], wr:['EVP'], why:'Узкий дозаполнитель event-card: пустые поля + event-scoped состав из performer DM evidence; core unavailable снимает строку, passport follow-up фиксирует участника, барабанщики-кандидаты идут в Кастинг.'},
     {id:'evaudit', g:'events', n:'Event Daily Audit', f:'event_daily_audit.py', s:'daily 06:00', src:['SCH'], r:['EVP'], wr:['TEL'], why:'Суточная проверка оплаченных events: пробелы данных / риск подготовки.'},
     {id:'calsync', g:'events', n:'Calendar Sync', f:'event_calendar_sync.py --push', s:'30 мин', src:['SCH'], r:['ORD','LCB'], wr:['CAL'], why:'Paid/confirmed events → Google Calendar с правильным составом.'},
     {id:'contract', g:'events', n:'Contract Autogenerate', f:'contracts/contract_autogenerate.py', s:'5 мин', src:['SCH'], r:['ORD','LCB'], wr:['APPR','TEL'], why:'Драфты договоров для events на стадии contract; для внутреннего ревью, не client-send.'},
@@ -652,7 +652,7 @@
       ['channel caps','TG anti-flood, VK drain/rate, WA direct только в явном окне'],
       ['visible action','TG direct/fallback, VK verified send, WA queue/native Desktop approval'],
       ['post-send writeback','outbound_recorder/message_events + context refresh + promise extraction'],
-      ['event performer links','event_ops_bot recruit send → message_events + eg_event_threads → event_field_filler reducer → event_planning/calendar'],
+      ['event performer links','event_ops_bot recruit send / direct date-scoped performer DM → message_events + eg_event_threads → event_field_filler reducer → Состав or Кастинг → event_planning/calendar'],
       ['loop guard','CLI no-output streak, daily budgets, follow-up state/source_key dedupe'],
     ]},
   ];
