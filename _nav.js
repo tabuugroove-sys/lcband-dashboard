@@ -15,6 +15,7 @@
     { href: 'cost.html',            emoji: '💸', label: 'Расход',     color: 'cost' },
     { href: 'context_cards.html',   emoji: '🗂', label: 'Картотека',  color: 'cards' },
     { href: 'architecture.html',    emoji: '🗺️', label: 'Архитектура', color: 'arch' },
+    { href: 'agents-office.html',   emoji: '🏢', label: 'Офис',       color: 'arch' },
   ];
 
   var STYLE_ID = 'lcb-nav-style';

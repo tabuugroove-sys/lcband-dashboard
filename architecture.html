@@ -101,6 +101,10 @@
 
     /* ── Tabs ── */
     .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 20px; }
+    .office-entry { display: block; margin: 0 0 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb,var(--violet) 30%,var(--border)); border-radius: 8px; background: color-mix(in srgb,var(--violet) 10%,transparent); color: var(--text); text-decoration: none; }
+    .office-entry:hover { border-color: color-mix(in srgb,var(--violet) 55%,var(--border)); text-decoration: none; }
+    .office-entry b { color: var(--violet); }
+    .office-entry span { display: block; margin-top: 4px; color: var(--muted); font-size: 12.5px; }
     .tab {
       padding: 9px 15px; border-radius: 10px; border: 1px solid var(--border);
       background: var(--surface); color: var(--text-2); font-size: 13.5px; font-weight: 700;
@@ -320,6 +324,11 @@
         <span class="lg"><span class="ln src"></span>источник/триггер</span>
       </div>
     </div>
+
+    <a class="office-entry" href="agents-office.html">
+      <b>🏢 Офис агентов</b>
+      <span>Иммерсивная карта агентского офиса LCBand. Страница самостоятельная, без общего auto-nav/theme layer.</span>
+    </a>
 
     <div class="tabs">
       <div class="tab active" data-tab="tracer">▶ Трассировка запроса</div>
