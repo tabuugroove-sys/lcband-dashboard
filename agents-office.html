@@ -118,6 +118,256 @@ document.addEventListener('DOMContentLoaded', async function() {
     // The manifest bytes are ours; SRI protects against CDN compromise, not this.
     template = template.replace(/\s+integrity="[^"]*"/gi, '').replace(/\s+crossorigin="[^"]*"/gi, '');
 
+    const liveOverlayScript = '<script>' + String.raw`
+(function () {
+  'use strict';
+
+  var LIVE_STYLE_ID = 'office-live-style';
+  var LIVE_PANEL_ID = 'office-live-panel';
+  var POLL_MS = 15000;
+  var backendUrl = null;
+  var lastLiveIds = [];
+
+  var AGENT_ALIASES = {
+    tgmon: ['tg_realtime_monitor', 'realtime-gateway', 'telegram_monitor', 'tg-monitor'],
+    vkmon: ['vk_monitor', 'vk-monitor'],
+    igstory: ['ig_story_responder', 'ig-responder', 'instagram'],
+    findinbound: ['find_inbound_leads', 'inbound'],
+    stageclass: ['funnel_stage_classifier', 'funnel-stage-watcher', 'smart_funnel', 'attention-classify'],
+    leadctx: ['lead_context_enricher', 'lead-context-enrich'],
+    unanswered: ['unanswered_inbound_watcher', 'unanswered-inbound-watcher'],
+    promise: ['promise_extractor', 'promise'],
+    enrich: ['event_enrich', 'event-enrich'],
+    fieldfill: ['event_field_filler', 'event-field-filler'],
+    dailyaudit: ['event_daily_audit', 'daily-report', 'morning-reconciliation'],
+    contractgen: ['contract_signing', 'contract_autogenerate', 'contract'],
+    costume: ['event_costume_collector', 'costume'],
+    opsapproval: ['event_ops_bot', 'egmat', 'approval'],
+    tgresp: ['unified_dm_responder', 'tg-responder'],
+    vkresp: ['vk_auto_responder', 'vk-responder'],
+    vkfollow: ['vk_followup', 'vk-followup'],
+    waresp: ['wa_responder', 'wa-followup', 'wa_auto_sender', 'wa-baileys', 'wa-baileys-webhook'],
+    sourcing: ['broker_sourcing_agent', 'broker-sourcing'],
+    casting: ['broker_public_casting_agent', 'broker-casting', 'public-casting'],
+    dialog: ['contractor_dialog_agent', 'broker_dialog_agent', 'broker-dialog'],
+    contfollow: ['broker_contractor_followup_agent', 'contractor-followup'],
+    quality: ['broker_quality_scorer', 'quality'],
+    payment: ['payment_event_handler', 'payment-event-handler'],
+    commander: ['bot_commander', 'bot-commander'],
+    backend: ['dashboard_backend', 'dashboard-backend', 'tunnel-watcher'],
+    mariakon: ['mariakon_dance_collect', 'mariakon'],
+    unclear: ['vk_unclear_recheck', 'unclear']
+  };
+
+  function norm(v) {
+    return String(v || '').toLowerCase().replace(/^com\.lcband\./, '').replace(/\.py$/, '').replace(/_/g, '-');
+  }
+
+  function injectLiveStyles() {
+    if (document.getElementById(LIVE_STYLE_ID)) return;
+    var s = document.createElement('style');
+    s.id = LIVE_STYLE_ID;
+    s.textContent = [
+      '.station.live-active { filter: drop-shadow(0 0 14px rgba(70,224,138,.85)) brightness(1.18); animation: officeLivePulse 1.25s ease-in-out infinite; }',
+      '.station.live-warn { filter: drop-shadow(0 0 14px rgba(255,107,98,.9)) brightness(1.12); animation: officeWarnPulse 1.4s ease-in-out infinite; }',
+      '.lab.live-active .lab-title, .lab.live-active .lab-name { fill: #fff; }',
+      '.lab.live-warn .lab-title, .lab.live-warn .lab-name { fill: #ffb4ae; }',
+      '.link.live-flow { stroke: #46e08a !important; stroke-width: 3.4 !important; stroke-dasharray: 10 7 !important; filter: drop-shadow(0 0 7px rgba(70,224,138,.75)); animation: dash .55s linear infinite; }',
+      '#office-live-panel { position: fixed; right: 22px; top: 168px; z-index: 13; width: 238px; max-width: calc(100vw - 44px); background: var(--panel); border: 1px solid var(--panel-bd); border-radius: 12px; padding: 10px 12px; backdrop-filter: blur(10px); box-shadow: 0 12px 36px rgba(0,0,0,.42); font-size: 11.5px; color: var(--muted); pointer-events: none; }',
+      '#office-live-panel b { display: block; color: var(--text); font-size: 12.5px; margin-bottom: 4px; }',
+      '#office-live-panel .ok { color: #46e08a; } #office-live-panel .warn { color: #ff8a80; }',
+      '#office-live-panel .list { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 4px; }',
+      '#office-live-panel .chip { border: 1px solid rgba(148,163,184,.24); border-radius: 999px; padding: 2px 6px; color: #cdd8e8; background: rgba(255,255,255,.04); }',
+      '@keyframes officeLivePulse { 0%,100% { opacity: 1; } 50% { opacity: .72; } }',
+      '@keyframes officeWarnPulse { 0%,100% { opacity: 1; } 50% { opacity: .58; } }',
+      '@media (max-width: 760px) { #office-live-panel { display: none; } }'
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  function ensurePanel() {
+    var p = document.getElementById(LIVE_PANEL_ID);
+    if (p) return p;
+    p = document.createElement('div');
+    p.id = LIVE_PANEL_ID;
+    p.innerHTML = '<b>Live процессы</b><span>подключение...</span>';
+    document.body.appendChild(p);
+    return p;
+  }
+
+  function setPanel(state, items) {
+    var p = ensurePanel();
+    var cls = state === 'online' ? 'ok' : state === 'warn' ? 'warn' : '';
+    var title = state === 'online' ? 'анимируются сейчас' : state === 'warn' ? 'есть проблемы' : 'backend offline';
+    var chips = (items || []).slice(0, 8).map(function (x) {
+      return '<span class="chip">' + String(x).replace(/[&<>]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }) + '</span>';
+    }).join('');
+    p.innerHTML = '<b>Live процессы</b><span class="' + cls + '">' + title + '</span>' +
+      (chips ? '<div class="list">' + chips + '</div>' : '');
+  }
+
+  async function discoverBackend() {
+    if (backendUrl !== null) return backendUrl;
+    var candidates = [''];
+    try {
+      var r = await fetch('backend_url.json?ts=' + Date.now(), { cache: 'no-store' });
+      if (r.ok) {
+        var j = await r.json();
+        if (j && j.url) candidates.push(String(j.url).replace(/\/$/, ''));
+      }
+    } catch (_) {}
+    candidates.push('http://127.0.0.1:8878');
+    for (var i = 0; i < candidates.length; i++) {
+      var base = candidates[i];
+      try {
+        var resp = await fetch(base + '/api/dashboard_data?ts=' + Date.now(), { cache: 'no-store' });
+        if (resp.ok) { backendUrl = base; return backendUrl; }
+      } catch (_) {}
+    }
+    backendUrl = '';
+    return backendUrl;
+  }
+
+  function extractAgents(payload) {
+    var agents = payload && (payload.agents || (payload.data && payload.data.agents));
+    if (agents && Array.isArray(agents.items)) return agents.items;
+    if (Array.isArray(agents)) return agents;
+    if (payload && Array.isArray(payload.rows)) {
+      return payload.rows
+        .filter(function (row) { return /^agent_\d+$/.test(String(row.key || '')); })
+        .map(function (row) {
+          try {
+            var item = JSON.parse(row.value);
+            if (!item.label) item.label = row.label;
+            return item;
+          } catch (_) {
+            return { label: row.label || row.key, state: 'unknown' };
+          }
+        });
+    }
+    return [];
+  }
+
+  function itemName(item) {
+    return item && (item.name || item.label || item.agent || item.id || item.key || item.plist || item.file || item.command || '');
+  }
+
+  function itemStatus(item) {
+    return norm(item && (item.status || item.state || item.health || item.reason || item.sla || ''));
+  }
+
+  function itemSla(item) {
+    return norm(item && item.sla);
+  }
+
+  function isRunning(item) {
+    var s = itemStatus(item);
+    if (/(missing|failed|stale|dead|error|stopped|unloaded)/.test(s)) return false;
+    if (/(running|active|alive)/.test(s)) return true;
+    if (item && item.pid) return true;
+    return false;
+  }
+
+  function isBad(item) {
+    return /(missing|failed|stale|dead|error|stopped|unloaded|red)/.test(itemStatus(item) + ' ' + itemSla(item));
+  }
+
+  function mapAgentIds(items) {
+    var running = new Set(), bad = new Set();
+    items.forEach(function (item) {
+      var hay = norm([
+        itemName(item), item && item.script, item && item.service, item && item.plist,
+        item && item.command, item && item.file
+      ].filter(Boolean).join(' '));
+      Object.keys(AGENT_ALIASES).forEach(function (id) {
+        var aliases = AGENT_ALIASES[id].map(norm).concat([norm(id)]);
+        if (aliases.some(function (a) { return a && hay.indexOf(a) !== -1; })) {
+          if (isBad(item)) bad.add(id);
+          else if (isRunning(item)) running.add(id);
+        }
+      });
+    });
+    if (running.size === 0 && bad.size === 0 && items.length) running.add('backend');
+    return { running: Array.from(running), bad: Array.from(bad) };
+  }
+
+  function clearLiveClasses() {
+    document.querySelectorAll('.live-active,.live-warn,.live-flow').forEach(function (n) {
+      n.classList.remove('live-active', 'live-warn', 'live-flow');
+    });
+  }
+
+  function applyLive(ids, badIds) {
+    clearLiveClasses();
+    ids.forEach(function (id) {
+      document.querySelectorAll('.station[data-id="' + id + '"],.lab[data-id="' + id + '"]').forEach(function (n) {
+        n.classList.add('live-active');
+      });
+    });
+    badIds.forEach(function (id) {
+      document.querySelectorAll('.station[data-id="' + id + '"],.lab[data-id="' + id + '"]').forEach(function (n) {
+        n.classList.remove('live-active');
+        n.classList.add('live-warn');
+      });
+    });
+    var live = new Set(ids);
+    document.querySelectorAll('.link').forEach(function (link) {
+      var key = Object.keys(window.__officeLinkMap || {}).find(function (k) {
+        return window.__officeLinkMap[k] === link;
+      });
+      if (!key) return;
+      var parts = key.split('>');
+      if (live.has(parts[0]) && live.has(parts[1])) link.classList.add('live-flow');
+    });
+  }
+
+  function rebuildLinkMap() {
+    window.__officeLinkMap = {};
+    var scene = window.SCENES && window.SCENES.real;
+    if (!scene || !Array.isArray(scene.links)) return;
+    var paths = Array.from(document.querySelectorAll('.layer-links .link'));
+    scene.links.forEach(function (lk, i) {
+      if (paths[i]) window.__officeLinkMap[lk.from + '>' + lk.to] = paths[i];
+    });
+  }
+
+  async function refreshLive() {
+    injectLiveStyles();
+    ensurePanel();
+    try {
+      var base = await discoverBackend();
+      if (!base && location.protocol !== 'file:') base = '';
+      var r = await fetch(base + '/api/dashboard_data?ts=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var payload = await r.json();
+      var items = extractAgents(payload);
+      var mapped = mapAgentIds(items);
+      lastLiveIds = mapped.running;
+      rebuildLinkMap();
+      applyLive(mapped.running, mapped.bad);
+      var names = mapped.bad.length ? mapped.bad : mapped.running;
+      setPanel(mapped.bad.length ? 'warn' : 'online', names);
+    } catch (e) {
+      clearLiveClasses();
+      setPanel('offline', []);
+    }
+  }
+
+  function bootLiveOverlay() {
+    injectLiveStyles();
+    refreshLive();
+    setInterval(refreshLive, POLL_MS);
+    var sceneSwitch = document.querySelector('.scene-switch');
+    if (sceneSwitch) sceneSwitch.addEventListener('click', function () {
+      setTimeout(function () { rebuildLinkMap(); applyLive(lastLiveIds, []); }, 80);
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootLiveOverlay);
+  else setTimeout(bootLiveOverlay, 0);
+})();
+` + '<\/script>';
+
     const resourceScript = '<script>window.__resources = ' +
       JSON.stringify(resourceMap).split('</' + 'script>').join('<\\/' + 'script>') +
       ';</' + 'script>';
@@ -129,7 +379,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const headOpen = template.match(/<head[^>]*>/i);
     if (headOpen) {
       const i = headOpen.index + headOpen[0].length;
-      template = template.slice(0, i) + resourceScript + template.slice(i);
+      template = template.slice(0, i) + resourceScript + liveOverlayScript + template.slice(i);
     }
 
     // Parse the template and swap the root element. Scripts inserted via
