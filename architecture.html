@@ -446,6 +446,7 @@
     VEN:   {n:'broker vendor media/roster', f:'broker_vendor_media.py · broker_vendor_roster.json', g:'ssot'},
     LEG:   {n:'lead_context_store.json', f:'legacy LCB mirror (read-through)', g:'ssot'},
     EVP:   {n:'event_planning.json', f:'paid-event production card', g:'ssot'},
+    OPS:   {n:'event_ops_state.json', f:'event group chat_id / production runtime state', g:'ssot'},
     AIC:   {n:'AI-derived caches', f:'attention_/ingest_/funnel_stage_/inbound_ classify', g:'derived'},
     APPR:  {n:'pending_approvals.json', f:'approval-bot очередь', g:'derived'},
     TEL:   {n:'Телеметрия', f:'ai_timeline.jsonl · session_actions.jsonl', g:'derived'},
@@ -506,7 +507,7 @@
     {id:'wacu', g:'dm', n:'WA Desktop Sender', f:'wa_cu_agent.py', s:'manual approve', src:['OP'], r:['APPR'], wr:[], out:['WA'], why:'Финальная WA-отправка через native Desktop (не Web/API), только после approve.'},
     {id:'waauto', g:'dm', n:'WA Auto Ack Sender', f:'wa_auto_sender.py', s:'1 мин', src:['SCH'], r:['APPR'], wr:['MEV'], out:['WA'], why:'Доводит короткие manual_context_ack до sent через linked Baileys, max 1/run.'},
     {id:'igfu', g:'dm', n:'IG Follow-up', f:'ig_followup.py', s:'daily 08:00', src:['SCH'], r:['CONV','ORD'], wr:['TEL'], out:['IG'], why:'IG дожим в окне 10-21 MSK, дневной лимит.'},
-    {id:'payment', g:'dm', n:'Payment Event Handler', f:'payment_event_handler.py', s:'attached module', src:['TGD'], r:['MEV','EG'], wr:['APPR','TEL','EG'], why:'Деньги/обещания + generic cross-check relay на shared realtime client. @vadimnoize идёт как обычный contractor reply через eg_cross_checks. HARD-BLOCK: AI не отправляет на платёж → approval/alert.'},
+    {id:'payment', g:'dm', n:'Payment Event Handler', f:'payment_event_handler.py + tg_dm_realtime_listener.py', s:'attached module', src:['TGD'], r:['MEV','EG','OPS'], wr:['APPR','TEL','EG'], why:'Деньги/обещания + generic cross-check relay на shared realtime client. Kirill invoice PDF can resolve fresh event-group invoice context (message_events + event_ops_state) → event_group_document approval. @vadimnoize идёт как обычный contractor reply через eg_cross_checks. HARD-BLOCK: AI не отправляет на платёж → approval/alert.'},
 
     // broker
     {id:'brdialog', g:'broker', n:'Broker Dialog Owner', f:'broker_dialog_agent.py', s:'library', src:[], r:['BRO','MEV','VEN'], wr:['BRO','MEV','APPR'], out:['TG'], why:'Единая точка записи клиенту/подрядчику. Client-side presend; contractor-side bypass auto-send. direct DM → LCB, но ручной LCB-direct outreach подрядчику отвечает сам на безопасные факты; VJ/VDJ без примеров получает contractor-side запрос showreel/фото/видео; материалы/промо → broker/media handoff: Drive-пакет + approval организатору.'},
@@ -604,9 +605,10 @@
     ]},
     {id:'payment', ic:'💰', title:'Оплата / деньги пришли', steps:[
       {t:'Детект payment-события', a:'payment_event_handler', f:'payment_event_handler.py', kind:'in', r:['MEV'], wr:[], note:'Attached module на shared realtime client (не отдельный socket). Catch-up replay по cursor. Ловит card/реквизиты/банк/счёт/перевод/«дойдёт».'},
+      {t:'Kirill invoice → event group', a:'tg_dm_realtime_listener._maybe_create_kirill_invoice_group_approval', f:'tg_dm_realtime_listener.py', kind:'branch', r:['MEV','OPS'], wr:['APPR','TEL'], note:'Если Кирилл прислал invoice PDF, а свежая event-группа обсуждала счет/ЭДО и Кирилла, resolver мапит chat_id→event_id через event_ops_state и создаёт event_group_document approval. Без auto-send.'},
       {t:'HARD-BLOCK генерации', a:'payment hard-block', f:'feedback_payment_hard_block', kind:'gate', r:[], wr:[], note:'AI НЕ генерирует и НЕ отправляет на money-intent. Silent skip + lcb_urgent alert (жёсткий звонок). Инцидент @ondogoirina.'},
       {t:'Push оператору', a:'bot_commander approval', f:'pending_approvals.json', kind:'branch', r:[], wr:['APPR','TEL'], note:'Деньги — ЕДИНСТВЕННЫЙ дефолтный повод для approval-bot. Папка ОПЛАТИЛА → любые исходящие клиенту только через апрув (идемпотентно).'},
-      {t:'Михаил подтверждает', a:'send_pending_approval', f:'bot_commander.py', kind:'send', r:['APPR'], wr:['ORD'], out:['TG'], note:'Реальная отправка только после клика. Статус → ОПЛАТИЛА/confirmed.'},
+      {t:'Михаил подтверждает', a:'send_pending_approval / event_ops_bot.document-to-group', f:'bot_commander.py', kind:'send', r:['APPR'], wr:['ORD','OPS'], out:['TG'], note:'Реальная отправка только после клика. Client text/file approvals идут через send_pending_approval; event-group documents (например счет Кирилла в РЖД Арена) уходят через event_ops_bot в event TG-группу.'},
       {t:'Paid → production', a:'event_watcher → event_planning', f:'event_watcher.py', kind:'write', r:['ORD'], wr:['EVP'], note:'Создаётся event-card. Далее event_enrich → event_lifecycle → event_ops_logistics → calendar_sync → contract_autogenerate → costume_collector.'},
     ]},
     {id:'followup', ic:'⏰', title:'Follow-up по тишине (нет входящего)', steps:[
