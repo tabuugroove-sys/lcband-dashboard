@@ -36,7 +36,7 @@
     #root { min-height: 100%; }
 
     /* ── App shell ── */
-    .app { max-width: 480px; margin: 0 auto; padding-bottom: 40px; }
+    .app { width: 100%; max-width: 480px; margin: 0 auto; padding-bottom: 40px; }
 
     /* Чуть шире на планшете/десктопе — контент дышит, но mobile не ломаем */
     .app { transition: max-width .25s ease, margin .25s ease; }
@@ -44,10 +44,14 @@
       .app { max-width: 720px; }
     }
     @media (min-width: 1024px) {
-      .app { max-width: 960px; padding-left: 16px; padding-right: 16px; }
+      .app {
+        max-width: calc(100vw - 32px);
+        padding-left: 16px;
+        padding-right: 16px;
+      }
     }
-    @media (min-width: 1440px) {
-      .app { max-width: 1180px; }
+    @media (min-width: 1728px) {
+      .app { max-width: 1680px; }
     }
 
     /* Когда открыт чат-панель (440px справа) — сдвигаем .app так,
