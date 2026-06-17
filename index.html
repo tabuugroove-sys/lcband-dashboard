@@ -2701,94 +2701,23 @@ function BrowserWalkCard({ data }) {
 
 
 function KPISection({ kpi, setActiveTab, browserWalk }) {
-  const [period, setPeriod] = useState(() => {
-    try { return localStorage.getItem('lcb_kpi_period') || 'new_month'; }
-    catch { return 'new_month'; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem('lcb_kpi_period', period); } catch {}
-  }, [period]);
-  const periodMeta = NEW_PERIODS.find(p => p.id === period) || NEW_PERIODS[2];
-
-  const scrollTo = (id) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const top = el.getBoundingClientRect().top + window.scrollY - 10;
-    window.scrollTo({ top, behavior: 'smooth' });
-  };
-  const goOrders = () => scrollTo('orders-section');
-  const goFunnel = () => scrollTo('funnel-section');
-
-  const channels = [
-    { key: 'tg_active', emoji: '✈️', label: 'TG лиды', onClick: goOrders },
-    { key: 'vk_active', emoji: '🌐', label: 'VK лиды', onClick: goOrders },
-    { key: 'ig_total',  emoji: '📸', label: 'IG пул',  onClick: goOrders },
-  ];
-  const secondary = [
-    { key: period,          label: `За ${periodMeta.label.toLowerCase()}`, togglable: true, onClick: goFunnel },
-    { key: 'conversion',    label: 'Конверсия %', onClick: goFunnel },
-    { key: 'customers',     label: 'Оплат',       onClick: () => setActiveTab?.('paid') },
-    { key: 'refused_total', label: 'Отказов',     onClick: () => setActiveTab?.('refusals') },
-  ];
-
   return (
     <div className="section">
-      <div className="section-title">Лиды по каналам</div>
-      <div className="kpi-grid">
-        {channels.map(c => (
-          <div key={c.key} className="kpi-card kpi-clickable"
-               onClick={c.onClick}
-               title="Перейти к списку активных заказов">
-            {KPI_HINTS[c.key] && (<>
-              <span className="kpi-info" tabIndex="0" aria-label="Описание"
-                    onClick={e => e.stopPropagation()}>i</span>
-              <div className="kpi-tip">{KPI_HINTS[c.key]}</div>
-            </>)}
-            <div className="kpi-emoji">{c.emoji}</div>
-            <div className="kpi-val">{kpi[c.key] ?? '—'}</div>
-            <div className="kpi-lbl">{c.label}</div>
+      <div className="section-title">Оплаты</div>
+      <div className="kpi-row" style={{ gridTemplateColumns: 'minmax(220px, 1fr)' }}>
+        <div className="kpi-mini kpi-clickable"
+             onClick={() => setActiveTab?.('paid')}
+             title="Открыть оплаченные заказы">
+          {KPI_HINTS.customers && (<>
+            <span className="kpi-info" tabIndex="0" aria-label="Описание"
+                  onClick={e => e.stopPropagation()}>i</span>
+            <div className="kpi-tip">{KPI_HINTS.customers}</div>
+          </>)}
+          <div className="kpi-mini-val" style={{ color: 'var(--ok)' }}>
+            {kpi.customers ?? '—'}
           </div>
-        ))}
-      </div>
-      <div className="kpi-row">
-        {secondary.map(c => (
-          <div key={c.label} className={'kpi-mini' + (c.onClick ? ' kpi-clickable' : '')}
-               onClick={c.onClick}>
-            {KPI_HINTS[c.key] && (<>
-              <span className="kpi-info" tabIndex="0" aria-label="Описание"
-                    onClick={e => e.stopPropagation()}>i</span>
-              <div className="kpi-tip">{KPI_HINTS[c.key]}</div>
-            </>)}
-            <div className="kpi-mini-val"
-              style={{ color: c.key === 'customers' ? 'var(--ok)'
-                            : c.key === 'refused_total' ? '#f87171'
-                            : 'var(--text)' }}>
-              {kpi[c.key] ?? '—'}{c.key === 'conversion' && kpi[c.key] ? '%' : ''}
-            </div>
-            <div className="kpi-mini-lbl">{c.label}</div>
-            {c.togglable && (
-              <div style={{display:'flex',gap:3,justifyContent:'center',marginTop:6}}>
-                {NEW_PERIODS.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={e => { e.stopPropagation(); setPeriod(p.id); }}
-                    title={p.label}
-                    style={{
-                      padding:'2px 7px', fontSize:10, lineHeight:1,
-                      border:'1px solid ' + (period === p.id ? 'var(--blue)' : 'var(--border)'),
-                      background: period === p.id ? 'rgba(96,165,250,0.18)' : 'transparent',
-                      color: period === p.id ? 'var(--blue)' : 'var(--muted)',
-                      borderRadius: 6, cursor:'pointer', fontWeight:600,
-                    }}
-                  >{p.short}</button>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-        {/* BrowserWalkCard удалён 21.04 — Browser Walk живёт только в StatusSection
-             («Процессы» вкладка или «Главная» внутри блока Статус процессов).
-             Дубль в KPI-row не нужен. */}
+          <div className="kpi-mini-lbl">Оплат</div>
+        </div>
       </div>
     </div>
   );
@@ -9644,7 +9573,6 @@ function App() {
   const [error,     setError]     = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [offline,   setOffline]   = useState(!navigator.onLine);
-  const [showTGModal, setShowTGModal] = useState(false);
   const [showProcess, setShowProcess] = useState(null);
   const [chatTarget, setChatTarget] = useState(null);
   const [aiTags, setAiTags] = useState({});
@@ -10118,12 +10046,6 @@ function App() {
               <ActionButtons />
               <KPISection kpi={data.kpi} setActiveTab={setActiveTab}
                           browserWalk={data.browserWalk || {leads:0, refusals:0, chats:0, ranAt:'', hours:48, items:[]}} />
-              <div className="section" style={{ marginTop: 8 }}>
-                <TGLeadsButton
-                  onClick={() => setShowTGModal(true)}
-                  tgWeek={data.tgFunnel?.week}
-                />
-              </div>
               <CartotekaSection data={leadContext} />
               <LeadContextAuditPanel backendUrl={backendUrl} />
               <RecentSentMessagesSection data={recentSent} />
@@ -10191,12 +10113,6 @@ function App() {
           )}
 
 
-          {showTGModal && (
-            <TGFunnelModal
-              tgFunnel={data.tgFunnel || {}}
-              onClose={() => setShowTGModal(false)}
-            />
-          )}
           {showProcess && (
             <ProcessRulesModal
               processKey={showProcess}
