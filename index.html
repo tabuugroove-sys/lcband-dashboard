@@ -9409,7 +9409,7 @@ function LeadContextAuditPanel({ backendUrl }) {
       } catch (e) { /* offline */ }
     };
     load();
-    const t = setInterval(load, 120000);
+    const t = setInterval(load, 30000);
     return () => { cancelled = true; clearInterval(t); };
   }, [auditBackend]);
 
@@ -9442,12 +9442,76 @@ function LeadContextAuditPanel({ backendUrl }) {
 	    return Number.isFinite(n) ? `${n.toFixed(n >= 10 ? 0 : 1)}д` : String(value);
 	  };
 
+	  const fmtAuditWhen = (value) => {
+	    if (!value) return "";
+	    const s = String(value);
+	    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s.slice(5).split("-").reverse().join(".");
+	    return s.slice(5, 16).replace("T", " ");
+	  };
+
+	  const timingStyle = (state) => {
+	    if (state === "due" || state === "reply_now") return { bg: "rgba(239,68,68,.13)", fg: "#ef4444", bd: "rgba(239,68,68,.28)" };
+	    if (state === "blocked") return { bg: "rgba(245,158,11,.13)", fg: "#d97706", bd: "rgba(245,158,11,.30)" };
+	    if (state === "planned" || state === "snoozed") return { bg: "rgba(59,130,246,.12)", fg: "#2563eb", bd: "rgba(59,130,246,.25)" };
+	    if (state === "done") return { bg: "rgba(16,185,129,.12)", fg: "#059669", bd: "rgba(16,185,129,.24)" };
+	    return { bg: "rgba(148,163,184,.12)", fg: "var(--muted, #64748b)", bd: "rgba(148,163,184,.20)" };
+	  };
+
+	  const TimingChip = ({ timing }) => {
+	    const t = timing || {};
+	    const st = timingStyle(t.state);
+	    const when = fmtAuditWhen(t.next_touch_at);
+	    const label = [t.next_touch_label || "—", when].filter(Boolean).join(" · ");
+	    return (
+	      <span title={t.plan || t.no_followup_reason || ""} style={{
+	        display: "inline-flex",
+	        alignItems: "center",
+	        gap: 4,
+	        minWidth: 155,
+	        maxWidth: 230,
+	        padding: "2px 7px",
+	        borderRadius: 6,
+	        border: `1px solid ${st.bd}`,
+	        background: st.bg,
+	        color: st.fg,
+	        whiteSpace: "nowrap",
+	        overflow: "hidden",
+	        textOverflow: "ellipsis",
+	        fontSize: 12,
+	        fontWeight: 600,
+	      }}>
+	        <span style={{ color: "var(--muted, #64748b)", fontWeight: 500 }}>след:</span>
+	        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+	      </span>
+	    );
+	  };
+
+	  const NoFollowupReason = ({ timing }) => {
+	    const reason = (timing || {}).no_followup_reason || "";
+	    const state = (timing || {}).state || "";
+	    const label = state === "done" ? "итог FU: " : state === "due" ? "к действию: " : "нет FU: ";
+	    return (
+	      <span title={reason} style={{
+	        flex: "1 1 260px",
+	        minWidth: 220,
+	        color: reason ? "var(--text, #334155)" : "var(--muted, #64748b)",
+	        whiteSpace: "nowrap",
+	        overflow: "hidden",
+	        textOverflow: "ellipsis",
+	      }}>
+	        <span style={{ color: "var(--muted, #64748b)" }}>{label}</span>{reason || "—"}
+	      </span>
+	    );
+	  };
+
   return (
     <div className="section" style={{ marginTop: 8, position: "relative" }} onMouseLeave={() => setHoveredOrder(null)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
         <h3 style={{ margin: 0 }}>🔎 Аудит лидов (8ч)</h3>
         <span style={{ fontSize: 12, color: "var(--muted, #888)" }}>
           {audit.generated_at ? audit.generated_at.slice(0, 16).replace("T", " ") : ""}
+          {audit.followup_plan_generated_at ? ` · FU ${audit.followup_plan_generated_at.slice(11, 16)}` : ""}
+          {" · авто-обновление 30с"}
           {audit.apply_fixes ? " · авто-фикс ON" : " · dry-run"}
         </span>
       </div>
@@ -9463,6 +9527,7 @@ function LeadContextAuditPanel({ backendUrl }) {
 	          const iss = issueOf(o);
 	          const crm = o.crm_table || {};
 	          const ctx = o.audit_context || {};
+	          const timing = o.followup_timing || {};
 	          return (
 	            <div
 	              key={i}
@@ -9481,10 +9546,12 @@ function LeadContextAuditPanel({ backendUrl }) {
 	              <span style={{ minWidth: 190, color: "var(--muted, #999)" }}>
 	                Дней с последнего касания: {fmtAuditDays(ctx.days_since_last_touch)}
 	              </span>
+	              <TimingChip timing={timing} />
 	              <span style={{ minWidth: 150, color: "#c4b5fd" }}>
 	                Вердикт: {ctx.verdict || "—"}
 	              </span>
 		              {iss.tag ? <span style={{ minWidth: 64, color: iss.color }}>{iss.tag}</span> : null}
+		              <NoFollowupReason timing={timing} />
 		              <span style={{ flex: "1 1 260px", minWidth: 220, color: "var(--text, #ccc)" }}>{iss.text}</span>
             </div>
           );
@@ -9514,6 +9581,13 @@ function LeadContextAuditPanel({ backendUrl }) {
 		          </div>
 		          <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid rgba(148,163,184,0.18)", color: "#94a3b8" }}>
 		            <div>Дней с последнего касания: <b style={{ color: "#e5e7eb" }}>{fmtAuditDays((hoveredOrder.audit_context || {}).days_since_last_touch)}</b></div>
+		            <div>Следующее касание: <b style={{ color: "#bfdbfe" }}>{(hoveredOrder.followup_timing || {}).next_touch_label || "—"}{(hoveredOrder.followup_timing || {}).next_touch_at ? ` · ${fmtAuditWhen((hoveredOrder.followup_timing || {}).next_touch_at)}` : ""}</b></div>
+		            <div>Почему нет follow-up: <b style={{ color: "#fed7aa" }}>{(hoveredOrder.followup_timing || {}).no_followup_reason || "—"}</b></div>
+		            {(hoveredOrder.followup_timing || {}).plan ? (
+		              <div style={{ marginTop: 4, color: "#cbd5e1", lineHeight: 1.35 }}>
+		                {(hoveredOrder.followup_timing || {}).plan}
+		              </div>
+		            ) : null}
 		            <div>Вердикт: <b style={{ color: "#c4b5fd" }}>{(hoveredOrder.audit_context || {}).verdict || "—"}</b></div>
 		            {(hoveredOrder.audit_context || {}).verdict_reason ? (
 		              <div style={{ marginTop: 4, color: "#e5e7eb", lineHeight: 1.35 }}>
