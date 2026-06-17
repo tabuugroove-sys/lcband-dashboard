@@ -9383,6 +9383,55 @@ function LeadContextAuditPanel({ backendUrl }) {
 	    return s.slice(5, 16).replace("T", " ");
 	  };
 
+	  const auditActionLabel = (value) => {
+	    const v = String(value || "").trim();
+	    const labels = {
+	      content_check_disk: "проверить диск",
+	      content_request: "запросить контент",
+	      reply_now: "ответить сейчас",
+	      followup: "follow-up",
+	      follow_up: "follow-up",
+	      wait: "ждать",
+	      do_not_touch: "не трогать",
+	      paid: "оплачено",
+	      prepayment: "предоплата",
+	      contract: "договор",
+	      negotiating: "переговоры",
+	      lead: "лид",
+	      no_action: "нет действия",
+	    };
+	    return labels[v] || v || "—";
+	  };
+
+	  const issueKindLabel = (tag) => {
+	    const labels = {
+	      "воронка": "расхождение воронки",
+	      "состав": "проверить состав",
+	      "чек-лист": "открытые пункты",
+	    };
+	    return labels[tag] || tag || "";
+	  };
+
+	  const cellStyle = {
+	    display: "flex",
+	    flexDirection: "column",
+	    gap: 2,
+	    minWidth: 0,
+	  };
+	  const labelStyle = {
+	    color: "var(--muted, #64748b)",
+	    fontSize: 10,
+	    lineHeight: 1.1,
+	    textTransform: "uppercase",
+	    letterSpacing: ".02em",
+	  };
+	  const valueStyle = {
+	    color: "var(--text, #cbd5e1)",
+	    whiteSpace: "nowrap",
+	    overflow: "hidden",
+	    textOverflow: "ellipsis",
+	  };
+
 	  const timingStyle = (state) => {
 	    if (state === "due" || state === "reply_now") return { bg: "rgba(239,68,68,.13)", fg: "#ef4444", bd: "rgba(239,68,68,.28)" };
 	    if (state === "blocked") return { bg: "rgba(245,158,11,.13)", fg: "#d97706", bd: "rgba(245,158,11,.30)" };
@@ -9420,24 +9469,6 @@ function LeadContextAuditPanel({ backendUrl }) {
 	    );
 	  };
 
-	  const NoFollowupReason = ({ timing }) => {
-	    const reason = (timing || {}).no_followup_reason || "";
-	    const state = (timing || {}).state || "";
-	    const label = state === "done" ? "итог FU: " : state === "due" ? "к действию: " : "нет FU: ";
-	    return (
-	      <span title={reason} style={{
-	        flex: "1 1 260px",
-	        minWidth: 220,
-	        color: reason ? "var(--text, #334155)" : "var(--muted, #64748b)",
-	        whiteSpace: "nowrap",
-	        overflow: "hidden",
-	        textOverflow: "ellipsis",
-	      }}>
-	        <span style={{ color: "var(--muted, #64748b)" }}>{label}</span>{reason || "—"}
-	      </span>
-	    );
-	  };
-
   return (
     <div className="section" style={{ marginTop: 8, position: "relative" }} onMouseLeave={() => setHoveredOrder(null)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
@@ -9456,12 +9487,13 @@ function LeadContextAuditPanel({ backendUrl }) {
         <span>пробелы чек-листа: <b style={{ color: "#60a5fa" }}>{s.checklist_gaps || 0}</b></span>
         <span>требуют внимания: <b>{s.needs_attention || 0}</b> из {s.orders || 0}</span>
       </div>
-      <div style={{ maxHeight: 360, overflowY: "auto" }}>
+	      <div style={{ maxHeight: 360, overflowY: "auto" }}>
 	        {orders.map((o, i) => {
 	          const iss = issueOf(o);
 	          const crm = o.crm_table || {};
 	          const ctx = o.audit_context || {};
 	          const timing = o.followup_timing || {};
+	          const actionLabel = auditActionLabel(ctx.verdict);
 	          return (
 	            <div
 	              key={i}
@@ -9470,23 +9502,49 @@ function LeadContextAuditPanel({ backendUrl }) {
 	              onMouseOver={() => setHoveredOrder(o)}
 	              onPointerEnter={() => setHoveredOrder(o)}
 	              onClick={() => setHoveredOrder(o)}
-	              style={{ display: "flex", gap: 8, rowGap: 3, flexWrap: "wrap", padding: "5px 0", borderBottom: "1px solid var(--border, #2a2a2a)", fontSize: 13, cursor: "default" }}
+	              style={{
+	                display: "grid",
+	                gridTemplateColumns: "minmax(135px, 1.1fr) minmax(86px, .7fr) minmax(92px, .65fr) minmax(105px, .75fr) minmax(165px, 1.1fr) minmax(130px, .9fr) minmax(170px, 1.1fr) minmax(220px, 1.8fr)",
+	                gap: 8,
+	                alignItems: "start",
+	                padding: "7px 0",
+	                borderBottom: "1px solid var(--border, #2a2a2a)",
+	                fontSize: 13,
+	                cursor: "default",
+	              }}
 	            >
-              <span style={{ minWidth: 150, fontWeight: 600 }}>@{o.username}</span>
-              <span style={{ minWidth: 92, color: "var(--muted, #999)" }}>{o.status || "—"}</span>
-	              <span style={{ minWidth: 190, color: "var(--muted, #999)" }}>
-	                B {crm.b_posted || "—"} · C {crm.c_event_date || "—"}
-	              </span>
-	              <span style={{ minWidth: 190, color: "var(--muted, #999)" }}>
-	                Дней с последнего касания: {fmtAuditDays(ctx.days_since_last_touch)}
-	              </span>
-	              <TimingChip timing={timing} />
-	              <span style={{ minWidth: 150, color: "#c4b5fd" }}>
-	                Вердикт: {ctx.verdict || "—"}
-	              </span>
-		              {iss.tag ? <span style={{ minWidth: 64, color: iss.color }}>{iss.tag}</span> : null}
-		              <NoFollowupReason timing={timing} />
-		              <span style={{ flex: "1 1 260px", minWidth: 220, color: "var(--text, #ccc)" }}>{iss.text}</span>
+	              <div style={cellStyle}>
+	                <span style={labelStyle}>контакт</span>
+	                <span style={{ ...valueStyle, color: "#e5e7eb", fontWeight: 700 }}>@{o.username}</span>
+	              </div>
+	              <div style={cellStyle}>
+	                <span style={labelStyle}>CRM</span>
+	                <span style={valueStyle}>{o.status || "—"}</span>
+	              </div>
+	              <div style={cellStyle}>
+	                <span style={labelStyle}>событие</span>
+	                <span style={valueStyle}>{crm.c_event_date || "—"}</span>
+	              </div>
+	              <div style={cellStyle}>
+	                <span style={labelStyle}>тишина</span>
+	                <span style={valueStyle}>{fmtAuditDays(ctx.days_since_last_touch)}</span>
+	              </div>
+	              <div style={cellStyle}>
+	                <span style={labelStyle}>следующее касание</span>
+	                <TimingChip timing={timing} />
+	              </div>
+	              <div style={cellStyle}>
+	                <span style={labelStyle}>AI-действие</span>
+	                <span title={ctx.verdict || ""} style={{ ...valueStyle, color: "#c4b5fd", fontWeight: 600 }}>{actionLabel}</span>
+	              </div>
+	              <div style={cellStyle}>
+	                <span style={labelStyle}>почему в списке</span>
+	                <span style={{ ...valueStyle, color: iss.color }}>{issueKindLabel(iss.tag) || "—"}</span>
+	              </div>
+	              <div style={cellStyle}>
+	                <span style={labelStyle}>деталь / FU</span>
+	                <span style={{ ...valueStyle }}>{iss.text || (timing.no_followup_reason || "—")}</span>
+	              </div>
             </div>
           );
         })}
@@ -9522,7 +9580,7 @@ function LeadContextAuditPanel({ backendUrl }) {
 		                {(hoveredOrder.followup_timing || {}).plan}
 		              </div>
 		            ) : null}
-		            <div>Вердикт: <b style={{ color: "#c4b5fd" }}>{(hoveredOrder.audit_context || {}).verdict || "—"}</b></div>
+		            <div>AI-действие: <b style={{ color: "#c4b5fd" }}>{auditActionLabel((hoveredOrder.audit_context || {}).verdict)}</b></div>
 		            {(hoveredOrder.audit_context || {}).verdict_reason ? (
 		              <div style={{ marginTop: 4, color: "#e5e7eb", lineHeight: 1.35 }}>
 		                {(hoveredOrder.audit_context || {}).verdict_reason}
