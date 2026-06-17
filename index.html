@@ -8877,6 +8877,13 @@ function OverviewStatsSection({ stats, followupPlan }) {
     };
   };
 
+  const fmtSilenceDays = (value) => {
+    if (value === null || value === undefined || value === "") return "—";
+    const n = Number(value);
+    if (!Number.isFinite(n) || n >= 999) return "—";
+    return `${n.toFixed(n >= 10 ? 0 : 1)}д`;
+  };
+
   const LeadList = ({items}) => (
     <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:7}}>
       {(items||[]).map((it,i) => {
@@ -8919,9 +8926,9 @@ function OverviewStatsSection({ stats, followupPlan }) {
               <span>Владелец</span><span style={{color:'#cbd5e1'}}>{it.owner || (it.kind==='broker' ? 'broker follow-up' : 'funnel_maintenance')}</span>
               <span>План</span><span style={{color:'#e2e8f0'}}>{it.plan || 'проверить тишину и отправить contextual follow-up по gates'}</span>
               <span>Причина</span><span>{it.reason || it.next_action || it.service || it.status || 'stale dialog'}</span>
-              <span>Контекст</span><span>{it.kind==='broker'
-                ? `${it.service||'service'}${it.event_date ? ` · ${it.event_date}` : ''}${it.attempts!=null ? ` · attempt ${it.attempts}` : ''}`
-                : `${it.status||''}${it.source_chat ? ` · ${it.source_chat}` : ''}${it.days_silent!=null ? ` · ${it.days_silent}д тишины` : ''}`}</span>
+	              <span>Контекст</span><span>{it.kind==='broker'
+	                ? `${it.service||'service'}${it.event_date ? ` · ${it.event_date}` : ''}${it.attempts!=null ? ` · attempt ${it.attempts}` : ''}`
+	                : `${it.status||''}${it.source_chat ? ` · ${it.source_chat}` : ''}${fmtSilenceDays(it.days_silent) !== '—' ? ` · ${fmtSilenceDays(it.days_silent)} тишины` : ''}`}</span>
               {it.draft && <><span>Текст</span><span style={{color:'#cbd5e1'}}>{it.draft}</span></>}
               {it.blocker && <><span style={{color:'#f87171'}}>Blocker</span><span style={{color:'#fca5a5'}}>{it.blocker}</span></>}
             </div>
@@ -9192,9 +9199,11 @@ function KartotekaCard({ card }) {
         {card.waiting_for_us  && <span style={{ color: '#ef4444', fontSize: 11, fontWeight: 700 }}>⚡ ждёт ответа</span>}
         {card.waiting_for_client && <span style={{ color: '#f59e0b', fontSize: 11 }}>⏳ ждём клиента</span>}
         {threadIssues > 0 && <span style={{ color: '#ef4444', fontSize: 11 }}>⚠ {threadIssues} проблем в команде</span>}
-        <span style={{ marginLeft: 'auto', color: '#888', fontSize: 11 }}>
-          {card.silence_days < 1 ? `${Math.round(card.silence_days * 24)}ч` : `${card.silence_days.toFixed(1)}д`} молчания
-        </span>
+	        <span style={{ marginLeft: 'auto', color: '#888', fontSize: 11 }}>
+	          {fmtSilenceDays(card.silence_days) === '—'
+	            ? 'тишина неизвестна'
+	            : `${card.silence_days < 1 ? `${Math.round(card.silence_days * 24)}ч` : fmtSilenceDays(card.silence_days)} молчания`}
+	        </span>
         <span style={{ color: '#60a5fa', fontSize: 11 }}>↗ контекст</span>
       </div>
 
@@ -9358,9 +9367,10 @@ function LeadContextAuditPanel({ backendUrl }) {
     const lf = (o.lineup || {}).flag;
     if (lf) return { tag: "состав", text: lf, color: "#7c3aed" };
     const cl = o.checklist || {};
+    if (cl.closed) return { tag: "", text: "", color: "#888" };
     if (cl.open_count) {
       const labels = (cl.open || []).map(it => it.label).join(", ");
-      return { tag: "чек-лист", text: `открыто ${cl.open_count}/${cl.total}: ${labels}`, color: "#2563eb" };
+      return { tag: "чек-лист", text: `нужно закрыть ${cl.open_count}/${cl.total}: ${labels}`, color: "#2563eb" };
     }
     return { tag: "", text: "", color: "#888" };
   };
@@ -9373,6 +9383,7 @@ function LeadContextAuditPanel({ backendUrl }) {
 	  const fmtAuditDays = (value) => {
 	    if (value === null || value === undefined || value === "") return "—";
 	    const n = Number(value);
+	    if (!Number.isFinite(n) || n >= 999) return "—";
 	    return Number.isFinite(n) ? `${n.toFixed(n >= 10 ? 0 : 1)}д` : String(value);
 	  };
 
@@ -9572,9 +9583,12 @@ function LeadContextAuditPanel({ backendUrl }) {
 		            <span style={{ color: "var(--muted, #475569)" }}>{hoverMessages.length ? `последние ${hoverMessages.length}` : "нет переписки"}</span>
 		          </div>
 		          <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid rgba(148,163,184,0.28)", color: "var(--muted, #475569)" }}>
-		            <div>Дней с последнего касания: <b style={{ color: "var(--text, #111827)" }}>{fmtAuditDays((hoveredOrder.audit_context || {}).days_since_last_touch)}</b></div>
-		            <div>Следующее касание: <b style={{ color: "#2563eb" }}>{(hoveredOrder.followup_timing || {}).next_touch_label || "—"}{(hoveredOrder.followup_timing || {}).next_touch_at ? ` · ${fmtAuditWhen((hoveredOrder.followup_timing || {}).next_touch_at)}` : ""}</b></div>
-		            <div>Почему нет follow-up: <b style={{ color: "#b45309" }}>{(hoveredOrder.followup_timing || {}).no_followup_reason || "—"}</b></div>
+            <div>Дней с последнего касания: <b style={{ color: "var(--text, #111827)" }}>{fmtAuditDays((hoveredOrder.audit_context || {}).days_since_last_touch)}</b></div>
+            <div>Следующее касание: <b style={{ color: "#2563eb" }}>{(hoveredOrder.followup_timing || {}).next_touch_label || "—"}{(hoveredOrder.followup_timing || {}).next_touch_at ? ` · ${fmtAuditWhen((hoveredOrder.followup_timing || {}).next_touch_at)}` : ""}</b></div>
+            {(hoveredOrder.followup_timing || {}).state === "blocked" && (hoveredOrder.followup_timing || {}).plan_date ? (
+              <div>Дата решения: <b style={{ color: "var(--muted, #475569)" }}>{fmtAuditWhen((hoveredOrder.followup_timing || {}).plan_date)}</b></div>
+            ) : null}
+            <div>Почему нет follow-up: <b style={{ color: "#b45309" }}>{(hoveredOrder.followup_timing || {}).no_followup_reason || "—"}</b></div>
 		            {(hoveredOrder.followup_timing || {}).plan ? (
 		              <div style={{ marginTop: 4, color: "var(--text, #111827)", lineHeight: 1.35 }}>
 		                {(hoveredOrder.followup_timing || {}).plan}
