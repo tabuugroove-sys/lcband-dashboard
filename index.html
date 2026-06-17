@@ -2409,7 +2409,10 @@ function ThemeHeaderButton() {
   const toggle = () => {
     const next = current() === 'light' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', next);
-    try { localStorage.setItem('lcb_theme', next); } catch {}
+    try {
+      localStorage.setItem('lcb_theme', next);
+      localStorage.setItem('lcb_theme_user_set', '1');
+    } catch {}
     setTheme(next);
   };
   return (
