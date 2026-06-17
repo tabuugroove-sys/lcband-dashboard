@@ -510,7 +510,7 @@
         file:'event_calendar_sync.py --push', schedule:'каждые 30 мин',
         why:'Оплаченное/подтверждённое событие само попадает в рабочий Google Calendar с правильным составом, без ручного заведения карточки.',
         input:'orders.db paid/post-event statuses + lcb_orders.json confirmed events', action:'детект отсутствующих в календаре событий + resolve состава + push', output:'Google Calendar события / calendar_sync_plan.json fallback',
-        logic:['сигнал «оплачено/подтверждено» из структурных CRM/SSoT полей, не regex по смыслу','состав через resolve_production_lineup (Opus судит кто реально подтверждён)','--push пишет через service_account; без API → план в calendar_sync_plan.json','dedup против уже заведённых событий календаря','не пишет клиентам'],
+        logic:['сигнал «оплачено/подтверждено» из структурных CRM/SSoT полей, не regex по смыслу','состав через resolve_production_lineup (Opus судит кто реально подтверждён)','--push пишет через service_account; без API → план в calendar_sync_plan.json','dedup против уже заведённых событий календаря','reverse-pass отмен помечает событие ОТМЕНЕНО и graphite/gray цветом','не пишет клиентам'],
       },
       {
         group:'events', name:'Contract Autogenerate', label:'com.lcband.contract-autogenerate',

@@ -1243,7 +1243,7 @@ const PROCESS_RULES = {
       'Источник «оплачено/post-event»: orders.db paid/post-event statuses; «подтверждено»: lcb_orders.json event.status=confirmed; «заявки/переговоры»: orders.db future lead rows до materialization в lcb_orders',
       'Дедуп по (дата, контакт-якорь): телефон → username → имя; weak-anchor дубль-оболочки lcb отбрасываются',
       'Создаёт missing только для актуальных дат; последние 14 дней прошедших событий синхронизирует update-only, чтобы post-event цвет не зависал старым',
-      'Цвета Google Calendar синхронизированы с dashboard calendar: lead=green, negotiating=yellow, prepaid=red, confirmed/contract=orange, video_received/post-event/broker=purple',
+      'Цвета Google Calendar синхронизированы с dashboard calendar: lead=green, negotiating=yellow, prepaid=red, confirmed/contract=orange, video_received/post-event/broker=purple; отмены audit помечает graphite/gray и префиксом ОТМЕНЕНО',
       'Состав: есть lcb-событие с тредами → resolve_production_lineup (Opus судит по перепискам с вокалистами/оргом); иначе intended из формата+участников+ростера',
       'Финансы: берёт из event_planning.json строки Договор / Оплачено клиентом / Остаток оплаты и добавляет их в описание календарного события',
       'Запись: Google Calendar API через service account (нужен шаринг календаря на SA + Calendar API в GCP). Нет доступа → план в calendar_sync_plan.json + notify-bot (дедуп новых)',
