@@ -9354,13 +9354,13 @@ function LeadContextAuditPanel({ backendUrl }) {
 
   const issueOf = (o) => {
     const f = o.funnel || {};
-    if (f.action === "flag" && f.note) return { tag: "воронка", text: f.note, color: "#f59e0b" };
+    if (f.action === "flag" && f.note) return { tag: "воронка", text: f.note, color: "#b45309" };
     const lf = (o.lineup || {}).flag;
-    if (lf) return { tag: "состав", text: lf, color: "#a78bfa" };
+    if (lf) return { tag: "состав", text: lf, color: "#7c3aed" };
     const cl = o.checklist || {};
     if (cl.open_count) {
       const labels = (cl.open || []).map(it => it.label).join(", ");
-      return { tag: "чек-лист", text: `открыто ${cl.open_count}/${cl.total}: ${labels}`, color: "#60a5fa" };
+      return { tag: "чек-лист", text: `открыто ${cl.open_count}/${cl.total}: ${labels}`, color: "#2563eb" };
     }
     return { tag: "", text: "", color: "#888" };
   };
@@ -9426,7 +9426,7 @@ function LeadContextAuditPanel({ backendUrl }) {
 	    letterSpacing: ".02em",
 	  };
 	  const valueStyle = {
-	    color: "var(--text, #cbd5e1)",
+	    color: "var(--text, #111827)",
 	    whiteSpace: "nowrap",
 	    overflow: "hidden",
 	    textOverflow: "ellipsis",
@@ -9482,9 +9482,9 @@ function LeadContextAuditPanel({ backendUrl }) {
       </div>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 13, marginBottom: 10 }}>
         <span>авто-исправлено воронки: <b>{s.funnel_autofixed || 0}</b></span>
-        <span>флагов воронки: <b style={{ color: "#f59e0b" }}>{s.funnel_flags || 0}</b></span>
-        <span>состав: <b style={{ color: "#a78bfa" }}>{s.lineup_flags || 0}</b></span>
-        <span>пробелы чек-листа: <b style={{ color: "#60a5fa" }}>{s.checklist_gaps || 0}</b></span>
+        <span>флагов воронки: <b style={{ color: "#b45309" }}>{s.funnel_flags || 0}</b></span>
+        <span>состав: <b style={{ color: "#7c3aed" }}>{s.lineup_flags || 0}</b></span>
+        <span>пробелы чек-листа: <b style={{ color: "#2563eb" }}>{s.checklist_gaps || 0}</b></span>
         <span>требуют внимания: <b>{s.needs_attention || 0}</b> из {s.orders || 0}</span>
       </div>
 	      <div style={{ maxHeight: 360, overflowY: "auto" }}>
@@ -9515,7 +9515,7 @@ function LeadContextAuditPanel({ backendUrl }) {
 	            >
 	              <div style={cellStyle}>
 	                <span style={labelStyle}>контакт</span>
-	                <span style={{ ...valueStyle, color: "#e5e7eb", fontWeight: 700 }}>@{o.username}</span>
+	                <span style={{ ...valueStyle, color: "var(--text, #111827)", fontWeight: 700 }}>@{o.username}</span>
 	              </div>
 	              <div style={cellStyle}>
 	                <span style={labelStyle}>CRM</span>
@@ -9535,7 +9535,7 @@ function LeadContextAuditPanel({ backendUrl }) {
 	              </div>
 	              <div style={cellStyle}>
 	                <span style={labelStyle}>AI-действие</span>
-	                <span title={ctx.verdict || ""} style={{ ...valueStyle, color: "#c4b5fd", fontWeight: 600 }}>{actionLabel}</span>
+	                <span title={ctx.verdict || ""} style={{ ...valueStyle, color: "#7c3aed", fontWeight: 600 }}>{actionLabel}</span>
 	              </div>
 	              <div style={cellStyle}>
 	                <span style={labelStyle}>почему в списке</span>
@@ -9561,44 +9561,44 @@ function LeadContextAuditPanel({ backendUrl }) {
           padding: 10,
           border: "1px solid var(--border, #2a2a2a)",
           borderRadius: 8,
-	          background: "rgba(10, 12, 20, 0.98)",
-	          boxShadow: "0 18px 45px rgba(0,0,0,0.45)",
+	          background: "var(--card, #ffffff)",
+	          boxShadow: "0 18px 45px rgba(15,23,42,0.18)",
 	          zIndex: 30,
 	          fontSize: 12,
-	          color: "#e5e7eb"
+	          color: "var(--text, #111827)"
 	        }}>
 		          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
 		            <b>Переписка @{hoveredOrder.username}</b>
-		            <span style={{ color: "#94a3b8" }}>{hoverMessages.length ? `последние ${hoverMessages.length}` : "нет переписки"}</span>
+		            <span style={{ color: "var(--muted, #475569)" }}>{hoverMessages.length ? `последние ${hoverMessages.length}` : "нет переписки"}</span>
 		          </div>
-		          <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid rgba(148,163,184,0.18)", color: "#94a3b8" }}>
-		            <div>Дней с последнего касания: <b style={{ color: "#e5e7eb" }}>{fmtAuditDays((hoveredOrder.audit_context || {}).days_since_last_touch)}</b></div>
-		            <div>Следующее касание: <b style={{ color: "#bfdbfe" }}>{(hoveredOrder.followup_timing || {}).next_touch_label || "—"}{(hoveredOrder.followup_timing || {}).next_touch_at ? ` · ${fmtAuditWhen((hoveredOrder.followup_timing || {}).next_touch_at)}` : ""}</b></div>
-		            <div>Почему нет follow-up: <b style={{ color: "#fed7aa" }}>{(hoveredOrder.followup_timing || {}).no_followup_reason || "—"}</b></div>
+		          <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid rgba(148,163,184,0.28)", color: "var(--muted, #475569)" }}>
+		            <div>Дней с последнего касания: <b style={{ color: "var(--text, #111827)" }}>{fmtAuditDays((hoveredOrder.audit_context || {}).days_since_last_touch)}</b></div>
+		            <div>Следующее касание: <b style={{ color: "#2563eb" }}>{(hoveredOrder.followup_timing || {}).next_touch_label || "—"}{(hoveredOrder.followup_timing || {}).next_touch_at ? ` · ${fmtAuditWhen((hoveredOrder.followup_timing || {}).next_touch_at)}` : ""}</b></div>
+		            <div>Почему нет follow-up: <b style={{ color: "#b45309" }}>{(hoveredOrder.followup_timing || {}).no_followup_reason || "—"}</b></div>
 		            {(hoveredOrder.followup_timing || {}).plan ? (
-		              <div style={{ marginTop: 4, color: "#cbd5e1", lineHeight: 1.35 }}>
+		              <div style={{ marginTop: 4, color: "var(--text, #111827)", lineHeight: 1.35 }}>
 		                {(hoveredOrder.followup_timing || {}).plan}
 		              </div>
 		            ) : null}
-		            <div>AI-действие: <b style={{ color: "#c4b5fd" }}>{auditActionLabel((hoveredOrder.audit_context || {}).verdict)}</b></div>
+		            <div>AI-действие: <b style={{ color: "#7c3aed" }}>{auditActionLabel((hoveredOrder.audit_context || {}).verdict)}</b></div>
 		            {(hoveredOrder.audit_context || {}).verdict_reason ? (
-		              <div style={{ marginTop: 4, color: "#e5e7eb", lineHeight: 1.35 }}>
+		              <div style={{ marginTop: 4, color: "var(--text, #111827)", lineHeight: 1.35 }}>
 		                {(hoveredOrder.audit_context || {}).verdict_reason}
 		              </div>
 		            ) : null}
 	          </div>
 	          {hoverMessages.length ? hoverMessages.map((m, idx) => (
 	            <div key={idx} style={{ marginBottom: 7, paddingBottom: 7, borderBottom: "1px solid rgba(148,163,184,0.18)" }}>
-	              <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8", marginBottom: 2 }}>
+	              <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted, #475569)", marginBottom: 2 }}>
 	                <span>{m.direction === "out" ? "мы" : "клиент"} · {fmtAuditTs(m.ts)}</span>
 	                <span>{m.source || ""}</span>
 	              </div>
-	              <div style={{ color: "#e5e7eb", whiteSpace: "pre-wrap", lineHeight: 1.35 }}>
+	              <div style={{ color: "var(--text, #111827)", whiteSpace: "pre-wrap", lineHeight: 1.35 }}>
 	                {m.text || (m.media ? "[media]" : "—")}
 	              </div>
 	            </div>
 	          )) : (
-	            <div style={{ color: "#94a3b8" }}>В `orders.db.message_events` нет сообщений по этому контакту.</div>
+	            <div style={{ color: "var(--muted, #475569)" }}>В `orders.db.message_events` нет сообщений по этому контакту.</div>
 	          )}
         </div>
       ) : null}
