@@ -951,11 +951,11 @@
 <body>
 <div id="root"></div>
 
-<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="vendor/react.production.min.js"></script>
+<script src="vendor/react-dom.production.min.js"></script>
+<script src="vendor/babel.min.js"></script>
 
-<script type="text/babel">
+<script type="text/plain" id="dashboard-app-source">
 const { useState, useEffect, useMemo, useCallback } = React;
 
 // ── Config ───────────────────────────────────────────────────────────────────
@@ -10135,6 +10135,31 @@ function App() {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<App />);
+</script>
+
+<script>
+(function mountDashboardApp() {
+  const sourceEl = document.getElementById('dashboard-app-source');
+  const rootEl = document.getElementById('root');
+  try {
+    if (!window.React || !window.ReactDOM || !window.Babel) {
+      throw new Error('dashboard runtime dependency missing');
+    }
+    const compiled = Babel.transform(sourceEl.textContent || '', {
+      plugins: [['transform-react-jsx', { runtime: 'classic' }]],
+    }).code;
+    const script = document.createElement('script');
+    script.text = compiled;
+    document.body.appendChild(script);
+  } catch (e) {
+    console.error('[dashboard] mount failed', e);
+    if (rootEl) {
+      rootEl.innerHTML = '<div style="padding:24px;font:14px/1.45 system-ui;color:#991b1b;background:#fff5f5;border:1px solid #fecaca;border-radius:10px;margin:16px;">Dashboard failed to mount: '
+        + String((e && e.message) || e).replace(/[<>&]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]))
+        + '</div>';
+    }
+  }
+})();
 </script>
 
 <script>
