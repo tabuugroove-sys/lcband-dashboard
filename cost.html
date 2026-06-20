@@ -2511,65 +2511,26 @@ setInterval(loadAiPools, 10000);
 // в Live-фиде и для панели «Дорогие вызовы». Совпадает с backend default.
 const EXPENSIVE_TOKEN_THRESHOLD = 5000;
 const EXP_BUCKET_COLOR = {on_target:'#3fb950', partial:'#f0883e', wasted:'#f85149', unknown:'#6e7681'};
-const EXP_BUCKET_LABEL = {on_target:'целевой', partial:'частично', wasted:'впустую', unknown:'неизвестно'};
-function renderExpensiveCalls(d) {
-  const list = document.getElementById('exp-calls-list');
-  const status = document.getElementById('exp-calls-status');
-  if (!list) return;
-  if (d && d.error) { if (status) status.textContent = 'ошибка: ' + d.error; list.innerHTML = ''; return; }
-  const calls = (d && d.calls) || [];
-  const b = (d && d.buckets) || {};
-  if (status) {
-    const covPct = (d.coverage_pct != null) ? d.coverage_pct : null;
-    const orphPct = (d.orphan_pct != null) ? d.orphan_pct : 0;
-    const covColor = covPct == null ? '#6e7681' : covPct >= 80 ? '#3fb950' : covPct >= 40 ? '#f0883e' : '#f85149';
-    const meter = covPct == null ? '' :
-      ' · <span title="% дорогих токенов с детерминированным исходом (span). Definition of done: → 100%, orphan → 0%" style="color:' + covColor + '">📊 атрибуция ' + covPct + '%</span>' +
-      (orphPct > 0 ? ' <span style="color:#6e7681" title="дорогие токены без span — живой rollout">(orphan ' + orphPct + '%)</span>' : '');
-    status.innerHTML = (d.total_expensive || 0) + ' дорогих · ' +
-      '<span style="color:#3fb950">' + (b.on_target || 0) + ' целевых</span> · ' +
-      '<span style="color:#f0883e">' + (b.partial || 0) + ' частично</span> · ' +
-      '<span style="color:#f85149">' + (b.wasted || 0) + ' впустую</span> · ' +
-      '<span style="color:#6e7681">' + (b.unknown || 0) + ' неизв.</span>' + meter;
-  }
-  const thEl = document.getElementById('exp-calls-threshold');
-  if (thEl) thEl.textContent = d.min_tokens || EXPENSIVE_TOKEN_THRESHOLD;
-  if (!calls.length) { list.innerHTML = '<div class="muted" style="padding:8px">дорогих вызовов за окно нет</div>'; return; }
-  list.innerHTML = calls.map(c => {
-    const col = EXP_BUCKET_COLOR[c.on_target_bucket] || '#6e7681';
-    let outcome = esc(c.downstream_outcome || '');
-    if (c.confidence === 'low') outcome = '<span style="color:#8b949e">вероятно: </span>' + outcome;
-    else if (c.confidence === 'unknown') outcome = '<span style="color:#6e7681">' + outcome + '</span>';
-    const conf = c.confidence === 'high'
-      ? '<span style="color:#3fb950" title="точная привязка по identity / синхронный presend">✓</span>'
-      : c.confidence === 'low'
-        ? '<span style="color:#8b949e" title="привязка по времени — не точная">~</span>'
-        : '<span style="color:#6e7681" title="downstream-запись не найдена">?</span>';
-    const user = c.username ? '<span style="color:#79c0ff"> @' + esc(c.username) + '</span>' : '';
-    const ctx = c.input_context_preview
-      ? '<div class="pool-meta" style="margin-top:2px;opacity:.8;">ctx: ' + esc(c.input_context_preview) + '…</div>' : '';
-    return '<div class="exp-call-row" style="border-left:3px solid ' + col + ';padding:6px 10px;margin-bottom:6px;background:#0d1117;border-radius:4px;">' +
-      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">' +
-        '<div><span class="cost">' + fmtTimeSP(c.ts) + '</span> <b style="color:#f0883e">💰 ' + Number(c.total_tok || 0) + '</b> ' +
-          '<span class="pool-meta">' + Number(c.input_tok || 0) + '→' + Number(c.output_tok || 0) + '</span> · <b>' + esc(c.purpose || '?') + '</b>' + user + '</div>' +
-        '<div style="white-space:nowrap;"><span style="color:' + col + ';font-weight:600;">' + (EXP_BUCKET_LABEL[c.on_target_bucket] || c.on_target_bucket) + '</span> ' + conf + '</div>' +
-      '</div>' +
-      '<div class="pool-meta">' + esc(c.owner_agent || '') + ' · ' + esc(c.human_action_phrase || '') + '</div>' +
-      '<div style="margin-top:2px;">→ ' + outcome + '</div>' +
-      ctx +
-    '</div>';
-  }).join('');
-}
+const EXP_BUCKET_LABEL = {on_target:'отправлено', partial:'частично', wasted:'впустую', unknown:'?'};
+let _expMap = {};
+// Lookup map (purpose|total_tok → outcome) used to enrich live-feed rows with
+// итог/почему for expensive calls. No separate «Дорогие вызовы» panel anymore.
 async function loadExpensiveCalls() {
   const bu = await loadBackend();
   if (!bu) return;
   try {
-    const r = await fetch(bu + '/api/expensive_ai_calls?hours=6&min_tokens=' + EXPENSIVE_TOKEN_THRESHOLD + '&limit=40', {cache:'no-store'});
-    renderExpensiveCalls(await r.json());
-  } catch (e) {
-    const s = document.getElementById('exp-calls-status');
-    if (s) s.textContent = 'ошибка: ' + e.message;
-  }
+    const r = await fetch(bu + '/api/expensive_ai_calls?hours=6&min_tokens=' + EXPENSIVE_TOKEN_THRESHOLD + '&limit=100', {cache:'no-store'});
+    const d = await r.json();
+    const m = {};
+    (d.calls || []).forEach(c => {
+      m[(c.purpose || '') + '|' + (c.total_tok || 0)] = {
+        bucket: c.on_target_bucket,
+        outcome: c.downstream_outcome || '',
+        phrase: c.human_action_phrase || '',
+      };
+    });
+    _expMap = m;
+  } catch (e) { /* keep last map on transient error */ }
 }
 loadExpensiveCalls();
 setInterval(loadExpensiveCalls, 15000);
@@ -2876,19 +2837,26 @@ async function loadLive() {
         const dot = modelDot(e.service, e.kind, e.model);
         const color = modelColor(e.service, e.kind, e.model);
         const model = liveModelName(e);
-        const tok = (e.input_tok || e.output_tok)
-          ? '<span style="color:#6e7681;">'+(e.input_tok||0)+'→'+(e.output_tok||0)+'</span>'
+        const total = (e.input_tok||0)+(e.output_tok||0);
+        const tokTxt = (e.input_tok || e.output_tok) ? (e.input_tok||0)+'→'+(e.output_tok||0) : '';
+        const exp = total > EXPENSIVE_TOKEN_THRESHOLD ? (_expMap[(e.purpose||'')+'|'+total] || null) : null;
+        const money = total > EXPENSIVE_TOKEN_THRESHOLD ? '<span style="color:#f0883e;" title="дорогой вызов">💰</span> ' : '';
+        const bucketCell = exp
+          ? '<span style="color:'+(EXP_BUCKET_COLOR[exp.bucket]||'#6e7681')+';font-weight:600;">'+(EXP_BUCKET_LABEL[exp.bucket]||exp.bucket)+'</span>'
           : '';
-        const money = ((e.input_tok||0)+(e.output_tok||0)) > EXPENSIVE_TOKEN_THRESHOLD
-          ? '<span title="дорогой вызов &gt;'+EXPENSIVE_TOKEN_THRESHOLD+' tok — путь в панели «Дорогие вызовы» ниже" style="color:#f0883e;">💰 </span>' : '';
-        const reason = e.reason ? '<span style="color:#f85149;font-style:italic;"> '+esc(e.reason)+'</span>' : '';
+        const whyCell = (exp && exp.outcome)
+          ? esc(exp.outcome)
+          : (e.reason ? '<span style="color:#f85149;font-style:italic;">'+esc(e.reason)+'</span>' : '');
         const rawPurpose = e.raw_purpose && e.raw_purpose !== e.purpose ? ' · raw: '+e.raw_purpose : '';
-        const line = '<div class="live-call-row" data-kind="'+esc(e.kind||'')+'" title="'+esc((e.service||'')+' · '+model+' · '+(e.purpose||'')+rawPurpose)+'">' +
+        const rowTitle = esc((e.service||'')+' · '+model+' · '+(e.purpose||'')+rawPurpose+(exp&&exp.phrase?' · '+exp.phrase:'')+(exp&&exp.outcome?' → '+exp.outcome:''));
+        const line = '<div class="live-call-row" data-kind="'+esc(e.kind||'')+'" title="'+rowTitle+'">' +
           '<span style="color:#6e7681;">'+t+'</span>' +
           '<span>'+dot+'</span>' +
           '<span class="live-model" style="color:'+color+';">'+esc(model)+'</span>' +
           '<span class="live-purpose">'+esc(e.purpose||'?')+'</span>' +
-          '<span>'+money+tok + reason + '</span>' +
+          '<span class="live-tok">'+money+tokTxt+'</span>' +
+          '<span class="live-bucket">'+bucketCell+'</span>' +
+          '<span class="live-why">'+whyCell+'</span>' +
           '</div>';
         feed.insertAdjacentHTML('beforeend', line);
       });
