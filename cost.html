@@ -448,11 +448,14 @@ a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 #live-feed .live-call-row {
   display: grid;
-  grid-template-columns: 70px 20px minmax(230px, 300px) minmax(210px, 1fr) auto;
+  grid-template-columns: 64px 18px minmax(150px,210px) minmax(150px,1fr) 64px 92px minmax(150px,1.3fr);
   gap: 8px;
   align-items: baseline;
   white-space: nowrap;
 }
+#live-feed .live-tok { color:#6e7681; text-align:right; overflow:hidden; text-overflow:ellipsis; }
+#live-feed .live-bucket { overflow:hidden; text-overflow:ellipsis; }
+#live-feed .live-why { overflow:hidden; text-overflow:ellipsis; }
 #live-feed .live-model {
   font-weight: 700;
   overflow: hidden;
@@ -537,30 +540,12 @@ a:hover { text-decoration: underline; }
       &middot; <span id="live-status">connecting…</span>
     </span>
   </h2>
-  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
-    <div style="flex:1 1 440px;min-width:300px;">
-      <div id="live-feed" style="max-height:460px;overflow:auto;font: 12px/1.5 'SF Mono','Menlo','Consolas',monospace;background:#0d1117;color:#c9d1d9;border-radius:6px;padding:10px;"></div>
-      <div class="label" style="margin-top:6px;">
-        Последние ~50 AI вызовов (auto-refresh 3s). Жирным — точная model из API: cli_codex_default, cli_gemini-3-flash-preview, opus/sonnet/haiku и т.д. 🟢 = Codex, 🟣 = Opus, 🔵 = Sonnet, 🩵 = Haiku, 🟠 = Gemini, ❌ = fail. 💰 = дорогой вызов (&gt;5000 ток) — детали справа.
-      </div>
-    </div>
-    <div style="flex:1 1 440px;min-width:300px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <strong style="font-size:13px;">💰 Дорогие вызовы — куда ушли токены</strong>
-        <span style="font-size:11px;color:var(--muted);" id="exp-calls-status">loading…</span>
-      </div>
-      <div id="exp-calls-list" style="max-height:460px;overflow:auto;"></div>
-      <div class="label" style="margin-top:6px;">
-        Вызовы &gt;<span id="exp-calls-threshold">5000</span> токенов за 6ч: на что ушли и было ли целевым.
-        Путь: <b>purpose → агент → что делал → исход</b>. Bucket:
-        <span style="color:#3fb950">целевой</span> ·
-        <span style="color:#f0883e">частично</span> ·
-        <span style="color:#f85149">впустую</span> ·
-        <span style="color:#6e7681">неизвестно</span>.
-        Привязка: <span style="color:#3fb950">✓</span> точная ·
-        <span style="color:#8b949e">~</span> по времени · <span style="color:#6e7681">?</span> не найдена.
-      </div>
-    </div>
+  <div id="live-feed" style="max-height:460px;overflow:auto;font: 12px/1.5 'SF Mono','Menlo','Consolas',monospace;background:#0d1117;color:#c9d1d9;border-radius:6px;padding:10px;"></div>
+  <div class="label" style="margin-top:6px;">
+    Последние ~50 AI вызовов (auto-refresh 3s). Колонки: <b>время · модель · purpose · токены (вх→вых) · итог · почему</b>.
+    🟢 Codex · 🟣 Opus · 🔵 Sonnet · 🩵 Haiku · 🟠 Gemini · ❌ fail.
+    Для дорогих вызовов (💰 &gt;5000 ток) в «итог/почему» показано, во что вылился расход:
+    <span style="color:#3fb950">отправлено</span> · <span style="color:#f0883e">частично</span> · <span style="color:#f85149">впустую</span> + причина (skip/блок/дубль).
   </div>
 </div>
 
