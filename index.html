@@ -1254,6 +1254,20 @@ const PROCESS_RULES = {
       'Скрипт: event_calendar_sync.py | log: calendar_sync_cron.log | plan: calendar_sync_plan.json | state: calendar_sync_notify_state.json',
     ],
   },
+  proc_spend_watchdog: {
+    name: 'Spend-watchdog: целевой ли расход AI',
+    interval: 'Каждые 6ч · spend_efficiency_watchdog.py (механический, почти 0 токенов)',
+    desc: 'Сводит расход AI-токенов из ai_timeline.jsonl с целевыми действиями из session_actions.jsonl и показывает, какие purposes/контакты жгут токены без результата (петли, no-outcome, low-yield)',
+    rules: [
+      'Группирует вызовы по purpose и по thread_id (tg:username) за окно (деф. 24ч), считает токены/вызовы/стоимость',
+      'Целевое действие = productive session_action того же контакта (send / сдвиг воронки / документ / апрув); non-productive (blocked/skip/recheck) не считается',
+      'suspects_no_outcome — контакт с большим расходом ИЛИ многими вызовами и нулём целевых действий (call-count устойчив к gappy-логам токенов)',
+      'repeat_loops — один purpose × thread повторён ≥ порога; top_purposes_by_token — куда уходят токены + yield_pct',
+      'Механический по умолчанию; LCB_SPEND_WATCHDOG_AI=1 добавляет один дешёвый Haiku-вердикт на top-подозреваемых',
+      'Таксономия целевое/впустую: .claude/skills/spend-efficiency/SKILL.md; приоритеты бюджета — codex_cli.DEFAULT_LOOP_GUARD',
+      'Скрипт: spend_efficiency_watchdog.py | endpoint: /api/spend_efficiency | log: spend_efficiency_watchdog_cron.log',
+    ],
+  },
   proc_broker_sourcing: {
     name: 'Sourcing-детект (вербовка → broker)',
     interval: 'Каждые 4ч · KILL-SWITCH LCB_BROKER_SOURCING (по умолчанию OFF)',
