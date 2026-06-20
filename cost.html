@@ -2532,11 +2532,17 @@ function renderExpensiveCalls(d) {
   const calls = (d && d.calls) || [];
   const b = (d && d.buckets) || {};
   if (status) {
+    const covPct = (d.coverage_pct != null) ? d.coverage_pct : null;
+    const orphPct = (d.orphan_pct != null) ? d.orphan_pct : 0;
+    const covColor = covPct == null ? '#6e7681' : covPct >= 80 ? '#3fb950' : covPct >= 40 ? '#f0883e' : '#f85149';
+    const meter = covPct == null ? '' :
+      ' · <span title="% дорогих токенов с детерминированным исходом (span). Definition of done: → 100%, orphan → 0%" style="color:' + covColor + '">📊 атрибуция ' + covPct + '%</span>' +
+      (orphPct > 0 ? ' <span style="color:#6e7681" title="дорогие токены без span — живой rollout">(orphan ' + orphPct + '%)</span>' : '');
     status.innerHTML = (d.total_expensive || 0) + ' дорогих · ' +
       '<span style="color:#3fb950">' + (b.on_target || 0) + ' целевых</span> · ' +
       '<span style="color:#f0883e">' + (b.partial || 0) + ' частично</span> · ' +
       '<span style="color:#f85149">' + (b.wasted || 0) + ' впустую</span> · ' +
-      '<span style="color:#6e7681">' + (b.unknown || 0) + ' неизв.</span>';
+      '<span style="color:#6e7681">' + (b.unknown || 0) + ' неизв.</span>' + meter;
   }
   const thEl = document.getElementById('exp-calls-threshold');
   if (thEl) thEl.textContent = d.min_tokens || EXPENSIVE_TOKEN_THRESHOLD;
