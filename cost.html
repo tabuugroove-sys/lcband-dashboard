@@ -448,14 +448,11 @@ a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 #live-feed .live-call-row {
   display: grid;
-  grid-template-columns: 64px 18px minmax(150px,210px) minmax(150px,1fr) 64px 92px minmax(150px,1.3fr);
+  grid-template-columns: 70px 20px minmax(230px, 300px) minmax(210px, 1fr) auto;
   gap: 8px;
   align-items: baseline;
   white-space: nowrap;
 }
-#live-feed .live-tok { color:#6e7681; text-align:right; overflow:hidden; text-overflow:ellipsis; }
-#live-feed .live-bucket { overflow:hidden; text-overflow:ellipsis; }
-#live-feed .live-why { overflow:hidden; text-overflow:ellipsis; }
 #live-feed .live-model {
   font-weight: 700;
   overflow: hidden;
@@ -540,11 +537,26 @@ a:hover { text-decoration: underline; }
       &middot; <span id="live-status">connecting…</span>
     </span>
   </h2>
-  <div id="live-feed" style="max-height:460px;overflow:auto;font: 12px/1.5 'SF Mono','Menlo','Consolas',monospace;background:#0d1117;color:#c9d1d9;border-radius:6px;padding:10px;"></div>
+  <div id="live-feed" style="max-height:380px;overflow:auto;font: 12px/1.5 'SF Mono','Menlo','Consolas',monospace;background:#0d1117;color:#c9d1d9;border-radius:6px;padding:10px;"></div>
   <div class="label" style="margin-top:6px;">
-    Последние ~50 AI вызовов (auto-refresh 3s). Колонки: <b>время · модель · purpose · токены (вх→вых) · итог · почему</b>.
-    🟢 Codex · 🟣 Opus · 🔵 Sonnet · 🩵 Haiku · 🟠 Gemini · ❌ fail.
-    Для дорогих вызовов (💰 &gt;5000 ток) в «итог/почему» показано, во что вылился расход:
+    Последние ~50 AI вызовов (auto-refresh 3s). Жирным — точная model: cli_codex_default, opus/sonnet/haiku и т.д. 🟢 Codex · 🟣 Opus · 🔵 Sonnet · 🩵 Haiku · 🟠 Gemini · ❌ fail.
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;border-top:1px solid var(--border);padding-top:10px;">
+    <strong style="font-size:13px;">💰 Дорогие вызовы — куда ушли токены</strong>
+    <span style="font-size:11px;color:var(--muted);" id="exp-calls-status">loading…</span>
+  </div>
+  <table id="exp-calls-table" style="width:100%;margin-top:8px;font-size:12px;border-collapse:collapse;">
+    <thead><tr style="color:var(--muted);text-align:left;">
+      <th style="text-align:right;width:84px;padding:4px 8px;">Расход</th>
+      <th style="width:120px;padding:4px 8px;">Контакт</th>
+      <th style="padding:4px 8px;">Что делал</th>
+      <th style="width:210px;padding:4px 8px;">Итог</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+  <div class="label" style="margin-top:6px;">
+    Дорогие вызовы (&gt;<span id="exp-calls-threshold">5000</span> ток) за 6ч. Итог:
     <span style="color:#3fb950">отправлено</span> · <span style="color:#f0883e">частично</span> · <span style="color:#f85149">впустую</span> + причина (skip/блок/дубль).
   </div>
 </div>
@@ -2512,25 +2524,43 @@ setInterval(loadAiPools, 10000);
 const EXPENSIVE_TOKEN_THRESHOLD = 5000;
 const EXP_BUCKET_COLOR = {on_target:'#3fb950', partial:'#f0883e', wasted:'#f85149', unknown:'#6e7681'};
 const EXP_BUCKET_LABEL = {on_target:'отправлено', partial:'частично', wasted:'впустую', unknown:'?'};
-let _expMap = {};
-// Lookup map (purpose|total_tok → outcome) used to enrich live-feed rows with
-// итог/почему for expensive calls. No separate «Дорогие вызовы» panel anymore.
+function renderExpensiveCalls(d) {
+  const tbody = document.querySelector('#exp-calls-table tbody');
+  const status = document.getElementById('exp-calls-status');
+  if (!tbody) return;
+  if (d && d.error) { if (status) status.textContent = 'ошибка'; tbody.innerHTML = ''; return; }
+  const calls = (d && d.calls) || [];
+  const b = (d && d.buckets) || {};
+  if (status) status.innerHTML = (d.total_expensive || 0) + ' дорогих · ' +
+    '<span style="color:#3fb950">' + (b.on_target || 0) + ' целевых</span> · ' +
+    '<span style="color:#f0883e">' + (b.partial || 0) + ' частично</span> · ' +
+    '<span style="color:#f85149">' + (b.wasted || 0) + ' впустую</span>';
+  const thEl = document.getElementById('exp-calls-threshold');
+  if (thEl && d.min_tokens) thEl.textContent = d.min_tokens;
+  if (!calls.length) { tbody.innerHTML = '<tr><td colspan="4" class="muted" style="padding:8px">дорогих вызовов за окно нет</td></tr>'; return; }
+  tbody.innerHTML = calls.map(c => {
+    const col = EXP_BUCKET_COLOR[c.on_target_bucket] || '#6e7681';
+    const label = EXP_BUCKET_LABEL[c.on_target_bucket] || c.on_target_bucket || '?';
+    const why = c.downstream_outcome ? ' <span style="color:#6e7681;">' + esc(c.downstream_outcome) + '</span>' : '';
+    const user = c.username ? '@' + esc(c.username) : '<span class="muted">—</span>';
+    const did = esc(c.human_action_phrase || c.purpose || '?');
+    return '<tr style="border-top:0.5px solid var(--border);">' +
+      '<td style="text-align:right;color:#f0883e;font-weight:600;padding:5px 8px;font-variant-numeric:tabular-nums;">' + Number(c.total_tok || 0).toLocaleString('ru-RU') + '</td>' +
+      '<td style="color:#79c0ff;padding:5px 8px;">' + user + '</td>' +
+      '<td style="padding:5px 8px;">' + did + '</td>' +
+      '<td style="padding:5px 8px;"><span style="color:' + col + ';font-weight:600;">' + label + '</span>' + why + '</td>' +
+    '</tr>';
+  }).join('');
+}
 async function loadExpensiveCalls() {
   const bu = await loadBackend();
   if (!bu) return;
   try {
-    const r = await fetch(bu + '/api/expensive_ai_calls?hours=6&min_tokens=' + EXPENSIVE_TOKEN_THRESHOLD + '&limit=100', {cache:'no-store'});
-    const d = await r.json();
-    const m = {};
-    (d.calls || []).forEach(c => {
-      m[(c.purpose || '') + '|' + (c.total_tok || 0)] = {
-        bucket: c.on_target_bucket,
-        outcome: c.downstream_outcome || '',
-        phrase: c.human_action_phrase || '',
-      };
-    });
-    _expMap = m;
-  } catch (e) { /* keep last map on transient error */ }
+    const r = await fetch(bu + '/api/expensive_ai_calls?hours=6&min_tokens=' + EXPENSIVE_TOKEN_THRESHOLD + '&limit=40', {cache:'no-store'});
+    renderExpensiveCalls(await r.json());
+  } catch (e) {
+    const s = document.getElementById('exp-calls-status'); if (s) s.textContent = 'ошибка';
+  }
 }
 loadExpensiveCalls();
 setInterval(loadExpensiveCalls, 15000);
@@ -2837,26 +2867,17 @@ async function loadLive() {
         const dot = modelDot(e.service, e.kind, e.model);
         const color = modelColor(e.service, e.kind, e.model);
         const model = liveModelName(e);
-        const total = (e.input_tok||0)+(e.output_tok||0);
-        const tokTxt = (e.input_tok || e.output_tok) ? (e.input_tok||0)+'→'+(e.output_tok||0) : '';
-        const exp = total > EXPENSIVE_TOKEN_THRESHOLD ? (_expMap[(e.purpose||'')+'|'+total] || null) : null;
-        const money = total > EXPENSIVE_TOKEN_THRESHOLD ? '<span style="color:#f0883e;" title="дорогой вызов">💰</span> ' : '';
-        const bucketCell = exp
-          ? '<span style="color:'+(EXP_BUCKET_COLOR[exp.bucket]||'#6e7681')+';font-weight:600;">'+(EXP_BUCKET_LABEL[exp.bucket]||exp.bucket)+'</span>'
+        const tok = (e.input_tok || e.output_tok)
+          ? '<span style="color:#6e7681;">'+(e.input_tok||0)+'→'+(e.output_tok||0)+'</span>'
           : '';
-        const whyCell = (exp && exp.outcome)
-          ? esc(exp.outcome)
-          : (e.reason ? '<span style="color:#f85149;font-style:italic;">'+esc(e.reason)+'</span>' : '');
+        const reason = e.reason ? '<span style="color:#f85149;font-style:italic;"> '+esc(e.reason)+'</span>' : '';
         const rawPurpose = e.raw_purpose && e.raw_purpose !== e.purpose ? ' · raw: '+e.raw_purpose : '';
-        const rowTitle = esc((e.service||'')+' · '+model+' · '+(e.purpose||'')+rawPurpose+(exp&&exp.phrase?' · '+exp.phrase:'')+(exp&&exp.outcome?' → '+exp.outcome:''));
-        const line = '<div class="live-call-row" data-kind="'+esc(e.kind||'')+'" title="'+rowTitle+'">' +
+        const line = '<div class="live-call-row" data-kind="'+esc(e.kind||'')+'" title="'+esc((e.service||'')+' · '+model+' · '+(e.purpose||'')+rawPurpose)+'">' +
           '<span style="color:#6e7681;">'+t+'</span>' +
           '<span>'+dot+'</span>' +
           '<span class="live-model" style="color:'+color+';">'+esc(model)+'</span>' +
           '<span class="live-purpose">'+esc(e.purpose||'?')+'</span>' +
-          '<span class="live-tok">'+money+tokTxt+'</span>' +
-          '<span class="live-bucket">'+bucketCell+'</span>' +
-          '<span class="live-why">'+whyCell+'</span>' +
+          '<span>'+tok + reason + '</span>' +
           '</div>';
         feed.insertAdjacentHTML('beforeend', line);
       });
