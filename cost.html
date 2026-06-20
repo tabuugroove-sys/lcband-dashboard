@@ -828,6 +828,7 @@ a:hover { text-decoration: underline; }
     </div>
     <table id="services"><thead><tr>
       <th>Service</th><th style="text-align:right">Calls</th>
+      <th style="text-align:right">Tokens (in/out)</th>
       <th style="text-align:right">$</th>
     </tr></thead><tbody></tbody></table>
   </div>
@@ -1673,14 +1674,20 @@ async function loadGuardControls() {
 
 async function load() {
   const bu = await loadBackend();
-  const url = bu + '/api/cost_overview';
   document.getElementById('ts').textContent = 'грузится…';
   try {
-    const r = await fetch(url, { cache: 'no-store' });
+    // Fast first paint: live plan/burn cards render immediately.
+    const r = await fetch(bu + '/api/cost_overview', { cache: 'no-store' });
     const d = await r.json();
     render(d);
-    loadHeavyCodexThreads();
     document.getElementById('ts').textContent = new Date().toLocaleTimeString('ru-RU').slice(0,5) + ' MSK';
+    // The backend defers the heavy ai_usage scans (purposes/services/efficiency)
+    // behind ?full=1 so live cards never block. Fetch them as a second pass and
+    // re-render — this is what restores the request/token counters.
+    fetch(bu + '/api/cost_overview?full=1', { cache: 'no-store' })
+      .then(r2 => r2.ok ? r2.json() : null)
+      .then(d2 => { if (d2) render(d2); })
+      .catch(() => {});
   } catch (e) {
     document.getElementById('ts').textContent = 'ошибка: ' + e.message;
   }
@@ -1777,6 +1784,7 @@ function render(d) {
   stbody.innerHTML = (d.today_services||[]).map(s =>
     `<tr><td>${modelTag(s.service)}</td>` +
     `<td style="text-align:right" class="cost">${s.calls}</td>` +
+    `<td style="text-align:right" class="cost">${fmtTokens(s.input_tok||0)} / ${fmtTokens(s.output_tok||0)}</td>` +
     `<td style="text-align:right" class="cost">${fmt$(s.cost_usd)}</td></tr>`
   ).join('');
 
@@ -2349,7 +2357,10 @@ function renderHeavyCodexThreads(data) {
 async function loadHeavyCodexThreads() {
   try {
     const bu = await loadBackend();
-    const r = await fetch(bu + '/api/codex_desktop_threads?threshold_tokens=1000000&limit=100', { cache: 'no-store' });
+    // full=1 runs a ~16s transcript scan that computes the 24h/7d token windows
+    // and thread table. Called on init + every 5 min (not on the 60s cost loop),
+    // so these token counters populate without blocking the rest of the page.
+    const r = await fetch(bu + '/api/codex_desktop_threads?threshold_tokens=1000000&limit=100&full=1', { cache: 'no-store' });
     const data = await r.json();
     renderHeavyCodexThreads(data);
   } catch (e) {
@@ -2843,6 +2854,10 @@ async function setForceModel(purpose, model) {
 
 load();
 setInterval(load, 60000);
+// Heavy Codex-thread token windows: own slower cadence (init + 5 min) since the
+// full=1 scan is ~16s — kept off the 60s cost loop to stay nonblocking.
+loadHeavyCodexThreads();
+setInterval(loadHeavyCodexThreads, 300000);
 </script>
 
 </body>

@@ -9456,8 +9456,21 @@ function LeadContextAuditPanel({ backendUrl }) {
 	    const st = timingStyle(t.state);
 	    const when = fmtAuditWhen(t.next_touch_at);
 	    const label = [t.next_touch_label || "—", when].filter(Boolean).join(" · ");
+	    const attempts = Array.isArray(t.attempts) ? t.attempts : [];
+	    const attemptLines = attempts.slice(0, 6).map(a => {
+	      const ts = fmtAuditWhen(a.ts || "");
+	      const status = a.sent ? "отправлено" : "не прошло";
+	      const action = [a.owner, a.action, a.label].filter(Boolean).join(" / ");
+	      const reason = a.reason || "без причины в логе";
+	      return `${ts || "—"} — ${status}: ${action || "attempt"} — ${reason}`;
+	    });
+	    const title = [
+	      t.plan || "",
+	      t.no_followup_reason ? `Причина: ${t.no_followup_reason}` : "",
+	      attemptLines.length ? `Предыдущие попытки:\n${attemptLines.join("\n")}` : "Предыдущих попыток в логах нет",
+	    ].filter(Boolean).join("\n\n");
 	    return (
-	      <span title={t.plan || t.no_followup_reason || ""} style={{
+	      <span title={title} style={{
 	        display: "inline-flex",
 	        alignItems: "center",
 	        gap: 4,
@@ -9588,7 +9601,7 @@ function LeadContextAuditPanel({ backendUrl }) {
             {(hoveredOrder.followup_timing || {}).state === "blocked" && (hoveredOrder.followup_timing || {}).plan_date ? (
               <div>Дата решения: <b style={{ color: "var(--muted, #475569)" }}>{fmtAuditWhen((hoveredOrder.followup_timing || {}).plan_date)}</b></div>
             ) : null}
-            <div>Почему нет follow-up: <b style={{ color: "#b45309" }}>{(hoveredOrder.followup_timing || {}).no_followup_reason || "—"}</b></div>
+            <div>{(hoveredOrder.followup_timing || {}).state === "blocked" ? "Причина стопа" : "Почему нет follow-up"}: <b style={{ color: "#b45309" }}>{(hoveredOrder.followup_timing || {}).no_followup_reason || "—"}</b></div>
 		            {(hoveredOrder.followup_timing || {}).plan ? (
 		              <div style={{ marginTop: 4, color: "var(--text, #111827)", lineHeight: 1.35 }}>
 		                {(hoveredOrder.followup_timing || {}).plan}

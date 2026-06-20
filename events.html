@@ -63,6 +63,10 @@
   .event-card.negotiating { border-left: 3px solid #f5c518; }
   .event-card.lead { border-left: 3px dotted var(--green); }
   .event-card.collect { border-left: 3px dashed #be185d; }
+  .event-card.blocked {
+    border-left: 3px dashed #b91c1c;
+    background: rgba(185,28,28,0.08);
+  }
   .event-card[data-chat-q] { cursor: pointer; }
   .event-card[data-chat-q]:hover { background: #eef6ff; }
   .sidebar-group-title {
@@ -439,6 +443,11 @@
     background: rgba(245,197,24,0.15); color: #000;
     border-left-color: #f5c518;
     border-left-style: dotted;
+  }
+  .cal-pill.pitch-blocked {
+    background: rgba(185,28,28,0.14); color: #000;
+    border-left-color: #b91c1c;
+    border-left-style: dashed;
   }
 
   .back-to-cal-btn {
@@ -876,39 +885,54 @@
       const stubs = (payload.stubs || []).map(s => {
         const chat = chatTargetFromThread(s.client_thread, '');
         const stage = String(s.stage || '').toLowerCase();
-        const statusGroup = s.status_group || (stage === 'confirmed' ? 'contract' : (stage === 'lead' ? 'lead' : 'negotiation'));
-        const isContract = statusGroup === 'contract' || statusGroup === 'prepayment';
-        const isLead = stage === 'lead' || statusGroup === 'lead';
-        return {
-          kind: 'stub',
-          group: statusGroup === 'released' ? 'released' : (isContract ? 'contract' : (isLead ? 'lead' : 'negotiating')),
-          rank: statusGroup === 'released' ? 4 : (isContract ? 1 : (isLead ? 3 : 2)),
-          id: s.stub_id,
-          title: s.title || s.client_thread || '(stub)',
-          date: s.hint_date || '',
-          stats: s.status_label || (isContract ? 'договор / ждём предоплату' : (isLead ? 'заявка' : 'переговоры')),
-          onclick: s.stub_id ? `loadStubEvent('${String(s.stub_id || '').replace(/'/g, "\\'")}')` : '',
-          chatQ: chat?.q || '',
-          chatChannel: chat?.channel || 'TG',
-        };
+	      const statusGroup = s.status_group || (stage === 'confirmed' ? 'contract' : (stage === 'lead' ? 'lead' : 'negotiation'));
+	      const isContract = statusGroup === 'contract' || statusGroup === 'prepayment';
+	      const isLead = stage === 'lead' || statusGroup === 'lead';
+	      const block = s.pitch_block && s.pitch_block.blocked ? s.pitch_block : null;
+	      const blockReasons = block ? (block.reasons || []).slice(0, 3).join(' · ') : '';
+	      return {
+	        kind: 'stub',
+	        group: block ? 'blocked' : (statusGroup === 'released' ? 'released' : (isContract ? 'contract' : (isLead ? 'lead' : 'negotiating'))),
+	        rank: block ? 0 : (statusGroup === 'released' ? 4 : (isContract ? 1 : (isLead ? 3 : 2))),
+	        id: s.stub_id,
+	        title: s.title || s.client_thread || '(stub)',
+	        date: s.hint_date || '',
+	        stats: block
+	          ? `${block.label || 'драфт заблокирован'} · ${blockReasons || s.status_label || ''}`
+	          : `${s.status_label || (isContract ? 'договор / ждём предоплату' : (isLead ? 'заявка' : 'переговоры'))}${s.lead_source_label ? ' · ' + s.lead_source_label : ''}`,
+	        tip: block
+	          ? `${s.title || s.client_thread || '(stub)'}\n${block.label || 'драфт заблокирован'}\n${blockReasons}\nИсточник: ${block.source || 'unknown'}${block.last_at ? ` · ${block.last_at}` : ''}`
+	          : `${s.title || s.client_thread || '(stub)'}${s.lead_source_label ? '\nИсточник: ' + s.lead_source_label : ''}${s.role_summary ? '\nРоли: ' + s.role_summary : ''}${s.followup_plan ? '\nFollow-up: ' + s.followup_plan : ''}`,
+	        onclick: s.stub_id ? `loadStubEvent('${String(s.stub_id || '').replace(/'/g, "\\'")}')` : '',
+	        chatQ: chat?.q || '',
+	        chatChannel: chat?.channel || 'TG',
+	      };
       });
       const leads = (payload.leads || []).map(l => {
         const stage = l.stage || 'lead';
-        const rank = (stage === 'contract' || stage === 'prepayment') ? 1
+        const block = l.pitch_block && l.pitch_block.blocked ? l.pitch_block : null;
+        const rank = block ? 0
+          : (stage === 'contract' || stage === 'prepayment') ? 1
           : (stage === 'negotiating' ? 2 : 3);
         const chRaw = String(l.channel || '').toUpperCase();
         const ch = chRaw.startsWith('WA') ? 'WA' : (chRaw.startsWith('VK') ? 'VK' : 'TG');
         const href = l.username
           ? `./index.html?chat=${encodeURIComponent(l.username)}&channel=${ch}`
           : './index.html';
+        const blockReasons = block ? (block.reasons || []).slice(0, 3).join(' · ') : '';
         return {
           kind: stage === 'lead' ? 'lead' : stage,
-          group: rank === 1 ? 'contract' : (rank === 2 ? 'negotiating' : 'lead'),
+          group: block ? 'blocked' : (rank === 1 ? 'contract' : (rank === 2 ? 'negotiating' : 'lead')),
           rank,
           id: `lead${l.order_id}`,
           title: l.client || l.username || `order ${l.order_id}`,
           date: l.event_date_iso || l.event_date_raw || '',
-          stats: `${stage === 'prepayment' ? 'ждём предоплату' : stage === 'contract' ? 'договор отправлен' : stage === 'negotiating' ? 'переговоры' : 'заявка'} · ${l.status || ''}`,
+          stats: block
+            ? `${block.label || 'драфт заблокирован'} · ${blockReasons || l.status || ''}`
+            : `${stage === 'prepayment' ? 'ждём предоплату' : stage === 'contract' ? 'договор отправлен' : stage === 'negotiating' ? 'переговоры' : 'заявка'} · ${l.status || ''}${l.lead_source_label ? ' · ' + l.lead_source_label : ''}`,
+          tip: block
+            ? `${l.client || l.username || `order ${l.order_id}`}\n${block.label || 'драфт заблокирован'}\n${blockReasons}\nИсточник: ${block.source || 'unknown'}${block.last_at ? ` · ${block.last_at}` : ''}`
+            : `${l.client || l.username || `order ${l.order_id}`}\n${l.status || ''}${l.lead_source_label ? '\nИсточник: ' + l.lead_source_label : ''}${l.role_summary ? '\nРоли: ' + l.role_summary : ''}${l.followup_plan ? '\nFollow-up: ' + l.followup_plan : ''}`,
           href,
           chatQ: l.username || '',
           chatChannel: ch,
@@ -926,20 +950,22 @@
       const labels = {
         paid: 'Оплаченные',
         collect: 'Забрать фото/видео',
-        contract: 'Договор / предоплата',
-        negotiating: 'Переговоры',
-        released: 'Снято / освобождено',
-        lead: 'Заявки',
-      };
+	        contract: 'Договор / предоплата',
+	        negotiating: 'Переговоры',
+	        blocked: 'Драфт заблокирован',
+	        released: 'Снято / освобождено',
+	        lead: 'Заявки',
+	      };
       let lastGroup = '';
       list.innerHTML = rows.map(row => {
         const groupTitle = row.group !== lastGroup
           ? `<div class="sidebar-group-title">${labels[row.group] || row.group}</div>`
           : '';
         lastGroup = row.group;
-        const cls = row.kind === 'event' ? (row.group === 'collect' ? 'collect' : 'paid')
-          : (row.group === 'released' ? 'lead'
-          : (row.group === 'contract' ? 'contract' : row.group === 'negotiating' ? 'negotiating' : 'lead'));
+	        const cls = row.kind === 'event' ? (row.group === 'collect' ? 'collect' : 'paid')
+	          : (row.group === 'blocked' ? 'blocked'
+	          : (row.group === 'released' ? 'lead'
+	          : (row.group === 'contract' ? 'contract' : row.group === 'negotiating' ? 'negotiating' : 'lead')));
         const open = row.href
           ? `onclick="window.open('${row.href.replace(/'/g, "\\'")}', '_blank')"`
           : (row.onclick ? `onclick="${row.onclick}"` : '');
@@ -947,7 +973,7 @@
           ? `data-chat-q="${escapeAttr(row.chatQ)}" data-chat-channel="${escapeAttr(row.chatChannel || 'TG')}" data-chat-title="${escapeAttr(row.title || row.chatQ)}"`
           : '';
         return `${groupTitle}
-          <div class="event-card ${cls} ${row.id === activeId ? 'active' : ''}" ${open} ${chatAttrs}>
+	          <div class="event-card ${cls} ${row.id === activeId ? 'active' : ''}" title="${escapeAttr(row.tip || row.stats || '')}" ${open} ${chatAttrs}>
             <div class="title">${escapeHtml(row.title)}</div>
             <div class="date">${row.date || '—'}</div>
             <div class="stats">${escapeHtml(row.stats || '')}</div>
@@ -1808,6 +1834,7 @@
           <div class="legend">
             <span><span class="dot" style="background:var(--green)"></span>заявка</span>
             <span><span class="dot" style="background:#f5c518"></span>переговоры</span>
+            <span><span class="dot" style="background:#b91c1c"></span>драфт заблокирован</span>
             <span><span class="dot" style="background:var(--orange)"></span>подтвердили/договор/ждём оплату</span>
             <span><span class="dot" style="background:var(--red)"></span>предоплата получена</span>
             <span><span class="dot" style="background:var(--purple)"></span>видео/фото получены</span>
@@ -1841,10 +1868,14 @@
       const d = _parseYmd(s.hint_date);
       if (!d) continue;
       const k = _ymd(d);
-      (byDate[k] = byDate[k] || []).push({
-        id: s.stub_id, title: s.title || s.client_thread,
-        _kind: 'stub', _stage: s.stage, _thread: s.client_thread,
-      });
+	      (byDate[k] = byDate[k] || []).push({
+	        id: s.stub_id, title: s.title || s.client_thread,
+	        _kind: 'stub', _stage: s.stage, _thread: s.client_thread,
+	        _sourceLabel: s.lead_source_label || '',
+	        _roleSummary: s.role_summary || '',
+	        _followupPlan: s.followup_plan || '',
+	        _pitchBlock: s.pitch_block || {},
+	      });
     }
     // Leads: ранние заявки с датой, ещё не materialized в lcb_orders. Кликабельны →
     // открывают чат с клиентом через index.html (мы знаем username/channel).
@@ -1856,13 +1887,18 @@
         id: 'lead' + l.order_id,
         title: l.client,
         _kind: 'lead',
-        _stage: l.stage || 'lead',
-        _status: l.status,
-        _channel: l.channel,
-        _username: l.username,
-        _raw_date: l.event_date_raw,
-      });
-    }
+	        _stage: l.stage || 'lead',
+	        _status: l.status,
+	        _channel: l.channel,
+	        _sourceLabel: l.lead_source_label || '',
+	        _sourceChat: l.source_chat || '',
+	        _roleSummary: l.role_summary || '',
+	        _followupPlan: l.followup_plan || l.next_action || '',
+	        _username: l.username,
+	        _raw_date: l.event_date_raw,
+	        _pitchBlock: l.pitch_block || {},
+	      });
+	    }
 
     const today = new Date();
     const todayY = _ymd(today);
@@ -1889,11 +1925,15 @@
         const safe = (ev.title || ev.id || '').replace(/[<>&"']/g, c =>
           ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
 
-        if (ev._kind === 'stub') {
-          const stage = String(ev._stage || '').toLowerCase();
-          if (stage === 'lead') {
-            pcls += ' lead';
-            stateLabel = 'заявка';
+	        if (ev._kind === 'stub') {
+	          const stage = String(ev._stage || '').toLowerCase();
+	          const block = ev._pitchBlock && ev._pitchBlock.blocked ? ev._pitchBlock : null;
+	          if (block) {
+	            pcls += ' pitch-blocked';
+	            stateLabel = block.label || 'драфт заблокирован';
+	          } else if (stage === 'lead') {
+	            pcls += ' lead';
+	            stateLabel = 'заявка';
           } else if (stage === 'negotiation' || stage === 'negotiating') {
             pcls += ' negotiating';
             stateLabel = 'переговоры';
@@ -1904,27 +1944,41 @@
           if (ev.id) {
             click = `onclick="loadStubEvent('${String(ev.id || '').replace(/'/g, "\\'")}')"`;
           }
-          tip = `Event stub (${ev._stage || 'unknown'}): ${ev._thread || ''}\n${stateLabel}\nИсточник: lcb_orders.json`;
+	          const blockTip = block
+	            ? `\n\nПочему не ушёл draft:\n${(block.reasons || []).slice(0, 4).map((r, i) => `${i + 1}. ${r}`).join('\n')}\nИсточник: ${block.source || 'unknown'}${block.last_at ? ` · ${block.last_at}` : ''}`
+	            : '';
+	          tip = `Event stub (${ev._stage || 'unknown'}): ${ev._thread || ''}\n${stateLabel}\nИсточник: lcb_orders.json${blockTip}`;
+	          if (ev._sourceLabel || ev._roleSummary || ev._followupPlan) {
+	            tip += `${ev._sourceLabel ? '\nИсточник заявки: ' + ev._sourceLabel : ''}${ev._roleSummary ? '\nРоли: ' + ev._roleSummary : ''}${ev._followupPlan ? '\nFollow-up: ' + ev._followupPlan : ''}`;
+	          }
           const chat = chatTargetFromThread(ev._thread || '', '');
           if (chat) {
             chatAttrs = `data-chat-q="${escapeAttr(chat.q)}" data-chat-channel="${escapeAttr(chat.channel || 'TG')}" data-chat-title="${escapeAttr(ev.title || chat.q)}"`;
           }
-        } else if (ev._kind === 'lead') {
-          const stage = (ev._stage || '').toLowerCase();
-          if (stage === 'negotiating') {
-            pcls += ' negotiating';
-            stateLabel = `переговоры · ${ev._status}`;
+	        } else if (ev._kind === 'lead') {
+	          const stage = (ev._stage || '').toLowerCase();
+	          const block = ev._pitchBlock && ev._pitchBlock.blocked ? ev._pitchBlock : null;
+	          if (block) {
+	            pcls += ' pitch-blocked';
+	            stateLabel = `${block.label || 'драфт заблокирован'} · ${ev._status}`;
+	          } else if (stage === 'negotiating') {
+	            pcls += ' negotiating';
+	            stateLabel = `переговоры · ${ev._status}`;
           } else if (stage === 'contract' || stage === 'prepayment') {
             pcls += ' stub';
             stateLabel = `${stage === 'contract' ? 'договор' : 'ждём оплату'} · ${ev._status}`;
           } else {
             pcls += ' lead';
-            stateLabel = `заявка · ${ev._status}`;
+            stateLabel = `заявка · ${ev._status}${ev._sourceLabel ? ' · ' + ev._sourceLabel : ''}`;
           }
-          tip = `${ev.title}\n${stateLabel}\n${ev._channel || ''}${ev._username ? ' · @' + ev._username : ''}\nдата в переписке: ${ev._raw_date}`;
+	          const blockTip = block
+	            ? `\n\nПочему не ушёл draft:\n${(block.reasons || []).slice(0, 4).map((r, i) => `${i + 1}. ${r}`).join('\n')}\nИсточник: ${block.source || 'unknown'}${block.last_at ? ` · ${block.last_at}` : ''}`
+	            : '';
+	          tip = `${ev.title}\n${stateLabel}\n${ev._channel || ''}${ev._username ? ' · @' + ev._username : ''}${ev._sourceChat ? '\nsource_chat: ' + ev._sourceChat : ''}${ev._roleSummary ? '\nРоли: ' + ev._roleSummary : ''}${ev._followupPlan ? '\nFollow-up: ' + ev._followupPlan : ''}\nдата в переписке: ${ev._raw_date}${blockTip}`;
           // Click → open chat in index.html (if we have username+channel).
           if (ev._username && ev._channel) {
-            const ch = ev._channel.toUpperCase().startsWith('VK') ? 'VK' : 'TG';
+            const chRaw = ev._channel.toUpperCase();
+            const ch = chRaw.startsWith('WA') ? 'WA' : (chRaw.startsWith('VK') ? 'VK' : 'TG');
             click = `onclick="window.open('./index.html?chat=${encodeURIComponent(ev._username)}&channel=${ch}', '_blank')"`;
             chatAttrs = `data-chat-q="${escapeAttr(ev._username)}" data-chat-channel="${escapeAttr(ch)}" data-chat-title="${escapeAttr(ev.title || ev._username)}"`;
           }
@@ -1939,7 +1993,7 @@
           click = `onclick="loadEvent('${(ev.id || '').replace(/'/g, "\\'")}')"`;
           tip = (ev.title || ev.id) + (ev.members_count ? `  ·  ${ev.members_count} чел` : '') + `\n${stateLabel}`;
         }
-        pills += `<span class="${pcls}" title="${tip.replace(/"/g, '&quot;')}" ${click} ${chatAttrs} style="${click ? 'cursor:pointer' : 'cursor:default;opacity:.85'}">${safe}</span>`;
+	        pills += `<span class="${pcls}" title="${escapeAttr(tip)}" ${click} ${chatAttrs} style="${click ? 'cursor:pointer' : 'cursor:default;opacity:.85'}">${safe}</span>`;
       }
       html += `<div class="${cls}"><div class="cal-day-num">${d.getDate()}</div>${pills}</div>`;
     }
