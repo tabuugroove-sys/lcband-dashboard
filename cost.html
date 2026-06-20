@@ -2822,7 +2822,8 @@ function renderLiveTable() {
     const total = (e.input_tok||0)+(e.output_tok||0);
     const exp = total > EXPENSIVE_TOKEN_THRESHOLD ? (_expMap[(e.purpose||'')+'|'+total] || null) : null;
     const contact = (exp && exp.username) ? '<span style="color:#79c0ff;">@'+esc(exp.username)+'</span>' : '<span style="color:#6e7681;">—</span>';
-    const did = esc((exp && exp.phrase) ? exp.phrase : (e.purpose||'?'));
+    const hum = e.human_action_phrase || (exp && exp.phrase) || e.purpose || '?';
+    const did = esc(hum) + ((e.purpose && e.purpose !== hum) ? ' <span style="color:#8b949e;">· '+esc(e.purpose)+'</span>' : '');
     const spend = total ? '<span style="color:#f0883e;">'+total.toLocaleString('ru-RU')+'</span>' : '<span style="color:#6e7681;">—</span>';
     let itog;
     if (exp) {
