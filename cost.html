@@ -539,16 +539,14 @@ a:hover { text-decoration: underline; }
   </h2>
   <div id="live-feed" style="max-height:380px;overflow:auto;font: 12px/1.5 'SF Mono','Menlo','Consolas',monospace;background:#0d1117;color:#c9d1d9;border-radius:6px;padding:10px;"></div>
   <div class="label" style="margin-top:6px;">
-    Последние ~50 AI вызовов (auto-refresh 3s). Жирным показана точная model из API: cli_codex_default, cli_gemini-3-flash-preview, opus/sonnet/haiku и т.д. 🟢 = Codex, 🟣 = Opus, 🔵 = Sonnet, 🩵 = Haiku, 🟠 = Gemini, ❌ = fail. 💰 = дорогой вызов (&gt;5000 ток) — его путь в панели ниже.
+    Последние ~50 AI вызовов (auto-refresh 3s). Жирным показана точная model из API: cli_codex_default, cli_gemini-3-flash-preview, opus/sonnet/haiku и т.д. 🟢 = Codex, 🟣 = Opus, 🔵 = Sonnet, 🩵 = Haiku, 🟠 = Gemini, ❌ = fail. 💰 = дорогой вызов (&gt;5000 ток) — его путь ниже в этой панели.
   </div>
-</div>
 
-<div class="card" style="margin-bottom:18px;">
-  <h2 style="display:flex;justify-content:space-between;align-items:center;">
-    <span>💰 Дорогие вызовы — куда ушли токены</span>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;border-top:1px solid var(--border);padding-top:10px;">
+    <strong style="font-size:13px;">💰 Дорогие вызовы — куда ушли токены</strong>
     <span style="font-size:11px;color:var(--muted);" id="exp-calls-status">loading…</span>
-  </h2>
-  <div id="exp-calls-list"></div>
+  </div>
+  <div id="exp-calls-list" style="margin-top:8px;"></div>
   <div class="label" style="margin-top:6px;">
     Вызовы &gt;<span id="exp-calls-threshold">5000</span> токенов за 6ч: на что ушли токены и было ли это целевым.
     Путь каждого: <b>purpose → агент → что делал → исход</b>. Bucket:
