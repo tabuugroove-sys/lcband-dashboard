@@ -556,6 +556,29 @@ a:hover { text-decoration: underline; }
   </details>
 </div>
 
+<div class="card" id="guard-limits" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>🛡️ AI call guard — hard limits</span>
+    <span id="guard-status" class="routing-status">guard: загрузка…</span>
+  </h2>
+  <div class="label" style="margin:-4px 0 10px 0;">
+    Жёсткий потолок числа фоновых LLM-вызовов на провайдера (окна 24ч и 5ч). Когда счётчик упирается в лимит —
+    <code>llm_budget_guard.allow_llm_call()</code> блокирует этого провайдера, пока окно не откатится. Это <b>не</b> routing-фейдер
+    (тот решает «кого предпочесть»), а аварийный потолок «сколько вообще можно». Двигай фейдер — агенты подхватят за ~30с.
+    Полоска = текущий расход против выбранного лимита (зелёный → жёлтый у warn → красный на лимите).
+    Отдельно действует анти-повтор: одинаковый <code>purpose+contact+source_hash+prompt</code> имеет свой лимит на 24ч.
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin:0 0 12px 0;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+      <input type="checkbox" id="guard-enabled-toggle">
+      <span>Guard включён</span>
+    </label>
+    <span id="guard-enabled-note" style="font-size:11px;color:var(--muted);margin-left:auto;">выключить = лимиты игнорируются, провайдеры не блокируются по счётчику</span>
+  </div>
+  <div id="guard-fingerprint-note" style="font-size:12px;color:var(--muted);margin:-4px 0 12px 0;padding:0 12px;">anti-repeat: загрузка…</div>
+  <div class="routing-grid" id="guard-faders-grid"></div>
+</div>
+
 <div class="card" style="margin-bottom:18px;">
   <h2 style="display:flex;justify-content:space-between;align-items:center;">
     <span>🔴 Live AI calls — реал-тайм routing</span>
@@ -675,29 +698,6 @@ a:hover { text-decoration: underline; }
     <div class="impact-cell"><span class="lbl">Δ скорости</span><span class="val" id="ri-speed">—</span></div>
   </div>
   </details>
-</div>
-
-<div class="card" id="guard-limits" style="margin-bottom:18px;">
-  <h2 style="display:flex;justify-content:space-between;align-items:center;">
-    <span>🛡️ AI call guard — hard limits</span>
-    <span id="guard-status" class="routing-status">guard: загрузка…</span>
-  </h2>
-  <div class="label" style="margin:-4px 0 10px 0;">
-    Жёсткий потолок числа фоновых LLM-вызовов на провайдера (окна 24ч и 5ч). Когда счётчик упирается в лимит —
-    <code>llm_budget_guard.allow_llm_call()</code> блокирует этого провайдера, пока окно не откатится. Это <b>не</b> routing-фейдер
-    (тот решает «кого предпочесть»), а аварийный потолок «сколько вообще можно». Двигай фейдер — агенты подхватят за ~30с.
-    Полоска = текущий расход против выбранного лимита (зелёный → жёлтый у warn → красный на лимите).
-    Отдельно действует анти-повтор: одинаковый <code>purpose+contact+source_hash+prompt</code> имеет свой лимит на 24ч.
-  </div>
-  <div style="display:flex;align-items:center;gap:10px;margin:0 0 12px 0;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;">
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
-      <input type="checkbox" id="guard-enabled-toggle">
-      <span>Guard включён</span>
-    </label>
-    <span id="guard-enabled-note" style="font-size:11px;color:var(--muted);margin-left:auto;">выключить = лимиты игнорируются, провайдеры не блокируются по счётчику</span>
-  </div>
-  <div id="guard-fingerprint-note" style="font-size:12px;color:var(--muted);margin:-4px 0 12px 0;padding:0 12px;">anti-repeat: загрузка…</div>
-  <div class="routing-grid" id="guard-faders-grid"></div>
 </div>
 
 <div class="grid">
