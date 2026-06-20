@@ -446,23 +446,8 @@ tr:last-child td { border-bottom: none; }
 .muted { color: var(--muted); }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
-#live-feed .live-call-row {
-  display: grid;
-  grid-template-columns: 70px 20px minmax(230px, 300px) minmax(210px, 1fr) auto;
-  gap: 8px;
-  align-items: baseline;
-  white-space: nowrap;
-}
-#live-feed .live-model {
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-#live-feed .live-purpose {
-  color: #c9d1d9;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+#live-table tbody tr:hover { background: rgba(0,112,243,0.06); }
+#live-table td { vertical-align: top; }
 #ai-pools tbody tr.pool-row td { vertical-align: top; }
 .pool-outcome { font-weight: 600; line-height: 1.35; }
 .pool-outcome.skip, .pool-outcome.blocked, .pool-outcome.failed { color: var(--danger); }
@@ -2825,6 +2810,39 @@ function liveModelName(e) {
   }
   return e.model || e.service || (e.kind === 'codex_cli_fail' ? 'codex_cli_fail' : e.kind) || 'unknown_model';
 }
+let _liveRows = [];
+function renderLiveTable() {
+  const tbody = document.querySelector('#live-table tbody');
+  if (!tbody) return;
+  if (!_liveRows.length) { tbody.innerHTML = '<tr><td colspan="6" class="muted" style="padding:8px">пока пусто</td></tr>'; return; }
+  tbody.innerHTML = _liveRows.map(e => {
+    const t = fmtTimeSP(e.ts);
+    const dot = modelDot(e.service, e.kind, e.model);
+    const model = liveModelName(e);
+    const total = (e.input_tok||0)+(e.output_tok||0);
+    const exp = total > EXPENSIVE_TOKEN_THRESHOLD ? (_expMap[(e.purpose||'')+'|'+total] || null) : null;
+    const contact = (exp && exp.username) ? '<span style="color:#79c0ff;">@'+esc(exp.username)+'</span>' : '<span style="color:#6e7681;">—</span>';
+    const did = esc((exp && exp.phrase) ? exp.phrase : (e.purpose||'?'));
+    const spend = total ? '<span style="color:#f0883e;">'+total.toLocaleString('ru-RU')+'</span>' : '<span style="color:#6e7681;">—</span>';
+    let itog;
+    if (exp) {
+      const col = EXP_BUCKET_COLOR[exp.bucket]||'#6e7681';
+      const lbl = EXP_BUCKET_LABEL[exp.bucket]||exp.bucket||'?';
+      itog = '<span style="color:'+col+';font-weight:600;">'+lbl+'</span>'+(exp.outcome?' <span style="color:#6e7681;">'+esc(exp.outcome)+'</span>':'');
+    } else if (e.reason) {
+      itog = '<span style="color:#f85149;font-style:italic;">'+esc(e.reason)+'</span>';
+    } else { itog = '<span style="color:#6e7681;">—</span>'; }
+    const rawPurpose = e.raw_purpose && e.raw_purpose !== e.purpose ? ' · raw: '+e.raw_purpose : '';
+    return '<tr style="border-top:0.5px solid var(--border);" title="'+esc((e.service||'')+' · '+model+' · '+(e.purpose||'')+rawPurpose)+'">'+
+      '<td style="padding:5px 8px;color:#6e7681;white-space:nowrap;">'+t+'</td>'+
+      '<td style="padding:5px 8px;white-space:nowrap;">'+dot+' '+esc(model)+'</td>'+
+      '<td style="padding:5px 8px;white-space:nowrap;">'+contact+'</td>'+
+      '<td style="padding:5px 8px;">'+did+'</td>'+
+      '<td style="padding:5px 8px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;">'+spend+'</td>'+
+      '<td style="padding:5px 8px;">'+itog+'</td>'+
+    '</tr>';
+  }).join('');
+}
 async function loadLive() {
   if (_liveLoading) return;
   if (document.getElementById('live-pause')?.checked) {
@@ -2839,44 +2857,26 @@ async function loadLive() {
     const url = bu + '/api/recent_ai_calls?include_kinds=' + encodeURIComponent(includeKinds) + '&limit=50' + (_liveLastTs ? '&since_ts=' + encodeURIComponent(_liveLastTs) : '');
     const r = await fetch(url, {cache:'no-store'});
     const j = await r.json();
-    const feed = document.getElementById('live-feed');
-    if (!feed) return;
+    const tbody = document.querySelector('#live-table tbody');
+    if (!tbody) return;
     if (j.codex_cooldown_active === false) {
-      feed.querySelectorAll('[data-kind="codex_cli_cooldown"]').forEach(el => el.remove());
+      _liveRows = _liveRows.filter(e => e.kind !== 'codex_cli_cooldown');
     }
     const events = j.events || [];
     if (events.length) {
       _liveLastTs = j.newest_ts || _liveLastTs;
-      const wasNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
       events.forEach(e => {
         const eventId = liveEventId(e);
         if (_liveSeenEventIds.has(eventId)) return;
         _liveSeenEventIds.add(eventId);
-        const t = fmtTimeSP(e.ts);
-        const dot = modelDot(e.service, e.kind, e.model);
-        const color = modelColor(e.service, e.kind, e.model);
-        const model = liveModelName(e);
-        const tok = (e.input_tok || e.output_tok)
-          ? '<span style="color:#6e7681;">'+(e.input_tok||0)+'→'+(e.output_tok||0)+'</span>'
-          : '';
-        const reason = e.reason ? '<span style="color:#f85149;font-style:italic;"> '+esc(e.reason)+'</span>' : '';
-        const rawPurpose = e.raw_purpose && e.raw_purpose !== e.purpose ? ' · raw: '+e.raw_purpose : '';
-        const line = '<div class="live-call-row" data-kind="'+esc(e.kind||'')+'" title="'+esc((e.service||'')+' · '+model+' · '+(e.purpose||'')+rawPurpose)+'">' +
-          '<span style="color:#6e7681;">'+t+'</span>' +
-          '<span>'+dot+'</span>' +
-          '<span class="live-model" style="color:'+color+';">'+esc(model)+'</span>' +
-          '<span class="live-purpose">'+esc(e.purpose||'?')+'</span>' +
-          '<span>'+tok + reason + '</span>' +
-          '</div>';
-        feed.insertAdjacentHTML('beforeend', line);
+        _liveRows.unshift(e);                 // newest first
       });
-      // Trim — храним max 200 lines в DOM
-      while (feed.children.length > 200) feed.removeChild(feed.firstChild);
+      if (_liveRows.length > 80) _liveRows.length = 80;
       while (_liveSeenEventIds.size > 500) {
         _liveSeenEventIds.delete(_liveSeenEventIds.values().next().value);
       }
-      if (wasNearBottom) feed.scrollTop = feed.scrollHeight;
     }
+    renderLiveTable();
     document.getElementById('live-status').textContent = '🟢 last SP: ' + fmtTimeSP(Date.now());
   } catch (e) {
     document.getElementById('live-status').textContent = '❌ ' + e.message;
