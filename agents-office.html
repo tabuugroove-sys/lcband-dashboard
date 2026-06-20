@@ -220,7 +220,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     for (var i = 0; i < candidates.length; i++) {
       var base = candidates[i];
       try {
-        var resp = await fetch(base + '/api/dashboard_data?ts=' + Date.now(), { cache: 'no-store' });
+        var _aoTok = (localStorage.getItem('lcband_admin_token') || '').trim();  // audit v2 #4
+        var resp = await fetch(base + '/api/dashboard_data?ts=' + Date.now(), { cache: 'no-store',
+          headers: _aoTok ? {'X-Admin-Token': _aoTok} : {} });
         if (resp.ok) { backendUrl = base; return backendUrl; }
       } catch (_) {}
     }
@@ -337,7 +339,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     try {
       var base = await discoverBackend();
       if (!base && location.protocol !== 'file:') base = '';
-      var r = await fetch(base + '/api/dashboard_data?ts=' + Date.now(), { cache: 'no-store' });
+      var _aoTok2 = (localStorage.getItem('lcband_admin_token') || '').trim();  // audit v2 #4
+      var r = await fetch(base + '/api/dashboard_data?ts=' + Date.now(), { cache: 'no-store',
+        headers: _aoTok2 ? {'X-Admin-Token': _aoTok2} : {} });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       var payload = await r.json();
       var items = extractAgents(payload);

@@ -219,6 +219,8 @@
 <script src="_theme.js"></script>
 <script src="_nav.js"></script>
 <script>
+// audit v2 #7: escape dynamic data before innerHTML to prevent stored XSS.
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 const BACKEND_URL = (() => {
   try {
     return window._backendUrl || 'http://127.0.0.1:8878';
@@ -276,17 +278,19 @@ function fmtDate(iso) {
 function profileLink(key, c) {
   const ch = c.channel || 'tg';
   if (ch === 'vk') {
-    const sn = c.screen_name || c.vk_url || key.replace('vk:', '');
-    return `<a class="link-btn" href="https://${c.vk_url || 'vk.com/' + sn}" target="_blank">vk.com/${sn}</a>`;
+    // build host ourselves from the screen_name only — never interpolate a raw
+    // c.vk_url into href (could be javascript:). audit v2 #7.
+    const sn = (c.screen_name || key.replace('vk:', '')).replace(/[^A-Za-z0-9_.]/g, '');
+    return `<a class="link-btn" href="https://vk.com/${esc(sn)}" target="_blank" rel="noopener">vk.com/${esc(sn)}</a>`;
   }
   if (ch === 'wa') {
     const phone = (c.phone || '').replace(/\D/g, '');
-    if (phone) return `<a class="link-btn" href="https://wa.me/${phone}" target="_blank">${c.phone || phone}</a>`;
-    return `<span style="color:var(--muted)">${c.title || c.wa_key || key}</span>`;
+    if (phone) return `<a class="link-btn" href="https://wa.me/${esc(phone)}" target="_blank" rel="noopener">${esc(c.phone || phone)}</a>`;
+    return `<span style="color:var(--muted)">${esc(c.title || c.wa_key || key)}</span>`;
   }
   // TG
-  const uname = key.replace(/^@/, '');
-  return `<a class="link-btn" href="https://t.me/${uname}" target="_blank">@${uname}</a>`;
+  const uname = key.replace(/^@/, '').replace(/[^A-Za-z0-9_]/g, '');
+  return `<a class="link-btn" href="https://t.me/${esc(uname)}" target="_blank" rel="noopener">@${esc(uname)}</a>`;
 }
 
 function displayName(key, c) {
@@ -351,8 +355,8 @@ function render() {
 
     return `<tr>
       <td><span class="ch ${chBadge[ch]}">${chLabel[ch]}</span></td>
-      <td style="font-weight:500">${name}</td>
-      <td><span class="type ${ti.cls}">${ti.label}</span></td>
+      <td style="font-weight:500">${esc(name)}</td>
+      <td><span class="type ${ti.cls}">${esc(ti.label)}</span></td>
       <td><span class="status ${statusCls}">${statusLbl}</span></td>
       <td style="color:var(--muted)">${fmtDate(lastDate)}</td>
       <td style="color:var(--muted)">${c.msg_count || '—'}</td>

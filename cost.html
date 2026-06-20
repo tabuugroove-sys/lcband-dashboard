@@ -2607,8 +2607,10 @@ async function applyRoutingMode(mode) {
   }
   if (toast) toast.innerHTML = '<span class="muted">⏳ применяется…</span>';
   try {
+    const _tok = ensureAdminToken(true);
+    if (!_tok) { if (toast) toast.innerHTML = '<span style="color:var(--danger)">❌ нужен admin token</span>'; return; }
     const r = await fetch(bu + '/api/runtime_config/routing_mode', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
+      method: 'POST', headers: {'Content-Type': 'application/json', 'X-Admin-Token': _tok},
       body: JSON.stringify({mode}),
     });
     const j = await r.json();
@@ -2634,8 +2636,10 @@ async function toggleSonnetEmergency() {
   if (turningOn && !window.confirm('Включить Sonnet emergency? ВСЕ Opus-вызовы станут Sonnet (дешевле, слабее), пока не выключишь. Аварийный клапан при исчерпании Opus-лимита.')) return;
   if (toast) toast.innerHTML = '<span class="muted">⏳ применяется…</span>';
   try {
+    const _tok = ensureAdminToken(true);
+    if (!_tok) { if (toast) toast.innerHTML = '<span style="color:var(--danger)">❌ нужен admin token</span>'; return; }
     const r = await fetch(bu + '/api/runtime_config/sonnet_emergency', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
+      method: 'POST', headers: {'Content-Type': 'application/json', 'X-Admin-Token': _tok},
       body: JSON.stringify({enabled: turningOn}),
     });
     const j = await r.json();
@@ -2835,9 +2839,11 @@ async function setForceModel(purpose, model) {
   const toast = document.getElementById('funnel-toast');
   toast.innerHTML = '<span class="muted">⏳ применяется…</span>';
   try {
+    const _tok = ensureAdminToken(true);
+    if (!_tok) { toast.innerHTML = '<span style="color:var(--danger)">❌ нужен admin token</span>'; return; }
     const r = await fetch(bu + '/api/runtime_config/force_model', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json', 'X-Admin-Token': _tok},
       body: JSON.stringify({purpose, model: model || 'default'}),
     });
     const j = await r.json();

@@ -8649,9 +8649,13 @@ function AILayerDocsModal({ layer, promptName, onClose }) {
   const savePrompt = async (p) => {
     setSaveState({type:'saving', text:'Saving...'});
     try {
+      // Editing client-facing AI prompts is admin-only — send the token (server
+      // now also enforces it for tunnel requests). audit v2 C2.
+      const token = await getOrPromptToken();
+      if (!token) { setSaveState({type:'err', text:'Admin token required'}); return; }
       const r = await fetch(`${backendUrl}/api/ai_layer_prompt`, {
         method:'POST',
-        headers:{'Content-Type':'application/json'},
+        headers:{'Content-Type':'application/json', 'X-Admin-Token': token},
         body: JSON.stringify({layer, file:p.file, name:p.name, text:editText}),
       });
       const j = await r.json().catch(() => ({}));
@@ -9698,7 +9702,9 @@ function App() {
       const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
       let data = null;
       try {
-        const r = await fetch(`${bu}/api/dashboard_data`, { cache: 'no-store' });
+        const _ddTok = (localStorage.getItem('lcband_admin_token') || '').trim();  // audit v2 #4
+        const r = await fetch(`${bu}/api/dashboard_data`, { cache: 'no-store',
+          headers: _ddTok ? {'X-Admin-Token': _ddTok} : {} });
         if (r.ok) {
           const j = await r.json();
           if (Array.isArray(j.rows)) {
@@ -9724,7 +9730,10 @@ function App() {
     // ── DB snapshot (fast, bot-written rows visible immediately) ──
     try {
       const bu = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
-      const r = await fetch(`${bu}/api/db/snapshot`, { cache: 'no-store' });
+      // audit v2 #4: full-CRM dump now needs the admin token over the tunnel.
+      const _snapTok = (localStorage.getItem('lcband_admin_token') || '').trim();
+      const r = await fetch(`${bu}/api/db/snapshot`, { cache: 'no-store',
+        headers: _snapTok ? {'X-Admin-Token': _snapTok} : {} });
       if (r.ok) {
         const snap = await r.json();
         setDbSnapshot(snap);
