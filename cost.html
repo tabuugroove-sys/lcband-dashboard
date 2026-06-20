@@ -2519,6 +2519,9 @@ loadAiPools();
 setInterval(loadAiPools, 10000);
 
 // ── 💰 Дорогие вызовы — куда ушли токены (per-call path/outcome trace) ──
+// Дорогой вызов = input+output > порога. Единый источник истины для 💰 маркера
+// в Live-фиде и для панели «Дорогие вызовы». Совпадает с backend default.
+const EXPENSIVE_TOKEN_THRESHOLD = 5000;
 const EXP_BUCKET_COLOR = {on_target:'#3fb950', partial:'#f0883e', wasted:'#f85149', unknown:'#6e7681'};
 const EXP_BUCKET_LABEL = {on_target:'целевой', partial:'частично', wasted:'впустую', unknown:'неизвестно'};
 function renderExpensiveCalls(d) {
@@ -2793,9 +2796,6 @@ loadGuardControls();
 setInterval(loadGuardControls, 30000);
 
 // ────────── LIVE AI calls feed ──────────
-// Дорогой вызов = input+output > этого порога. Один источник истины для 💰
-// маркера в фиде и для панели «Дорогие вызовы». Совпадает с backend default.
-const EXPENSIVE_TOKEN_THRESHOLD = 5000;
 let _liveLastTs = '';
 let _liveLoading = false;
 const _liveSeenEventIds = new Set();
