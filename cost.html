@@ -539,7 +539,25 @@ a:hover { text-decoration: underline; }
   </h2>
   <div id="live-feed" style="max-height:380px;overflow:auto;font: 12px/1.5 'SF Mono','Menlo','Consolas',monospace;background:#0d1117;color:#c9d1d9;border-radius:6px;padding:10px;"></div>
   <div class="label" style="margin-top:6px;">
-    Последние ~50 AI вызовов (auto-refresh 3s). Жирным показана точная model из API: cli_codex_default, cli_gemini-3-flash-preview, opus/sonnet/haiku и т.д. 🟢 = Codex, 🟣 = Opus, 🔵 = Sonnet, 🩵 = Haiku, 🟠 = Gemini, ❌ = fail.
+    Последние ~50 AI вызовов (auto-refresh 3s). Жирным показана точная model из API: cli_codex_default, cli_gemini-3-flash-preview, opus/sonnet/haiku и т.д. 🟢 = Codex, 🟣 = Opus, 🔵 = Sonnet, 🩵 = Haiku, 🟠 = Gemini, ❌ = fail. 💰 = дорогой вызов (&gt;5000 ток) — его путь в панели ниже.
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>💰 Дорогие вызовы — куда ушли токены</span>
+    <span style="font-size:11px;color:var(--muted);" id="exp-calls-status">loading…</span>
+  </h2>
+  <div id="exp-calls-list"></div>
+  <div class="label" style="margin-top:6px;">
+    Вызовы &gt;<span id="exp-calls-threshold">5000</span> токенов за 6ч: на что ушли токены и было ли это целевым.
+    Путь каждого: <b>purpose → агент → что делал → исход</b>. Bucket:
+    <span style="color:#3fb950">целевой</span> (привёл к отправке/нужной классификации) ·
+    <span style="color:#f0883e">частично</span> (карточка/контекст, без отправки) ·
+    <span style="color:#f85149">впустую</span> (skip/блок/дубль/фильтр шума) ·
+    <span style="color:#6e7681">неизвестно</span> (downstream-записи нет).
+    Привязка: <span style="color:#3fb950">✓</span> точная (по identity / синхронный presend) ·
+    <span style="color:#8b949e">~ «вероятно»</span> по времени · <span style="color:#6e7681">?</span> не найдена.
   </div>
 </div>
 
@@ -2500,6 +2518,65 @@ async function loadAiPools() {
 loadAiPools();
 setInterval(loadAiPools, 10000);
 
+// ── 💰 Дорогие вызовы — куда ушли токены (per-call path/outcome trace) ──
+const EXP_BUCKET_COLOR = {on_target:'#3fb950', partial:'#f0883e', wasted:'#f85149', unknown:'#6e7681'};
+const EXP_BUCKET_LABEL = {on_target:'целевой', partial:'частично', wasted:'впустую', unknown:'неизвестно'};
+function renderExpensiveCalls(d) {
+  const list = document.getElementById('exp-calls-list');
+  const status = document.getElementById('exp-calls-status');
+  if (!list) return;
+  if (d && d.error) { if (status) status.textContent = 'ошибка: ' + d.error; list.innerHTML = ''; return; }
+  const calls = (d && d.calls) || [];
+  const b = (d && d.buckets) || {};
+  if (status) {
+    status.innerHTML = (d.total_expensive || 0) + ' дорогих · ' +
+      '<span style="color:#3fb950">' + (b.on_target || 0) + ' целевых</span> · ' +
+      '<span style="color:#f0883e">' + (b.partial || 0) + ' частично</span> · ' +
+      '<span style="color:#f85149">' + (b.wasted || 0) + ' впустую</span> · ' +
+      '<span style="color:#6e7681">' + (b.unknown || 0) + ' неизв.</span>';
+  }
+  const thEl = document.getElementById('exp-calls-threshold');
+  if (thEl) thEl.textContent = d.min_tokens || EXPENSIVE_TOKEN_THRESHOLD;
+  if (!calls.length) { list.innerHTML = '<div class="muted" style="padding:8px">дорогих вызовов за окно нет</div>'; return; }
+  list.innerHTML = calls.map(c => {
+    const col = EXP_BUCKET_COLOR[c.on_target_bucket] || '#6e7681';
+    let outcome = esc(c.downstream_outcome || '');
+    if (c.confidence === 'low') outcome = '<span style="color:#8b949e">вероятно: </span>' + outcome;
+    else if (c.confidence === 'unknown') outcome = '<span style="color:#6e7681">' + outcome + '</span>';
+    const conf = c.confidence === 'high'
+      ? '<span style="color:#3fb950" title="точная привязка по identity / синхронный presend">✓</span>'
+      : c.confidence === 'low'
+        ? '<span style="color:#8b949e" title="привязка по времени — не точная">~</span>'
+        : '<span style="color:#6e7681" title="downstream-запись не найдена">?</span>';
+    const user = c.username ? '<span style="color:#79c0ff"> @' + esc(c.username) + '</span>' : '';
+    const ctx = c.input_context_preview
+      ? '<div class="pool-meta" style="margin-top:2px;opacity:.8;">ctx: ' + esc(c.input_context_preview) + '…</div>' : '';
+    return '<div class="exp-call-row" style="border-left:3px solid ' + col + ';padding:6px 10px;margin-bottom:6px;background:#0d1117;border-radius:4px;">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">' +
+        '<div><span class="cost">' + fmtTimeSP(c.ts) + '</span> <b style="color:#f0883e">💰 ' + Number(c.total_tok || 0) + '</b> ' +
+          '<span class="pool-meta">' + Number(c.input_tok || 0) + '→' + Number(c.output_tok || 0) + '</span> · <b>' + esc(c.purpose || '?') + '</b>' + user + '</div>' +
+        '<div style="white-space:nowrap;"><span style="color:' + col + ';font-weight:600;">' + (EXP_BUCKET_LABEL[c.on_target_bucket] || c.on_target_bucket) + '</span> ' + conf + '</div>' +
+      '</div>' +
+      '<div class="pool-meta">' + esc(c.owner_agent || '') + ' · ' + esc(c.human_action_phrase || '') + '</div>' +
+      '<div style="margin-top:2px;">→ ' + outcome + '</div>' +
+      ctx +
+    '</div>';
+  }).join('');
+}
+async function loadExpensiveCalls() {
+  const bu = await loadBackend();
+  if (!bu) return;
+  try {
+    const r = await fetch(bu + '/api/expensive_ai_calls?hours=6&min_tokens=' + EXPENSIVE_TOKEN_THRESHOLD + '&limit=40', {cache:'no-store'});
+    renderExpensiveCalls(await r.json());
+  } catch (e) {
+    const s = document.getElementById('exp-calls-status');
+    if (s) s.textContent = 'ошибка: ' + e.message;
+  }
+}
+loadExpensiveCalls();
+setInterval(loadExpensiveCalls, 15000);
+
 // ── Unified routing mode (28.05) — single global control ───────────────
 // (Legacy presets quality/balanced/economy/codex_first удалены — один контрол.)
 const _ROUTING_MODE_ORDER = ['codex_only','mostly_codex','balanced','claude_only'];
@@ -2716,6 +2793,9 @@ loadGuardControls();
 setInterval(loadGuardControls, 30000);
 
 // ────────── LIVE AI calls feed ──────────
+// Дорогой вызов = input+output > этого порога. Один источник истины для 💰
+// маркера в фиде и для панели «Дорогие вызовы». Совпадает с backend default.
+const EXPENSIVE_TOKEN_THRESHOLD = 5000;
 let _liveLastTs = '';
 let _liveLoading = false;
 const _liveSeenEventIds = new Set();
@@ -2805,6 +2885,8 @@ async function loadLive() {
         const tok = (e.input_tok || e.output_tok)
           ? '<span style="color:#6e7681;">'+(e.input_tok||0)+'→'+(e.output_tok||0)+'</span>'
           : '';
+        const money = ((e.input_tok||0)+(e.output_tok||0)) > EXPENSIVE_TOKEN_THRESHOLD
+          ? '<span title="дорогой вызов &gt;'+EXPENSIVE_TOKEN_THRESHOLD+' tok — путь в панели «Дорогие вызовы» ниже" style="color:#f0883e;">💰 </span>' : '';
         const reason = e.reason ? '<span style="color:#f85149;font-style:italic;"> '+esc(e.reason)+'</span>' : '';
         const rawPurpose = e.raw_purpose && e.raw_purpose !== e.purpose ? ' · raw: '+e.raw_purpose : '';
         const line = '<div class="live-call-row" data-kind="'+esc(e.kind||'')+'" title="'+esc((e.service||'')+' · '+model+' · '+(e.purpose||'')+rawPurpose)+'">' +
@@ -2812,7 +2894,7 @@ async function loadLive() {
           '<span>'+dot+'</span>' +
           '<span class="live-model" style="color:'+color+';">'+esc(model)+'</span>' +
           '<span class="live-purpose">'+esc(e.purpose||'?')+'</span>' +
-          '<span>'+tok + reason + '</span>' +
+          '<span>'+money+tok + reason + '</span>' +
           '</div>';
         feed.insertAdjacentHTML('beforeend', line);
       });
