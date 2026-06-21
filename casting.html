@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cruise Casting — Status</title>
+<style>
+  :root{--bg:#0f1115;--card:#181b22;--line:#262b36;--tx:#e6e9ef;--mut:#8b93a7;
+        --have:#2ecc71;--wait:#f1c40f;--miss:#e74c3c;--ext:#3498db;--rec:#7f8c9b;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:24px}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--mut);margin:0 0 18px;font-size:13px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}
+  .pill{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--mut)}
+  .pill b{color:var(--tx)}
+  .bar{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin:6px 0 20px;max-width:520px}
+  .bar > i{display:block;height:100%;background:var(--have)}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:11px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:13px}
+  th{color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  tr:last-child td{border-bottom:none}
+  .role{font-weight:600}
+  .name{color:var(--mut)}
+  .b{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600}
+  .have{background:rgba(46,204,113,.15);color:var(--have)}
+  .requested{background:rgba(241,196,15,.15);color:var(--wait)}
+  .missing{background:rgba(231,76,60,.15);color:var(--miss)}
+  .external{background:rgba(52,152,219,.15);color:var(--ext)}
+  .recruiting{background:rgba(127,140,155,.18);color:var(--rec)}
+  a{color:var(--ext)}
+  .foot{color:var(--mut);font-size:12px;margin-top:16px}
+</style>
+</head>
+<body>
+  <h1>🎭 Cruise Casting — Status</h1>
+  <p class="sub" id="order"></p>
+  <div class="meta" id="meta"></div>
+  <div class="bar"><i id="prog" style="width:0"></i></div>
+  <table>
+    <thead><tr><th>Role</th><th>Name</th><th>Video</th><th>Photo</th><th>Repertoire</th><th>Bio</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <p class="foot" id="foot"></p>
+
+<script>
+const LABEL={have:"have",requested:"requested · waiting",missing:"NOT requested",external:"in his Drive",recruiting:"recruiting"};
+function cell(it){
+  const s=it.status, n=it.count;
+  const txt = s==="have" ? (n?`${n} ✓`:"✓") : LABEL[s]||s;
+  return `<td><span class="b ${s}">${txt}</span></td>`;
+}
+fetch('casting_status.json?t='+Date.now()).then(r=>r.json()).then(d=>{
+  document.getElementById('order').textContent = d.order;
+  document.getElementById('meta').innerHTML =
+    `<span class="pill">Fee: <b>${d.fee_status}</b></span>`+
+    `<span class="pill"><a href="${d.drive_folder}" target="_blank">📁 Drive package</a></span>`+
+    `<span class="pill">Members: <b>${d.members.length}</b></span>`;
+  let have=0, total=0, rows="";
+  d.members.forEach(m=>{
+    ["video","photo","repertoire","bio"].forEach(k=>{ if(!m.recruiting && !m.external){ total++; if(m.items[k].status==="have") have++; }});
+    rows += `<tr><td class="role">${m.role}</td><td class="name">${m.name}${m.tg?` · @${m.tg}`:''}</td>`+
+            cell(m.items.video)+cell(m.items.photo)+cell(m.items.repertoire)+cell(m.items.bio)+`</tr>`;
+  });
+  document.getElementById('rows').innerHTML = rows;
+  document.getElementById('prog').style.width = total? Math.round(100*have/total)+'%' : '0';
+  document.getElementById('foot').textContent =
+    `Completeness ${have}/${total} · auto-verified against real Telegram requests · updated ${d.updated_at}`;
+}).catch(e=>{document.getElementById('foot').textContent='Failed to load casting_status.json: '+e;});
+</script>
+</body>
+</html>

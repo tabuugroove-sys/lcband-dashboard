@@ -1,0 +1,170 @@
+{
+  "updated_at": "2026-06-21T10:44:20+03:00",
+  "order": "Red Sea cruise (Turkey↔Egypt) · start 27th Istanbul · ~1.5 months",
+  "fee_status": "USD 22,000/month (6-piece) — under final approval",
+  "drive_folder": "https://drive.google.com/drive/folders/1hhm9A-XUFIV8PnCqe9SI1GODEEwkQYle",
+  "members": [
+    {
+      "role": "Male vocal",
+      "name": "Viktor",
+      "tg": "Viktor_Zabrodin",
+      "nationality": "Russian",
+      "location": "Moscow",
+      "external": "",
+      "recruiting": false,
+      "items": {
+        "video": {
+          "count": 9,
+          "status": "have"
+        },
+        "photo": {
+          "count": 2,
+          "status": "have"
+        },
+        "repertoire": {
+          "count": 1,
+          "status": "have"
+        },
+        "bio": {
+          "count": 0,
+          "status": "requested"
+        }
+      }
+    },
+    {
+      "role": "Female vocal",
+      "name": "Karyloka",
+      "tg": "Karyloka",
+      "nationality": "Russian",
+      "location": "Moscow",
+      "external": "",
+      "recruiting": false,
+      "items": {
+        "video": {
+          "count": 6,
+          "status": "have"
+        },
+        "photo": {
+          "count": 0,
+          "status": "requested"
+        },
+        "repertoire": {
+          "count": 0,
+          "status": "requested"
+        },
+        "bio": {
+          "count": 1,
+          "status": "have"
+        }
+      }
+    },
+    {
+      "role": "Drums",
+      "name": "Marsel",
+      "tg": "Marselcomposer",
+      "nationality": "Russian",
+      "location": "Moscow",
+      "external": "",
+      "recruiting": false,
+      "items": {
+        "video": {
+          "count": 4,
+          "status": "have"
+        },
+        "photo": {
+          "count": 5,
+          "status": "have"
+        },
+        "repertoire": {
+          "count": 0,
+          "status": "requested"
+        },
+        "bio": {
+          "count": 0,
+          "status": "requested"
+        }
+      }
+    },
+    {
+      "role": "Guitar",
+      "name": "Alex",
+      "tg": "alex_maurice_guitar",
+      "nationality": "Russian",
+      "location": "Moscow",
+      "external": "promo in his own Google Drive",
+      "recruiting": false,
+      "items": {
+        "video": {
+          "count": 0,
+          "status": "external"
+        },
+        "photo": {
+          "count": 0,
+          "status": "external"
+        },
+        "repertoire": {
+          "count": 0,
+          "status": "external"
+        },
+        "bio": {
+          "count": 0,
+          "status": "external"
+        }
+      }
+    },
+    {
+      "role": "Saxophone",
+      "name": "Vladimir",
+      "tg": "Vladychkin",
+      "nationality": "Russian",
+      "location": "Moscow",
+      "external": "",
+      "recruiting": false,
+      "items": {
+        "video": {
+          "count": 1,
+          "status": "have"
+        },
+        "photo": {
+          "count": 0,
+          "status": "requested"
+        },
+        "repertoire": {
+          "count": 0,
+          "status": "requested"
+        },
+        "bio": {
+          "count": 0,
+          "status": "missing"
+        }
+      }
+    },
+    {
+      "role": "Keys / Bass",
+      "name": "TBD",
+      "tg": "",
+      "nationality": "Russian",
+      "location": "Moscow",
+      "external": "",
+      "recruiting": true,
+      "items": {
+        "video": {
+          "count": 0,
+          "status": "recruiting"
+        },
+        "photo": {
+          "count": 0,
+          "status": "recruiting"
+        },
+        "repertoire": {
+          "count": 0,
+          "status": "recruiting"
+        },
+        "bio": {
+          "count": 0,
+          "status": "recruiting"
+        }
+      }
+    }
+  ]
+}

@@ -487,6 +487,29 @@ a:hover { text-decoration: underline; }
 
 <div id="alerts" class="alerts"></div>
 
+<div class="card" id="event-monitor-card" style="margin-bottom:18px;border-left:3px solid #3fb950;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>
+      <span id="event-monitor-dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#3fb950;margin-right:7px;box-shadow:0 0 0 0 rgba(63,185,80,.6);animation:emPulse 2s infinite;"></span>
+      🛡️ Монитор: расход на отменённые/прошедшие события
+    </span>
+    <span style="font-size:11px;color:var(--muted);" id="event-monitor-status">…</span>
+  </h2>
+  <div class="label" style="margin:-4px 0 10px 0;">
+    Несостоявшиеся события переведены в <code>cancelled</code> — агенты их не трогают. Эта панель ловит остаточные AI-вызовы, которые всё ещё попали на такие контакты (должно быть <b>0</b>). Окно: <span id="event-monitor-window">24</span>ч · последний прогон: <span id="event-monitor-ts">—</span>.
+  </div>
+  <div id="event-monitor-headline" style="font-size:14px;font-weight:600;margin-bottom:8px;">проверяю…</div>
+  <table id="event-monitor-table" style="width:100%;border-collapse:collapse;font-size:12px;display:none;">
+    <thead><tr style="color:var(--muted);text-align:left;">
+      <th style="padding:5px 8px;">Контакт (cancelled-событие)</th>
+      <th style="padding:5px 8px;width:70px;text-align:right;">Вызовы</th>
+      <th style="padding:5px 8px;width:110px;text-align:right;">Токены</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+<style>@keyframes emPulse{0%{box-shadow:0 0 0 0 rgba(63,185,80,.6)}70%{box-shadow:0 0 0 7px rgba(63,185,80,0)}100%{box-shadow:0 0 0 0 rgba(63,185,80,0)}}</style>
+
 <div class="card" id="hidden-spend-card" style="margin-bottom:18px;border-left:3px solid #f0883e;">
   <h2 style="display:flex;justify-content:space-between;align-items:center;">
     <span>💸 Скрытый расход — codex exec (мимо ленты)</span>
@@ -2615,6 +2638,7 @@ async function loadHiddenSpend() {
     const ce = d.codex_exec_bursts || {};
     const wEl = document.getElementById('hidden-spend-window');
     if (wEl) wEl.textContent = d.window_hours || 24;
+    renderEventMonitor(d, t);
     const hidden = Number(t.codex_exec_tokens || ce.tokens || 0);
     const visible = Number(t.total_tokens || 0);
     const st = document.getElementById('hidden-spend-status');
@@ -2647,6 +2671,50 @@ async function loadHiddenSpend() {
 }
 loadHiddenSpend();
 setInterval(loadHiddenSpend, 60000);
+
+// 🛡️ Монитор расхода на cancelled-события — питается из того же /api/spend_efficiency.
+function renderEventMonitor(d, t) {
+  const wEl = document.getElementById('event-monitor-window');
+  if (wEl) wEl.textContent = d.window_hours || 24;
+  const tsEl = document.getElementById('event-monitor-ts');
+  if (tsEl) {
+    const ts = d.generated_at ? new Date(d.generated_at) : null;
+    tsEl.textContent = ts && !isNaN(ts) ? ts.toLocaleString('ru-RU') : (d.available === false ? 'ещё не прогонялся' : '—');
+  }
+  const calls = Number(t.cancelled_event_calls || 0);
+  const toks = Number(t.cancelled_event_tokens || 0);
+  const rows = d.cancelled_event_spend || [];
+  const dot = document.getElementById('event-monitor-dot');
+  const card = document.getElementById('event-monitor-card');
+  const head = document.getElementById('event-monitor-headline');
+  const tbl = document.getElementById('event-monitor-table');
+  const tbody = tbl ? tbl.querySelector('tbody') : null;
+  const color = calls > 0 ? '#f85149' : '#3fb950';
+  if (dot) dot.style.background = color;
+  if (card) card.style.borderLeftColor = color;
+  if (head) {
+    head.style.color = color;
+    head.innerHTML = calls > 0
+      ? '🚨 ' + calls + ' вызов(ов) / ' + toks.toLocaleString('ru-RU') + ' ток на отменённых событиях — есть путь в обход overlay'
+      : '✓ чисто — ноль AI-вызовов на отменённых событиях';
+  }
+  if (tbl && tbody) {
+    if (calls > 0 && rows.length) {
+      tbl.style.display = '';
+      tbody.innerHTML = rows.map(s =>
+        '<tr style="border-top:0.5px solid var(--border);">'
+        + '<td style="padding:5px 8px;">@' + esc(String(s.username || s.thread_id || '?')) + '</td>'
+        + '<td style="padding:5px 8px;text-align:right;color:#f85149;font-variant-numeric:tabular-nums;">' + Number(s.calls || 0) + '</td>'
+        + '<td style="padding:5px 8px;text-align:right;font-variant-numeric:tabular-nums;">' + Number(s.tokens || 0).toLocaleString('ru-RU') + '</td>'
+        + '</tr>').join('');
+    } else {
+      tbl.style.display = 'none';
+      tbody.innerHTML = '';
+    }
+  }
+  const st = document.getElementById('event-monitor-status');
+  if (st) st.textContent = 'обновлено ' + new Date().toLocaleTimeString('ru-RU');
+}
 
 // ── 💰 Дорогие вызовы — куда ушли токены (per-call path/outcome trace) ──
 // Дорогой вызов = input+output > порога. Единый источник истины для 💰 маркера
