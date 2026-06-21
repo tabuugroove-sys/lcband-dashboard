@@ -1356,6 +1356,18 @@ const PROCESS_RULES = {
       'Скрипты: event_stub_updater.py / event_watcher.py | logs: /tmp/event_stub_updater.log, /tmp/event_watcher.log',
     ],
   },
+  proc_event_dedup: {
+    name: 'Event Dedup Reconcile',
+    interval: 'Раз в сутки · 04:35 (com.lcband.event-dedup-reconcile)',
+    desc: 'Сворачивает дубли событий-сущностей: фрагменты одного реального события (дрейф анкера в id) объединяются в одну каноническую ноду графа',
+    rules: [
+      'Кластеризует по (контакт-организатор, дата); сливает кластеры size>1 через event_graph.merge_event_ids + lcb_orders.merge_event_docs (rekey, если канонического дока ещё нет)',
+      'Правило: один организатор+дата → ВСЕГДА сливать; ≥2 confirmed в БУДУЩУЮ дату → НЕ сливать, флаг оператору (две реальные брони); прошедшая дата сливается как история',
+      'Канон = единственный confirmed, иначе самая «состоявшаяся» (done/post_event/confirmed) и богатая нода',
+      'Исключает INTERNAL_TEAM из ключа-организатора (@kirill_muspro ИП-платёжка линкуется к разным событиям → не путать)',
+      'Скрипт: event_dedup_reconcile.py --apply (dry-run по умолчанию) | log: /tmp/event_dedup_reconcile.log',
+    ],
+  },
   proc_event_ops_logistics: {
     name: 'Event Ops Logistics (10m)',
     interval: 'Каждые 10 мин',
