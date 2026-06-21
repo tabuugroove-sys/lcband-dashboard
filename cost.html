@@ -2821,7 +2821,11 @@ function renderLiveTable() {
     const model = liveModelName(e);
     const total = (e.input_tok||0)+(e.output_tok||0);
     const exp = total > EXPENSIVE_TOKEN_THRESHOLD ? (_expMap[(e.purpose||'')+'|'+total] || null) : null;
-    const contact = (exp && exp.username) ? '<span style="color:#79c0ff;">@'+esc(exp.username)+'</span>' : '<span style="color:#6e7681;">—</span>';
+    // Контакт: expensive attribution OR the conversation peer from thread_id
+    // (every DM/enrich call carries one; batch/event-chat calls have none → —).
+    let _peer = (exp && exp.username) ? exp.username : '';
+    if (!_peer && e.thread_id) { const _p = String(e.thread_id).split(':'); _peer = _p.length > 1 ? _p.slice(1).join(':') : ''; }
+    const contact = _peer ? '<span style="color:#79c0ff;">@'+esc(_peer)+'</span>' : '<span style="color:#6e7681;">—</span>';
     const hum = e.human_action_phrase || (exp && exp.phrase) || e.purpose || '?';
     const did = esc(hum) + ((e.purpose && e.purpose !== hum) ? ' <span style="color:#8b949e;">· '+esc(e.purpose)+'</span>' : '');
     const spend = total ? '<span style="color:#f0883e;">'+total.toLocaleString('ru-RU')+'</span>' : '<span style="color:#6e7681;">—</span>';
@@ -2832,6 +2836,8 @@ function renderLiveTable() {
       itog = '<span style="color:'+col+';font-weight:600;">'+lbl+'</span>'+(exp.outcome?' <span style="color:#6e7681;">'+esc(exp.outcome)+'</span>':'');
     } else if (e.reason) {
       itog = '<span style="color:#f85149;font-style:italic;">'+esc(e.reason)+'</span>';
+    } else if (e.decision) {
+      itog = '<span style="color:#8b949e;">'+esc(e.decision)+'</span>';
     } else { itog = '<span style="color:#6e7681;">—</span>'; }
     const rawPurpose = e.raw_purpose && e.raw_purpose !== e.purpose ? ' · raw: '+e.raw_purpose : '';
     return '<tr style="border-top:0.5px solid var(--border);" title="'+esc((e.service||'')+' · '+model+' · '+(e.purpose||'')+rawPurpose)+'">'+
