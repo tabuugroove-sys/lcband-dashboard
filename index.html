@@ -1257,12 +1257,13 @@ const PROCESS_RULES = {
   proc_spend_watchdog: {
     name: 'Spend-watchdog: целевой ли расход AI',
     interval: 'Каждые 6ч · spend_efficiency_watchdog.py (механический, почти 0 токенов)',
-    desc: 'Сводит расход AI-токенов из ai_timeline.jsonl с целевыми действиями из session_actions.jsonl и показывает, какие purposes/контакты жгут токены без результата (петли, no-outcome, low-yield)',
+    desc: 'Сводит расход AI-токенов из ai_timeline.jsonl + direct codex exec из state_5.sqlite с целевыми действиями из session_actions.jsonl и показывает, какие purposes/контакты жгут токены без результата (петли, no-outcome, low-yield)',
     rules: [
       'Группирует вызовы по purpose и по thread_id (tg:username) за окно (деф. 24ч), считает токены/вызовы/стоимость',
       'Целевое действие = productive session_action того же контакта (send / сдвиг воронки / документ / апрув); non-productive (blocked/skip/recheck) не считается',
       'suspects_no_outcome — контакт с большим расходом ИЛИ многими вызовами и нулём целевых действий (call-count устойчив к gappy-логам токенов)',
       'repeat_loops — один purpose × thread повторён ≥ порога; top_purposes_by_token — куда уходят токены + yield_pct',
+      'codex_exec_bursts — subprocess-вызовы codex exec, которые обошли ai_timeline/codex_cli guard; подсвечивает batch vision/document loops',
       'Механический по умолчанию; LCB_SPEND_WATCHDOG_AI=1 добавляет один дешёвый Haiku-вердикт на top-подозреваемых',
       'Таксономия целевое/впустую: .claude/skills/spend-efficiency/SKILL.md; приоритеты бюджета — codex_cli.DEFAULT_LOOP_GUARD',
       'Скрипт: spend_efficiency_watchdog.py | endpoint: /api/spend_efficiency | log: spend_efficiency_watchdog_cron.log',
