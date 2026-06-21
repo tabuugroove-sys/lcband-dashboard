@@ -487,6 +487,24 @@ a:hover { text-decoration: underline; }
 
 <div id="alerts" class="alerts"></div>
 
+<div class="card" id="hidden-spend-card" style="margin-bottom:18px;border-left:3px solid #f0883e;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>💸 Скрытый расход — codex exec (мимо ленты)</span>
+    <span style="font-size:11px;color:var(--muted);" id="hidden-spend-status">…</span>
+  </h2>
+  <div class="label" style="margin:-4px 0 10px 0;">
+    Прямые <code>codex exec</code> вызовы идут мимо роутера и <b>не попадают в ленту ниже</b> — обычно это главный пожиратель токенов. Окно: <span id="hidden-spend-window">24</span>ч.
+  </div>
+  <table id="hidden-spend-table" style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead><tr style="color:var(--muted);text-align:left;">
+      <th style="padding:5px 8px;">Что делает</th>
+      <th style="padding:5px 8px;width:110px;text-align:right;">Токены</th>
+      <th style="padding:5px 8px;width:70px;text-align:right;">Вызовы</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
 <div class="card" style="margin-bottom:18px;">
   <h2 style="display:flex;justify-content:space-between;align-items:center;">
     <span>🖥️ CLI burn — Activity Monitor style</span>
@@ -2583,6 +2601,52 @@ async function loadAiPools() {
 }
 loadAiPools();
 setInterval(loadAiPools, 10000);
+
+// 💸 Скрытый off-pipeline codex-exec расход (прямые `codex exec`, мимо ai_timeline
+// и ленты). Данные уже считает spend_efficiency (codex_exec_bursts) — просто
+// выводим. Обычно это №1 по токенам.
+async function loadHiddenSpend() {
+  const bu = await loadBackend();
+  if (!bu) return;
+  try {
+    const r = await fetch(bu + '/api/spend_efficiency', {cache:'no-store'});
+    const d = await r.json();
+    const t = d.totals || {};
+    const ce = d.codex_exec_bursts || {};
+    const wEl = document.getElementById('hidden-spend-window');
+    if (wEl) wEl.textContent = d.window_hours || 24;
+    const hidden = Number(t.codex_exec_tokens || ce.tokens || 0);
+    const visible = Number(t.total_tokens || 0);
+    const st = document.getElementById('hidden-spend-status');
+    if (st) st.innerHTML = '<b style="color:#f0883e;">' + hidden.toLocaleString('ru-RU') + '</b> ток мимо ленты / '
+      + Number(ce.threads || t.codex_exec_threads || 0) + ' веток · в ленте видно ' + visible.toLocaleString('ru-RU');
+    const tbody = document.querySelector('#hidden-spend-table tbody');
+    if (!tbody) return;
+    const HUMAN = {
+      'document_classifier.codex_vision': 'Распознавание документов/картинок (vision/OCR)',
+      'generic_codex_classify_exec': 'Общая классификация (codex exec)',
+      'payment_intent_codex_exec': 'Финансовый интент документа',
+    };
+    const buckets = ce.by_bucket || [];
+    if (!buckets.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="muted" style="padding:8px">нет данных (spend_efficiency ещё не прогонялся)</td></tr>';
+      return;
+    }
+    tbody.innerHTML = buckets.map(b => {
+      const name = HUMAN[b.bucket] || String(b.bucket || '').slice(0, 80);
+      const tok = Number(b.tokens || 0);
+      return '<tr style="border-top:0.5px solid var(--border);">'
+        + '<td style="padding:5px 8px;' + (tok > 5000000 ? 'font-weight:600;' : '') + '">' + esc(name) + '</td>'
+        + '<td style="padding:5px 8px;text-align:right;color:#f0883e;font-variant-numeric:tabular-nums;">' + tok.toLocaleString('ru-RU') + '</td>'
+        + '<td style="padding:5px 8px;text-align:right;">' + Number(b.threads || 0) + '</td>'
+        + '</tr>';
+    }).join('');
+  } catch (e) {
+    const st = document.getElementById('hidden-spend-status'); if (st) st.textContent = 'ошибка';
+  }
+}
+loadHiddenSpend();
+setInterval(loadHiddenSpend, 60000);
 
 // ── 💰 Дорогие вызовы — куда ушли токены (per-call path/outcome trace) ──
 // Дорогой вызов = input+output > порога. Единый источник истины для 💰 маркера
