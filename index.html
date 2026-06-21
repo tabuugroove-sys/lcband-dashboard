@@ -1264,7 +1264,7 @@ const PROCESS_RULES = {
       'suspects_no_outcome — контакт с большим расходом ИЛИ многими вызовами и нулём целевых действий (call-count устойчив к gappy-логам токенов)',
       'repeat_loops — один purpose × thread повторён ≥ порога; top_purposes_by_token — куда уходят токены + yield_pct',
       'codex_exec_bursts — subprocess-вызовы codex exec, которые обошли ai_timeline/codex_cli guard; подсвечивает batch vision/document loops',
-      'sitecustomize.py блокирует новые прямые quota-bearing CLI subprocess (`codex exec`, `claude -p/--print`) вне codex_cli.py/claude_cli.py; override только LCB_ALLOW_DIRECT_AI_CLI=1',
+      'usercustomize.py блокирует новые прямые quota-bearing CLI subprocess (`codex exec`, `claude -p/--print`) вне codex_cli.py/claude_cli.py; override только LCB_ALLOW_DIRECT_AI_CLI=1',
       'Механический по умолчанию; LCB_SPEND_WATCHDOG_AI=1 добавляет один дешёвый Haiku-вердикт на top-подозреваемых',
       'Таксономия целевое/впустую: .claude/skills/spend-efficiency/SKILL.md; приоритеты бюджета — codex_cli.DEFAULT_LOOP_GUARD',
       'Скрипт: spend_efficiency_watchdog.py | endpoint: /api/spend_efficiency | log: spend_efficiency_watchdog_cron.log',
