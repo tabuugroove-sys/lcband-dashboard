@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-06-21T15:18:24+03:00",
+  "updated_at": "2026-06-21T15:37:49+03:00",
   "order": "Red Sea cruise (Turkey↔Egypt) · start 27th Istanbul · ~1.5 months",
   "fee_status": "USD 22,000/month (6-piece) — under final approval",
   "drive_folder": "https://drive.google.com/drive/folders/1hhm9A-XUFIV8PnCqe9SI1GODEEwkQYle",
@@ -8,6 +8,7 @@
       "role": "Male vocal",
       "name": "Viktor",
       "tg": "Viktor_Zabrodin",
+      "is_vocal": true,
       "nationality": "Russian",
       "location": "Moscow",
       "external": "",
@@ -35,6 +36,7 @@
       "role": "Female vocal",
       "name": "Karyloka",
       "tg": "Karyloka",
+      "is_vocal": true,
       "nationality": "Russian",
       "location": "Moscow",
       "external": "",
@@ -62,6 +64,7 @@
       "role": "Drums",
       "name": "Marsel",
       "tg": "Marselcomposer",
+      "is_vocal": false,
       "nationality": "Russian",
       "location": "Moscow",
       "external": "",
@@ -77,7 +80,7 @@
         },
         "repertoire": {
           "count": 0,
-          "status": "requested"
+          "status": "not_required"
         },
         "bio": {
           "count": 0,
@@ -89,6 +92,7 @@
       "role": "Guitar",
       "name": "Alex",
       "tg": "alex_maurice_guitar",
+      "is_vocal": false,
       "nationality": "Russian",
       "location": "Moscow",
       "external": "promo in his own Google Drive",
@@ -104,7 +108,7 @@
         },
         "repertoire": {
           "count": 0,
-          "status": "external"
+          "status": "not_required"
         },
         "bio": {
           "count": 0,
@@ -116,6 +120,7 @@
       "role": "Saxophone",
       "name": "Vladimir",
       "tg": "Vladychkin",
+      "is_vocal": false,
       "nationality": "Russian",
       "location": "Moscow",
       "external": "",
@@ -131,7 +136,7 @@
         },
         "repertoire": {
           "count": 0,
-          "status": "requested"
+          "status": "not_required"
         },
         "bio": {
           "count": 0,
@@ -143,6 +148,7 @@
       "role": "Keys / Bass",
       "name": "TBD",
       "tg": "",
+      "is_vocal": false,
       "nationality": "Russian",
       "location": "Moscow",
       "external": "",
@@ -158,7 +164,7 @@
         },
         "repertoire": {
           "count": 0,
-          "status": "recruiting"
+          "status": "not_required"
         },
         "bio": {
           "count": 0,

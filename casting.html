@@ -28,6 +28,7 @@
   .missing{background:rgba(231,76,60,.15);color:var(--miss)}
   .external{background:rgba(52,152,219,.15);color:var(--ext)}
   .recruiting{background:rgba(127,140,155,.18);color:var(--rec)}
+  .not_required{background:rgba(127,140,155,.10);color:var(--mut)}
   a{color:var(--ext)}
   .foot{color:var(--mut);font-size:12px;margin-top:16px}
 </style>
@@ -44,7 +45,7 @@
   <p class="foot" id="foot"></p>
 
 <script>
-const LABEL={have:"have",requested:"requested · waiting",missing:"NOT requested",external:"in his Drive",recruiting:"recruiting"};
+const LABEL={have:"have",requested:"requested · waiting",missing:"NOT requested",external:"in his Drive",recruiting:"recruiting",not_required:"n/a"};
 function cell(it){
   const s=it.status, n=it.count;
   const txt = s==="have" ? (n?`${n} ✓`:"✓") : LABEL[s]||s;
@@ -58,7 +59,7 @@ fetch('casting_status.json?t='+Date.now()).then(r=>r.json()).then(d=>{
     `<span class="pill">Members: <b>${d.members.length}</b></span>`;
   let have=0, total=0, rows="";
   d.members.forEach(m=>{
-    ["video","photo","repertoire","bio"].forEach(k=>{ if(!m.recruiting && !m.external){ total++; if(m.items[k].status==="have") have++; }});
+    ["photo","video","repertoire"].forEach(k=>{ const s=m.items[k].status; if(s==="have"){have++;total++;} else if(s==="requested"||s==="missing"){total++;} });
     rows += `<tr><td class="role">${m.role}</td><td class="name">${m.name}${m.tg?` · @${m.tg}`:''}</td>`+
             cell(m.items.video)+cell(m.items.photo)+cell(m.items.repertoire)+cell(m.items.bio)+`</tr>`;
   });
