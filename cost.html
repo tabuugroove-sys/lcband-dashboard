@@ -1978,6 +1978,90 @@ const PROCESS_INFO = {
     risk: 'Полезно, но может быстро съедать лимит, если запускать часто.',
     where: 'audit/strategy review',
   },
+  classify: {
+    title: 'Classify — классификация одного сообщения/поста',
+    does: 'Определяет тип входящего (клиент / подрядчик / спам / нерелевант) и стадию — чтобы решить, отвечать ли и куда направить.',
+    affects: ['маршрутизация лида', 'стадия воронки', 'нужен ли ответ'],
+    risk: 'Повторы по одному треду без нового входящего = переклассификация впустую (петля).',
+    where: 'ingest/classify',
+  },
+  funnel_l1_gemini_screen: {
+    title: 'Funnel L1 — дешёвый отсев (Gemini)',
+    does: 'Быстрый recall-гейт: грубо отсеивает явный мусор до дорогих слоёв. По замыслу должен идти на Gemini (бесплатно).',
+    affects: ['что пройдёт дальше', 'экономия дорогих вызовов'],
+    risk: 'Если уходит на Codex/Opus вместо Gemini — дорого; это копеечный гейт.',
+    where: 'smart_funnel L1',
+  },
+  funnel_l2_sonnet: {
+    title: 'Funnel L2 — средний разбор (Sonnet)',
+    does: 'Если L1 не уверен — Sonnet уточняет тип/стадию входящего перед финальным решением.',
+    affects: ['точность классификации', 'эскалация на L3'],
+    risk: 'Частая эскалация = L1 плохо отсеивает.',
+    where: 'smart_funnel L2',
+  },
+  funnel_l3_opus_arbiter: {
+    title: 'Funnel L3 — арбитр (Opus)',
+    does: 'Дорогой финальный арбитр: Opus решает спорные случаи, которые L1/L2 не закрыли.',
+    affects: ['итоговая классификация', 'расход Opus'],
+    risk: 'Должен срабатывать редко; частые вызовы = воронка гоняет одно и то же.',
+    where: 'smart_funnel L3',
+  },
+  band_member_order_status: {
+    title: 'Статус заказа участника группы',
+    does: 'Сверяет по карточке статус гига для участника LC Band (Лео/Ира/Стас…) и отвечает ему по делу.',
+    affects: ['координация состава', 'ответ участнику'],
+    risk: 'Повтор по треду без нового сообщения = re-delivery петля (был инцидент с Лео).',
+    where: 'band_member_reply',
+  },
+  thread_context_extract: {
+    title: 'Извлечение контекста переписки в карточку',
+    does: 'Вытаскивает из переписки факты (даты / город / состав / обещания) и складывает их в карточку контакта.',
+    affects: ['карточка контакта', 'качество следующего ответа'],
+    risk: 'Повторный прогон по неизменной переписке = пустой расход.',
+    where: 'lead_context_enricher',
+  },
+  event_ops_musician_availability: {
+    title: 'Сверка доступности музыканта',
+    does: 'Проверяет, свободен ли музыкант на дату события — чтобы собрать/подтвердить состав.',
+    affects: ['состав события', 'координация'],
+    risk: 'Частые повторы = тик гоняет проверку без изменений.',
+    where: 'event_ops',
+  },
+  unified_dm_generate: {
+    title: 'Генерация ответа клиенту в TG DM',
+    does: 'Пишет черновик ответа клиенту в личке по контексту заказа; дальше идёт в presend-проверку.',
+    affects: ['исходящее клиенту', 'воронка'],
+    risk: 'Если presend режет как дубль — генерим то, что уже отправили (расход без отправки).',
+    where: 'unified_dm_responder',
+  },
+  unified_dm_casting_direct_response: {
+    title: 'Ответ на прямой кастинг-запрос',
+    does: 'Готовит ответ исполнителю/подрядчику, который сам написал на кастинг (промо / прослушивание / условия).',
+    affects: ['кастинг / подрядчики', 'исходящее'],
+    risk: 'Повтор по одному треду = переобработка одного сообщения.',
+    where: 'unified_dm_responder (casting)',
+  },
+  lcb_writer_reply: {
+    title: 'Генерация ответа клиенту (LCBand writer)',
+    does: 'Основной «писатель» LC Band: формирует ответ клиенту в нужном тоне и по канон-прайсу.',
+    affects: ['исходящее клиенту', 'тон / цена'],
+    risk: 'Дорогой; повторы без отправки = расход впустую.',
+    where: 'lcb_writer',
+  },
+  broker_candidate_ready_to_present: {
+    title: 'Кандидат-подрядчик готов к показу клиенту',
+    does: 'Решает, можно ли показать клиенту найденного подрядчика (промо / цена / условия готовы).',
+    affects: ['broker-сделка', 'передача клиенту'],
+    risk: 'Повтор по треду = переоценка одного и того же кандидата.',
+    where: 'broker pipeline',
+  },
+  lcb_inbound_sourced_contractor_gate: {
+    title: 'Фильтр входящего от подрядчика',
+    does: 'Определяет, наш ли это подрядчик/кандидат и как его вести (broker vs прямой).',
+    affects: ['маршрутизация подрядчика'],
+    risk: 'Частые повторы по одному контакту = петля.',
+    where: 'unified_dm_responder (contractor gate)',
+  },
 };
 const SERVICE_INFO = {
   cli_codex: 'Codex CLI через ChatGPT/Codex лимит. Обычно первый слой для review/classification.',
@@ -2827,7 +2911,11 @@ function renderLiveTable() {
     if (!_peer && e.thread_id) { const _p = String(e.thread_id).split(':'); _peer = _p.length > 1 ? _p.slice(1).join(':') : ''; }
     const contact = _peer ? '<span style="color:#79c0ff;">@'+esc(_peer)+'</span>' : '<span style="color:#6e7681;">—</span>';
     const hum = e.human_action_phrase || (exp && exp.phrase) || e.purpose || '?';
-    const did = esc(hum) + ((e.purpose && e.purpose !== hum) ? ' <span style="color:#8b949e;">· '+esc(e.purpose)+'</span>' : '');
+    // Inline «что делает + зачем» прямо в строке (не тултип): берём из PROCESS_INFO,
+    // только реальные описания (не generic-заглушку), чтобы не было шума на каждой строке.
+    const _pinfo = (typeof PROCESS_INFO !== 'undefined') ? PROCESS_INFO[e.purpose] : null;
+    const did = '<div>' + esc(hum) + ((e.purpose && e.purpose !== hum) ? ' <span style="color:#8b949e;">· '+esc(e.purpose)+'</span>' : '') + '</div>'
+      + ((_pinfo && _pinfo.does) ? '<div style="color:#8b949e;font-size:11px;line-height:1.3;margin-top:1px;white-space:normal;">'+esc(_pinfo.does)+'</div>' : '');
     const spend = total ? '<span style="color:#f0883e;">'+total.toLocaleString('ru-RU')+'</span>' : '<span style="color:#6e7681;">—</span>';
     let itog;
     if (exp) {
