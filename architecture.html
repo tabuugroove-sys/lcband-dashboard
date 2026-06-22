@@ -481,7 +481,7 @@
   const AGENTS = [
     // intake
     {id:'gateway', g:'intake', n:'Realtime Gateway', f:'realtime_gateway.py', s:'daemon', src:['SCH'], r:[], wr:['TEL'], why:'Супервизор: один persistent Telethon-клиент + VK longpoll компонент.'},
-    {id:'tgmon', g:'intake', n:'TG Realtime Monitor', f:'tg_realtime_monitor.py → telegram_monitor.py', s:'daemon', src:['TGP','TGD'], r:['SEEN','AIC','ORD'], wr:['SEEN','MEV','ORD','TEL'], out:['TG'], why:'Единственный TG realtime owner: event-посты → классификатор → cold-pitch; drum_show → broker intake; DM → unified_dm_responder.'},
+    {id:'tgmon', g:'intake', n:'TG Realtime Monitor', f:'tg_realtime_monitor.py → telegram_monitor.py', s:'daemon', src:['TGP','TGD'], r:['SEEN','AIC','ORD'], wr:['SEEN','MEV','ORD','TEL'], out:['TG'], why:'Единственный TG realtime owner: event-посты → классификатор → cold-pitch; mixed venue/шатёр/газон/ведущий/DJ/фото/фольклор без прямого cover-band запроса уходит в non_lcb_mixed_request, не в LCB pitch; drum_show → broker intake; DM → unified_dm_responder.'},
     {id:'bwalk', g:'intake', n:'Browser Walk', f:'auto_browser_walk.sh', s:'30 мин', src:['SCH','TGP'], r:['SEEN'], wr:['SEEN','TEL'], why:'Визуальный safety-net поверх web.telegram.org — догоняет пропущенное realtime/API.'},
     {id:'vkmon', g:'intake', n:'VK Monitor', f:'vk_monitor.py', s:'10 мин', src:['SCH','VK'], r:[], wr:['AIC','TEL'], why:'Intake VK event-групп: стены/обсуждения → AI classify.'},
     {id:'vklp', g:'intake', n:'VK Longpoll', f:'vk_longpoll_listener.py', s:'daemon', src:['VK'], r:[], wr:[], why:'Триггер: входящий VK DM сразу запускает vk_auto_responder.'},
@@ -522,7 +522,7 @@
     {id:'brpend', g:'broker', n:'Contractor Pending Rescanner', f:'contractor_pending_rescanner.py', s:'15 мин', src:['SCH'], r:['BRO','MEV'], wr:['BRO'], why:'Перепроверяет pending contractor states, чтобы ответы не потерялись.'},
 
     // events
-    {id:'evwatch', g:'events', n:'Event Watcher', f:'event_watcher.py', s:'30 мин', src:['SCH'], r:['ORD'], wr:['EVP'], why:'После оплаты создаёт event_planning карточку (paid lead → production).'},
+    {id:'evwatch', g:'events', n:'Event Watcher', f:'event_watcher.py', s:'30 мин', src:['SCH'], r:['ORD','CTX'], wr:['EVP'], why:'После оплаты создаёт event_planning карточку (paid lead → production). Перед созданием проверяет lead-context terminal/refused/do_not_touch, чтобы venue-only/non-LCB треды не воскресали как production event.'},
     {id:'evstub', g:'events', n:'Event Stub Updater', f:'event_stub_updater.py', s:'15 мин', src:['SCH'], r:['ORD'], wr:['LCB'], why:'Backstop-refresh pre-paid календаря через lcb_orders.refresh_order.'},
     {id:'evlife', g:'events', n:'Event Lifecycle', f:'event_lifecycle.py', s:'15 мин', src:['SCH'], r:['EVP'], wr:['EVP'], why:'Двигает оплаченные events: upcoming → active → done → post-event.'},
     {id:'evops', g:'events', n:'Event Ops Logistics', f:'event_ops_logistics_agent.py', s:'10 мин', src:['SCH'], r:['LCB','MEV'], wr:['LCB','TEL'], out:['TG'], why:'Логистика/performer-coordination: lcb_event_context + event_passport_collector → performer thread с source media / ticket-passport gaps; повторный passport ask дополнительно gated через event_document_requirements.may_ask, чтобы уже received/satisfied документы не переспрашивать. Referral-кандидатам на замену вокала агент пишет только по явному TG @handle; телефон/имя сохраняет как manual contact для кастинга Михаила. Lineup resolver закрывает явный отказ участника как unavailable и заводит gap на замену.'},
