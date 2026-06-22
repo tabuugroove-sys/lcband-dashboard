@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-06-22T09:33:48+03:00",
+  "updated_at": "2026-06-22T09:57:53+03:00",
   "order": "Red Sea cruise (Turkey↔Egypt) · start 27th Istanbul · ~1.5 months",
   "fee_status": "USD 22,000/month (6-piece) — under final approval",
   "drive_folder": "https://drive.google.com/drive/folders/1hhm9A-XUFIV8PnCqe9SI1GODEEwkQYle",
@@ -145,22 +145,22 @@
       }
     },
     {
-      "role": "Keys / Bass",
-      "name": "TBD",
-      "tg": "",
+      "role": "Bass",
+      "name": "Maxim",
+      "tg": "Mkstell",
       "is_vocal": false,
       "nationality": "Russian",
       "location": "Moscow",
       "external": "",
-      "recruiting": true,
+      "recruiting": false,
       "items": {
         "video": {
           "count": 0,
-          "status": "recruiting"
+          "status": "requested"
         },
         "photo": {
-          "count": 0,
-          "status": "recruiting"
+          "count": 1,
+          "status": "have"
         },
         "repertoire": {
           "count": 0,
@@ -168,7 +168,35 @@
         },
         "bio": {
           "count": 0,
-          "status": "recruiting"
+          "status": "missing"
+        }
+      }
+    },
+    {
+      "role": "Keys",
+      "name": "Pavel",
+      "tg": "PavelUglov",
+      "is_vocal": false,
+      "nationality": "Russian",
+      "location": "Moscow",
+      "external": "",
+      "recruiting": false,
+      "items": {
+        "video": {
+          "count": 1,
+          "status": "have"
+        },
+        "photo": {
+          "count": 3,
+          "status": "have"
+        },
+        "repertoire": {
+          "count": 0,
+          "status": "not_required"
+        },
+        "bio": {
+          "count": 0,
+          "status": "requested"
         }
       }
     }
