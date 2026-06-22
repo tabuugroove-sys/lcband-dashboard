@@ -63,10 +63,6 @@
   .event-card.negotiating { border-left: 3px solid #f5c518; }
   .event-card.lead { border-left: 3px dotted var(--green); }
   .event-card.collect { border-left: 3px dashed #be185d; }
-  .event-card.blocked {
-    border-left: 3px dashed #b91c1c;
-    background: rgba(185,28,28,0.08);
-  }
   .event-card[data-chat-q] { cursor: pointer; }
   .event-card[data-chat-q]:hover { background: #eef6ff; }
   .sidebar-group-title {
@@ -888,21 +884,15 @@
 	      const statusGroup = s.status_group || (stage === 'confirmed' ? 'contract' : (stage === 'lead' ? 'lead' : 'negotiation'));
 	      const isContract = statusGroup === 'contract' || statusGroup === 'prepayment';
 	      const isLead = stage === 'lead' || statusGroup === 'lead';
-	      const block = s.pitch_block && s.pitch_block.blocked ? s.pitch_block : null;
-	      const blockReasons = block ? (block.reasons || []).slice(0, 3).join(' · ') : '';
 	      return {
 	        kind: 'stub',
-	        group: block ? 'blocked' : (statusGroup === 'released' ? 'released' : (isContract ? 'contract' : (isLead ? 'lead' : 'negotiating'))),
-	        rank: block ? 0 : (statusGroup === 'released' ? 4 : (isContract ? 1 : (isLead ? 3 : 2))),
+	        group: statusGroup === 'released' ? 'released' : (isContract ? 'contract' : (isLead ? 'lead' : 'negotiating')),
+	        rank: statusGroup === 'released' ? 4 : (isContract ? 1 : (isLead ? 3 : 2)),
 	        id: s.stub_id,
 	        title: s.title || s.client_thread || '(stub)',
 	        date: s.hint_date || '',
-	        stats: block
-	          ? `${block.label || 'драфт заблокирован'} · ${blockReasons || s.status_label || ''}`
-	          : `${s.status_label || (isContract ? 'договор / ждём предоплату' : (isLead ? 'заявка' : 'переговоры'))}${s.lead_source_label ? ' · ' + s.lead_source_label : ''}`,
-	        tip: block
-	          ? `${s.title || s.client_thread || '(stub)'}\n${block.label || 'драфт заблокирован'}\n${blockReasons}\nИсточник: ${block.source || 'unknown'}${block.last_at ? ` · ${block.last_at}` : ''}`
-	          : `${s.title || s.client_thread || '(stub)'}${s.lead_source_label ? '\nИсточник: ' + s.lead_source_label : ''}${s.role_summary ? '\nРоли: ' + s.role_summary : ''}${s.followup_plan ? '\nFollow-up: ' + s.followup_plan : ''}`,
+	        stats: `${s.status_label || (isContract ? 'договор / ждём предоплату' : (isLead ? 'заявка' : 'переговоры'))}${s.lead_source_label ? ' · ' + s.lead_source_label : ''}`,
+	        tip: `${s.title || s.client_thread || '(stub)'}${s.lead_source_label ? '\nИсточник: ' + s.lead_source_label : ''}${s.role_summary ? '\nРоли: ' + s.role_summary : ''}${s.followup_plan ? '\nFollow-up: ' + s.followup_plan : ''}`,
 	        onclick: s.stub_id ? `loadStubEvent('${String(s.stub_id || '').replace(/'/g, "\\'")}')` : '',
 	        chatQ: chat?.q || '',
 	        chatChannel: chat?.channel || 'TG',
@@ -910,29 +900,22 @@
       });
       const leads = (payload.leads || []).map(l => {
         const stage = l.stage || 'lead';
-        const block = l.pitch_block && l.pitch_block.blocked ? l.pitch_block : null;
-        const rank = block ? 0
-          : (stage === 'contract' || stage === 'prepayment') ? 1
+        const rank = (stage === 'contract' || stage === 'prepayment') ? 1
           : (stage === 'negotiating' ? 2 : 3);
         const chRaw = String(l.channel || '').toUpperCase();
         const ch = chRaw.startsWith('WA') ? 'WA' : (chRaw.startsWith('VK') ? 'VK' : 'TG');
         const href = l.username
           ? `./index.html?chat=${encodeURIComponent(l.username)}&channel=${ch}`
           : './index.html';
-        const blockReasons = block ? (block.reasons || []).slice(0, 3).join(' · ') : '';
         return {
           kind: stage === 'lead' ? 'lead' : stage,
-          group: block ? 'blocked' : (rank === 1 ? 'contract' : (rank === 2 ? 'negotiating' : 'lead')),
+          group: rank === 1 ? 'contract' : (rank === 2 ? 'negotiating' : 'lead'),
           rank,
           id: `lead${l.order_id}`,
           title: l.client || l.username || `order ${l.order_id}`,
           date: l.event_date_iso || l.event_date_raw || '',
-          stats: block
-            ? `${block.label || 'драфт заблокирован'} · ${blockReasons || l.status || ''}`
-            : `${stage === 'prepayment' ? 'ждём предоплату' : stage === 'contract' ? 'договор отправлен' : stage === 'negotiating' ? 'переговоры' : 'заявка'} · ${l.status || ''}${l.lead_source_label ? ' · ' + l.lead_source_label : ''}`,
-          tip: block
-            ? `${l.client || l.username || `order ${l.order_id}`}\n${block.label || 'драфт заблокирован'}\n${blockReasons}\nИсточник: ${block.source || 'unknown'}${block.last_at ? ` · ${block.last_at}` : ''}`
-            : `${l.client || l.username || `order ${l.order_id}`}\n${l.status || ''}${l.lead_source_label ? '\nИсточник: ' + l.lead_source_label : ''}${l.role_summary ? '\nРоли: ' + l.role_summary : ''}${l.followup_plan ? '\nFollow-up: ' + l.followup_plan : ''}`,
+          stats: `${stage === 'prepayment' ? 'ждём предоплату' : stage === 'contract' ? 'договор отправлен' : stage === 'negotiating' ? 'переговоры' : 'заявка'} · ${l.status || ''}${l.lead_source_label ? ' · ' + l.lead_source_label : ''}`,
+          tip: `${l.client || l.username || `order ${l.order_id}`}\n${l.status || ''}${l.lead_source_label ? '\nИсточник: ' + l.lead_source_label : ''}${l.role_summary ? '\nРоли: ' + l.role_summary : ''}${l.followup_plan ? '\nFollow-up: ' + l.followup_plan : ''}`,
           href,
           chatQ: l.username || '',
           chatChannel: ch,
@@ -952,7 +935,6 @@
         collect: 'Забрать фото/видео',
 	        contract: 'Договор / предоплата',
 	        negotiating: 'Переговоры',
-	        blocked: 'Драфт заблокирован',
 	        released: 'Снято / освобождено',
 	        lead: 'Заявки',
 	      };
@@ -963,9 +945,8 @@
           : '';
         lastGroup = row.group;
 	        const cls = row.kind === 'event' ? (row.group === 'collect' ? 'collect' : 'paid')
-	          : (row.group === 'blocked' ? 'blocked'
 	          : (row.group === 'released' ? 'lead'
-	          : (row.group === 'contract' ? 'contract' : row.group === 'negotiating' ? 'negotiating' : 'lead')));
+	          : (row.group === 'contract' ? 'contract' : row.group === 'negotiating' ? 'negotiating' : 'lead'));
         const open = row.href
           ? `onclick="window.open('${row.href.replace(/'/g, "\\'")}', '_blank')"`
           : (row.onclick ? `onclick="${row.onclick}"` : '');
