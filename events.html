@@ -1834,7 +1834,6 @@
           <div class="legend">
             <span><span class="dot" style="background:var(--green)"></span>заявка</span>
             <span><span class="dot" style="background:#f5c518"></span>переговоры</span>
-            <span><span class="dot" style="background:#b91c1c"></span>драфт заблокирован</span>
             <span><span class="dot" style="background:var(--orange)"></span>подтвердили/договор/ждём оплату</span>
             <span><span class="dot" style="background:var(--red)"></span>предоплата получена</span>
             <span><span class="dot" style="background:var(--purple)"></span>видео/фото получены</span>
@@ -1925,15 +1924,11 @@
         const safe = (ev.title || ev.id || '').replace(/[<>&"']/g, c =>
           ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
 
-	        if (ev._kind === 'stub') {
-	          const stage = String(ev._stage || '').toLowerCase();
-	          const block = ev._pitchBlock && ev._pitchBlock.blocked ? ev._pitchBlock : null;
-	          if (block) {
-	            pcls += ' pitch-blocked';
-	            stateLabel = block.label || 'драфт заблокирован';
-	          } else if (stage === 'lead') {
-	            pcls += ' lead';
-	            stateLabel = 'заявка';
+        if (ev._kind === 'stub') {
+          const stage = String(ev._stage || '').toLowerCase();
+          if (stage === 'lead') {
+            pcls += ' lead';
+            stateLabel = 'заявка';
           } else if (stage === 'negotiation' || stage === 'negotiating') {
             pcls += ' negotiating';
             stateLabel = 'переговоры';
@@ -1944,26 +1939,19 @@
           if (ev.id) {
             click = `onclick="loadStubEvent('${String(ev.id || '').replace(/'/g, "\\'")}')"`;
           }
-	          const blockTip = block
-	            ? `\n\nПочему не ушёл draft:\n${(block.reasons || []).slice(0, 4).map((r, i) => `${i + 1}. ${r}`).join('\n')}\nИсточник: ${block.source || 'unknown'}${block.last_at ? ` · ${block.last_at}` : ''}`
-	            : '';
-	          tip = `Event stub (${ev._stage || 'unknown'}): ${ev._thread || ''}\n${stateLabel}\nИсточник: lcb_orders.json${blockTip}`;
-	          if (ev._sourceLabel || ev._roleSummary || ev._followupPlan) {
-	            tip += `${ev._sourceLabel ? '\nИсточник заявки: ' + ev._sourceLabel : ''}${ev._roleSummary ? '\nРоли: ' + ev._roleSummary : ''}${ev._followupPlan ? '\nFollow-up: ' + ev._followupPlan : ''}`;
-	          }
+          tip = `Event stub (${ev._stage || 'unknown'}): ${ev._thread || ''}\n${stateLabel}\nИсточник: lcb_orders.json`;
+          if (ev._sourceLabel || ev._roleSummary || ev._followupPlan) {
+            tip += `${ev._sourceLabel ? '\nИсточник заявки: ' + ev._sourceLabel : ''}${ev._roleSummary ? '\nРоли: ' + ev._roleSummary : ''}${ev._followupPlan ? '\nFollow-up: ' + ev._followupPlan : ''}`;
+          }
           const chat = chatTargetFromThread(ev._thread || '', '');
           if (chat) {
             chatAttrs = `data-chat-q="${escapeAttr(chat.q)}" data-chat-channel="${escapeAttr(chat.channel || 'TG')}" data-chat-title="${escapeAttr(ev.title || chat.q)}"`;
           }
-	        } else if (ev._kind === 'lead') {
-	          const stage = (ev._stage || '').toLowerCase();
-	          const block = ev._pitchBlock && ev._pitchBlock.blocked ? ev._pitchBlock : null;
-	          if (block) {
-	            pcls += ' pitch-blocked';
-	            stateLabel = `${block.label || 'драфт заблокирован'} · ${ev._status}`;
-	          } else if (stage === 'negotiating') {
-	            pcls += ' negotiating';
-	            stateLabel = `переговоры · ${ev._status}`;
+        } else if (ev._kind === 'lead') {
+          const stage = (ev._stage || '').toLowerCase();
+          if (stage === 'negotiating') {
+            pcls += ' negotiating';
+            stateLabel = `переговоры · ${ev._status}`;
           } else if (stage === 'contract' || stage === 'prepayment') {
             pcls += ' stub';
             stateLabel = `${stage === 'contract' ? 'договор' : 'ждём оплату'} · ${ev._status}`;
@@ -1971,10 +1959,7 @@
             pcls += ' lead';
             stateLabel = `заявка · ${ev._status}${ev._sourceLabel ? ' · ' + ev._sourceLabel : ''}`;
           }
-	          const blockTip = block
-	            ? `\n\nПочему не ушёл draft:\n${(block.reasons || []).slice(0, 4).map((r, i) => `${i + 1}. ${r}`).join('\n')}\nИсточник: ${block.source || 'unknown'}${block.last_at ? ` · ${block.last_at}` : ''}`
-	            : '';
-	          tip = `${ev.title}\n${stateLabel}\n${ev._channel || ''}${ev._username ? ' · @' + ev._username : ''}${ev._sourceChat ? '\nsource_chat: ' + ev._sourceChat : ''}${ev._roleSummary ? '\nРоли: ' + ev._roleSummary : ''}${ev._followupPlan ? '\nFollow-up: ' + ev._followupPlan : ''}\nдата в переписке: ${ev._raw_date}${blockTip}`;
+          tip = `${ev.title}\n${stateLabel}\n${ev._channel || ''}${ev._username ? ' · @' + ev._username : ''}${ev._sourceChat ? '\nsource_chat: ' + ev._sourceChat : ''}${ev._roleSummary ? '\nРоли: ' + ev._roleSummary : ''}${ev._followupPlan ? '\nFollow-up: ' + ev._followupPlan : ''}\nдата в переписке: ${ev._raw_date}`;
           // Click → open chat in index.html (if we have username+channel).
           if (ev._username && ev._channel) {
             const chRaw = ev._channel.toUpperCase();
