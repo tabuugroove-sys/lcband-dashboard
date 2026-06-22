@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-06-22T09:57:53+03:00",
+  "updated_at": "2026-06-22T10:07:01+03:00",
   "order": "Red Sea cruise (Turkey↔Egypt) · start 27th Istanbul · ~1.5 months",
   "fee_status": "USD 22,000/month (6-piece) — under final approval",
   "drive_folder": "https://drive.google.com/drive/folders/1hhm9A-XUFIV8PnCqe9SI1GODEEwkQYle",
@@ -123,7 +123,7 @@
       "is_vocal": false,
       "nationality": "Russian",
       "location": "Moscow",
-      "external": "",
+      "external": "full promo in 'Midnight Sax — Владимир Кулек' Drive folder",
       "recruiting": false,
       "items": {
         "video": {
@@ -132,7 +132,7 @@
         },
         "photo": {
           "count": 0,
-          "status": "requested"
+          "status": "external"
         },
         "repertoire": {
           "count": 0,
@@ -140,7 +140,7 @@
         },
         "bio": {
           "count": 0,
-          "status": "requested"
+          "status": "external"
         }
       }
     },
