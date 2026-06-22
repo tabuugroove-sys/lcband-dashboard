@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-06-22T12:35:04+03:00",
+  "updated_at": "2026-06-22T12:49:23+03:00",
   "order": "Red Sea cruise (Turkey↔Egypt) · start 27th Istanbul · ~1.5 months",
   "fee_status": "USD 22,000/month (6-piece) — under final approval",
   "drive_folder": "https://drive.google.com/drive/folders/1hhm9A-XUFIV8PnCqe9SI1GODEEwkQYle",
@@ -47,8 +47,8 @@
           "status": "have"
         },
         "photo": {
-          "count": 0,
-          "status": "requested"
+          "count": 2,
+          "status": "have"
         },
         "repertoire": {
           "count": 0,
@@ -83,8 +83,8 @@
           "status": "not_required"
         },
         "bio": {
-          "count": 0,
-          "status": "requested"
+          "count": 1,
+          "status": "have"
         }
       }
     },
@@ -111,8 +111,8 @@
           "status": "not_required"
         },
         "bio": {
-          "count": 0,
-          "status": "missing"
+          "count": 1,
+          "status": "have"
         }
       }
     },
@@ -139,8 +139,8 @@
           "status": "not_required"
         },
         "bio": {
-          "count": 0,
-          "status": "external"
+          "count": 1,
+          "status": "have"
         }
       }
     },
@@ -167,8 +167,8 @@
           "status": "not_required"
         },
         "bio": {
-          "count": 0,
-          "status": "missing"
+          "count": 1,
+          "status": "have"
         }
       }
     },
@@ -195,8 +195,8 @@
           "status": "not_required"
         },
         "bio": {
-          "count": 0,
-          "status": "requested"
+          "count": 1,
+          "status": "have"
         }
       }
     }
