@@ -590,7 +590,8 @@ a:hover { text-decoration: underline; }
     <ol style="margin:6px 0 0 0;padding-left:18px;font-size:11px;color:var(--muted);line-height:1.5;">
       <li>Один режим = primary-провайдер для всех CLI-call'ов.</li>
       <li>Codex only = Codex primary без Claude/Opus fallback.</li>
-      <li>В остальных режимах primary упал + cross-fallback="client/all" → один раз пробуем второго.</li>
+      <li>В остальных режимах primary упал + cross-fallback="client/all" → один раз пробуем второго: Opus/Claude → Codex или Codex → Claude.</li>
+      <li>Для allowlisted pitch/review Codex-fail после второго провайдера → paid API как последний шанс.</li>
       <li>Упали оба → no-send/blocker (sender-слой не шлёт).</li>
       <li>Режим с Claude-долей &gt; 0 или активным cross-fallback требует Claude budget &gt; 0.</li>
       <li>Per-category фейдеры не решают роутинг, пока режим валиден.</li>
