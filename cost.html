@@ -577,7 +577,7 @@ a:hover { text-decoration: underline; }
   <div id="sonnet-emergency-toast" style="margin-top:6px;font-size:12px;"></div>
   <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
     <details>
-      <summary style="cursor:pointer;font-size:12px;font-weight:600;">🛡️ Protected purposes (<span id="protected-count">0</span>) — дожимаются Opus</summary>
+      <summary id="protected-summary" style="cursor:pointer;font-size:12px;font-weight:600;">🛡️ Protected purposes (<span id="protected-count">0</span>) — дожимаются Opus</summary>
       <div id="protected-purposes-list" style="margin-top:6px;font-size:11px;color:var(--muted);line-height:1.7;word-break:break-word;">—</div>
     </details>
     <details>
@@ -589,9 +589,10 @@ a:hover { text-decoration: underline; }
     <summary style="cursor:pointer;color:var(--muted);font-size:11px;">📄 Routing contract (1 режим, 1 правило)</summary>
     <ol style="margin:6px 0 0 0;padding-left:18px;font-size:11px;color:var(--muted);line-height:1.5;">
       <li>Один режим = primary-провайдер для всех CLI-call'ов.</li>
-      <li>Primary упал + cross-fallback="all" → один раз пробуем второго.</li>
+      <li>Codex only = Codex primary без Claude/Opus fallback.</li>
+      <li>В остальных режимах primary упал + cross-fallback="client/all" → один раз пробуем второго.</li>
       <li>Упали оба → no-send/blocker (sender-слой не шлёт).</li>
-      <li>Режим с Claude-долей &gt; 0 или cross-fallback="all" требует Claude budget &gt; 0.</li>
+      <li>Режим с Claude-долей &gt; 0 или активным cross-fallback требует Claude budget &gt; 0.</li>
       <li>Per-category фейдеры не решают роутинг, пока режим валиден.</li>
     </ol>
   </details>
@@ -2779,7 +2780,9 @@ async function loadRoutingMode() {
     const ruleEl = document.getElementById('xfb-rule');
     if (ruleEl) {
       const scope = d.cross_fallback_scope || 'all';
-      ruleEl.textContent = scope === 'none'
+      ruleEl.textContent = cur === 'codex_only'
+        ? 'Codex only: Codex fail → no-send/skip; Claude/Opus fallback выключен'
+        : scope === 'none'
         ? 'упал primary → сразу skip/blocker (cross-fallback выкл)'
         : (scope === 'client'
             ? 'client-visible: упал primary → пробуем второго; иначе skip'
@@ -2821,7 +2824,7 @@ async function loadRoutingMode() {
 
     // Sonnet emergency valve + fallback tier + purpose lists (Phase 2, 29.05)
     const tierEl = document.getElementById('routing-fallback-tier');
-    if (tierEl) tierEl.textContent = d.codex_fallback_model || 'skip';
+    if (tierEl) tierEl.textContent = cur === 'codex_only' ? 'off (Codex only)' : (d.codex_fallback_model || 'skip');
     const seBtn = document.getElementById('sonnet-emergency-btn');
     if (seBtn) {
       const on = !!d.force_sonnet_emergency;
@@ -2839,6 +2842,13 @@ async function loadRoutingMode() {
     renderPurposeList('background-purposes-list', d.background_other_opus);
     const pcEl = document.getElementById('protected-count');
     if (pcEl) pcEl.textContent = (d.protected_purposes || []).length;
+    const psEl = document.getElementById('protected-summary');
+    if (psEl) {
+      const pcText = '<span id="protected-count">' + ((d.protected_purposes || []).length) + '</span>';
+      psEl.innerHTML = cur === 'codex_only'
+        ? '🛡️ Protected purposes (' + pcText + ') — Opus fallback off'
+        : '🛡️ Protected purposes (' + pcText + ') — дожимаются Opus';
+    }
     const bgEl = document.getElementById('background-count');
     if (bgEl) bgEl.textContent = (d.background_other_opus || []).length;
   } catch (e) { /* silent */ }
