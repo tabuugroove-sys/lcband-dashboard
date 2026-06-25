@@ -1993,6 +1993,13 @@ const PROCESS_INFO = {
     risk: 'Если ошибается со стадией, ты видишь неправильную воронку и агенты делают не тот следующий шаг.',
     where: 'funnel review / update_statuses',
   },
+  funnel_batch_router: {
+    title: 'Funnel batch router — все активные заявки одним запросом',
+    does: 'Берёт compact cards активных orders и одним AI-вызовом решает stage для каждой заявки; применение CRM остаётся через lead_context_audit guards.',
+    affects: ['стадии воронки', 'STAGE/CLI эффективность', 'follow-up расписание', 'дашборд активных лидов'],
+    risk: 'Если batch verdict слабый, guard не должен двигать деньги/refused/downgrade; при AI-down audit падает назад на старые карточки.',
+    where: 'lead_context_audit.py',
+  },
   vk_followup_classify: {
     title: 'VK follow-up classify',
     does: 'Классифицирует VK-переписки для решения, нужен ли follow-up, пауза, отмена или ручной ответ.',

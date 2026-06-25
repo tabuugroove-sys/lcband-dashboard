@@ -567,7 +567,7 @@
         file:'funnel_stage_classifier.py', schedule:'каждые 6 часов',
         why:'Применяет stage verdict из единого lead_context_classify pass, не делает второй AI-запрос по той же переписке.',
         input:'orders.db + lead_context_enricher.funnel_stage + event_threads', action:'apply stage to CRM', output:'stage labels/log/history',
-        logic:['lead_context_enricher owns context-card + active event + follow-up + funnel_stage + team event_threads AI verdict','funnel_stage_classifier только применяет confidence-gated verdict','не заменяет unified_dm_responder hot path','полезен для старых/тихих лидов без duplicate AI call'],
+        logic:['lead_context_enricher owns context-card + active event + follow-up + funnel_stage + team event_threads AI verdict','lead_context_audit может одним funnel_batch_router запросом разложить все active orders по stages, затем применяет только confidence-gated safe forward fixes','funnel_stage_classifier только применяет confidence-gated verdict','не заменяет unified_dm_responder hot path','полезен для старых/тихих лидов без per-order duplicate AI call'],
       },
       {
         group:'funnel', name:'Funnel Stage Watcher', label:'com.lcband.funnel-stage-watcher',
@@ -611,7 +611,7 @@
         file:'lead_context_enricher.py --all', schedule:'каждые 24 ч',
         why:'Backstop-проход AI-обогащения LCB context read-model: держит карточки активных лидов свежими (realtime inbound обогащается inline, проход редкий).',
         input:'orders.db.message_events (последние 20 сообщений на контакт)', action:'AI извлекает сигналы → пишет context tables', output:'orders.db contact_context/event_context + legacy JSON mirror',
-        logic:['сигналы: client_intent / refusal / event_date / budget / waiting_for_us / key_asks / funnel_stage','primary store = orders.db contact_context/event_context; lead_context_store.json только legacy mirror','broker-контекст здесь НЕ хранится (broker_orders.json + broker_order_context)','в конце прохода зовёт lead_context_audit + lcb_product_pipeline: найти клиента → продать КП → собрать продукт (состав/кастинг/группа/чек-лист/звук)','--all backstop; trigger(username) обогащает inline на inbound'],
+        logic:['сигналы: client_intent / refusal / event_date / budget / waiting_for_us / key_asks / funnel_stage','primary store = orders.db contact_context/event_context; lead_context_store.json только legacy mirror','broker-контекст здесь НЕ хранится (broker_orders.json + broker_order_context)','в конце прохода зовёт lead_context_audit: один funnel_batch_router AI-запрос по compact cards всех active orders → guarded CRM stage audit + lcb_product_pipeline','batch verdict не пишет contact_context напрямую; CRM двигает только lead_context_audit через orders_db.update_order guards','--all backstop; trigger(username) обогащает inline на inbound'],
       },
       {
         group:'funnel', name:'Unanswered Inbound Watcher', label:'com.lcband.unanswered-inbound-watcher',
