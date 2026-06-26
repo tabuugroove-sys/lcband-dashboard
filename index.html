@@ -1319,7 +1319,13 @@
     html[data-theme="light"] [style*="color:#64748b"],
     html[data-theme="light"] [style*="color: #64748b"],
     html[data-theme="light"] [style*="color:#cbd5e1"],
-    html[data-theme="light"] [style*="color: #cbd5e1"] {
+    html[data-theme="light"] [style*="color: #cbd5e1"],
+    html[data-theme="light"] [style*="color: rgb(148, 163, 184)"],
+    html[data-theme="light"] [style*="color:rgb(148, 163, 184)"],
+    html[data-theme="light"] [style*="color: rgb(100, 116, 139)"],
+    html[data-theme="light"] [style*="color:rgb(100, 116, 139)"],
+    html[data-theme="light"] [style*="color: rgb(203, 213, 225)"],
+    html[data-theme="light"] [style*="color:rgb(203, 213, 225)"] {
       color: #4c5665 !important;
     }
     html[data-theme="light"] [style*="color:#34d399"],
@@ -1345,10 +1351,46 @@
       color: #bd1e2d !important;
     }
     html[data-theme="light"] [style*="background:rgba(255,255,255"],
-    html[data-theme="light"] [style*="background: rgba(255,255,255"] {
+    html[data-theme="light"] [style*="background: rgba(255,255,255"],
+    html[data-theme="light"] [style*="background: rgba(255, 255, 255"],
+    html[data-theme="light"] [style*="background:rgba(255, 255, 255"] {
       background: #ffffff !important;
       color: #16181d !important;
       border-color: #d9ded6 !important;
+    }
+    html[data-theme="light"] .section div[style*="grid"],
+    html[data-theme="light"] .section div[style*="display:grid"],
+    html[data-theme="light"] .section div[style*="display: grid"] {
+      color: #202631;
+    }
+    html[data-theme="light"] .section div[style*="grid"] > div,
+    html[data-theme="light"] .section div[style*="display:grid"] > div,
+    html[data-theme="light"] .section div[style*="display: grid"] > div {
+      color: #202631 !important;
+    }
+    html[data-theme="light"] .section div[style*="grid"] span,
+    html[data-theme="light"] .section div[style*="display:grid"] span,
+    html[data-theme="light"] .section div[style*="display: grid"] span {
+      color: inherit;
+    }
+    html[data-theme="light"] .section [style*="opacity:0.4"],
+    html[data-theme="light"] .section [style*="opacity: 0.4"],
+    html[data-theme="light"] .section [style*="opacity:.4"],
+    html[data-theme="light"] .section [style*="opacity: .4"],
+    html[data-theme="light"] .section [style*="opacity:0.5"],
+    html[data-theme="light"] .section [style*="opacity: 0.5"],
+    html[data-theme="light"] .section [style*="opacity:.5"],
+    html[data-theme="light"] .section [style*="opacity: .5"] {
+      opacity: .82 !important;
+    }
+    html[data-theme="light"] .section [style*="font-size:26"],
+    html[data-theme="light"] .section [style*="font-size: 26"],
+    html[data-theme="light"] .section [style*="font-size:28"],
+    html[data-theme="light"] .section [style*="font-size: 28"],
+    html[data-theme="light"] .section [style*="font-size:30"],
+    html[data-theme="light"] .section [style*="font-size: 30"] {
+      color: #344155 !important;
+      font-variant-numeric: tabular-nums;
     }
     @media (min-width: 1024px) {
       .conn-tg-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

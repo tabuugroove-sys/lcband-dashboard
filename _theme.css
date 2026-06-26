@@ -260,7 +260,13 @@ html[data-theme="light"] [style*="color: #64748b"],
 html[data-theme="light"] [style*="color:#8b949e"],
 html[data-theme="light"] [style*="color: #8b949e"],
 html[data-theme="light"] [style*="color:#cbd5e1"],
-html[data-theme="light"] [style*="color: #cbd5e1"] {
+html[data-theme="light"] [style*="color: #cbd5e1"],
+html[data-theme="light"] [style*="color: rgb(148, 163, 184)"],
+html[data-theme="light"] [style*="color:rgb(148, 163, 184)"],
+html[data-theme="light"] [style*="color: rgb(100, 116, 139)"],
+html[data-theme="light"] [style*="color:rgb(100, 116, 139)"],
+html[data-theme="light"] [style*="color: rgb(203, 213, 225)"],
+html[data-theme="light"] [style*="color:rgb(203, 213, 225)"] {
   color: #4c5665 !important;
 }
 
