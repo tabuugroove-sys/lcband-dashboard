@@ -197,3 +197,94 @@ html[data-theme="light"] .lcb-theme-toggle {
   border-color: rgba(0,0,0,0.15) !important;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
+
+/* 26.06 readability pass: the light dashboard is the default working surface.
+ * Keep blue/gray accents dark enough on white cards, including inline styles
+ * produced by old React bundles.
+ */
+html[data-theme="light"] {
+  --bg:       #f7f7f4;
+  --card:     #ffffff;
+  --panel:    #ffffff;
+  --panel-2:  #f1f3f0;
+  --border:   #d9ded6;
+  --text:     #16181d;
+  --fg:       #16181d;
+  --muted:    #4c5665;
+  --blue:     #005fbd;
+  --green:    #087443;
+  --orange:   #9a5200;
+  --red:      #bd1e2d;
+  --purple:   #6439b3;
+  --gold:     #8b5d00;
+  --yellow:   #8b5d00;
+}
+
+html[data-theme="light"] body {
+  background: #f7f7f4 !important;
+  color: #16181d !important;
+}
+
+html[data-theme="light"] a,
+html[data-theme="light"] a span {
+  color: #0054a8 !important;
+}
+
+html[data-theme="light"] .card,
+html[data-theme="light"] .panel,
+html[data-theme="light"] [class*="-card"],
+html[data-theme="light"] [class*="-panel"] {
+  color: #16181d !important;
+  border-color: #d9ded6 !important;
+}
+
+html[data-theme="light"] [style*="color:#58a6ff"],
+html[data-theme="light"] [style*="color: #58a6ff"],
+html[data-theme="light"] [style*="color:#60a5fa"],
+html[data-theme="light"] [style*="color: #60a5fa"],
+html[data-theme="light"] [style*="color:#3b82f6"],
+html[data-theme="light"] [style*="color: #3b82f6"],
+html[data-theme="light"] [style*="color:#22d3ee"],
+html[data-theme="light"] [style*="color: #22d3ee"],
+html[data-theme="light"] [style*="color:#14b8a6"],
+html[data-theme="light"] [style*="color: #14b8a6"],
+html[data-theme="light"] [style*="color:#5eead4"],
+html[data-theme="light"] [style*="color: #5eead4"] {
+  color: #0054a8 !important;
+}
+
+html[data-theme="light"] [style*="color:#94a3b8"],
+html[data-theme="light"] [style*="color: #94a3b8"],
+html[data-theme="light"] [style*="color:#64748b"],
+html[data-theme="light"] [style*="color: #64748b"],
+html[data-theme="light"] [style*="color:#8b949e"],
+html[data-theme="light"] [style*="color: #8b949e"],
+html[data-theme="light"] [style*="color:#cbd5e1"],
+html[data-theme="light"] [style*="color: #cbd5e1"] {
+  color: #4c5665 !important;
+}
+
+html[data-theme="light"] [style*="color:#34d399"],
+html[data-theme="light"] [style*="color: #34d399"],
+html[data-theme="light"] [style*="color:#10b981"],
+html[data-theme="light"] [style*="color: #10b981"],
+html[data-theme="light"] [style*="color:#3fb950"],
+html[data-theme="light"] [style*="color: #3fb950"] {
+  color: #087443 !important;
+}
+
+html[data-theme="light"] [style*="color:#fbbf24"],
+html[data-theme="light"] [style*="color: #fbbf24"],
+html[data-theme="light"] [style*="color:#f5c518"],
+html[data-theme="light"] [style*="color: #f5c518"],
+html[data-theme="light"] [style*="color:#ff9f0a"],
+html[data-theme="light"] [style*="color: #ff9f0a"] {
+  color: #8b5d00 !important;
+}
+
+html[data-theme="light"] [style*="color:#f87171"],
+html[data-theme="light"] [style*="color: #f87171"],
+html[data-theme="light"] [style*="color:#ef4444"],
+html[data-theme="light"] [style*="color: #ef4444"] {
+  color: #bd1e2d !important;
+}
