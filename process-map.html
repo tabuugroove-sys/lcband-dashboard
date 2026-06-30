@@ -325,9 +325,9 @@
       {
         group:'dm', name:'WA Baileys Webhook', label:'com.lcband.wa-baileys-webhook',
         file:'wa_baileys_webhook.py', schedule:'daemon / KeepAlive',
-        why:'Принимает WhatsApp события от Baileys и кладёт их в локальный контур обработки.',
-        input:'Baileys webhook payloads', action:'normalize/cache events + materialize active orders', output:'WA cache + orders.db + responder trigger',
-        logic:['локальный Python webhook','не шлёт через WA Web','skip status@broadcast до cache/responder','inbound → wa_direct_inbound_sync для актуальных заявок','outbound пишет в cache без запуска writer','поддерживает разделение receive/send'],
+        why:'Принимает WhatsApp события от Baileys и передаёт inbound в общий DM-owner.',
+        input:'Baileys webhook payloads', action:'normalize/cache events + materialize active orders + unified_dm_responder trigger', output:'WA cache + orders.db + responder trigger',
+        logic:['локальный Python webhook','не шлёт через WA Web','skip status@broadcast до cache/responder','inbound → wa_direct_inbound_sync для актуальных заявок','unified trigger получает monotonic message_id для burst/catchup claim','outbound пишет в cache без запуска writer','поддерживает разделение receive/send'],
       },
       {
         group:'dm', name:'WA Responder', label:'com.lcband.wa-responder',
@@ -353,9 +353,9 @@
       {
         group:'dm', name:'WA Auto Ack Sender', label:'com.lcband.wa-auto-sender',
         file:'wa_auto_sender.py --once', schedule:'каждую минуту',
-        why:'Доводит короткие безопасные WA acknowledgement до sent без ручного Codex send.',
+        why:'Доводит безопасные WA auto_pipeline items до sent без ручного Codex send.',
         input:'wa_computer_use_queue.json items with send_mode=auto_pipeline', action:'localhost Baileys /send + rate guard', output:'WA message + queue sent + outbound_recorder',
-        logic:['только auto_send_reason=manual_context_ack','только source=unified_dm_responder','не трогает обычные WA drafts','max 1/run','использует уже linked Baileys daemon, не WA Web'],
+        logic:['manual_context_ack только source=unified_dm_responder','wa_inbound_reply только source=wa_responder или wa_agent_reply','payment/нестандарт остаётся approval-gated upstream','max 1/run','использует уже linked Baileys daemon, не WA Web'],
       },
       {
         group:'dm', name:'IG Follow-up', label:'com.lcband.ig-followup',
