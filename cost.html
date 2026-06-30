@@ -1215,7 +1215,7 @@ function renderLimitBudgetCard(provider, data, stats) {
   const sourceLabel = isDerived
     ? `effective: official ${limitPct(data.official_weekly_used_pct)} + local ${limitPct(data.estimated_delta_pct)} · snapshot ${ageLabel}`
     : data.available
-    ? (data.split_source || 'split source —')
+    ? `official ${data.source || 'usage'} · split ${data.split_source || 'unknown'} · ${ageLabel}`
     : `stale ${ageLabel} · ${data.source || 'source —'}`;
   return `
     <div class="limit-budget-card${isStale ? ' stale' : ''}" data-provider="${provider}">
