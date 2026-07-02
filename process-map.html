@@ -393,7 +393,7 @@
         file:'broker_collect_promo.py', schedule:'каждый час',
         why:'Собирает промо подрядчиков, чтобы broker relay мог отправлять клиенту реальные материалы.',
         input:'contractor chats/media + client reference media', action:'collect promo assets + rank closest to reference', output:'broker promo inventory / selected top-N media',
-        logic:['не обещает видео если его нет','reference match против видео клиента','обновляет media pool','используется broker casting'],
+        logic:['не обещает видео если его нет','reference match против видео клиента','обновляет media pool','если полного репертуара нет, package не падает: грузит медиа и добавляет waiting_repertoire/status doc','используется broker casting'],
       },
       {
         group:'broker', name:'Broker Media Curator', label:'broker_media_curator.py',
