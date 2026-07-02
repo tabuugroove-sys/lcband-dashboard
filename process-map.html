@@ -397,12 +397,12 @@
       },
       {
         group:'broker', name:'Broker Media Curator', label:'broker_media_curator.py',
-        file:'broker_media_curator.py --broker-id <id> [--allow-paid-vision] [--send]', schedule:'on-demand / recovery',
+        file:'broker_media_curator.py --broker-id <id> [--allow-paid-vision] [--allow-codex-vision] [--send]', schedule:'on-demand / recovery',
         why:'Проводит кастинг второго/лучшего видео под конкретный broker order, когда у клиента уже есть один хороший ролик, но нужно подобрать ещё один релевантный вариант.',
         input:'broker_orders.json + orders.db.message_events + pending_approvals.json + локальные contractor media',
         action:'исключает уже отправленное и уже презентованных кандидатов, извлекает кадры из видео, просит Gemini оценить fit/quality/client_safe',
         output:'pending_approvals client-side media_bundle или TG send через send_pending_approval.py',
-        logic:['dry-run по умолчанию','--send требует vision review','Gemini quota может перейти на Anthropic только с --allow-paid-vision','Gemini/frames failure без vision verdict не может auto-send','не шлёт фото/презентации вместо видео','записывает source_of_truth_gate=broker_media_curator_vision_rank'],
+        logic:['dry-run по умолчанию','--send требует vision review','Gemini quota может перейти на Anthropic только с --allow-paid-vision','Codex image fallback включается только с --allow-codex-vision','Gemini/frames failure без vision verdict не может auto-send','не шлёт фото/презентации вместо видео','записывает source_of_truth_gate=broker_media_curator_vision_rank'],
       },
       {
         group:'broker', name:'Performer Media Sourcing', label:'com.lcband.performer-media-sourcing',
