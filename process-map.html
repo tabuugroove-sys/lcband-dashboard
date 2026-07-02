@@ -398,9 +398,9 @@
       {
         group:'broker', name:'Performer Media Sourcing', label:'com.lcband.performer-media-sourcing',
         file:'performer_media_sourcing.py --apply', schedule:'каждые 10 минут',
-        why:'Закрывает exact-media лачи: клиент просит конкретный ролик/презентацию, готового пакета нет, нельзя слать общую папку.',
-        input:'orders.db next_action=MEDIA_REQUEST + performer/vendor TG replies', action:'owner-boundary: LCB full/reduced → internal sourcing; non-LCB solo/duet/specific performer → broker public casting', output:'media_sourcing_state.json / broker_orders.json + pending_approvals/message_events',
-        logic:['full/reduced LCB cover-band остаётся internal LCB media sourcing','solo/duet/specific performer вроде piano/jazz duet уходит в broker handoff','generic LCB cover-folder клиенту не шлёт','без verified video/presentation клиенту ничего не уходит','near отправляется только с честной оговоркой'],
+        why:'Закрывает exact-media лачи: клиент просит конкретный ролик/презентацию, готового точного пакета нет, нельзя слать общую папку или near-match.',
+        input:'orders.db next_action=MEDIA_REQUEST + performer/vendor TG replies', action:'owner-boundary: LCB full/reduced exact package → internal sourcing; non-LCB solo/duet/specific performer → broker public casting', output:'media_sourcing_state.json / broker_orders.json + pending_approvals/message_events',
+        logic:['generic Luxury Band folder/site под точный запрос блокируется presend guard','full/reduced LCB cover-band остаётся internal только при exact package','solo/duet/specific performer вроде piano/jazz duet уходит в broker handoff','near-match вроде duet_vocal_examples не auto-send','без verified exact video/presentation клиенту ничего не уходит'],
       },
       {
         group:'broker', name:'Broker Contractor Follow-up', label:'com.lcband.broker-contractor-followup',
