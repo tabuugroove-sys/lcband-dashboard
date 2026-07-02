@@ -396,6 +396,15 @@
         logic:['не обещает видео если его нет','reference match против видео клиента','обновляет media pool','используется broker casting'],
       },
       {
+        group:'broker', name:'Broker Media Curator', label:'broker_media_curator.py',
+        file:'broker_media_curator.py --broker-id <id> [--send]', schedule:'on-demand / recovery',
+        why:'Проводит кастинг второго/лучшего видео под конкретный broker order, когда у клиента уже есть один хороший ролик, но нужно подобрать ещё один релевантный вариант.',
+        input:'broker_orders.json + orders.db.message_events + pending_approvals.json + локальные contractor media',
+        action:'исключает уже отправленное и уже презентованных кандидатов, извлекает кадры из видео, просит Gemini оценить fit/quality/client_safe',
+        output:'pending_approvals client-side media_bundle или TG send через send_pending_approval.py',
+        logic:['dry-run по умолчанию','--send требует vision review','Gemini/frames failure не может auto-send','не шлёт фото/презентации вместо видео','записывает source_of_truth_gate=broker_media_curator_vision_rank'],
+      },
+      {
         group:'broker', name:'Performer Media Sourcing', label:'com.lcband.performer-media-sourcing',
         file:'performer_media_sourcing.py --apply', schedule:'каждые 10 минут',
         why:'Закрывает exact-media лачи: клиент просит конкретный ролик/презентацию, готового точного пакета нет, нельзя слать общую папку или near-match.',
