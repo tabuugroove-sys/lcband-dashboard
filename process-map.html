@@ -420,8 +420,8 @@
         group:'broker', name:'Broker State Repair', label:'com.lcband.broker-state-repair',
         file:'broker_state_repair.py', schedule:'каждый час',
         why:'Чинит broker state, если отдельные агенты записали неполный или устаревший статус.',
-        input:'broker_orders.json', action:'validate/repair state', output:'consistent broker_orders.json',
-        logic:['смотрит структурные поля','не заменяет casting','закрывает только пассивные stale intake/budget-wait','не закрывает по возрасту поста после client_message/candidate/relay/operator directive','снижает риск зависших broker задач'],
+        input:'broker_orders.json + tg_contact_roles.json + orders.db.eg_*', action:'validate/repair state + sync contractor roster', output:'consistent broker_orders.json + broker_vendor_roster.json',
+        logic:['смотрит структурные поля','broker_roster_sync сохраняет найденных подрядчиков в roster с dedupe по username/tg_id/phone','client/internal/blocked контакты не добавляются','контакты без username/tg_id/phone попадают в no-identity report, а не в usable roster','не заменяет casting','закрывает только пассивные stale intake/budget-wait','не закрывает по возрасту поста после client_message/candidate/relay/operator directive','снижает риск зависших broker задач'],
       },
       {
         group:'broker', name:'Contractor Pending Rescanner', label:'com.lcband.contractor-pending-rescanner',
