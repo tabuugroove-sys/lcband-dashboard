@@ -398,9 +398,9 @@
       {
         group:'broker', name:'Performer Media Sourcing', label:'com.lcband.performer-media-sourcing',
         file:'performer_media_sourcing.py --apply', schedule:'каждые 10 минут',
-        why:'Закрывает LCB exact-media лачи: клиент просит конкретный ролик, готового пакета нет, нельзя слать общую папку.',
-        input:'orders.db next_action=MEDIA_REQUEST + performer/vendor TG replies', action:'ask sax pool/vendors → collect inbound media → B3 eyeball gate → Drive relay', output:'media_sourcing_state.json + pending_approvals/message_events',
-        logic:['клиент остаётся LCB lead, не broker order','резиденты идут internal performer lane','external только solo sax vendors, jazz bands исключены','без ручного video verdict exact/near клиенту ничего не уходит','near отправляется только с честной оговоркой'],
+        why:'Закрывает exact-media лачи: клиент просит конкретный ролик/презентацию, готового пакета нет, нельзя слать общую папку.',
+        input:'orders.db next_action=MEDIA_REQUEST + performer/vendor TG replies', action:'owner-boundary: LCB full/reduced → internal sourcing; non-LCB solo/duet/specific performer → broker public casting', output:'media_sourcing_state.json / broker_orders.json + pending_approvals/message_events',
+        logic:['full/reduced LCB cover-band остаётся internal LCB media sourcing','solo/duet/specific performer вроде piano/jazz duet уходит в broker handoff','generic LCB cover-folder клиенту не шлёт','без verified video/presentation клиенту ничего не уходит','near отправляется только с честной оговоркой'],
       },
       {
         group:'broker', name:'Broker Contractor Follow-up', label:'com.lcband.broker-contractor-followup',
@@ -434,8 +434,8 @@
         group:'broker', name:'Broker Public Casting', label:'com.lcband.broker-public-casting',
         file:'broker_public_casting_agent.py run', schedule:'каждые 10 мин',
         why:'Публичные TG casting-посты: превращает адекватные отклики в broker candidates вместо ручного workaround.',
-        input:'public TG casting posts + replies', action:'watch posts → AI-фильтр откликов → broker candidate', output:'broker candidates / broker pipeline ownership',
-        logic:['public-chat counterpart к broker_sourcing_agent','broker pipeline владеет replies/pricing/promo/relay','env LCB_BROKER_PUBLIC_CASTING=1','max watch age 14 дней (LCB_PUBLIC_CASTING_MAX_AGE_DAYS)','session lock-aware на tg_session.session'],
+        input:'public TG casting posts + replies + performer_media_sourcing handoff', action:'watch posts → AI-фильтр откликов → broker candidate', output:'broker candidates / broker pipeline ownership',
+        logic:['public-chat counterpart к broker_sourcing_agent','media handoff для non-LCB solo/duet/specific performer создаёт broker watch','broker pipeline владеет replies/pricing/promo/relay','env LCB_BROKER_PUBLIC_CASTING=1','max watch age 14 дней (LCB_PUBLIC_CASTING_MAX_AGE_DAYS)','session lock-aware на tg_session.session'],
       },
       {
         group:'broker', name:'Broker Sourcing', label:'com.lcband.broker-sourcing',
