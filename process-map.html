@@ -386,7 +386,7 @@
         file:'broker_casting.py', schedule:'каждые 30 мин',
         why:'Отдельный broker-владелец выбора подрядчика: сначала casting, потом relay.',
         input:'broker_orders.json + contractor roster/media', action:'rank top-N + assign candidate + relay', output:'client relay / contractor brief',
-        logic:['sax запрос → сразу 3 curated Drive promos клиенту + date-check саксофонистам','drum_show contractor route строго только @vadimnoize / Noize; штатным барабанщикам заявки не уходят','drum запрос → Noize promo/price клиенту + date-check Вадиму','client budget не блокирует поиск: готовый кандидат презентуется по contractor + max(20k,30%)','если budget уже есть — он остаётся ceiling/viability signal','service-type match','media availability','quality score','lowcost simple actor/dancer tasks do not enter casting','не смешан с tg_responder'],
+        logic:['sax запрос → 3 curated Drive promos клиенту; date-check саксофонистам только при структурной event_date','без даты подрядчику не уходит плейсхолдер вроде “дату из запроса”','drum_show contractor route строго только @vadimnoize / Noize; штатным барабанщикам заявки не уходят','drum запрос → Noize promo/price клиенту + date-check Вадиму','client budget не блокирует поиск: готовый кандидат презентуется по contractor + max(20k,30%)','если budget уже есть — он остаётся ceiling/viability signal','service-type match','media availability','quality score','lowcost simple actor/dancer tasks do not enter casting','не смешан с tg_responder'],
       },
       {
         group:'broker', name:'Broker Collect Promo', label:'com.lcband.broker-collect-promo',
@@ -444,7 +444,7 @@
         file:'broker_public_casting_agent.py run', schedule:'каждые 10 мин',
         why:'Публичные TG casting-посты: превращает адекватные отклики в broker candidates вместо ручного workaround.',
         input:'public TG casting posts + replies + performer_media_sourcing handoff', action:'watch posts → AI-фильтр откликов → broker candidate', output:'broker candidates / broker pipeline ownership',
-        logic:['public-chat counterpart к broker_sourcing_agent','media handoff для non-LCB solo/duet/specific performer создаёт broker watch','broker pipeline владеет replies/pricing/promo/relay','env LCB_BROKER_PUBLIC_CASTING=1','max watch age 14 дней (LCB_PUBLIC_CASTING_MAX_AGE_DAYS)','session lock-aware на tg_session.session'],
+        logic:['public-chat counterpart к broker_sourcing_agent','media handoff для non-LCB solo/duet/specific performer создаёт broker watch','client gets short ack immediately; final promo/price waits for candidate media','broker pipeline владеет replies/pricing/promo/relay','env LCB_BROKER_PUBLIC_CASTING=1','max watch age 14 дней (LCB_PUBLIC_CASTING_MAX_AGE_DAYS)','session lock-aware на tg_session.session'],
       },
       {
         group:'broker', name:'Broker Sourcing', label:'com.lcband.broker-sourcing',
