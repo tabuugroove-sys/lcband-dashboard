@@ -496,10 +496,25 @@ function renderRosterVendor(v) {
     : '';
   const lastHtml = v.last_contact ? `<div class="v-last">последний контакт: ${escHtml(v.last_contact)}</div>` : '';
   const notesShort = (v.notes || '').slice(0, 140) + ((v.notes || '').length > 140 ? '…' : '');
+  const clientRateHtml = v.client_rate_quote
+    ? `<div class="v-rate" style="color:#4ade80">💳 клиенту: ${escHtml(v.client_rate_quote)}</div>` : '';
+  const carHtml = v.has_car === true
+    ? `<span class="v-std" title="Своя машина подтверждена">🚗 машина</span>`
+    : v.has_car === false ? `<span class="v-std">🚫 без машины</span>` : '';
+  const driveHtml = v.promo_folder_url
+    ? `<div class="v-promo">📁 <a href="${safeUrl(v.promo_folder_url)}" target="_blank" rel="noopener noreferrer">Drive-папка промо</a></div>` : '';
+  const safeClips = v.client_safe_promo_urls || [];
+  const clipsHtml = safeClips.length
+    ? `<details style="margin-top:3px"><summary style="cursor:pointer;font-size:12px">🎬 client-safe роликов: ${safeClips.length}</summary>
+        ${safeClips.map((u, i) => `<div style="font-size:12px;margin:2px 0 0 12px"><a href="${safeUrl(u)}" target="_blank" rel="noopener noreferrer">ролик ${i + 1}</a></div>`).join('')}
+      </details>` : '';
   return `<div class="roster-vendor">
-    <div class="v-name">${escHtml(v.name || '—')}</div>
-    <div class="v-user">${vendorHandleHtml(v)}${v.geo && v.geo !== 'уточнить' ? `<span style="color:var(--muted);margin-left:8px">📍 ${escHtml(v.geo)}</span>` : ''}</div>
-    ${v.rate_quote ? `<div class="v-rate">💰 ${escHtml(v.rate_quote)}</div>` : ''}
+    <div class="v-name">${escHtml(v.client_display_name || v.name || '—')}</div>
+    <div class="v-user">${vendorHandleHtml(v)}${v.geo && v.geo !== 'уточнить' ? `<span style="color:var(--muted);margin-left:8px">📍 ${escHtml(v.geo)}</span>` : ''}${carHtml ? `<span style="margin-left:8px">${carHtml}</span>` : ''}</div>
+    ${clientRateHtml}
+    ${v.rate_quote ? `<div class="v-rate">💰 подряд: ${escHtml(v.rate_quote)}</div>` : ''}
+    ${driveHtml}
+    ${clipsHtml}
     ${promoHtml}
     ${mediaHtml}
     ${stdHtml ? `<div style="margin-top:3px">${stdHtml}</div>` : ''}
