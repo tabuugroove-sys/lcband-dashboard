@@ -533,7 +533,7 @@
         file:'contracts/contract_autogenerate.py --limit 5', schedule:'каждые 5 мин',
         why:'Готовит черновики договоров для events, дошедших до contract setup — для внутреннего ревью, не для клиента.',
         input:'lcb_orders.json event state', action:'генерит DOCX-драфт договора по шаблону', output:'contracts/generated/*.docx + Drive + notify',
-        logic:['lcb_orders.json = read source event state','suppressed known-event DM может восстановить contract context для внутреннего draft, но suppress остаётся блоком на client send','сгенерированные DOCX — драфты для внутреннего ревью, не client send','contract_autogenerate_state.json = только idempotency ledger','--limit 5 за прогон','не отправляет клиенту'],
+        logic:['lcb_orders.json = read source event state','стоимость берётся только из явных price/budget fields; timestamp/ID-like noise не майнится из всей карточки','если суммы нет — draft получает blocker «уточнить итоговую стоимость», а не мусорную стоимость','suppressed known-event DM может восстановить contract context для внутреннего draft, но suppress остаётся блоком на client send','сгенерированные DOCX — драфты для внутреннего ревью, не client send','contract_autogenerate_state.json = только idempotency ledger','--limit 5 за прогон','не отправляет клиенту'],
       },
       {
         group:'events', name:'Costume Collector', label:'com.lcband.costume-collector',
