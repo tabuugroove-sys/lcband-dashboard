@@ -524,6 +524,7 @@
     {id:'brqual', g:'broker', n:'Broker Quality Scorer', f:'broker_quality_scorer.py', s:'6 ч', src:['SCH'], r:['VEN','BRO'], wr:['VEN'], why:'Скоринг качества подрядчиков для ranking/casting.'},
     {id:'brrepair', g:'broker', n:'Broker State Repair', f:'broker_state_repair.py', s:'1 ч', src:['SCH'], r:['BRO'], wr:['BRO'], why:'Чинит неполный/устаревший broker state; закрывает только пассивные stale.'},
     {id:'brpend', g:'broker', n:'Contractor Pending Rescanner', f:'contractor_pending_rescanner.py', s:'15 мин', src:['SCH'], r:['BRO','MEV'], wr:['BRO'], why:'Перепроверяет pending contractor states, чтобы ответы не потерялись.'},
+    {id:'cbackreply', g:'broker', n:'Contractor Backlog Autoreply', f:'contractor_backlog_autoreply.py', s:'30 мин', src:['SCH'], r:['MEV','TEL'], wr:['APPR','TEL'], out:['TG'], why:'Разгребает старые swallowed/unanswered contractor DM без approval bot: только contractor-like evidence (ai_suppressed runtime log, coordination/media targets, cold status questions), консервативный truthful reply, quiet-hours gate, пачки по 12 через send_pending_approval.py; неоднозначное пишет в state/blocker.'},
 
     // events
     {id:'evwatch', g:'events', n:'Event Watcher', f:'event_watcher.py', s:'30 мин', src:['SCH'], r:['ORD','CTX'], wr:['EVP'], why:'После оплаты создаёт event_planning карточку (paid lead → production). Перед созданием проверяет lead-context terminal/refused/do_not_touch, чтобы venue-only/non-LCB треды не воскресали как production event.'},
