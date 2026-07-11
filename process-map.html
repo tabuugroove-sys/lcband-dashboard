@@ -386,7 +386,7 @@
         file:'broker_casting.py', schedule:'каждые 30 мин',
         why:'Отдельный broker-владелец выбора подрядчика: сначала casting, потом relay.',
         input:'broker_orders.json + contractor roster/media', action:'rank top-N + assign candidate + relay', output:'client relay / contractor brief',
-        logic:['sax запрос → 3 curated Drive promos клиенту; date-check саксофонистам только при структурной event_date','без даты подрядчику не уходит плейсхолдер вроде “дату из запроса”','drum_show contractor route строго только @vadimnoize / Noize; штатным барабанщикам заявки не уходят','drum запрос → Noize promo/price клиенту + date-check Вадиму','client budget не блокирует поиск: готовый кандидат презентуется по contractor + max(20k,30%)','если budget уже есть — он остаётся ceiling/viability signal','service-type match','media availability','quality score','lowcost simple actor/dancer tasks do not enter casting','не смешан с tg_responder'],
+        logic:['только standalone solo sax → 3 curated Drive promos клиенту из SOLO_SAX_PRODUCT_HANDLES; это не LCB lineup recruit','sax внутри состава LCB → event_ops availability/work-offer по LCB_LINEUP_SAX_HANDLES, без client proposal','date-check solo sax только при структурной event_date; без даты подрядчику не уходит плейсхолдер вроде “дату из запроса”','drum_show contractor route строго только @vadimnoize / Noize; штатным барабанщикам заявки не уходят','drum запрос → Noize promo/price клиенту + date-check Вадиму','client budget не блокирует поиск: готовый кандидат презентуется по contractor + max(20k,30%)','если budget уже есть — он остаётся ceiling/viability signal','service-type match','media availability','quality score','lowcost simple actor/dancer tasks do not enter casting','не смешан с tg_responder'],
       },
       {
         group:'broker', name:'Broker Collect Promo', label:'com.lcband.broker-collect-promo',
@@ -547,7 +547,7 @@
         file:'event_ops_bot.py propose-pending-groups', schedule:'каждые 5 часов',
         why:'Постит musician-facing апдейты в event-группу без бюджетов и опрашивает организатора по недостающей логистике.',
         input:'event_planning.json + pending event groups', action:'propose group update + ask organizer logistics', output:'event-group message / organizer logistics запрос + event_ops_log',
-        logic:['musician-facing updates без бюджета','спрашивает организатора про parking / tech contact','логирует отправленное для аудита','organizer send window 10-21 MSK','групповые апдейты с командой идут через approval'],
+        logic:['musician-facing updates без бюджета','LCB sax role → availability/work-offer только leochirisax/stereosax/distant_spaceee/Leonid_Sax; solo sax client package сюда не попадает','спрашивает организатора про parking / tech contact','логирует отправленное для аудита','organizer send window 10-21 MSK','групповые апдейты с командой идут через approval'],
       },
 
       {
