@@ -1009,7 +1009,7 @@ const FADER_CATEGORIES = [
   { key: 'client_review',     label: '2. Ревью ответов клиентам' },
   { key: 'funnel_review',     label: '3. Ревью шага воронки' },
   { key: 'broker',            label: '4. Broker pipeline (посредник)' },
-  // 17.05.2026: новая категория — L1 Gemini batch + L2 Opus/Codex escalation
+  // 17.05.2026: новая категория — L1 Antigravity batch + L2 Opus/Codex escalation
   // классификатор event-постов. Своя дорожка чтобы тюнить % Codex default
   // независимо от broker pipeline (cost profile разный).
   { key: 'classify',          label: '5. Классификация event-постов' },
@@ -1854,7 +1854,7 @@ function render(d) {
       const opts = ['<option value="">default (Codex→Opus)</option>'];
       choices.forEach(m => {
         const est = me[m] || {};
-        const sub = est.subscription === 'code_assist_free' ? '(free)' :
+        const sub = ['code_assist_free', 'antigravity_free'].includes(est.subscription) ? '(free)' :
                     est.subscription === 'chatgpt_plus' ? '(ChatGPT Plus)' :
                     '(Claude Max)';
         const pct = (est.theoretical_pct_weekly || 0).toFixed(2);
