@@ -867,7 +867,7 @@ a:hover { text-decoration: underline; }
   <div class="card">
     <h2>Today · by AI backend</h2>
     <div class="label" style="margin:-4px 0 8px 0;">
-      CLI-строки разделены по провайдерам: Gemini CLI ≠ Codex CLI.
+      CLI-строки разделены по провайдерам: Antigravity/Gemini ≠ Codex CLI.
     </div>
     <table id="services"><thead><tr>
       <th>Service</th><th style="text-align:right">Calls</th>
@@ -990,7 +990,7 @@ function modelTag(name) {
     return `<span class="dot codex"></span>Codex CLI${suffix}`;
   }
   if (n.startsWith('cli_gemini') || n.includes('gemini')) {
-    return '<span class="dot gemini"></span>Gemini CLI';
+    return '<span class="dot gemini"></span>Antigravity / Gemini';
   }
   if (n.includes('opus')) return '<span class="dot opus"></span>Claude Opus';
   if (n.includes('sonnet')) return '<span class="dot sonnet"></span>Claude Sonnet';
@@ -2036,7 +2036,7 @@ const PROCESS_INFO = {
     where: 'ingest/classify',
   },
   funnel_l1_gemini_screen: {
-    title: 'Funnel L1 — дешёвый отсев (Gemini)',
+    title: 'Funnel L1 — Antigravity / Gemini intake',
     does: 'Быстрый recall-гейт: грубо отсеивает явный мусор до дорогих слоёв. По замыслу должен идти на Gemini (бесплатно).',
     affects: ['что пройдёт дальше', 'экономия дорогих вызовов'],
     risk: 'Если уходит на Codex/Opus вместо Gemini — дорого; это копеечный гейт.',
@@ -2115,7 +2115,8 @@ const PROCESS_INFO = {
 };
 const SERVICE_INFO = {
   cli_codex: 'Codex CLI через ChatGPT/Codex лимит. Обычно первый слой для review/classification.',
-  cli_gemini: 'Gemini CLI. Обычно дешёвая классификация/фильтр; не должен принимать критичные коммерческие решения.',
+  cli_gemini: 'Legacy Gemini label; рабочие вызовы перенесены в изолированный Antigravity/Gemini worker.',
+  cli_antigravity: 'Antigravity / Gemini Flash: intake, routing, document/media analysis и draft; send/money остаются за независимыми gates.',
   cli_opus: 'Claude Opus CLI через Max. Ручной аварийный слой, не default.',
   cli_sonnet: 'Claude Sonnet CLI через Max. Средний слой: дешевле Opus, сильнее Haiku.',
   cli_haiku: 'Claude Haiku CLI/API. Быстрый слой для простых задач.',

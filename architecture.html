@@ -594,7 +594,7 @@
     ]},
     {id:'post', ic:'📢', title:'Пост в event-чате (cold lead)', steps:[
       {t:'NewMessage в event-чате', a:'tg_realtime_monitor → telegram_monitor.scan_cycle', f:'telegram_monitor.py', kind:'in', r:['SEEN'], wr:['SEEN'], note:'Cursor heartbeat по всем рабочим event-чатам из CHATS. @eventchatrussia, @event_area и «ЗАКАЗЫ Каверы и Музыканты» мониторятся; запрет PUBLIC_POSTING_DENY_CHAT_IDS касается только публикации наших sourcing/casting постов.'},
-      {t:'Ingest-классификатор (цепочка)', a:'ai_classify_chain.classify_ingest_post()', f:'ai_classify_chain.py:775', kind:'ai', r:['AIC'], wr:['AIC','TEL'], note:'Здесь действительно цепочка: L1 Gemini Flash (conf≥0.92) → L2 Sonnet → L3 Sonnet-arbiter. Cache 14d TTL по hash текста. Verdict: music_band / drum / solo / abstract / broker_request / skip.'},
+      {t:'Ingest-классификатор (цепочка)', a:'ai_classify_chain.classify_ingest_post()', f:'ai_classify_chain.py:775 + antigravity_cli.py', kind:'ai', r:['AIC'], wr:['AIC','TEL'], note:'Primary: изолированный Antigravity worker на Gemini Flash — sandbox + отдельный LCBand skill + JSON contract. L2/L3 Sonnet/Codex остаются независимым fallback/review до shadow-подтверждения объединённого intake+route+draft. Cache 14d TTL по hash текста. Verdict: music_band / drum / solo / abstract / broker_request / skip.'},
       {t:'Развилка по вердикту', a:'verdict routing', f:'telegram_monitor.py', kind:'branch', r:[], wr:[], note:'skip → mark-read (только после реального чтения). broker_request → Broker contour. music_band/drum/solo → cold pitch path.'},
       {t:'Создать/дедупнуть CRM-строку', a:'orders_db (bridge)', f:'orders_db_bridge.py', kind:'write', r:['ORD'], wr:['ORD'], note:'Перед cold-send создаётся/дедупится orders.db row. CRM — единственный SSoT воронки.'},
       {t:'Cold pitch текст', a:'_COMPOSE_OPUS_SYSTEM / PITCH_LIBRARY', f:'lcb_writer.py · telegram_monitor', kind:'ai', r:['LCB'], wr:[], note:'Короткий КП: имя + запрос + состав + цена (price_canon) + промо. Pricing-by-signal: бренд/VIP/посредник, СПб×1.6, остальные регионы×1.5; многодневный тур — каждый день×1.5 после lineup/geo price.'},
@@ -901,7 +901,7 @@
   document.getElementById('broker-modes').innerHTML = BROKER_MODES.map(modeRow).join('');
   document.getElementById('auditNote').innerHTML =
     'Схема построена по реальному коду (июнь 2026): 65 launchd-агентов, owner-модули памяти и AI-слой. ' +
-    'Сверено: <code>smart_funnel.classify_unified</code> (DM — один Opus call), <code>ai_classify_chain</code> (посты — L1 Gemini→L2/L3 Sonnet), ' +
+    'Сверено: <code>smart_funnel.classify_unified</code>, <code>ai_classify_chain</code> (primary Antigravity/Gemini; Sonnet/Codex fallback и независимый review), ' +
     '<code>agent_context.get_agent_context</code> (live read, не shadow), <code>outbound_recorder</code> (3-стадийный writeback), orders.db = SSoT. ' +
     'Полный каталог скриптов с расписаниями — <a href="process-map.html" style="color:var(--blue)">Карта скриптов</a>.';
 
