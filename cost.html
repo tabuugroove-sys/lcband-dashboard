@@ -2320,6 +2320,7 @@ function renderBurn(d) {
       const color = burnColor(load);
       const emoji = burnEmoji(load);
       const bucketTag = p.bucket === 'codex' ? '<span class="dot codex"></span>codex' :
+                       p.bucket === 'antigravity' ? '<span class="dot gemini"></span>antigravity' :
                        p.bucket === 'gemini' ? '<span class="dot gemini"></span>gemini' :
                        p.bucket === 'api'   ? 'api $' :
                        '<span class="dot haiku"></span>claude';
