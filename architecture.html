@@ -411,9 +411,10 @@
           <div class="owner-note">Старые записи не бэкфилят руками — обновляются по TTL, смене fingerprint или force refresh.</div>
         </div>
         <div class="panel accent-amber">
-          <div class="ph" style="color:var(--amber)">L3 Writer layer</div>
-          <div class="psub">LCB text policy один: <code class="src-code">lcb_writer.py</code> · broker отдельно</div>
+          <div class="ph" style="color:var(--amber)">Antigravity owner → Writer → Review</div>
+          <div class="psub">Gemini Flash через <code class="src-code">antigravity_cli.py</code> понимает вход, документы/media и готовит JSON · writers владеют действием</div>
           <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+            <div class="pill" style="color:var(--blue);background:var(--blue-bg);border-color:color-mix(in srgb,var(--blue) 28%,transparent)"><code class="src-code">agy --new-project --sandbox</code> · isolated skill · temp attachments · no send/DB access</div>
             <div class="pill amber"><code class="src-code">_COMPOSE_OPUS_SYSTEM</code> · cold post pitch · telegram_monitor</div>
             <div class="pill" style="color:var(--green);background:var(--green-bg);border-color:color-mix(in srgb,var(--green) 28%,transparent)"><code class="src-code">PITCH_LIBRARY_PROMPT</code> · ситуации / скелеты</div>
           </div>
@@ -421,7 +422,7 @@
             <div class="writer lcb"><div class="wn">LCB writer</div><div class="wf">lcb_writer.py</div><div id="lcb-modes"></div></div>
             <div class="writer broker"><div class="wn">Broker writer</div><div class="wf">broker_dialog_agent</div><div id="broker-modes"></div></div>
           </div>
-          <div class="owner-note">После L3 → pre-send review (<code class="src-code">_presend_review_result</code> → <code class="src-code">ai_review_before_send</code>): strip contacts + price/payment policy без keyword payment-gate. Посты и DM считаются раздельно.</div>
+          <div class="owner-note">Antigravity — primary для бывших Gemini text/document/media задач. Opus/Codex остаются независимым fallback и pre-send/money review. Только writer/typed tools могут отправить сообщение или изменить order.</div>
         </div>
       </div>
     </div>

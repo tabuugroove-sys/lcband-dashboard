@@ -645,7 +645,7 @@ a:hover { text-decoration: underline; }
     </table>
   </div>
   <div class="label" style="margin-top:6px;">
-    Последние ~50 AI вызовов (auto-refresh 3s, новые сверху). Модель: 🟢 Codex · 🟣 Opus · 🔵 Sonnet · 🩵 Haiku · 🟠 Gemini · ⛔ блок.
+    Последние ~50 AI вызовов (auto-refresh 3s, новые сверху). Модель: 🟢 Codex · 🟣 Opus · 🔵 Sonnet · 🩵 Haiku · 🟠 Antigravity/Gemini · ⛔ блок.
     Контакт/Что делал/Итог заполнены для дорогих (&gt;<span id="exp-calls-threshold">5000</span> ток); итог:
     <span style="color:#3fb950">отправлено</span> · <span style="color:#f0883e">частично</span> · <span style="color:#f85149">впустую</span>.
   </div>
@@ -886,14 +886,14 @@ a:hover { text-decoration: underline; }
       <th style="text-align:right">Opus</th>
       <th style="text-align:right">Codex</th>
       <th style="text-align:right">Sonnet/Haiku</th>
-      <th style="text-align:right">Gemini</th>
+      <th style="text-align:right">Antigravity</th>
       <th style="text-align:right">Σ %wk</th>
       <th>Force model</th>
     </tr></thead>
     <tbody id="funnel-models"></tbody>
   </table>
   <div class="label" style="margin-top:6px;">
-    <strong>Конвенция:</strong> CLI (Claude Max / ChatGPT Plus / Gemini) → <strong>% weekly limit</strong>, API → $.
+    <strong>Конвенция:</strong> CLI (Claude Max / ChatGPT Plus / Antigravity free quota) → <strong>% weekly limit</strong>, API → $.
     Каждая ячейка модели показывает <code>calls→%weekly</code> — РЕАЛЬНО съедено сегодня (не theoretical).
     «Σ %wk» — суммарный реальный расход на purpose.
     Selector «Force model»: значение в () — theoretical если бы ВСЕ {total} calls пошли через эту модель.
@@ -977,6 +977,7 @@ function prettyModelName(name) {
   if (n.includes('opus')) return 'Opus';
   if (n.includes('sonnet')) return 'Sonnet';
   if (n.includes('haiku')) return 'Haiku';
+  if (n.includes('antigravity')) return 'Antigravity / Gemini';
   if (n.includes('gemini')) return 'Gemini';
   return raw;
 }
@@ -989,8 +990,11 @@ function modelTag(name) {
     const suffix = model ? ` <span class="muted">· ${esc(prettyModelName(model))}</span>` : '';
     return `<span class="dot codex"></span>Codex CLI${suffix}`;
   }
+  if (n.startsWith('cli_antigravity') || n.includes('antigravity')) {
+    return '<span class="dot gemini"></span>Antigravity / Gemini Flash';
+  }
   if (n.startsWith('cli_gemini') || n.includes('gemini')) {
-    return '<span class="dot gemini"></span>Antigravity / Gemini';
+    return '<span class="dot gemini"></span>Legacy Gemini CLI';
   }
   if (n.includes('opus')) return '<span class="dot opus"></span>Claude Opus';
   if (n.includes('sonnet')) return '<span class="dot sonnet"></span>Claude Sonnet';
@@ -1528,7 +1532,7 @@ async function loadRoutingControls() {
 const GUARD_PROVIDERS = [
   { key: 'codex',  label: '🔵 Codex',  max24: 3000, step24: 50, max5: 1000, step5: 25 },
   { key: 'claude', label: '🟣 Claude', max24: 1500, step24: 50, max5: 600,  step5: 20 },
-  { key: 'gemini', label: '🟡 Gemini', max24: 3000, step24: 50, max5: 1000, step5: 25 },
+  { key: 'antigravity', label: '🟠 Antigravity / Gemini free', max24: 3000, step24: 50, max5: 1000, step5: 25 },
 ];
 let _guardStatus = { providers: {} };
 
@@ -2036,10 +2040,10 @@ const PROCESS_INFO = {
     where: 'ingest/classify',
   },
   funnel_l1_gemini_screen: {
-    title: 'Funnel L1 — Antigravity / Gemini intake',
-    does: 'Быстрый recall-гейт: грубо отсеивает явный мусор до дорогих слоёв. По замыслу должен идти на Gemini (бесплатно).',
+    title: 'Antigravity / Gemini — intake и маршрутизация',
+    does: 'Изолированный operator читает заявку по LCBand skill, классифицирует и возвращает JSON; Claude/Codex подключаются только как fallback/review.',
     affects: ['что пройдёт дальше', 'экономия дорогих вызовов'],
-    risk: 'Если уходит на Codex/Opus вместо Gemini — дорого; это копеечный гейт.',
+    risk: 'Если Antigravity недоступен или вернул невалидный JSON, вызов уходит в более дорогой fallback.',
     where: 'smart_funnel L1',
   },
   funnel_l2_sonnet: {
