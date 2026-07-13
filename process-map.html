@@ -40,6 +40,13 @@
       border:1px solid var(--border); background:linear-gradient(180deg,rgba(30,41,59,.55),rgba(17,24,39,.5));
       border-radius:8px; padding:14px;
     }
+    .delivery-boundary {
+      margin-bottom:14px; padding:12px 14px; border:1px solid rgba(96,165,250,.35);
+      border-left:3px solid var(--blue); border-radius:8px; background:rgba(96,165,250,.07);
+      color:#cbd5e1; font-size:12px;
+    }
+    .delivery-boundary b { color:var(--blue); }
+    .delivery-boundary code { color:#a5f3fc; }
     h1 { margin:0 0 8px; font-size:24px; letter-spacing:0; }
     .sub { color:var(--muted); font-size:13px; max-width:820px; }
     .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
@@ -188,6 +195,10 @@
       </div>
     </div>
 
+    <div class="delivery-boundary">
+      <b>Telegram user-account boundary:</b> business agents, dashboard и commander только производят reviewed/approved immutable commands → <code>telegram_delivery_queue.py</code> / <code>tg_delivery.sqlite</code> → <code>com.lcband.telegram-delivery</code>. Только <code>telegram_delivery_service.py</code> мутирует личный аккаунт через Telethon. Bot API notification/approval/event-ops bots — отдельные identities и transport, не user-account writers.
+    </div>
+
     <div class="effpanel">
       <div class="eff-head">
         <div class="eff-title">Расход CLI-токенов<span class="eff-sub" id="effSub">— загрузка…</span></div>
@@ -240,8 +251,8 @@
       {
         group:'intake', name:'TG Event Monitor', label:'com.lcband.tg-monitor component',
         file:'tg_realtime_monitor.py → telegram_monitor.py', schedule:'daemon component',
-        why:'Единственный persistent TG realtime client: ловит event-чаты и private DM без второго session-copy socket.',
-        input:'TG event-чаты + private DM + payment/promise/drum events + msg_id cursors', action:'event classify → compose → pre-send review; DM → enrich(force=True) + unified_dm_responder.handle; payment → payment_event_handler handlers', output:'orders.db, orders.db.message_events, sent proposal, tg_seen_posts.jsonl, conversation_cache, payment heartbeat',
+        why:'Ingress owner: один persistent TG realtime client ловит event-чаты и private DM без второго session-copy socket; после review он производит delivery command, но не владеет user-account mutation.',
+        input:'TG event-чаты + private DM + payment/promise/drum events + msg_id cursors', action:'event classify → compose → pre-send review → durable enqueue; DM → enrich(force=True) + unified_dm_responder.handle; payment → payment_event_handler handlers', output:'orders.db, message_events, tg_seen_posts.jsonl, conversation_cache, telegram_delivery_queue command, payment heartbeat',
         logic:['NewMessage по event-чатам запускает scan_cycle по cursor','private DM routes through imported tg_dm_realtime_listener handlers on same client','DM suppression owner нормализует TG usernames в lower-case и схлопывает legacy case-split keys','DM catchup после sleep/reboot сканирует последние 48ч и до 20 свежих сообщений на диалог перед dedupe','band-member AI None/parse failure считается transient и не закрывает message seen; stable no-reply остаётся terminal','DM no-text safe ack/wait может получить TG 👍 reaction, но reaction/read не закрывает price/call/question obligation','price/final-price/price-confirmation/call request → red owned obligation; grounded price отвечает сразу, иначе urgent с blocker+draft','DM send_failed фиксируется как peer_seen, но already_handled не закрывает сообщение без видимого действия','payment/promise/drum routes through imported payment_event_handler handlers on same client','dedup по tg_seen_posts.jsonl','event classify: L1 classify_batch, затем один batch-L2 запрос на все сомнительные посты','verdict music_band/drum/solo/abstract/broker/skip','multi-item aggregator post: выбранный @contact должен принадлежать пункту с тем же music/drum scope, иначе pre_filter_skip до compose/AI-review','перед cold-send создаёт/дедупит orders.db row, после успешного send пишет outbound_recorder','перед отправкой всегда ai_review_before_send()'],
       },
       {
@@ -249,7 +260,7 @@
         file:'auto_browser_walk.sh', schedule:'каждые 30 мин / fallback',
         why:'Визуальный safety-net для Telegram Web: догоняет то, что мог пропустить realtime/API контур.',
         input:'web.telegram.org event-чаты', action:'screenshot/scroll/classify', output:'browser_walk_result.json, monitor_history.jsonl',
-        logic:['берёт lock, чтобы не было двух обходов','классифицирует видимые посты','перед send использует Telethon + pre-send review','показывается в BW catch-up'],
+        logic:['берёт lock, чтобы не было двух обходов','классифицирует видимые посты','после pre-send review создаёт delivery command; Telethon mutation принадлежит delivery service','показывается в BW catch-up'],
       },
       {
         group:'intake', name:'VK Monitor', label:'com.lcband.vk-monitor',
@@ -288,11 +299,18 @@
         logic:['realtime DM owner = unified_dm_responder','legacy active mode disabled in code','не конкурирует за один DM'],
       },
       {
+        group:'dm', name:'Telegram User-Account Delivery', label:'com.lcband.telegram-delivery',
+        file:'telegram_delivery_service.py + telegram_delivery_queue.py', schedule:'daemon / KeepAlive',
+        why:'Единственный физический writer личного Telegram-аккаунта; все business agents находятся до durable queue.',
+        input:'tg_delivery.sqlite immutable commands + pending approval envelope', action:'claim lease/fencing → revalidate → reserve attempt → Telethon mutation', output:'provider receipt + delivered / blocked / expired / unknown terminal state',
+        logic:['exclusive process-local owner capability и file lock','точный recipient и payload/media hashes перепроверяются перед transport','attempt резервируется до provider call','queued не равно delivered','нет provider receipt → unknown без auto-retry','Bot API notification bots не входят в эту user-account boundary'],
+      },
+      {
         group:'dm', name:'TG Follow-up', label:'com.lcband.tg-followup',
         file:'tg_followup.py', schedule:'daily 10:09 MSK',
-        why:'Готовит follow-up drafts по расписанию, но не трогает оплативших, музыкантов, подрядчиков и близкие event date.',
-        input:'orders.db + DM history', action:'eligible follow-up + review', output:'presend viewer draft / skip log',
-        logic:['direct send только при LCB_FOLLOWUP_DIRECT_SEND=1','default output = pending_approvals viewer_only','protected skip для ОПЛАТИЛА/confirmed/musician/contractor/vendor','semantic ball owner читает из event-contact scope; bare contact followup не подменяет active event','нет/старый inbound_disposition → defer_to_responder; waiting_until → hard snooze до даты','customer_decision wait: если варианты ушли заказчику/паре/руководителю, без точной даты пауза 3 дня','content mode требует concrete event_id и дату события в прошлом; future/ambiguous multi-event → blocker_reason, не draft','content mode: если клиент написал что видео грузятся, но media не появились, просит переотправить вместо дубля','стоп за 3 дня до мероприятия','cap 15 sends/run'],
+        why:'Producer follow-up commands по расписанию; не трогает оплативших, музыкантов, подрядчиков и близкие event date и сам не вызывает Telethon.',
+        input:'orders.db + DM history', action:'eligible follow-up + review → pending approval или durable enqueue', output:'presend viewer draft / telegram_delivery_queue command / skip log',
+        logic:['LCB_FOLLOWUP_DIRECT_SEND=1 разрешает auto-approved enqueue, а не прямой Telethon call','default output = pending_approvals viewer_only','protected skip для ОПЛАТИЛА/confirmed/musician/contractor/vendor','semantic ball owner читает из event-contact scope; bare contact followup не подменяет active event','нет/старый inbound_disposition → defer_to_responder; waiting_until → hard snooze до даты','customer_decision wait: если варианты ушли заказчику/паре/руководителю, без точной даты пауза 3 дня','content mode требует concrete event_id и дату события в прошлом; future/ambiguous multi-event → blocker_reason, не draft','content mode: если клиент написал что видео грузятся, но media не появились, просит переотправить вместо дубля','стоп за 3 дня до мероприятия','cap 15 commands/run'],
       },
       {
         group:'dm', name:'VK Responder', label:'com.lcband.vk-responder',
@@ -369,7 +387,7 @@
         group:'broker', name:'Broker Dialog Owner', label:'broker_dialog_agent.py',
         file:'broker_dialog_agent.py', schedule:'library / invoked by broker agents',
         why:'Единая точка записи сообщений клиенту и подрядчику в рамках broker_order.',
-        input:'event-centric broker card: event + organizer + contractors + negotiation stage', action:'client queue + presend; contractor bypass → auto-send', output:'broker message + owner metadata',
+        input:'event-centric broker card: event + organizer + contractors + negotiation stage', action:'client/contractor policy + presend → immutable delivery command', output:'telegram_delivery_queue command + broker owner metadata',
         logic:['broker_order_context строит event entity','contractor DM raw in/out пишется в orders.db.message_events до/после ответа','contractor context выбирается по linked orders + дате, включая recently closed contractor-side order если active order старый','direct/private DM → LCB writer','active broker client reply → broker_orders before LCB writer','client win reply → closed_won + approval-only payment/contract handoff','client refusal/lowcost → closed_lost','simple actor/dancer lowcost → skip до broker_order','first_contact with budget question → waiting_client_budget, но budget больше не precondition для поиска подрядчика','budget reply below margin floor → closed_lost before client hold/fanout','budget reply → client hold only if ready inventory exists','simple actor/dancer without promo+price → closed_lost','single writer','contractor-side bypass approval','client-side presend + context','dedupe surface','tg_responder не owner'],
       },
       {
