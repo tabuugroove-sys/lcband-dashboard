@@ -961,6 +961,14 @@ const TIME_FMT_SP = new Intl.DateTimeFormat('ru-RU', {
   minute: '2-digit',
   second: '2-digit',
 });
+const GUARD_TIME_FMT_SP = new Intl.DateTimeFormat('ru-RU', {
+  timeZone: DISPLAY_TZ,
+  day: '2-digit',
+  month: '2-digit',
+  hour12: false,
+  hour: '2-digit',
+  minute: '2-digit',
+});
 function parseBackendTs(ts) {
   if (!ts) return null;
   if (ts instanceof Date) return ts;
@@ -1570,12 +1578,12 @@ function paintGuardExpiry(row, timing, count) {
   }
   const nextAt = Number(timing.next_release_at) * 1000;
   const clearAt = Number(timing.clear_at) * 1000;
-  const next = `${fmtTimeSP(nextAt)} SP (${guardRelativeTime(timing.next_release_in_sec)})`;
+  const next = `${GUARD_TIME_FMT_SP.format(new Date(nextAt))} SP (${guardRelativeTime(timing.next_release_in_sec)})`;
   if (!clearAt || Math.abs(clearAt - nextAt) < 1000) {
     el.textContent = `скользящий reset: −1 call и полное обнуление ${next}`;
     return;
   }
-  const clear = `${fmtTimeSP(clearAt)} SP (${guardRelativeTime(timing.clear_in_sec)})`;
+  const clear = `${GUARD_TIME_FMT_SP.format(new Date(clearAt))} SP (${guardRelativeTime(timing.clear_in_sec)})`;
   el.textContent = `скользящий reset: −1 call ${next} · 0 calls без новых вызовов ${clear}`;
 }
 
@@ -2517,10 +2525,11 @@ function renderHeavyCodexThreads(data) {
     windowEl.textContent = `Desktop use: 24h ${fmtTokens(tokens24h)} (${active24h} threads), 7d ${fmtTokens(tokens7d)} (${active7d}) · CLI GPT exec: 24h ${fmtTokens(cliTokens24h)} (${cliActive24h} calls), 7d ${fmtTokens(cliTokens7d)} (${cliActive7d}) · chart hours in SP time`;
   }
   if (antigravityEl) {
+    const candidateWord = agCandidate === 1 ? 'кандидат' : 'кандидатов';
     antigravityEl.innerHTML = `<strong>Фактический Antigravity расход в этой таблице: 0.</strong> ` +
       `Это Codex Desktop tokens. Из ${agAssessed} показанных тредов: ` +
       `<span class="ag-offload partial">${agPartial} частично</span> — можно вынести анализ/черновик, ` +
-      `<span class="ag-offload candidate">${agCandidate} кандидатов</span> без видимого tool-выполнения, ` +
+      `<span class="ag-offload candidate">${agCandidate} ${candidateWord}</span> без видимого tool-выполнения, ` +
       `<span class="ag-offload unknown">${agUnknown} без данных</span>.`;
   }
   if (!rows.length) {
