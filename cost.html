@@ -93,6 +93,11 @@ tr:last-child td { border-bottom: none; }
 .thread-preview { color: var(--muted); font-size:11px; max-width:360px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .heavy-mode { color: var(--danger); font-weight: 700; }
 .heavy-mode.ok { color: var(--ok); }
+.ag-offload { display:inline-block; border-radius:999px; padding:2px 7px; font-size:11px; font-weight:700; white-space:nowrap; }
+.ag-offload.partial { color:#9a6700; background:rgba(210,153,34,.14); }
+.ag-offload.candidate { color:var(--ok); background:rgba(52,199,89,.12); }
+.ag-offload.unknown { color:var(--muted); background:var(--panel-2,#f2f4f7); }
+.ag-offload-note { color:var(--muted); font-size:10px; line-height:1.35; margin-top:3px; max-width:170px; }
 .heavy-thread-heading {
   display:flex;
   justify-content:space-between;
@@ -296,6 +301,7 @@ tr:last-child td { border-bottom: none; }
 .guard-meter-fill.green  { background: var(--ok, #2da44e); }
 .guard-meter-fill.yellow { background: var(--warn, #d97706); }
 .guard-meter-fill.red    { background: var(--danger, #cf222e); }
+.guard-expiry { margin-top:4px; color:var(--muted); font-size:10px; line-height:1.35; }
 .guard-slider-row { display:flex; align-items:center; gap:10px; margin-top:6px; }
 .guard-slider-row input[type=range] { flex:1; height:4px; -webkit-appearance:none; appearance:none; background:transparent; cursor:pointer; }
 .guard-slider-row input[type=range]::-webkit-slider-runnable-track { height:4px; border-radius:4px; background: linear-gradient(90deg, var(--accent,#3a82f7) var(--guard-val,0%), var(--border) var(--guard-val,0%)); }
@@ -797,6 +803,7 @@ a:hover { text-decoration: underline; }
     </span>
   </h2>
   <div id="heavy-thread-body">
+    <div class="label" id="antigravity-offload-summary" style="margin:0 0 8px 0;">Проверяю границу Antigravity…</div>
     <table id="heavy-threads" style="width:100%;">
       <thead><tr>
         <th>Thread</th>
@@ -805,15 +812,17 @@ a:hover { text-decoration: underline; }
         <th style="text-align:right">Conversation</th>
         <th style="text-align:right">Tool output</th>
         <th style="text-align:right">Turn cost</th>
+        <th>Antigravity</th>
         <th>Status</th>
         <th></th>
       </tr></thead>
-      <tbody><tr><td colspan="8" class="muted">loading…</td></tr></tbody>
+      <tbody><tr><td colspan="9" class="muted">loading…</td></tr></tbody>
     </table>
     <div class="label" style="margin-top:6px;">
       Старые Desktop-треды старше 7 дней и heavy-треды считаются read-only.
       После approve разрешён только lightweight handoff из user/assistant переписки; tool outputs/log dumps не считаются рабочим контекстом.
       Turn cost подсвечивает треды, где последние ответы стали резко дороже или последний turn превысил 80k tokens.
+      Колонка Antigravity показывает только возможный перенос будущего анализа/черновика; уже потраченные Codex tokens не переименовываются.
     </div>
   </div>
 </div>
@@ -1561,6 +1570,7 @@ function buildGuardCards() {
           <input type="range" min="0" max="${p.max24}" step="${p.step24}" value="0" data-prov="${p.key}" data-win="max_calls_24h" data-count="0">
           <span class="guard-val" data-fld="val">0</span>
         </div>
+        <div class="guard-expiry" data-fld="expiry">окно пустое</div>
       </div>
       <div class="guard-row" data-win="max_calls_5h">
         <div class="guard-row-head">
@@ -1572,6 +1582,7 @@ function buildGuardCards() {
           <input type="range" min="0" max="${p.max5}" step="${p.step5}" value="0" data-prov="${p.key}" data-win="max_calls_5h" data-count="0">
           <span class="guard-val" data-fld="val">0</span>
         </div>
+        <div class="guard-expiry" data-fld="expiry">окно пустое</div>
       </div>`;
     grid.appendChild(div);
   }
