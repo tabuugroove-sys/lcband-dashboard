@@ -659,7 +659,7 @@
     ]},
     { title:'Identity / suppression', color:'#9a6700', gates:[
       ['handled claim','unified_handled TTL не даёт параллельным потокам отвечать дважды'],
-      ['ai_suppression','dm_ai_suppression / wa_ai_suppression режет только доказанный non-LCB после exact WA-phone → TG-role/roster identity resolve'],
+      ['ai_suppression','dm_ai_suppression / wa_ai_suppression режет только доказанный non-LCB после exact WA-phone → TG-role/roster identity resolve; центральный WA suppression отказоустойчиво не записывает verified performer'],
       ['absolute outbound hold','personal / partner / personal_partner / internal_partner / never_autoreply запрещает auto-read, reaction и send раньше любых whitelist, coordination или media overrides'],
       ['relationship override','только структурный coordination_candidate / media_sourcing target может пропустить owner-path после hard hold; сам факт нашего прошлого OUT не является доказательством роли или разрешением на ответ; cold ai_suppressed terminal-seen; contractor read-backfill только по prompt outbound'],
       ['protected contacts','paid/confirmed + musician/contractor/vendor/internal/LCB roster'],
