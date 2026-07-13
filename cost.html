@@ -1551,6 +1551,34 @@ function guardLevelClass(count, max, warn) {
   return 'green';
 }
 
+function guardRelativeTime(seconds) {
+  const sec = Math.max(0, Number(seconds) || 0);
+  if (sec < 60) return 'меньше минуты';
+  const minutes = Math.round(sec / 60);
+  if (minutes < 60) return `через ${minutes}м`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return `через ${hours}ч${rest ? ` ${rest}м` : ''}`;
+}
+
+function paintGuardExpiry(row, timing, count) {
+  const el = row.querySelector('[data-fld="expiry"]');
+  if (!el) return;
+  if (!count || !timing || !timing.next_release_at) {
+    el.textContent = 'скользящее окно пустое — расход обновляется после каждого вызова';
+    return;
+  }
+  const nextAt = Number(timing.next_release_at) * 1000;
+  const clearAt = Number(timing.clear_at) * 1000;
+  const next = `${fmtTimeSP(nextAt)} SP (${guardRelativeTime(timing.next_release_in_sec)})`;
+  if (!clearAt || Math.abs(clearAt - nextAt) < 1000) {
+    el.textContent = `скользящий reset: −1 call и полное обнуление ${next}`;
+    return;
+  }
+  const clear = `${fmtTimeSP(clearAt)} SP (${guardRelativeTime(timing.clear_in_sec)})`;
+  el.textContent = `скользящий reset: −1 call ${next} · 0 calls без новых вызовов ${clear}`;
+}
+
 function buildGuardCards() {
   const grid = document.getElementById('guard-faders-grid');
   if (!grid || grid.children.length) return;
@@ -1634,10 +1662,11 @@ function renderGuardCards(status) {
     if (!card) continue;
     const g = providers[p.key] || {};
     const counts = g.counts || {};
+    const rolling = counts.windows || {};
     const limits = g.limits || {};
     const windows = [
-      { win: 'max_calls_24h', count: Number(counts.calls_24h || 0), warn: Number(limits.warn_calls_24h || 0) },
-      { win: 'max_calls_5h',  count: Number(counts.calls_5h  || 0), warn: Number(limits.warn_calls_5h  || 0) },
+      { win: 'max_calls_24h', key: '24h', count: Number(counts.calls_24h || 0), warn: Number(limits.warn_calls_24h || 0) },
+      { win: 'max_calls_5h',  key: '5h',  count: Number(counts.calls_5h  || 0), warn: Number(limits.warn_calls_5h  || 0) },
     ];
     for (const w of windows) {
       const row = card.querySelector(`.guard-row[data-win="${w.win}"]`);
@@ -1653,6 +1682,7 @@ function renderGuardCards(status) {
       // Paint readout with the TRUE configured limit (not slider-clamped) so a
       // limit above the slider max still shows accurate usage feedback.
       paintGuardRow(row, limit, w.count, w.warn);
+      paintGuardExpiry(row, rolling[w.key], w.count);
     }
   }
 }
@@ -2436,6 +2466,7 @@ function renderHeavyCodexThreads(data) {
   const blockedEl = document.getElementById('heavy-blocked');
   const modeEl = document.getElementById('heavy-work-mode');
   const windowEl = document.getElementById('heavy-token-window');
+  const antigravityEl = document.getElementById('antigravity-offload-summary');
   const barEl = document.getElementById('heavy-blocked-bar');
   if (!tbody || !status) return;
   const rows = data.threads || [];
@@ -2457,6 +2488,10 @@ function renderHeavyCodexThreads(data) {
   const active7d = Number(summary.desktop_active_threads_7d || 0);
   const cliActive24h = Number(summary.cli_exec_active_threads_24h || 0);
   const cliActive7d = Number(summary.cli_exec_active_threads_7d || 0);
+  const agAssessed = Number(summary.antigravity_assessed_threads || rows.length || 0);
+  const agPartial = Number(summary.antigravity_partial_threads || 0);
+  const agCandidate = Number(summary.antigravity_candidate_threads || 0);
+  const agUnknown = Number(summary.antigravity_unknown_threads || 0);
   const live = _codexThreadLiveSpeed;
   renderThreadHourlyChart(summary);
   const liveText = live
@@ -2481,8 +2516,15 @@ function renderHeavyCodexThreads(data) {
   if (windowEl) {
     windowEl.textContent = `Desktop use: 24h ${fmtTokens(tokens24h)} (${active24h} threads), 7d ${fmtTokens(tokens7d)} (${active7d}) · CLI GPT exec: 24h ${fmtTokens(cliTokens24h)} (${cliActive24h} calls), 7d ${fmtTokens(cliTokens7d)} (${cliActive7d}) · chart hours in SP time`;
   }
+  if (antigravityEl) {
+    antigravityEl.innerHTML = `<strong>Фактический Antigravity расход в этой таблице: 0.</strong> ` +
+      `Это Codex Desktop tokens. Из ${agAssessed} показанных тредов: ` +
+      `<span class="ag-offload partial">${agPartial} частично</span> — можно вынести анализ/черновик, ` +
+      `<span class="ag-offload candidate">${agCandidate} кандидатов</span> без видимого tool-выполнения, ` +
+      `<span class="ag-offload unknown">${agUnknown} без данных</span>.`;
+  }
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="muted">нет Desktop threads в guard</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="muted">нет Desktop threads в guard</td></tr>';
     applyHeavyThreadCollapsed();
     return;
   }
@@ -2498,6 +2540,8 @@ function renderHeavyCodexThreads(data) {
     const growth = t.growth_alert
       ? `${fmtTokens(t.last_turn_tokens || 0)} last · ${Number(t.turn_growth_ratio || 0).toFixed(1)}x`
       : `${fmtTokens(t.recent_avg_turn_tokens || 0)} avg`;
+    const ag = t.antigravity_offload || {state:'unknown', label:'нет данных', reason:'Оценка недоступна.'};
+    const agScope = ag.state === 'partial' ? 'analysis/draft' : (ag.state === 'candidate' ? 'проверить route' : 'не считать');
     return `<tr class="heavy-thread-row ${cls}">` +
       `<td>` +
         `<div><strong>${esc(name)}</strong> <span class="muted">${esc(t.source || '')} · ${esc(reason)}</span></div>` +
@@ -2509,6 +2553,7 @@ function renderHeavyCodexThreads(data) {
       `<td style="text-align:right" class="cost">${conv}</td>` +
       `<td style="text-align:right" class="cost">${tools}</td>` +
       `<td style="text-align:right" class="cost ${t.growth_alert ? 'heavy-mode' : ''}" title="last ${fmtTokens(t.last_turn_tokens || 0)}, recent avg ${fmtTokens(t.recent_avg_turn_tokens || 0)}, previous avg ${fmtTokens(t.previous_avg_turn_tokens || 0)}">${growth}</td>` +
+      `<td title="${esc(ag.reason || '')}"><span class="ag-offload ${esc(ag.state || 'unknown')}">${esc(ag.label || 'нет данных')}</span><div class="ag-offload-note">${esc(agScope)}</div></td>` +
       `<td><span class="thread-status ${cls}">${approved ? 'HANDOFF APPROVED' : 'HANDOFF REQUIRED'}</span></td>` +
       `<td style="text-align:right"><button class="thread-action" onclick="approveHeavyThread('${esc(t.id)}', ${approved ? 'false' : 'true'})">${action}</button></td>` +
     `</tr>`;
