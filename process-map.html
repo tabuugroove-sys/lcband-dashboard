@@ -604,9 +604,9 @@
       {
         group:'funnel', name:'Attention Auto-Action', label:'com.lcband.attention-auto-action',
         file:'attention_auto_action.py', schedule:'каждые 30 мин',
-        why:'Находит лиды, где система должна ответить/дожать сама, и готовит действие.',
-        input:'orders.db hot leads', action:'draft + optional auto-send/review; followup_ready delegate', output:'pending_approvals or sent action',
-        logic:['смотрит лиды requiring reply','генерирует draft','followup_ready делегирует tg_followup.py'],
+        why:'Находит лиды, где может требоваться ответ, и готовит только операторский review item. LaunchAgent временно paused после P0.',
+        input:'orders.db hot leads', action:'draft → durable pending review; followup_ready marks delegation only', output:'pending_approvals.json review item',
+        logic:['смотрит лиды requiring reply','генерирует draft','не вызывает delivery executor','followup_ready только помечает делегирование tg_followup.py'],
       },
       {
         group:'funnel', name:'Attention Classify Cache', label:'com.lcband.attention-classify-cache',
