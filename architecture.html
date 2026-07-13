@@ -525,7 +525,7 @@
     {id:'brqual', g:'broker', n:'Broker Quality Scorer', f:'broker_quality_scorer.py', s:'6 ч', src:['SCH'], r:['VEN','BRO'], wr:['VEN'], why:'Скоринг качества подрядчиков для ranking/casting.'},
     {id:'brrepair', g:'broker', n:'Broker State Repair', f:'broker_state_repair.py', s:'1 ч', src:['SCH'], r:['BRO'], wr:['BRO'], why:'Чинит неполный/устаревший broker state; закрывает только пассивные stale.'},
     {id:'brpend', g:'broker', n:'Contractor Pending Rescanner', f:'contractor_pending_rescanner.py', s:'15 мин', src:['SCH'], r:['BRO','MEV'], wr:['BRO'], why:'Перепроверяет pending contractor states, чтобы ответы не потерялись.'},
-    {id:'cbackreply', g:'broker', n:'Contractor Backlog Autoreply', f:'contractor_backlog_autoreply.py', s:'30 мин', src:['SCH'], r:['MEV','TEL'], wr:['APPR','TEL'], out:['TG'], why:'Разгребает старые swallowed/unanswered contractor DM без approval bot: только contractor-like evidence (ai_suppressed runtime log, coordination/media targets, cold status questions), консервативный truthful reply, quiet-hours gate, пачки по 12 через send_pending_approval.py; неоднозначное пишет в state/blocker.'},
+    {id:'cbackreply', g:'broker', n:'Contractor Backlog Review Queue', f:'contractor_backlog_autoreply.py', s:'30 мин', src:['SCH'], r:['MEV','TEL'], wr:['APPR'], why:'Review-only recovery старых swallowed/unanswered contractor DM: scanner может найти тред и создать draft/pending approval, но сам не отправляет в Telegram, не снимает suppression и не помечает контакт coordination candidate. Реальная отправка возможна только отдельным approval-owner после повторной проверки outbound hold; неоднозначное остаётся blocker.'},
 
     // events
     {id:'evwatch', g:'events', n:'Event Watcher', f:'event_watcher.py', s:'30 мин', src:['SCH'], r:['ORD','CTX'], wr:['EVP'], why:'После оплаты создаёт event_planning карточку (paid lead → production). Перед созданием проверяет lead-context terminal/refused/do_not_touch, чтобы venue-only/non-LCB треды не воскресали как production event.'},
@@ -647,7 +647,8 @@
     { title:'Identity / suppression', color:'#9a6700', gates:[
       ['handled claim','unified_handled TTL не даёт параллельным потокам отвечать дважды'],
       ['ai_suppression','dm_ai_suppression / wa_ai_suppression режет доказанный non-LCB'],
-      ['relationship override','coordination_candidate / media_sourcing target / наш OUT за 90 дней пропускает owner-path; cold ai_suppressed terminal-seen; contractor read-backfill только по prompt outbound'],
+      ['absolute outbound hold','personal / partner / personal_partner / internal_partner / never_autoreply запрещает auto-read, reaction и send раньше любых whitelist, coordination или media overrides'],
+      ['relationship override','только структурный coordination_candidate / media_sourcing target может пропустить owner-path после hard hold; сам факт нашего прошлого OUT не является доказательством роли или разрешением на ответ; cold ai_suppressed terminal-seen; contractor read-backfill только по prompt outbound'],
       ['protected contacts','paid/confirmed + musician/contractor/vendor/internal/LCB roster'],
       ['folder/role guards','TG musician folders, contact_roles, lcb_roster, broker roster'],
     ]},

@@ -440,6 +440,13 @@
         logic:['ищет ответы после последнего запроса','закрывает пропущенные callbacks','кормит broker pipeline'],
       },
       {
+        group:'broker', name:'Contractor Backlog Review Queue', label:'com.lcband.contractor-backlog-autoreply',
+        file:'contractor_backlog_autoreply.py', schedule:'каждые 30 мин',
+        why:'Находит старые unanswered contractor/musician DM и готовит их к ручному разбору без автоматической рассылки.',
+        input:'orders.db.message_events + TG runtime evidence + structured contact roles', action:'scan → conservative draft → pending review', output:'pending_approvals.json / blocker state',
+        logic:['review-only: scanner не вызывает Telegram transport','не снимает suppression и не создаёт coordination candidate','personal/partner/never_autoreply — абсолютный outbound hold','сам факт нашего OUT за 90 дней не доказывает роль и не разрешает ответ','approval/send owner повторно проверяет hold на последней границе перед отправкой'],
+      },
+      {
         group:'broker', name:'Broker Public Casting', label:'com.lcband.broker-public-casting',
         file:'broker_public_casting_agent.py run', schedule:'каждые 10 мин',
         why:'Публичные TG casting-посты: превращает адекватные отклики в broker candidates вместо ручного workaround.',
