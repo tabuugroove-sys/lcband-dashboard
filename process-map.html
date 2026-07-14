@@ -307,10 +307,10 @@
       },
       {
         group:'dm', name:'TG Follow-up', label:'com.lcband.tg-followup',
-        file:'tg_followup.py', schedule:'daily 10:09 MSK',
-        why:'Producer follow-up candidates по расписанию; не трогает оплативших, музыкантов, подрядчиков и близкие event date и сам не вызывает Telethon.',
-        input:'orders.db + DM history', action:'eligible follow-up + review → pending approval/envelope', output:'presend viewer draft / reviewed candidate / skip log',
-        logic:['legacy direct-send flag не даёт business agent transport-capability; TGQ требует explicit operator action','default output = pending_approvals viewer_only','protected skip для ОПЛАТИЛА/confirmed/musician/contractor/vendor','semantic ball owner читает из event-contact scope; bare contact followup не подменяет active event','нет/старый inbound_disposition → defer_to_responder; waiting_until → hard snooze до даты','customer_decision wait: если варианты ушли заказчику/паре/руководителю, без точной даты пауза 3 дня','content mode требует concrete event_id и дату события в прошлом; future/ambiguous multi-event → blocker_reason, не draft','content mode: если клиент написал что видео грузятся, но media не появились, просит переотправить вместо дубля','стоп за 3 дня до мероприятия','cap 15 candidates/run'],
+        file:'tg_followup.py', schedule:'каждый час; отправка только 10:00–22:00 MSK',
+        why:'Producer due follow-up: contact-scoped event view не наследует internal payer/contractor mode общего события; routine no-send не пингует оператора.',
+        input:'orders.db + DM history + lead_context contact overlay', action:'eligibility → route-aware writer/presend → safe direct send или semantic/transient close', output:'outbound receipt / payment approval / durable skip state / telemetry',
+        logic:['writer_blocked_followup = semantic terminal: needed=false без уведомления и без retry до нового inbound','generation_empty = инфраструктурный transient: один compose, тихий retry через 4ч, без operator alert','AI health probe использует purpose lcb_writer_followup и не объявляет route healthy через запрещённый cross-fallback','LCB_FOLLOWUP_BLOCKED_NOTIFY default OFF; human-decision/payment имеют отдельные owner-action ветки','lcb_orders.card_by_contact накладывает contact-owned writer mode/action_protocol/followup на shared event','protected skip для ОПЛАТИЛА/confirmed/musician/contractor/vendor','нет/старый inbound_disposition → defer_to_responder; waiting_until → hard snooze до даты','content mode требует concrete event_id и дату события в прошлом','стоп за 3 дня до мероприятия','cap 15 candidates/run'],
       },
       {
         group:'dm', name:'VK Responder', label:'com.lcband.vk-responder',
