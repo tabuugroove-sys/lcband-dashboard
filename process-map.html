@@ -196,7 +196,7 @@
     </div>
 
     <div class="delivery-boundary">
-      <b>Telegram user-account boundary:</b> business agents производят reviewed candidate/approval envelope → explicit operator enqueue → <code>telegram_delivery_queue.py</code> / <code>tg_delivery.sqlite</code> → <code>com.lcband.telegram-delivery</code>. Только <code>telegram_delivery_service.py</code> мутирует личный аккаунт через Telethon. Bot-token notification/control calls — отдельные identities и transport; любой Telethon path смешанного модуля остаётся внутри user-account boundary.
+      <b>Telegram user-account boundary:</b> business agents производят reviewed candidate/approval envelope → explicit operator enqueue → <code>telegram_delivery_queue.py</code> / <code>tg_delivery.sqlite</code> → <code>com.lcband.telegram-delivery</code>. Только <code>telegram_delivery_service.py</code> мутирует личный аккаунт через Telethon. Exact-текст, прямо подтверждённый оператором, использует <code>operator_exact_text</code>: actor=operator, trusted producer, запрет override и immutable event/purpose scope; этот lane не доступен автономным агентам. Bot-token notification/control calls — отдельные identities и transport; любой Telethon path смешанного модуля остаётся внутри user-account boundary.
     </div>
 
     <div class="effpanel">
