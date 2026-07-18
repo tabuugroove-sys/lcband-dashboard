@@ -1,0 +1,14 @@
+{
+  "name": "LCB — Luxury Cover Band",
+  "short_name": "LCB",
+  "description": "Пульт LC Band: календарь, переписки, события, апрувы, система",
+  "start_url": "./app.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#131715",
+  "theme_color": "#0E6B54",
+  "icons": [
+    { "src": "app-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
