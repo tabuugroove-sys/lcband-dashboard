@@ -1,10 +1,11 @@
 /* LCB app v2 — мессенджер (§3.3 ТЗ): направления LCB|Музыканты|Брокер,
-   папки по серверному stage, три счётчика, треды с черновиками агента
-   (Подтвердить/Отклонить), «Открыть в Telegram», app-локальный read-state.
+   папки по серверному stage, три счётчика, треды, «Открыть в Telegram»,
+   app-локальный read-state, операторский ввод через единый отправщик.
    Desktop (≥900px) — постоянный split-view как в Telegram: рейл папок +
-   колонка списка + правая панель треда. Mobile — стек v2 без изменений.
-   Ручного ввода НЕТ; наружу уходят только /api/approval/send|reject
-   с одним полем approval_id (жёсткий канон §1.2). */
+   колонка списка + правая панель треда + клавиатурная навигация стрелками.
+   Черновики агента (message-class) живут в ПОЛЕ ВВОДА (предзаполнение),
+   не пузырями; счётчик «ждут» = toggle-фильтр списка тредов.
+   Проектные решения (decision-class) — на экране «Сегодня». */
 "use strict";
 
 function isDesktop() { return matchMedia("(min-width:900px)").matches; }
@@ -131,17 +132,18 @@ function updateCountersRow() {
   const c = S.counters;
   const v = (x) => (x == null ? "—" : (x > 99 ? "99+" : String(x)));
   const un = c ? c.unread_total : null;
-  const pe = c ? c.pending_approvals : null;
+  const pe = c ? (c.pending_messages ?? c.pending_approvals) : null;
   const se = c && c.sent_today ? c.sent_today.total : null;
   rowEl.innerHTML = `
     <button class="cnt blue ${S.unreadOnly ? "on" : ""}" id="cntUnread" title="только с непрочитанным">
       <span class="cv"><span class="cdot2"></span>${v(un)}</span><span class="cl">непрочитано</span></button>
-    <button class="cnt brass ${S.chatsView === "approvals" ? "on" : ""}" id="cntPend" title="список апрувов">
+    <button class="cnt brass ${S.pendingOnly ? "on" : ""}" id="cntPend" title="только с черновиком агента">
       <span class="cv"><span class="cdot2"></span>${v(pe)}</span><span class="cl">ждут подтверждения</span></button>
     <button class="cnt green" id="cntSent" title="разбивка по каналам">
       <span class="cv"><span class="cdot2"></span>${v(se)}</span><span class="cl">отправлено · за день МСК</span></button>`;
   $("#cntUnread").onclick = () => { S.unreadOnly = !S.unreadOnly; updateCountersRow(); drawThreads(); };
-  $("#cntPend").onclick = () => { S.chatsView = S.chatsView === "approvals" ? "threads" : "approvals"; updateCountersRow(); drawThreads(); };
+  // «ждут» = toggle-фильтр «только с черновиком», как фильтр непрочитанного
+  $("#cntPend").onclick = () => { S.pendingOnly = !S.pendingOnly; updateCountersRow(); drawThreads(); };
   $("#cntSent").onclick = toggleSentBreak;
 }
 function toggleSentBreak() {
@@ -211,7 +213,6 @@ function drawRail() {
 async function railClick(it) {
   S.dir = it.dir;
   S.folder = it.folder;
-  S.chatsView = "threads";
   drawRail();
   updateCountersRow();
   await drawThreads();
@@ -262,7 +263,7 @@ function drawDirs() {
   d.innerHTML = DIRS.map((x) =>
     `<button data-d="${x.key}" class="${S.dir === x.key ? "on" : ""}">${x.label}${unreadBadge(+by[x.key] || 0)}</button>`).join("");
   d.querySelectorAll("button").forEach((b) => (b.onclick = () => {
-    S.dir = b.dataset.d; S.folder = "hot"; S.chatsView = "threads"; renderChats();
+    S.dir = b.dataset.d; S.folder = "hot"; renderChats();
   }));
 }
 function drawFolders(rows) {
@@ -285,7 +286,6 @@ function drawFolders(rows) {
 async function drawThreads() {
   const listBox = $("#thrList");
   if (!listBox) return;
-  if (S.chatsView === "approvals") { drawFolders(null); return drawApprovalsList(); }
   let rows = null, fellBack = false;
   try {
     const r = await api("/api/threads?dir=" + S.dir, { ttl: 60000 });
@@ -344,6 +344,7 @@ async function drawThreads() {
   let list = rows.slice();
   if (S.dir === "lcb" && S.folder !== "all") list = list.filter((t) => t.__stage === S.folder);
   if (S.unreadOnly) list = list.filter((t) => +t.unread > 0);
+  if (S.pendingOnly) list = list.filter((t) => !!t.has_pending_approval); // «ждут» = только с черновиком
   const q = S.search.toLowerCase();
   if (q) list = list.filter((t) => ((t.display || "") + " " + (t.username || "") + " " + (t.preview || "")).toLowerCase().includes(q));
   list.sort((a, b) => (b.__epoch || 0) - (a.__epoch || 0)); // epoch desc, числом
@@ -351,7 +352,8 @@ async function drawThreads() {
   const anyUnread = list.some((t) => +t.unread > 0);
   $("#chatsBar").innerHTML = anyUnread ? `<button class="btn" id="readAll">Прочитать всё</button>` : "";
   if (anyUnread) $("#readAll").onclick = () => markAllRead(list);
-  listBox.innerHTML = list.slice(0, 100).map(threadRowHtml).join("") || `<div class="empty">В этой папке тихо</div>`;
+  listBox.innerHTML = list.slice(0, 100).map(threadRowHtml).join("")
+    || `<div class="empty">${S.pendingOnly ? "Черновиков агента нет" : "В этой папке тихо"}</div>`;
   if (fellBack) listBox.insertAdjacentHTML("beforeend",
     `<div class="mtext" style="text-align:center;margin-top:8px">Упрощённый список (без unread) — новая ручка тредов недоступна</div>`);
   listBox.querySelectorAll(".trow").forEach((b) => (b.onclick = () => {
@@ -425,77 +427,6 @@ async function approvalsFull() {
     } catch (e2) { return []; }
   }
 }
-function normalizeAp(a) {
-  return {
-    id: a.id, username: a.username, client: a.client || "",
-    channel: a.channel || "TG", kind: a.kind || "", folder: a.folder || "",
-    draft: a.draft || a.desc || "", money_intent: !!a.money_intent,
-    status: a.status || "pending", created_at: a.created_at || a.last_activity || "",
-  };
-}
-
-/* список апрувов (клик по счётчику «ждут») */
-async function drawApprovalsList() {
-  const listBox = $("#thrList");
-  if (!listBox) return;
-  $("#chatsBar").innerHTML = `<button class="btn" id="aprBack">‹ К тредам</button>`;
-  $("#aprBack").onclick = () => { S.chatsView = "threads"; updateCountersRow(); drawThreads(); };
-  listBox.innerHTML = `<div class="skel"></div>`;
-  const list = (await approvalsFull()).map(normalizeAp).filter((a) => a.status === "pending");
-  listBox.innerHTML = list.map((a, i) => `
-    <div class="card hot" data-ap="${esc(a.id)}" data-i="${i}">
-      <div class="chead"><span class="pill p-brass">${esc(a.channel)}</span>
-        <span class="cname">${esc(a.client || a.username || a.id)}</span>
-        ${a.money_intent ? `<span class="pill p-brass">деньги</span>` : ""}
-        <span class="spacer mtext">${esc(a.folder || a.kind)}</span></div>
-      <div class="mtext" style="margin-top:6px;white-space:pre-wrap">${esc(trunc(a.draft, 220))}</div>
-      <div class="callay" style="margin-top:10px">
-        <button class="btn go" data-act="send">Подтвердить</button>
-        <button class="btn stop" data-act="reject">Отклонить</button>
-        ${a.username ? `<button class="btn" data-act="open">Открыть тред</button>` : ""}
-      </div>
-    </div>`).join("") || `<div class="empty">Очередь пуста — никто не ждёт</div>`;
-  listBox.querySelectorAll("[data-ap]").forEach((card) => {
-    const a = list[+card.dataset.i];
-    card.querySelectorAll("button[data-act]").forEach((b) => (b.onclick = () => {
-      if (b.dataset.act === "open") nav("#chat/lcb/" + encodeURIComponent(String(a.username).replace(/^@/, "")));
-      else approvalAction(a, b.dataset.act, card);
-    }));
-  });
-}
-
-/* Подтвердить/Отклонить: только approval_id в body — жёсткий канон §1.2 */
-async function approvalAction(ap, act, container) {
-  if (act === "send" && ap.money_intent && !confirm("Отправить? Это денежное сообщение")) return;
-  if (act === "reject" && !confirm("Отклонить черновик?")) return;
-  const btns = container ? container.querySelectorAll("button[data-act]") : [];
-  btns.forEach((b) => { b.disabled = true; });
-  const actBtn = container && container.querySelector(`button[data-act="${act}"]`);
-  if (actBtn) { actBtn.textContent = act === "send" ? "Отправляется…" : "Отклоняю…"; actBtn.classList.add("busy"); }
-  try {
-    if (act === "send") {
-      const r = await api("/api/approval/send", { method: "POST", body: { approval_id: ap.id }, timeout: 55000 });
-      if (r && r.status === "already_sent") toast("Уже отправлено");
-      else toast("Отправлено" + (r && r.who ? ": " + r.who : ""));
-      ap.status = "sent";
-    } else {
-      await api("/api/approval/reject", { method: "POST", body: { approval_id: ap.id, reason: "via LCB app" } });
-      ap.status = "rejected";
-      toast("Отклонено");
-    }
-  } catch (e) {
-    if (e.status === 409) toast("Отправка остановлена: " + ((e.data && e.data.error) || "preflight-защита"), true);
-    else if (e.status === 403) toast("Нужен код доступа — введи в шторке индикатора", true);
-    else if (e.status === 404) toast("Черновик не найден (возможно, уже обработан)", true);
-    else if (!e.network) toast("Не вышло: " + e.message, true);
-  }
-  delete S.cache["/api/approvals?full=1"];
-  delete S.cache["/api/approvals"];
-  delete S.cache["/api/app/counters"];
-  fetchCounters();
-  if (S.chat) { S.chat.aps = await threadApprovals(); drawThreadMsgs(); }
-  else if (S.tab === "chats" && S.chatsView === "approvals") drawApprovalsList();
-}
 
 /* ── тред: общий движок для mobile-экрана и desktop-панели (§3.3.2) ─────── */
 function threadShellHtml(row, q, channel, withBack) {
@@ -511,7 +442,7 @@ function threadShellHtml(row, q, channel, withBack) {
     <div id="threadFoot"></div>`;
 }
 async function startThread(dir, q, row, channel) {
-  S.chat = { dir, q, channel, row, msgs: [], aps: [], meta: null, lastId: 0, err: null, src: "", outbox: [], sending: false, footMode: null };
+  S.chat = { dir, q, channel, row, msgs: [], meta: null, lastId: 0, err: null, src: "", outbox: [], sending: false, footMode: null, draft: null };
   drawComposer(); // до meta — по row/q; после loadThread уточнится
   await loadThread(true);
   startPoll("screen:thread", pollThread, channel === "WA" ? 30000 : 15000);
@@ -548,7 +479,7 @@ async function openThreadInPanel(dir, q) {
 async function renderChatsWithThread(dir, q) {
   const shell = document.querySelector("#scr-chats .split");
   const dirChanged = S.dir !== dir;
-  if (dirChanged) { S.dir = dir; S.chatsView = "threads"; }
+  if (dirChanged) S.dir = dir;
   if (!shell) {
     S.folderRevealQ = q;
     renderChats(); // markup строится синхронно, данные подъедут следом
@@ -589,10 +520,10 @@ async function loadThread(initial) {
     c.lastId = c.msgs.reduce((a, m) => Math.max(a, +m.id || 0), 0);
     c.err = null;
   } catch (e) { c.err = e; }
-  c.aps = await threadApprovals();
   drawThreadSub();
   drawTgOpen();
   drawComposer();
+  await refreshThreadDraft(true); // pending-черновик агента → в поле ввода
   drawThreadMsgs();
   if (initial && !c.err) chatScrollBottom(true);
 }
@@ -606,11 +537,9 @@ async function pollThread() {
     const inc = (r.messages || [])
       .map((m) => Object.assign({}, m, { __epoch: msgEpoch(m) }))
       .filter((m) => (+m.id || 0) > c.lastId);
-    let changed = false;
     if (inc.length) {
       c.msgs = c.msgs.concat(inc);
       c.lastId = c.msgs.reduce((a, m) => Math.max(a, +m.id || 0), 0);
-      changed = true;
       // серверное эхо нашей операторской отправки — убрать дубликат из outbox
       if (c.outbox && c.outbox.length) {
         for (const m of inc) {
@@ -619,30 +548,17 @@ async function pollThread() {
           if (i > -1) c.outbox.splice(i, 1);
         }
       }
-    }
-    const aps = await threadApprovals();
-    if (JSON.stringify(aps) !== JSON.stringify(c.aps)) { c.aps = aps; changed = true; }
-    if (changed) {
       drawThreadMsgs();
-      if (inc.length) chatScrollBottom(false);
+      chatScrollBottom(false);
       if (inc.some((m) => !m.out)) postThreadRead(); // новый входящий в открытом треде — обновить read-state
     }
+    await refreshThreadDraft(true); // новый pending-черновик — предзаполнить пустое поле
   } catch (e) { /* обрыв покажет индикатор; тред остаётся на снимке */ }
 }
 function threadUsername(c) {
   const u = (c.meta && c.meta.username) || (c.row && c.row.username) ||
     (c.channel === "TG" && !/^(id:|vk:|wa:|-?\d)/.test(c.q) ? c.q : "");
   return String(u || "").replace(/^@/, "");
-}
-async function threadApprovals() {
-  const c = S.chat;
-  if (!c) return [];
-  const uname = threadUsername(c).toLowerCase();
-  if (!uname) return [];
-  const list = await approvalsFull();
-  return list.map(normalizeAp)
-    .filter((a) => String(a.username || "").replace(/^@/, "").toLowerCase() === uname)
-    .sort((x, y) => String(x.created_at).localeCompare(String(y.created_at)));
 }
 function drawThreadSub() {
   const c = S.chat;
@@ -672,7 +588,8 @@ function drawTgOpen() {
       (note ? `<div class="mtext" style="font-size:11px;max-width:150px;text-align:right">${esc(note)}</div>` : "")
     : "";
 }
-/* ── операторский ввод: POST /api/app/send_operator (единый отправщик) ──── */
+
+/* ── операторский ввод + черновик агента в поле (единый отправщик) ──────── */
 function composerMode(c) {
   if (c.channel === "VK") return "noteVK";
   if (c.channel !== "TG") return "note";
@@ -683,7 +600,8 @@ function composerMode(c) {
 }
 function threadFootHtml(mode) {
   if (mode === "composer") {
-    return `<div class="composer">
+    return `<div class="draftbar" id="draftBar" hidden></div>
+      <div class="composer">
         <textarea id="opInput" maxlength="4000" rows="1" placeholder="Сообщение…"></textarea>
         <button id="opSend" class="opsend" aria-label="Отправить">↑</button></div>
       <div class="opnote">Уходит с твоего аккаунта через единый отправщик · Время — МСК</div>`;
@@ -707,6 +625,7 @@ function drawComposer() {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); composerSubmit(); }
     });
     $("#opSend").onclick = composerSubmit;
+    drawDraftBar();
   }
   updateComposerState();
 }
@@ -714,25 +633,138 @@ function updateComposerState() {
   const btn = $("#opSend");
   if (btn) btn.disabled = !!(S.chat && S.chat.sending);
 }
+
+/* свежий pending message-черновик агента этого контакта → в поле ввода */
+async function refreshThreadDraft(prefill) {
+  const c = S.chat;
+  if (!c || c.footMode !== "composer") { drawDraftBar(); return; }
+  const uname = threadUsername(c).toLowerCase();
+  let d = null;
+  if (uname) {
+    const list = await approvalsFull();
+    const msgs = list.filter((a) =>
+      String(a.username || "").replace(/^@/, "").toLowerCase() === uname &&
+      (a.status || "pending") === "pending" &&
+      apClassOf(a) === "message");
+    msgs.sort((x, y) => String(y.created_at || y.last_activity || "").localeCompare(String(x.created_at || x.last_activity || "")));
+    const top = msgs[0];
+    if (top) d = { id: top.id, text: String(top.draft || top.desc || ""), money: !!top.money_intent };
+  }
+  if (S.chat !== c) return; // тред уже сменили
+  c.draft = d;
+  drawDraftBar();
+  if (prefill && d) {
+    const ta = $("#opInput");
+    if (ta && !ta.value.trim()) { ta.value = d.text; ta.dispatchEvent(new Event("input")); }
+  }
+}
+function drawDraftBar() {
+  const bar = $("#draftBar");
+  if (!bar) return;
+  const c = S.chat;
+  if (!c || !c.draft) { bar.hidden = true; bar.innerHTML = ""; return; }
+  bar.hidden = false;
+  bar.innerHTML = `✋ Черновик агента${c.draft.money ? " · деньги" : ""}<span class="spacer"></span>
+    <button class="btn dbreject" id="draftReject">Отклонить</button>`;
+  $("#draftReject").onclick = rejectThreadDraft;
+}
+async function rejectThreadDraft() {
+  const c = S.chat;
+  const d = c && c.draft;
+  if (!d) return;
+  if (!confirm("Отклонить черновик?")) return;
+  try {
+    await api("/api/approval/reject", { method: "POST", body: { approval_id: d.id, reason: "rejected in app" }, timeout: 55000 });
+    toast("Отклонено");
+    const ta = $("#opInput");
+    // очистить поле, только если в нём всё ещё нетронутый черновик
+    if (ta && ta.value.trim() === String(d.text || "").trim()) { ta.value = ""; ta.dispatchEvent(new Event("input")); }
+    afterDraftConsumed(c);
+  } catch (e) {
+    if (e.status === 403) toast("Нужен код доступа — введи в шторке индикатора", true);
+    else if (e.status === 404) { toast("Черновик уже обработан", true); afterDraftConsumed(c); }
+    else if (!e.network) toast("Не вышло: " + e.message, true);
+  }
+}
+function afterDraftConsumed(c) {
+  delete S.cache["/api/approvals?full=1"];
+  delete S.cache["/api/approvals"];
+  delete S.cache["/api/app/counters"];
+  delete S.cache["/api/threads?dir=" + c.dir]; // has_pending_approval мог измениться
+  fetchCounters();
+  c.draft = null;
+  drawDraftBar();
+  refreshThreadDraft(true); // следующий pending-черновик — предзаполнить
+}
+
 function composerSubmit() {
   const c = S.chat;
   const ta = $("#opInput");
   if (!c || !ta || c.sending) return;
   const text = ta.value.trim().slice(0, 4000);
   if (!text) return;
-  ta.value = "";
-  ta.style.height = "auto";
-  operatorSend(text, null);
+  const draft = c.draft;
+  if (draft && text === String(draft.text || "").trim()) {
+    // текст не менялся → прежний путь approval/send (confirm-щит для money)
+    if (draft.money && !confirm("Отправить? Это денежное сообщение")) return;
+    ta.value = "";
+    ta.style.height = "auto";
+    sendApprovalDraft(draft, null);
+  } else {
+    // отредактировано/заменено → operator-send + авто-reject исходного черновика
+    ta.value = "";
+    ta.style.height = "auto";
+    operatorSend(text, null, draft || null);
+  }
   ta.focus(); // фокус остаётся в поле
 }
-async function operatorSend(text, retryItem) {
+/* нетронутый черновик: POST /api/approval/send {approval_id} — канон §1.2 */
+async function sendApprovalDraft(draft, retryItem) {
+  const c = S.chat;
+  if (!c || c.sending) return;
+  let item = retryItem;
+  if (item) { item.status = "pending"; delete item.err; }
+  else { item = { text: draft.text, status: "pending", epoch: Math.round(Date.now() / 1000), apId: draft.id }; c.outbox.push(item); }
+  c.sending = true;
+  drawThreadMsgs();
+  updateComposerState();
+  chatScrollBottom(false);
+  try {
+    const r = await api("/api/approval/send", { method: "POST", body: { approval_id: draft.id }, timeout: 55000 });
+    if (r && r.status === "already_sent") toast("Уже отправлено");
+    item.status = "sent";
+    item.epoch = Math.round(Date.now() / 1000);
+    delete S.cache[`${chatEndpoint(c)}?q=${encodeURIComponent(c.q.replace(/^(vk:|wa:|id:)/, ""))}&limit=40`];
+    afterDraftConsumed(c);
+    setTimeout(() => { if (S.chat === c) pollThread(); }, 1500);
+  } catch (e) {
+    let reason = (e.data && e.data.error) || e.message || "ошибка";
+    if (e.status === 403) { reason = "нужен ключ"; toast("Нужен код доступа — введи в шторке индикатора", true); }
+    else if (e.status === 409) toast("Отправка остановлена: " + reason, true);
+    else if (e.status === 404) { reason = "черновик не найден"; toast("Черновик не найден (возможно, уже обработан)", true); }
+    else if (!e.network) toast("Не ушло: " + reason, true);
+    item.status = "fail";
+    item.err = trunc(String(reason), 60);
+    const ta = $("#opInput");
+    if (ta && !ta.value) { ta.value = draft.text; ta.dispatchEvent(new Event("input")); }
+  }
+  c.sending = false;
+  drawThreadMsgs();
+  updateComposerState();
+  chatScrollBottom(false);
+}
+/* операторская отправка; draftToClose — черновик, заменённый текстом Михаила */
+async function operatorSend(text, retryItem, draftToClose) {
   const c = S.chat;
   if (!c || c.sending) return;
   const key = threadReadKey(c);
   if (!key) return;
   let item = retryItem;
   if (item) { item.status = "pending"; delete item.err; }
-  else { item = { text, status: "pending", epoch: Math.round(Date.now() / 1000) }; c.outbox.push(item); }
+  else {
+    item = { text, status: "pending", epoch: Math.round(Date.now() / 1000), closeId: draftToClose ? draftToClose.id : null };
+    c.outbox.push(item);
+  }
   c.sending = true;
   drawThreadMsgs();
   updateComposerState();
@@ -741,6 +773,12 @@ async function operatorSend(text, retryItem) {
     await api("/api/app/send_operator", { method: "POST", body: { channel: "TG", thread: key, text: item.text }, timeout: 55000 });
     item.status = "sent";
     item.epoch = Math.round(Date.now() / 1000);
+    // черновик был предложен и заменён → закрыть его reject'ом (fire-and-forget)
+    if (item.closeId) {
+      api("/api/approval/reject", { method: "POST", body: { approval_id: item.closeId, reason: "edited: sent as operator text via app" } }).catch(() => {});
+      item.closeId = null;
+      afterDraftConsumed(c);
+    }
     // инвалидация кэша треда и счётчиков; серверное эхо подъедет поллингом
     delete S.cache[`${chatEndpoint(c)}?q=${encodeURIComponent(c.q.replace(/^(vk:|wa:|id:)/, ""))}&limit=40`];
     delete S.cache["/api/app/counters"];
@@ -795,7 +833,6 @@ function drawThreadMsgs() {
     html += `<div class="bub ${m.out ? "out" : "in"}">${esc(trunc(m.text || "", 4000)) || (m.media ? "📎 медиа" : "")}
       <div class="bmeta">${esc(stamp)}${m.out ? " · мы" : ""}</div></div>`;
   }
-  html += c.aps.map(apBubHtml).join("");
   // операторские отправки этой сессии (optimistic / fail / sent до серверного эха)
   html += (c.outbox || []).map((o, i) => {
     const t = esc(trunc(o.text, 4000));
@@ -804,30 +841,15 @@ function drawThreadMsgs() {
       <button class="btn opretry" data-ob="${i}">Повторить</button></div>`;
     return `<div class="bub out">${t}<div class="bmeta">${esc(mskHM(new Date((o.epoch || 0) * 1000)))} · мы</div></div>`;
   }).join("");
-  if (!c.msgs.length && !c.aps.length && !(c.outbox || []).length && !c.err) html += `<div class="empty">Локальная история пуста</div>`;
+  if (!c.msgs.length && !(c.outbox || []).length && !c.err) html += `<div class="empty">Локальная история пуста</div>`;
   if (c.src && c.msgs.length) html += `<div class="mtext" style="margin:10px 0;text-align:center">Источник: ${esc(c.src)}</div>`;
   v.innerHTML = html;
-  v.querySelectorAll(".ap-draft[data-ap]").forEach((bubEl) => {
-    const ap = c.aps.find((a) => String(a.id) === bubEl.dataset.ap);
-    if (!ap) return;
-    bubEl.querySelectorAll("button[data-act]").forEach((b) => (b.onclick = () => approvalAction(ap, b.dataset.act, bubEl)));
-  });
   v.querySelectorAll(".opretry[data-ob]").forEach((b) => (b.onclick = () => {
     const o = (c.outbox || [])[+b.dataset.ob];
-    if (o) operatorSend(o.text, o);
+    if (!o) return;
+    if (o.apId) sendApprovalDraft({ id: o.apId, text: o.text, money: false }, o); // confirm уже был при первой попытке
+    else operatorSend(o.text, o, null);
   }));
-}
-function apBubHtml(ap) {
-  const t = esc(ap.draft || "");
-  if (ap.status === "rejected") return `<div class="bub out ap-rej">${t}<div class="bmeta">отклонено</div></div>`;
-  if (ap.status === "sent") return `<div class="bub out">${t}<div class="bmeta">отправлено · апрув · мы</div></div>`;
-  return `<div class="bub out ap-draft" data-ap="${esc(ap.id)}">
-    <div class="ap-badge">✋ ждёт подтверждения${ap.money_intent ? " · деньги" : ""}</div>
-    <div>${t}</div>
-    <div class="ap-actions">
-      <button class="btn go" data-act="send">Подтвердить</button>
-      <button class="btn stop" data-act="reject">Отклонить</button>
-    </div></div>`;
 }
 
 /* app-локальный read-state (§4.2.3). КАНОН: только POST /api/app/read;
@@ -876,3 +898,71 @@ function clearUnreadLocal(dir, key) {
     if (tk && tk.toLowerCase() === k) t.unread = 0;
   }
 }
+
+/* ── клавиатурная навигация (desktop, экран «Чаты»): ↑/↓ по списку/рейлу,
+   ←/→ между колонками; в textarea стрелки не перехватываются, кроме ←
+   на нулевой позиции курсора; Esc из поля — в список ─────────────────────── */
+function kbListRows() { return Array.from(document.querySelectorAll("#thrList .trow")); }
+function kbFocusList() {
+  const rows = kbListRows();
+  if (!rows.length) return;
+  const target = rows.find((r) => r.classList.contains("sel")) || rows[0];
+  target.focus();
+  target.scrollIntoView({ block: "nearest" });
+}
+function kbListMove(delta) {
+  const rows = kbListRows();
+  if (!rows.length) return;
+  let idx = rows.indexOf(document.activeElement);
+  if (idx === -1) idx = rows.findIndex((r) => r.classList.contains("sel"));
+  let next = idx === -1 ? 0 : idx + delta;
+  next = Math.max(0, Math.min(rows.length - 1, next));
+  const row = rows[next];
+  row.focus();
+  row.scrollIntoView({ block: "nearest" });
+  row.click(); // перемещение сразу открывает тред в панели, как в Telegram
+}
+function kbFocusRail() {
+  const r = document.querySelector("#chatRail .ritem.on") || document.querySelector("#chatRail .ritem");
+  if (r) { r.focus(); r.scrollIntoView({ block: "nearest" }); }
+}
+function kbRailMove(delta) {
+  const idx = RAIL_ITEMS.findIndex((it) => S.dir === it.dir && (it.dir !== "lcb" || S.folder === it.folder));
+  const next = Math.max(0, Math.min(RAIL_ITEMS.length - 1, (idx === -1 ? 0 : idx + delta)));
+  const it = RAIL_ITEMS[next];
+  railClick(it); // drawRail внутри — синхронно до сетевой части
+  const el2 = document.querySelector(`#chatRail .ritem[data-k="${it.key}"]`);
+  if (el2) { el2.focus(); el2.scrollIntoView({ block: "nearest" }); }
+}
+document.addEventListener("keydown", (e) => {
+  if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Escape"].includes(e.key)) return;
+  if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+  if (typeof S === "undefined" || S.tab !== "chats" || !isDesktop()) return;
+  const ae = document.activeElement;
+  // поле ввода: стрелки = обычное редактирование; ← на позиции 0 и Esc — в список
+  if (ae && ae.id === "opInput") {
+    if (e.key === "Escape") { e.preventDefault(); kbFocusList(); return; }
+    if (e.key === "ArrowLeft" && ae.selectionStart === 0 && ae.selectionEnd === 0) {
+      e.preventDefault();
+      kbFocusList();
+    }
+    return;
+  }
+  // остальные поля (поиск и т.п.) не трогаем
+  if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
+  // рейл папок: ↑/↓ ходят по папкам и переключают, → в список
+  if (ae && ae.closest && ae.closest("#chatRail")) {
+    if (e.key === "ArrowUp") { e.preventDefault(); kbRailMove(-1); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); kbRailMove(1); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); kbFocusList(); }
+    return;
+  }
+  // список тредов (и дефолтная зона): ↑/↓ по тредам, ← в рейл, → в поле ввода
+  if (e.key === "ArrowUp") { e.preventDefault(); kbListMove(-1); }
+  else if (e.key === "ArrowDown") { e.preventDefault(); kbListMove(1); }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); kbFocusRail(); }
+  else if (e.key === "ArrowRight") {
+    const ta = $("#opInput");
+    if (ta) { e.preventDefault(); ta.focus(); ta.selectionStart = ta.selectionEnd = ta.value.length; }
+  }
+});

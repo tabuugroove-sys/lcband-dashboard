@@ -366,3 +366,13 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
 #chatView .bub.op-fail { border:1.5px solid var(--dang); background:var(--dang-soft); }
 #chatView .bub.op-fail .bmeta { color:var(--dang); }
 .opretry { margin-top:8px; display:block; }
+
+/* ── v2.4: черновик агента живёт в поле ввода ───────────── */
+.draftbar { display:flex; align-items:center; gap:8px; margin-top:10px;
+  font-size:12px; font-weight:600; color:var(--brass); background:var(--brass-soft);
+  border:1px dashed var(--brass-fill); border-radius:10px; padding:5px 10px; }
+.draftbar[hidden] { display:none; }
+.draftbar .dbreject { min-height:30px; padding:3px 10px; font-size:12px;
+  color:var(--dang); border-color:var(--dang); }
+.sview .draftbar { margin-top:0; margin-bottom:8px; }
+.sview .draftbar + .composer { margin-top:0; }
