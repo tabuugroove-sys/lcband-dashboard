@@ -508,10 +508,11 @@ function threadShellHtml(row, q, channel, withBack) {
       <span class="spacer"></span><span id="tgOpen"></span>
     </div>
     <div id="chatView"><div class="skel"></div></div>
-    <div class="chatnote">Ответы уходят через пайплайн. Ручной ответ — кнопкой «Открыть в Telegram». Время — МСК.</div>`;
+    <div id="threadFoot"></div>`;
 }
 async function startThread(dir, q, row, channel) {
-  S.chat = { dir, q, channel, row, msgs: [], aps: [], meta: null, lastId: 0, err: null, src: "" };
+  S.chat = { dir, q, channel, row, msgs: [], aps: [], meta: null, lastId: 0, err: null, src: "", outbox: [], sending: false, footMode: null };
+  drawComposer(); // до meta — по row/q; после loadThread уточнится
   await loadThread(true);
   startPoll("screen:thread", pollThread, channel === "WA" ? 30000 : 15000);
   // read-state: через 1.5с видимости треда (§3.3.2), optimistic сброс точки
@@ -591,6 +592,7 @@ async function loadThread(initial) {
   c.aps = await threadApprovals();
   drawThreadSub();
   drawTgOpen();
+  drawComposer();
   drawThreadMsgs();
   if (initial && !c.err) chatScrollBottom(true);
 }
@@ -609,6 +611,14 @@ async function pollThread() {
       c.msgs = c.msgs.concat(inc);
       c.lastId = c.msgs.reduce((a, m) => Math.max(a, +m.id || 0), 0);
       changed = true;
+      // серверное эхо нашей операторской отправки — убрать дубликат из outbox
+      if (c.outbox && c.outbox.length) {
+        for (const m of inc) {
+          if (!m.out) continue;
+          const i = c.outbox.findIndex((o) => o.status === "sent" && o.text === String(m.text || ""));
+          if (i > -1) c.outbox.splice(i, 1);
+        }
+      }
     }
     const aps = await threadApprovals();
     if (JSON.stringify(aps) !== JSON.stringify(c.aps)) { c.aps = aps; changed = true; }
@@ -662,6 +672,102 @@ function drawTgOpen() {
       (note ? `<div class="mtext" style="font-size:11px;max-width:150px;text-align:right">${esc(note)}</div>` : "")
     : "";
 }
+/* ── операторский ввод: POST /api/app/send_operator (единый отправщик) ──── */
+function composerMode(c) {
+  if (c.channel === "VK") return "noteVK";
+  if (c.channel !== "TG") return "note";
+  const key = threadReadKey(c);
+  // группы (голый chat_id) и треды без канонического peer — без поля ввода
+  if (key && !/^-?\d+$/.test(key)) return "composer";
+  return "note";
+}
+function threadFootHtml(mode) {
+  if (mode === "composer") {
+    return `<div class="composer">
+        <textarea id="opInput" maxlength="4000" rows="1" placeholder="Сообщение…"></textarea>
+        <button id="opSend" class="opsend" aria-label="Отправить">↑</button></div>
+      <div class="opnote">Уходит с твоего аккаунта через единый отправщик · Время — МСК</div>`;
+  }
+  const via = mode === "noteVK" ? "через VK" : "кнопкой «Открыть в Telegram»";
+  return `<div class="chatnote">Ручной ответ — ${via}. Время — МСК.</div>`;
+}
+function drawComposer() {
+  const c = S.chat;
+  const foot = $("#threadFoot");
+  if (!c || !foot) return;
+  const mode = composerMode(c);
+  if (c.footMode === mode) { updateComposerState(); return; }
+  c.footMode = mode;
+  foot.innerHTML = threadFootHtml(mode);
+  if (mode === "composer") {
+    const ta = $("#opInput");
+    ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 120) + "px"; });
+    ta.addEventListener("keydown", (e) => {
+      // Enter = отправить, Shift+Enter = перенос строки
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); composerSubmit(); }
+    });
+    $("#opSend").onclick = composerSubmit;
+  }
+  updateComposerState();
+}
+function updateComposerState() {
+  const btn = $("#opSend");
+  if (btn) btn.disabled = !!(S.chat && S.chat.sending);
+}
+function composerSubmit() {
+  const c = S.chat;
+  const ta = $("#opInput");
+  if (!c || !ta || c.sending) return;
+  const text = ta.value.trim().slice(0, 4000);
+  if (!text) return;
+  ta.value = "";
+  ta.style.height = "auto";
+  operatorSend(text, null);
+  ta.focus(); // фокус остаётся в поле
+}
+async function operatorSend(text, retryItem) {
+  const c = S.chat;
+  if (!c || c.sending) return;
+  const key = threadReadKey(c);
+  if (!key) return;
+  let item = retryItem;
+  if (item) { item.status = "pending"; delete item.err; }
+  else { item = { text, status: "pending", epoch: Math.round(Date.now() / 1000) }; c.outbox.push(item); }
+  c.sending = true;
+  drawThreadMsgs();
+  updateComposerState();
+  chatScrollBottom(false);
+  try {
+    await api("/api/app/send_operator", { method: "POST", body: { channel: "TG", thread: key, text: item.text }, timeout: 55000 });
+    item.status = "sent";
+    item.epoch = Math.round(Date.now() / 1000);
+    // инвалидация кэша треда и счётчиков; серверное эхо подъедет поллингом
+    delete S.cache[`${chatEndpoint(c)}?q=${encodeURIComponent(c.q.replace(/^(vk:|wa:|id:)/, ""))}&limit=40`];
+    delete S.cache["/api/app/counters"];
+    fetchCounters();
+    setTimeout(() => { if (S.chat === c) pollThread(); }, 1500);
+  } catch (e) {
+    let reason = (e.data && e.data.error) || e.message || "ошибка";
+    if (e.status === 501) reason = "канал пока не поддержан";
+    else if (e.status === 429) reason = "слишком часто — подожди";
+    else if (e.status === 403) reason = "нужен ключ";
+    if (/no_peer/i.test(String((e.data && e.data.error) || ""))) {
+      reason = "нет канонического контакта";
+      toast("Нет канонического контакта — ответь через «Открыть в Telegram»", true);
+    } else if (e.status === 403) toast("Нужен код доступа — введи в шторке индикатора", true);
+    else if (!e.network) toast("Не ушло: " + reason, true);
+    item.status = "fail";
+    item.err = trunc(String(reason), 60);
+    // текст не теряется: вернуть в пустое поле (набранное новое не затираем)
+    const ta = $("#opInput");
+    if (ta && !ta.value) { ta.value = item.text; ta.dispatchEvent(new Event("input")); }
+  }
+  c.sending = false;
+  drawThreadMsgs();
+  updateComposerState();
+  chatScrollBottom(false);
+}
+
 /* разделители дат в ленте пузырей (MSK) */
 const _dayFmt = new Intl.DateTimeFormat("ru-RU", { timeZone: MSK_TZ, day: "numeric", month: "long" });
 const _dayYearFmt = new Intl.DateTimeFormat("ru-RU", { timeZone: MSK_TZ, day: "numeric", month: "long", year: "numeric" });
@@ -690,7 +796,15 @@ function drawThreadMsgs() {
       <div class="bmeta">${esc(stamp)}${m.out ? " · мы" : ""}</div></div>`;
   }
   html += c.aps.map(apBubHtml).join("");
-  if (!c.msgs.length && !c.aps.length && !c.err) html += `<div class="empty">Локальная история пуста</div>`;
+  // операторские отправки этой сессии (optimistic / fail / sent до серверного эха)
+  html += (c.outbox || []).map((o, i) => {
+    const t = esc(trunc(o.text, 4000));
+    if (o.status === "pending") return `<div class="bub out op-pending">${t}<div class="bmeta">отправляется…</div></div>`;
+    if (o.status === "fail") return `<div class="bub out op-fail">${t}<div class="bmeta">не ушло: ${esc(o.err || "ошибка")}</div>
+      <button class="btn opretry" data-ob="${i}">Повторить</button></div>`;
+    return `<div class="bub out">${t}<div class="bmeta">${esc(mskHM(new Date((o.epoch || 0) * 1000)))} · мы</div></div>`;
+  }).join("");
+  if (!c.msgs.length && !c.aps.length && !(c.outbox || []).length && !c.err) html += `<div class="empty">Локальная история пуста</div>`;
   if (c.src && c.msgs.length) html += `<div class="mtext" style="margin:10px 0;text-align:center">Источник: ${esc(c.src)}</div>`;
   v.innerHTML = html;
   v.querySelectorAll(".ap-draft[data-ap]").forEach((bubEl) => {
@@ -698,6 +812,10 @@ function drawThreadMsgs() {
     if (!ap) return;
     bubEl.querySelectorAll("button[data-act]").forEach((b) => (b.onclick = () => approvalAction(ap, b.dataset.act, bubEl)));
   });
+  v.querySelectorAll(".opretry[data-ob]").forEach((b) => (b.onclick = () => {
+    const o = (c.outbox || [])[+b.dataset.ob];
+    if (o) operatorSend(o.text, o);
+  }));
 }
 function apBubHtml(ap) {
   const t = esc(ap.draft || "");

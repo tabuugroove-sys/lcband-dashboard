@@ -337,7 +337,9 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
   .sempty { margin:auto; color:var(--mut); font-size:14.5px; }
   .sview .thead { margin:0; padding:10px 14px; border-bottom:1px solid var(--frame); flex:none; }
   .sview #chatView { flex:1; min-height:0; overflow-y:auto; padding:10px 16px; }
-  .sview .chatnote { margin:0; padding:8px 12px; border-top:1px solid var(--frame); flex:none; }
+  .sview #threadFoot { flex:none; border-top:1px solid var(--frame); padding:8px 12px; }
+  .sview #threadFoot .chatnote { margin:0; padding:0; border:none; }
+  .sview .composer { margin-top:0; }
 }
 /* страховка при ресайзе: split-разметка на узком экране складывается в колонку */
 @media (max-width:899px) {
@@ -345,3 +347,22 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
   .srail { display:flex; flex-wrap:wrap; gap:4px; }
   .sview { min-height:200px; }
 }
+
+/* ── v2.3: операторский ввод в треде ────────────────────── */
+.composer { display:flex; gap:8px; align-items:flex-end; margin-top:10px; }
+.composer textarea { flex:1; min-width:0; resize:none; background:var(--card);
+  border:1px solid var(--line); border-radius:18px; padding:11px 14px;
+  font:inherit; font-size:14.5px; line-height:1.4; color:var(--ink);
+  min-height:44px; max-height:120px; }
+.composer textarea::placeholder { color:var(--mut); }
+.opsend { width:44px; height:44px; border-radius:50%; background:var(--pine);
+  color:var(--on-pine); font-size:19px; font-weight:600; flex:none; }
+.opsend:disabled { opacity:0.45; }
+.opsend:active { transform:scale(0.95); }
+.opnote { font-size:11.5px; color:var(--mut); text-align:center; margin:6px 0 2px; }
+#chatView .bub.op-pending { opacity:0.75; animation:oppulse 1.2s ease-in-out infinite; }
+@keyframes oppulse { 0%,100% { opacity:0.75; } 50% { opacity:0.5; } }
+@media (prefers-reduced-motion: reduce) { #chatView .bub.op-pending { animation:none; } }
+#chatView .bub.op-fail { border:1.5px solid var(--dang); background:var(--dang-soft); }
+#chatView .bub.op-fail .bmeta { color:var(--dang); }
+.opretry { margin-top:8px; display:block; }
