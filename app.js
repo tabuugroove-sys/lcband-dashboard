@@ -58,15 +58,15 @@ function setConn(level) {
   d.className = level === "ok" ? "" : level;
 }
 
-async function api(path, { auth = false, ttl = 0, method = "GET", body = null } = {}) {
+/* Никаких экранов входа: с Mac (localhost/same-origin) всё открыто и так;
+   через туннель закрытые ручки вернут 403 — секция покажет тихую подпись.
+   Токен, если когда-то появится в localStorage, подхватится молча. */
+async function api(path, { ttl = 0, method = "GET", body = null } = {}) {
   const hit = S.cache[path];
   if (method === "GET" && ttl && hit && Date.now() - hit.t < ttl) return hit.data;
   const base = await resolveBase(false);
-  const headers = { };
-  if (auth || method !== "GET") {
-    if (!S.token) { showGate(); throw new Error("no_token"); }
-    headers["X-Admin-Token"] = S.token;
-  }
+  const headers = {};
+  if (S.token) headers["X-Admin-Token"] = S.token;
   if (method !== "GET") { headers["Content-Type"] = "application/json"; headers["X-Request-ID"] = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())); }
   let r;
   try {
@@ -75,7 +75,6 @@ async function api(path, { auth = false, ttl = 0, method = "GET", body = null } 
     await resolveBase(true); // туннель мог смениться — один ре-резолв и ретрай
     r = await fetch(S.base + path, { method, headers, body: body ? JSON.stringify(body) : null });
   }
-  if (r.status === 403) { showGate("Ключ не подошёл или не задан"); throw new Error("forbidden"); }
   const data = await r.json().catch(() => ({}));
   S.offline = !!(data && data.offline);
   $("#offline").classList.toggle("show", S.offline);
@@ -83,19 +82,6 @@ async function api(path, { auth = false, ttl = 0, method = "GET", body = null } 
   if (method === "GET") S.cache[path] = { t: Date.now(), data };
   return data;
 }
-
-/* ── вход по ключу ──────────────────────────────────────────────────────── */
-function showGate(msg) {
-  $("#gate").classList.add("show");
-  $("#gateMsg").textContent = msg || "";
-}
-$("#gateGo").addEventListener("click", () => {
-  S.token = $("#gateKey").value.trim();
-  localStorage.setItem("lcb_app_token", S.token);
-  $("#gate").classList.remove("show");
-  render();
-});
-$("#gateSkip").addEventListener("click", () => $("#gate").classList.remove("show"));
 
 /* ── роутинг ────────────────────────────────────────────────────────────── */
 const SCREENS = { cal: "scr-cal", today: "scr-today", chats: "scr-chats", sys: "scr-sys", view: "scr-view" };
@@ -251,7 +237,7 @@ async function renderToday() {
 
   // апрувы (token-gated snapshot)
   try {
-    const snap = await api("/api/db/snapshot", { auth: true, ttl: 60000 });
+    const snap = await api("/api/db/snapshot", { ttl: 60000 });
     const pend = snap.pending_drafts || [];
     $("#apprBox").innerHTML = pend.length ? pend.map((p) => `
       <div class="card hot">
@@ -266,8 +252,9 @@ async function renderToday() {
       </div>`).join("") : `<div class="empty">Очередь пуста</div>`;
     $("#apprBox").querySelectorAll("button[data-a]").forEach((b) => (b.onclick = () => approval(b.dataset.a, b.dataset.id, b)));
   } catch (e) {
-    $("#apprBox").innerHTML = `<div class="card"><div class="mtext">${e.message === "no_token" || e.message === "forbidden"
-      ? "Нужен админ-ключ — раздел с деньгами закрыт." : "Список апрувов недоступен: " + esc(e.message)}</div></div>`;
+    $("#apprBox").innerHTML = `<div class="card"><div class="mtext">${e.status === 403
+      ? "Через туннель раздел с деньгами закрыт. Открой приложение на Mac — там всё работает сразу."
+      : "Список апрувов недоступен: " + esc(e.message)}</div></div>`;
   }
 }
 async function approval(action, id, btn) {
@@ -281,7 +268,8 @@ async function approval(action, id, btn) {
     renderToday();
   } catch (e) {
     if (e.status === 409) toast("Отправка остановлена preflight-защитой (грязный worktree) — это предохранитель, не сбой", true);
-    else if (e.message !== "no_token" && e.message !== "forbidden") toast("Не вышло: " + e.message, true);
+    else if (e.status === 403 || e.status === 503) toast("Кнопки денег скоро заработают без ключа — доделываю авто-вход с Mac", true);
+    else toast("Не вышло: " + e.message, true);
     btn.disabled = false;
   }
 }
@@ -318,7 +306,7 @@ async function renderChats() {
 
   let rows = [];
   try {
-    const snap = await api("/api/db/snapshot", { auth: true, ttl: 120000 });
+    const snap = await api("/api/db/snapshot", { ttl: 120000 });
     rows = snap.active || [];
   } catch (e) {
     // fallback без ключа: воронка из открытой ручки
