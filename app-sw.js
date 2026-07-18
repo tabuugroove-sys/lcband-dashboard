@@ -5,7 +5,7 @@
    - /api/: network-first; успешный ответ кэшируется с меткой X-LCB-Cached-At,
      офлайн-фолбэк отдаёт снимок с X-LCB-Offline:1 → плашка «Офлайн · снимок HH:MM»;
    - /api/health НЕ кэшируется и не имеет фолбэка — heartbeat индикатора честный. */
-const VERSION = "2.1.0";
+const VERSION = "2.2.0";
 const SHELL = "lcb-app-shell-" + VERSION;
 const DATA = "lcb-app-data-" + VERSION;
 const SHELL_FILES = [
@@ -17,7 +17,14 @@ const SHELL_FILES = [
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES)));
+  // cache:"no-cache" = форс-ревалидация: иначе addAll может утащить в новый
+  // versioned-кэш СТАРЫЕ модули из HTTP-кэша браузера (Pages шлёт max-age=600),
+  // и APP_VERSION нового app.js разъедется с содержимым остальных файлов
+  e.waitUntil(caches.open(SHELL).then((c) =>
+    Promise.all(SHELL_FILES.map((u) =>
+      fetch(new Request(u, { cache: "no-cache" })).then((r) => { if (r.ok) return c.put(u, r); })
+    ))
+  ));
 });
 
 self.addEventListener("message", (e) => {
@@ -74,12 +81,13 @@ self.addEventListener("fetch", (e) => {
     return;
   }
   if (url.origin === location.origin) {
-    // shell: cache-first + фоновое обновление (без «протухшего навсегда» кэша)
+    // shell: cache-first + фоновое обновление (без «протухшего навсегда» кэша);
+    // refresh тоже мимо HTTP-кэша, чтобы не переливать в SW-кэш то же старьё
     e.respondWith(
       caches.match(req).then((hit) => {
-        const refresh = fetch(req)
+        const refresh = fetch(new Request(req.url, { cache: "no-cache" }))
           .then((r) => {
-            caches.open(SHELL).then((c) => c.put(req, r.clone()));
+            if (r.ok) caches.open(SHELL).then((c) => c.put(req, r.clone()));
             return r;
           })
           .catch(() => hit);
