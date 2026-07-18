@@ -1,9 +1,13 @@
 /* LCB app v2 — мессенджер (§3.3 ТЗ): направления LCB|Музыканты|Брокер,
    папки по серверному stage, три счётчика, треды с черновиками агента
    (Подтвердить/Отклонить), «Открыть в Telegram», app-локальный read-state.
+   Desktop (≥900px) — постоянный split-view как в Telegram: рейл папок +
+   колонка списка + правая панель треда. Mobile — стек v2 без изменений.
    Ручного ввода НЕТ; наружу уходят только /api/approval/send|reject
    с одним полем approval_id (жёсткий канон §1.2). */
 "use strict";
+
+function isDesktop() { return matchMedia("(min-width:900px)").matches; }
 
 const DIRS = [
   { key: "lcb", label: "LCB" },
@@ -16,6 +20,16 @@ const STAGE_FOLDERS = [
   { key: "followup", label: "Follow-up" },
   { key: "paid", label: "Оплатили" },
   { key: "all", label: "Все" },
+];
+/* рейл папок desktop: 5 LCB-папок + два направления, телеграмная структура */
+const RAIL_ITEMS = [
+  { key: "hot", dir: "lcb", folder: "hot", icon: "🔥", label: "Горячие" },
+  { key: "new", dir: "lcb", folder: "new", icon: "✨", label: "Новые" },
+  { key: "followup", dir: "lcb", folder: "followup", icon: "⏳", label: "Follow-up" },
+  { key: "paid", dir: "lcb", folder: "paid", icon: "💰", label: "Оплатили" },
+  { key: "all", dir: "lcb", folder: "all", icon: "👥", label: "Все LCB" },
+  { key: "musicians", dir: "musicians", folder: "all", icon: "🎸", label: "Музыканты" },
+  { key: "broker", dir: "broker", folder: "all", icon: "🤝", label: "Брокер" },
 ];
 
 /* серверное поле stage; клиентский fallback только как деградация при старом бэкенде */
@@ -82,6 +96,10 @@ function threadNavQ(t) {
   if (ch === "WA") return "wa:" + String(t.phone || t.username || "").replace(/^wa:/, "");
   return t.username || (t.user_id ? "id:" + t.user_id : (t.chat_id != null ? String(t.chat_id) : ""));
 }
+function threadChannelOf(row, q) {
+  return (row && String(row.channel || "").toUpperCase()) ||
+    (q.startsWith("vk:") ? "VK" : q.startsWith("wa:") ? "WA" : "TG");
+}
 
 /* ── счётчики (§3.3.1): /api/app/counters, деградация без ручки → «—» ───── */
 async function fetchCounters() {
@@ -137,23 +155,107 @@ function toggleSentBreak() {
   b.style.display = "block";
 }
 
-/* ── экран «Чаты» ───────────────────────────────────────────────────────── */
+/* ── экран «Чаты»: mobile-стек или desktop split-view ───────────────────── */
+function chatsPollTick() { delete S.cache["/api/threads?dir=" + S.dir]; drawThreads(); }
+function splitEmptyHtml() { return `<div class="sempty">Выбери диалог слева</div>`; }
+
 async function renderChats() {
   const box = $("#scr-chats");
-  box.innerHTML = `
-    <div id="cntRow" class="cnt-row"></div>
-    <div id="sentBreak" class="mtext sentbreak" style="display:none"></div>
-    <div class="dirsw" id="dirSw"></div>
-    <div class="folders" id="chatFolders"></div>
-    <div id="chatsBar" class="chatsbar"></div>
-    <div id="thrList"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>`;
+  if (isDesktop()) {
+    box.innerHTML = `
+      <div class="split">
+        <div class="srail" id="chatRail"></div>
+        <div class="slist">
+          <div id="cntRow" class="cnt-row"></div>
+          <div id="sentBreak" class="mtext sentbreak" style="display:none"></div>
+          <div class="ssearchwrap"><input id="chatSearch" class="dinput" type="search" placeholder="Поиск" value="${esc(S.search)}" autocomplete="off"></div>
+          <div id="chatsBar" class="chatsbar"></div>
+          <div id="thrList"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+        </div>
+        <div class="sview" id="splitThread">${splitEmptyHtml()}</div>
+      </div>`;
+    drawRail();
+    $("#chatSearch").oninput = (e) => { S.search = e.target.value.trim(); drawThreads(); };
+  } else {
+    box.innerHTML = `
+      <div id="cntRow" class="cnt-row"></div>
+      <div id="sentBreak" class="mtext sentbreak" style="display:none"></div>
+      <div class="dirsw" id="dirSw"></div>
+      <div class="folders" id="chatFolders"></div>
+      <div id="chatsBar" class="chatsbar"></div>
+      <div id="thrList"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>`;
+    drawDirs();
+  }
   updateCountersRow();
-  drawDirs();
   fetchCounters();
-  startPoll("screen:chats", () => { delete S.cache["/api/threads?dir=" + S.dir]; drawThreads(); }, 60000);
+  startPoll("screen:chats", chatsPollTick, 60000);
   await drawThreads();
 }
+
+/* рейл папок (desktop) */
+function drawRail() {
+  const r = $("#chatRail");
+  if (!r) return;
+  r.innerHTML = RAIL_ITEMS.map((it) => {
+    const on = S.dir === it.dir && (it.dir !== "lcb" || S.folder === it.folder);
+    return `<button class="ritem ${on ? "on" : ""}" data-k="${it.key}">
+      <span class="ricon">${it.icon}<span class="rbadge" data-b="${it.key}" hidden></span></span>
+      <span class="rlabel">${it.label}</span></button>`;
+  }).join("");
+  r.querySelectorAll(".ritem").forEach((b) => (b.onclick = () => {
+    const it = RAIL_ITEMS.find((x) => x.key === b.dataset.k);
+    if (it) railClick(it);
+  }));
+  updateRailBadges(null);
+}
+async function railClick(it) {
+  S.dir = it.dir;
+  S.folder = it.folder;
+  S.chatsView = "threads";
+  drawRail();
+  updateCountersRow();
+  await drawThreads();
+  // открытый тред сохраняется, если есть в новой папке; иначе пустое состояние
+  if (S.chat) {
+    const present = S.chat.dir === S.dir && (S.lastList || []).some((t) => threadNavQ(t) === S.chat.q);
+    if (present) markSelectedRow();
+    else closeThreadPanel();
+  }
+}
+async function updateRailBadges(lcbRows) {
+  const set = (k, n) => {
+    const b = document.querySelector(`.rbadge[data-b="${k}"]`);
+    if (!b) return;
+    n = +n || 0;
+    if (n > 0) { b.hidden = false; b.textContent = n > 99 ? "99+" : String(n); }
+    else b.hidden = true;
+  };
+  const by = (S.counters && S.counters.unread_by_dir) || {};
+  set("musicians", by.musicians);
+  set("broker", by.broker);
+  let rows = lcbRows;
+  if (!rows) {
+    const hit = S.cache["/api/threads?dir=lcb"];
+    if (hit && hit.data) rows = hit.data.threads || hit.data.rows || [];
+  }
+  if (rows) {
+    const un = {};
+    let all = 0;
+    for (const t of rows) {
+      const n = +t.unread > 0 ? +t.unread : 0;
+      const st = t.__stage || stageOf(t);
+      un[st] = (un[st] || 0) + n;
+      all += n;
+    }
+    set("hot", un.hot); set("new", un.new); set("followup", un.followup); set("paid", un.paid); set("all", all);
+  } else {
+    set("all", by.lcb);
+  }
+}
+
+/* направления/папки (mobile); на desktop счётчики капают в рейл */
 function drawDirs() {
+  if (isDesktop()) { updateRailBadges(null); return; }
   const d = $("#dirSw");
   if (!d) return;
   const by = (S.counters && S.counters.unread_by_dir) || {};
@@ -164,6 +266,7 @@ function drawDirs() {
   }));
 }
 function drawFolders(rows) {
+  if (isDesktop()) { updateRailBadges(S.dir === "lcb" ? rows : null); return; }
   const f = $("#chatFolders");
   if (!f) return;
   if (S.dir !== "lcb" || rows === null) { f.innerHTML = ""; return; }
@@ -226,6 +329,17 @@ async function drawThreads() {
   for (const t of rows) { t.__stage = stageOf(t); t.__epoch = epochOf(t); }
   S.thrIndex = S.thrIndex || {};
   for (const t of rows) { const nq = threadNavQ(t); if (nq) S.thrIndex[S.dir + ":" + nq] = t; }
+  // deep-link на desktop: раскрыть папку, в которой живёт открытый тред
+  if (S.folderRevealQ) {
+    if (isDesktop() && S.dir === "lcb" && S.folder !== "all") {
+      const selRow = rows.find((t) => threadNavQ(t) === S.folderRevealQ);
+      if (selRow && selRow.__stage !== S.folder) {
+        S.folder = ["hot", "new", "followup", "paid"].includes(selRow.__stage) ? selRow.__stage : "all";
+        drawRail();
+      }
+    }
+    S.folderRevealQ = null;
+  }
   drawFolders(rows);
   let list = rows.slice();
   if (S.dir === "lcb" && S.folder !== "all") list = list.filter((t) => t.__stage === S.folder);
@@ -233,6 +347,7 @@ async function drawThreads() {
   const q = S.search.toLowerCase();
   if (q) list = list.filter((t) => ((t.display || "") + " " + (t.username || "") + " " + (t.preview || "")).toLowerCase().includes(q));
   list.sort((a, b) => (b.__epoch || 0) - (a.__epoch || 0)); // epoch desc, числом
+  S.lastList = list;
   const anyUnread = list.some((t) => +t.unread > 0);
   $("#chatsBar").innerHTML = anyUnread ? `<button class="btn" id="readAll">Прочитать всё</button>` : "";
   if (anyUnread) $("#readAll").onclick = () => markAllRead(list);
@@ -243,6 +358,7 @@ async function drawThreads() {
     const nq = b.dataset.q;
     if (nq) nav("#chat/" + S.dir + "/" + encodeURIComponent(nq));
   }));
+  markSelectedRow();
 }
 function threadRowHtml(t) {
   const nq = threadNavQ(t);
@@ -261,6 +377,16 @@ function threadRowHtml(t) {
         ${t.has_pending_approval ? `<span class="pend-dot" title="есть черновик — ждёт подтверждения"></span>` : ""}
         ${unreadBadge(t.unread)}</span>
     </span></button>`;
+}
+function markSelectedRow() {
+  document.querySelectorAll("#thrList .trow").forEach((b) =>
+    b.classList.toggle("sel", !!S.chat && b.dataset.q === S.chat.q));
+}
+/* синяя точка гаснет прямо в списке, без перерисовки всей панели */
+function clearUnreadDom(q) {
+  document.querySelectorAll("#thrList .trow").forEach((b) => {
+    if (b.dataset.q === q) { const ub = b.querySelector(".ub"); if (ub) ub.remove(); }
+  });
 }
 
 /* «Прочитать всё» — bulk-форма /api/app/read (§4.2.3) */
@@ -313,7 +439,7 @@ async function drawApprovalsList() {
   const listBox = $("#thrList");
   if (!listBox) return;
   $("#chatsBar").innerHTML = `<button class="btn" id="aprBack">‹ К тредам</button>`;
-  $("#aprBack").onclick = () => { S.chatsView = "threads"; renderChats(); };
+  $("#aprBack").onclick = () => { S.chatsView = "threads"; updateCountersRow(); drawThreads(); };
   listBox.innerHTML = `<div class="skel"></div>`;
   const list = (await approvalsFull()).map(normalizeAp).filter((a) => a.status === "pending");
   listBox.innerHTML = list.map((a, i) => `
@@ -371,16 +497,10 @@ async function approvalAction(ap, act, container) {
   else if (S.tab === "chats" && S.chatsView === "approvals") drawApprovalsList();
 }
 
-/* ── тред #chat/<dir>/<q> (§3.3.2) ──────────────────────────────────────── */
-async function renderThread(dir, q) {
-  const box = $("#scr-view");
-  const row = (S.thrIndex && S.thrIndex[dir + ":" + q]) || null;
-  const channel = (row && String(row.channel || "").toUpperCase()) ||
-    (q.startsWith("vk:") ? "VK" : q.startsWith("wa:") ? "WA" : "TG");
-  S.chat = { dir, q, channel, row, msgs: [], aps: [], meta: null, lastId: 0, err: null, src: "" };
+/* ── тред: общий движок для mobile-экрана и desktop-панели (§3.3.2) ─────── */
+function threadShellHtml(row, q, channel, withBack) {
   const title = row ? (row.display || row.client || q) : q.replace(/^@/, "");
-  box.innerHTML = `
-    <div class="backrow"><button class="btn" id="thrBack">‹ Назад</button></div>
+  return `${withBack ? `<div class="backrow"><button class="btn" id="thrBack">‹ Назад</button></div>` : ""}
     <div class="thead">
       ${avatarHtml(row || { username: channel === "TG" ? q : "", channel })}
       <div class="tt"><div class="cname">${esc(title)}</div>
@@ -389,14 +509,72 @@ async function renderThread(dir, q) {
     </div>
     <div id="chatView"><div class="skel"></div></div>
     <div class="chatnote">Ответы уходят через пайплайн. Ручной ответ — кнопкой «Открыть в Telegram». Время — МСК.</div>`;
-  $("#thrBack").onclick = () => history.back();
+}
+async function startThread(dir, q, row, channel) {
+  S.chat = { dir, q, channel, row, msgs: [], aps: [], meta: null, lastId: 0, err: null, src: "" };
   await loadThread(true);
   startPoll("screen:thread", pollThread, channel === "WA" ? 30000 : 15000);
   // read-state: через 1.5с видимости треда (§3.3.2), optimistic сброс точки
   S.readTimer = setTimeout(postThreadRead, 1500);
 }
+/* mobile: полноэкранный тред с «Назад» */
+async function renderThread(dir, q) {
+  const sp = $("#splitThread");
+  if (sp) sp.innerHTML = splitEmptyHtml(); // не держать дубликат #chatView в скрытом split
+  const row = (S.thrIndex && S.thrIndex[dir + ":" + q]) || null;
+  const channel = threadChannelOf(row, q);
+  const box = $("#scr-view");
+  box.innerHTML = threadShellHtml(row, q, channel, true);
+  $("#thrBack").onclick = () => history.back();
+  await startThread(dir, q, row, channel);
+}
+/* desktop: тред в правой панели split-view; hash остаётся #chat/<dir>/<q> */
+async function openThreadInPanel(dir, q) {
+  const panel = $("#splitThread");
+  if (!panel) return;
+  stopPoll("screen:thread");
+  if (S.readTimer) { clearTimeout(S.readTimer); S.readTimer = null; }
+  const sv = $("#scr-view");
+  if (sv) sv.innerHTML = ""; // не держать дубликат #chatView в скрытом экране
+  const row = (S.thrIndex && S.thrIndex[dir + ":" + q]) || null;
+  const channel = threadChannelOf(row, q);
+  panel.innerHTML = threadShellHtml(row, q, channel, false);
+  const p = startThread(dir, q, row, channel); // S.chat выставляется синхронно
+  markSelectedRow();
+  await p;
+}
+/* точка входа роутера для desktop: #chat/<dir>/<q> живёт внутри экрана «Чаты» */
+async function renderChatsWithThread(dir, q) {
+  const shell = document.querySelector("#scr-chats .split");
+  const dirChanged = S.dir !== dir;
+  if (dirChanged) { S.dir = dir; S.chatsView = "threads"; }
+  if (!shell) {
+    S.folderRevealQ = q;
+    renderChats(); // markup строится синхронно, данные подъедут следом
+  } else {
+    startPoll("screen:chats", chatsPollTick, 60000); // route остановил screen-поллы
+    if (dirChanged) { S.folderRevealQ = q; drawRail(); drawThreads(); }
+  }
+  await openThreadInPanel(dir, q);
+}
+function closeThreadPanel() {
+  stopPoll("screen:thread");
+  if (S.readTimer) { clearTimeout(S.readTimer); S.readTimer = null; }
+  S.chat = null;
+  const p = $("#splitThread");
+  if (p) p.innerHTML = splitEmptyHtml();
+  markSelectedRow();
+  if ((location.hash || "").startsWith("#chat/")) history.replaceState(null, "", "#chats");
+}
+
 function chatEndpoint(c) {
   return c.channel === "VK" ? "/api/vk_chat" : c.channel === "WA" ? "/api/wa_chat" : "/api/chat";
+}
+function chatScrollBottom(initial) {
+  const v = $("#chatView");
+  if (!v) return;
+  if (v.closest(".sview")) v.scrollTop = v.scrollHeight;
+  else if (initial) window.scrollTo(0, document.body.scrollHeight);
 }
 async function loadThread(initial) {
   const c = S.chat;
@@ -414,7 +592,7 @@ async function loadThread(initial) {
   drawThreadSub();
   drawTgOpen();
   drawThreadMsgs();
-  if (initial && !c.err) window.scrollTo(0, document.body.scrollHeight);
+  if (initial && !c.err) chatScrollBottom(true);
 }
 async function pollThread() {
   const c = S.chat;
@@ -436,6 +614,7 @@ async function pollThread() {
     if (JSON.stringify(aps) !== JSON.stringify(c.aps)) { c.aps = aps; changed = true; }
     if (changed) {
       drawThreadMsgs();
+      if (inc.length) chatScrollBottom(false);
       if (inc.some((m) => !m.out)) postThreadRead(); // новый входящий в открытом треде — обновить read-state
     }
   } catch (e) { /* обрыв покажет индикатор; тред остаётся на снимке */ }
@@ -483,6 +662,13 @@ function drawTgOpen() {
       (note ? `<div class="mtext" style="font-size:11px;max-width:150px;text-align:right">${esc(note)}</div>` : "")
     : "";
 }
+/* разделители дат в ленте пузырей (MSK) */
+const _dayFmt = new Intl.DateTimeFormat("ru-RU", { timeZone: MSK_TZ, day: "numeric", month: "long" });
+const _dayYearFmt = new Intl.DateTimeFormat("ru-RU", { timeZone: MSK_TZ, day: "numeric", month: "long", year: "numeric" });
+function dayLabel(ep) {
+  const d = new Date(ep * 1000);
+  return mskParts(d).year === mskParts(new Date()).year ? _dayFmt.format(d) : _dayYearFmt.format(d);
+}
 function drawThreadMsgs() {
   const c = S.chat;
   const v = $("#chatView");
@@ -495,9 +681,14 @@ function drawThreadMsgs() {
       : e.status === 403 ? "Раздел закрыт — введи ключ в шторке индикатора"
       : "Ошибка: " + esc(e.message)}</div>`;
   }
-  html += c.msgs.map((m) => `
-    <div class="bub ${m.out ? "out" : "in"}">${esc(trunc(m.text || "", 4000)) || (m.media ? "📎 медиа" : "")}
-      <div class="bmeta">${esc(bubStamp(m.__epoch, m.date))}${m.out ? " · мы" : ""}</div></div>`).join("");
+  let lastDay = "";
+  for (const m of c.msgs) {
+    const day = m.__epoch ? mskDateIso(new Date(m.__epoch * 1000)) : "";
+    if (day && day !== lastDay) { html += `<div class="bubday"><span>${esc(dayLabel(m.__epoch))}</span></div>`; lastDay = day; }
+    const stamp = m.__epoch ? mskHM(new Date(m.__epoch * 1000)) : String(m.date || "").slice(0, 16);
+    html += `<div class="bub ${m.out ? "out" : "in"}">${esc(trunc(m.text || "", 4000)) || (m.media ? "📎 медиа" : "")}
+      <div class="bmeta">${esc(stamp)}${m.out ? " · мы" : ""}</div></div>`;
+  }
   html += c.aps.map(apBubHtml).join("");
   if (!c.msgs.length && !c.aps.length && !c.err) html += `<div class="empty">Локальная история пуста</div>`;
   if (c.src && c.msgs.length) html += `<div class="mtext" style="margin:10px 0;text-align:center">Источник: ${esc(c.src)}</div>`;
@@ -547,7 +738,9 @@ async function postThreadRead() {
   const key = threadReadKey(c);
   if (!key) return;
   clearUnreadLocal(c.dir, key); // optimistic; сервер — истина при следующем поллинге
+  clearUnreadDom(c.q); // точка гаснет прямо в списке слева, без перерисовки панели
   updateChatsBadge();
+  if (isDesktop()) updateRailBadges(null);
   try {
     await api("/api/app/read", { method: "POST", body: { channel: c.channel, thread: key, last_seen_epoch: epoch } });
     delete S.cache["/api/app/counters"];

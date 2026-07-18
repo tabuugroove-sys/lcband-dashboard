@@ -4,7 +4,7 @@
    Ручных отправок нет: наружу уходят только approval/send|reject по approval_id. */
 "use strict";
 
-const APP_VERSION = "2.0.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
+const APP_VERSION = "2.1.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
 
 const S = {
   base: null,
@@ -25,6 +25,8 @@ const S = {
   thrIndex: {},
   chat: null,
   readTimer: null,
+  lastList: null, // отфильтрованный список тредов (для «есть ли тред в папке»)
+  folderRevealQ: null, // deep-link desktop: раскрыть папку открытого треда
   // соединение (§3.8)
   conn: { state: "INIT", lastOkAt: null, resolveFails: 0 },
   needAuth: false,
@@ -41,7 +43,11 @@ function route() {
   const slash = h.indexOf("/");
   const name = slash === -1 ? h : h.slice(0, slash);
   const rawArg = slash === -1 ? null : h.slice(slash + 1);
-  const tab = ["cal", "today", "chats", "sys", "cast"].includes(name) ? name : (name === "event" || name === "chat" ? "view" : "cal");
+  // desktop (≥900px): тред живёт в split-панели экрана «Чаты», не в отдельном view
+  const deskChat = name === "chat" && typeof isDesktop === "function" && isDesktop();
+  const tab = ["cal", "today", "chats", "sys", "cast"].includes(name) ? name
+    : deskChat ? "chats"
+    : (name === "event" || name === "chat" ? "view" : "cal");
   S.tab = tab;
   if (name !== "chat") S.chat = null;
   for (const [k, id] of Object.entries(SCREENS)) $("#" + id).classList.toggle("on", k === tab);
@@ -60,7 +66,8 @@ function route() {
       const maybe = rq.slice(0, s2);
       if (["lcb", "musicians", "broker"].includes(maybe)) { dir = maybe; rq = rq.slice(s2 + 1); }
     }
-    renderThread(dir, decodeURIComponent(rq));
+    if (deskChat) renderChatsWithThread(dir, decodeURIComponent(rq));
+    else renderThread(dir, decodeURIComponent(rq));
   } else renderCal();
 }
 window.addEventListener("hashchange", route);
