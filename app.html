@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#0E6B54">
+<title>LCB</title>
+<link rel="manifest" href="app.webmanifest">
+<link rel="apple-touch-icon" href="app-icon-180.png">
+<link rel="icon" type="image/png" href="app-icon-192.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="topbar">
+  <span id="connDot" title="связь с бэкендом"></span>
+  <span class="brand">LCB</span>
+  <input id="search" type="search" placeholder="Поиск: контакт, событие…" autocomplete="off">
+  <button id="reloadBtn" title="Обновить данные">⟳</button>
+  <button id="themeBtn" title="Тема">◐</button>
+</div>
+<div id="offline">Офлайн — показан последний снимок данных</div>
+
+<main>
+  <section id="scr-cal" class="screen"></section>
+  <section id="scr-today" class="screen"></section>
+  <section id="scr-chats" class="screen"></section>
+  <section id="scr-view" class="screen"></section>
+  <section id="scr-sys" class="screen"></section>
+</main>
+
+<nav id="tabbar">
+  <button data-tab="cal"><span class="ic">▦</span>Календарь</button>
+  <button data-tab="today"><span class="ic">☉</span>Сегодня</button>
+  <button data-tab="chats"><span class="ic">✉</span>Чаты</button>
+  <button data-tab="sys"><span class="ic">◔</span>Система</button>
+</nav>
+
+<div id="gate">
+  <div class="box">
+    <h1>Ключ доступа</h1>
+    <p>Этот раздел ходит через публичный туннель и требует админ-ключ (X-Admin-Token из .env на Mac). Ключ хранится только на этом устройстве.</p>
+    <input id="gateKey" type="password" placeholder="Ключ" autocomplete="current-password">
+    <button class="btn go" id="gateGo">Войти</button>
+    <p id="gateMsg" style="color:var(--dang); min-height:1em; margin-top:8px;"></p>
+    <button id="gateSkip" style="color:var(--mut); font-size:13px; margin-top:6px;">Позже — только открытые разделы</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
