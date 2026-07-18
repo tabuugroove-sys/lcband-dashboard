@@ -268,7 +268,7 @@ async function approval(action, id, btn) {
     renderToday();
   } catch (e) {
     if (e.status === 409) toast("Отправка остановлена preflight-защитой (грязный worktree) — это предохранитель, не сбой", true);
-    else if (e.status === 403 || e.status === 503) toast("Кнопки денег скоро заработают без ключа — доделываю авто-вход с Mac", true);
+    else if (e.status === 403 || e.status === 503) toast("Отправка денег доступна только с Mac (через интернет раздел закрыт)", true);
     else toast("Не вышло: " + e.message, true);
     btn.disabled = false;
   }
