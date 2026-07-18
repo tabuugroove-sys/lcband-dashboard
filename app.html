@@ -15,29 +15,39 @@
 </head>
 <body>
 <div id="topbar">
-  <span id="connDot" title="связь с бэкендом"></span>
   <span class="brand">LCB</span>
   <input id="search" type="search" placeholder="Поиск: контакт, событие…" autocomplete="off">
   <button id="reloadBtn" title="Обновить данные">⟳</button>
   <button id="themeBtn" title="Тема">◐</button>
+  <button id="connPill" class="st-init" aria-label="Состояние соединения" title="Состояние соединения"><span class="cdot"></span><span class="clabel">Подключение…</span></button>
 </div>
 <div id="offline">Офлайн — показан последний снимок данных</div>
+<div id="connDrawer" hidden><div class="dbody" id="drawerBody"></div></div>
 
 <main>
   <section id="scr-cal" class="screen"></section>
-  <section id="scr-today" class="screen"></section>
   <section id="scr-chats" class="screen"></section>
-  <section id="scr-view" class="screen"></section>
+  <section id="scr-today" class="screen"></section>
   <section id="scr-sys" class="screen"></section>
+  <section id="scr-cast" class="screen"></section>
+  <section id="scr-view" class="screen"></section>
 </main>
 
 <nav id="tabbar">
   <button data-tab="cal"><span class="ic">▦</span>Календарь</button>
+  <button data-tab="chats"><span class="ic">✉<span class="tabbadge" id="chatsTabBadge" hidden></span></span>Чаты</button>
   <button data-tab="today"><span class="ic">☉</span>Сегодня</button>
-  <button data-tab="chats"><span class="ic">✉</span>Чаты</button>
   <button data-tab="sys"><span class="ic">◔</span>Система</button>
+  <button data-tab="cast"><span class="ic">✈</span>Рассылка</button>
 </nav>
 
+<script src="app-api.js"></script>
+<script src="app-cal.js"></script>
+<script src="app-chats.js"></script>
+<script src="app-today.js"></script>
+<script src="app-event.js"></script>
+<script src="app-sys.js"></script>
+<script src="app-broadcast.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

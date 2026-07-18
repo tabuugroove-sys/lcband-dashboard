@@ -5,6 +5,7 @@
   --brass:#8A6320; --brass-fill:#A87B2F; --brass-soft:#F6EEDC; --on-brass:#FFFFFF;
   --ok:#3F7A1F; --ok-soft:#EAF3DE; --warn:#9A6A08; --warn-soft:#FAF0D7;
   --dang:#B3372E; --dang-soft:#FBE9E7; --frame:#E9EBE8;
+  --tg-blue:#2AABEE;
 }
 @media (prefers-color-scheme: dark) { :root {
   --paper:#131715; --card:#1C2320; --ink:#E9EDEA; --mut:#8FA098; --line:#2A322E;
@@ -12,6 +13,7 @@
   --brass:#D9AC5C; --brass-fill:#B8863B; --brass-soft:#33270F; --on-brass:#241A05;
   --ok:#9BC96A; --ok-soft:#1E2A12; --warn:#E4B24A; --warn-soft:#2E2510;
   --dang:#E8776C; --dang-soft:#381B18; --frame:#232A26;
+  --tg-blue:#4FB2E5;
 } }
 :root[data-theme="dark"] {
   --paper:#131715; --card:#1C2320; --ink:#E9EDEA; --mut:#8FA098; --line:#2A322E;
@@ -19,6 +21,7 @@
   --brass:#D9AC5C; --brass-fill:#B8863B; --brass-soft:#33270F; --on-brass:#241A05;
   --ok:#9BC96A; --ok-soft:#1E2A12; --warn:#E4B24A; --warn-soft:#2E2510;
   --dang:#E8776C; --dang-soft:#381B18; --frame:#232A26;
+  --tg-blue:#4FB2E5;
 }
 :root[data-theme="light"] {
   --paper:#F6F7F5; --card:#FFFFFF; --ink:#1B211E; --mut:#68716C; --line:#E0E4E0;
@@ -26,6 +29,7 @@
   --brass:#8A6320; --brass-fill:#A87B2F; --brass-soft:#F6EEDC; --on-brass:#FFFFFF;
   --ok:#3F7A1F; --ok-soft:#EAF3DE; --warn:#9A6A08; --warn-soft:#FAF0D7;
   --dang:#B3372E; --dang-soft:#FBE9E7; --frame:#E9EBE8;
+  --tg-blue:#2AABEE;
 }
 * { box-sizing:border-box; }
 html, body { margin:0; height:100%; }
@@ -41,8 +45,32 @@ a { color:var(--pine); text-decoration:none; }
   padding:10px 14px; padding-top:calc(10px + env(safe-area-inset-top));
   background:var(--paper); border-bottom:1px solid var(--line); }
 #topbar .brand { font-weight:600; font-size:16px; letter-spacing:-0.01em; }
-#connDot { width:9px; height:9px; border-radius:50%; background:var(--ok); flex:none; }
-#connDot.warn { background:var(--warn); } #connDot.dang { background:var(--dang); }
+/* глобальный индикатор соединения (§3.8): INIT/MAC/TS/CF/RECONNECT/OFFLINE */
+#connPill { display:flex; align-items:center; gap:6px; border:1px solid var(--line);
+  border-radius:999px; padding:6px 11px; background:var(--card); font-size:12px;
+  flex:none; min-height:30px; }
+#connPill .cdot { width:9px; height:9px; border-radius:50%; background:var(--mut); flex:none; }
+#connPill.st-mac .cdot, #connPill.st-ts .cdot, #connPill.st-cf .cdot { background:var(--ok); }
+#connPill.st-reconnect .cdot { background:var(--warn); animation:connpulse 1.1s ease-in-out infinite; }
+#connPill.st-offline .cdot { background:var(--dang); }
+#connPill .clabel { white-space:nowrap; max-width:150px; overflow:hidden; text-overflow:ellipsis; }
+@keyframes connpulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+@media (prefers-reduced-motion: reduce) { #connPill .cdot { animation:none !important; } }
+@media (max-width:640px) { #connPill .clabel { max-width:86px; } }
+
+/* шторка индикатора: base, последний успех, версия, ключ (§3.8, §5.3) */
+#connDrawer { position:fixed; inset:0; z-index:45; background:rgba(0,0,0,0.25); }
+#connDrawer[hidden] { display:none; }
+#connDrawer .dbody { position:absolute; top:calc(54px + env(safe-area-inset-top)); right:10px; left:10px;
+  max-width:420px; margin-left:auto; background:var(--card); border:1px solid var(--line);
+  border-radius:14px; padding:16px; box-shadow:0 10px 34px rgba(0,0,0,0.22); }
+.drow { display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+  font-size:13.5px; padding:7px 0; border-bottom:1px solid var(--line); }
+.drow:last-child { border-bottom:none; }
+.drow .k { color:var(--mut); flex:none; }
+.dinput { width:100%; background:var(--paper); border:1px solid var(--line); border-radius:9px;
+  padding:11px 12px; font-size:15px; color:var(--ink); }
+textarea.dinput { resize:vertical; font:inherit; min-height:72px; }
 #search { flex:1; min-width:0; max-width:340px; margin-left:auto; background:var(--card);
   border:1px solid var(--line); border-radius:999px; padding:7px 14px; font-size:14px; color:var(--ink); }
 #search::placeholder { color:var(--mut); }
@@ -194,3 +222,76 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
   padding:10px 12px; font-size:15px; color:var(--ink); margin-bottom:10px; }
 #gate .btn { width:100%; text-align:center; }
 :focus-visible { outline:2px solid var(--pine-line); outline-offset:2px; }
+
+/* ── v2: мессенджер (§3.3) ──────────────────────────────── */
+/* три счётчика, цвета РАЗНЫЕ: синий unread / латунный апрувы / зелёный отправлено */
+.cnt-row { display:flex; gap:8px; margin-bottom:10px; }
+.cnt { flex:1; min-width:0; min-height:56px; background:var(--card); border:1px solid var(--line);
+  border-radius:12px; padding:8px 12px; text-align:left; }
+.cnt .cv { font-size:20px; font-weight:600; display:flex; align-items:center; gap:7px;
+  font-variant-numeric:tabular-nums; }
+.cnt .cdot2 { width:10px; height:10px; border-radius:50%; flex:none; }
+.cnt .cl { font-size:11px; color:var(--mut); display:block; margin-top:1px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cnt.blue .cdot2 { background:var(--tg-blue); }
+.cnt.brass .cdot2 { background:var(--brass-fill); }
+.cnt.green .cdot2 { background:var(--ok); }
+.cnt.blue.on { border-color:var(--tg-blue); }
+.cnt.brass.on { border-color:var(--brass-fill); }
+.sentbreak { background:var(--card); border:1px solid var(--line); border-radius:10px;
+  padding:8px 12px; margin-bottom:10px; }
+.chatsbar { display:flex; gap:8px; margin-bottom:8px; }
+.chatsbar:empty { display:none; }
+
+/* бейджи unread: синяя точка/число, cap 99+ */
+.ub { background:var(--tg-blue); color:#fff; font-size:11.5px; min-width:19px; height:19px;
+  border-radius:10px; padding:0 5px; display:inline-flex; align-items:center; justify-content:center;
+  font-weight:600; flex:none; margin-left:5px; font-variant-numeric:tabular-nums; }
+.ub.dot { min-width:10px; width:10px; height:10px; padding:0; border-radius:50%; }
+.pend-dot { width:9px; height:9px; border-radius:50%; background:var(--brass-fill); flex:none; }
+.tabbadge { position:absolute; top:-5px; left:calc(50% + 6px); background:var(--tg-blue); color:#fff;
+  font-size:10px; min-width:16px; height:16px; border-radius:8px; padding:0 4px;
+  line-height:16px; font-weight:600; text-align:center; }
+#tabbar button .ic { position:relative; }
+@media (min-width:900px) { .tabbadge { left:11px; top:-7px; } }
+
+/* строка треда: аватар 40px + имя + @username + превью + время + точки */
+.thr.trow { display:flex; gap:10px; align-items:center; min-height:64px; }
+.ava { width:40px; height:40px; border-radius:50%; position:relative; color:#fff;
+  font-size:14px; font-weight:600; display:inline-flex; align-items:center; justify-content:center;
+  flex:none; overflow:hidden; }
+.ava img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.tmain { flex:1; min-width:0; display:block; }
+.tmain .t1 { display:flex; gap:7px; align-items:baseline; min-width:0; }
+.tmain .who { font-weight:600; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.uname { color:var(--mut); font-size:12.5px; flex:none; }
+.tmain .when { margin-left:auto; font-size:12px; color:var(--mut); flex:none; }
+.tmain .t2 { display:flex; gap:6px; align-items:center; margin-top:3px; min-width:0; }
+.tmain .prev { flex:1; min-width:0; font-size:13px; color:var(--mut); overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
+
+/* шапка треда + пузыри */
+.thead { display:flex; gap:10px; align-items:center; margin-bottom:8px; }
+.thead .tt { min-width:0; }
+#chatView .bub { white-space:pre-wrap; overflow-wrap:break-word; }
+#chatView .bub.ap-draft { border:1.5px dashed var(--brass-fill); background:var(--brass-soft); }
+.ap-badge { font-size:11px; color:var(--brass); font-weight:600; margin-bottom:4px; }
+.ap-actions { display:flex; gap:8px; margin-top:9px; }
+.ap-actions .btn { min-height:38px; }
+.ap-actions .btn.busy { opacity:0.7; }
+#chatView .bub.ap-rej { opacity:0.6; text-decoration:line-through; background:var(--frame); border:1px solid var(--line); }
+.chatnote { margin:14px 0 4px; color:var(--mut); font-size:12.5px; text-align:center; }
+
+/* тосты и обновление PWA (§5.6) */
+.lcbtoast { position:fixed; left:50%; bottom:84px; transform:translateX(-50%); z-index:60;
+  color:#fff; padding:10px 18px; border-radius:10px; font-size:14px; max-width:88%; }
+.updtoast { position:fixed; left:50%; bottom:96px; transform:translateX(-50%); z-index:60;
+  background:var(--card); border:1px solid var(--pine); color:var(--ink); padding:10px 14px;
+  border-radius:12px; display:flex; gap:10px; align-items:center; font-size:14px;
+  box-shadow:0 6px 24px rgba(0,0,0,0.18); white-space:nowrap; }
+
+/* тап-таргеты ≥44px на телефоне (§6) */
+@media (max-width:640px) {
+  .btn, .dirsw button, .folders button, #connPill, .cnt { min-height:44px; }
+  .callay .lay { min-height:38px; }
+}
