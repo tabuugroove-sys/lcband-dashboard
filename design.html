@@ -292,19 +292,65 @@ table.ia td { padding:8px 10px; border-bottom:1px solid var(--line); vertical-al
 </div>
 <p class="cap">Звезда приложения. Каждый красный пункт отвечает на три вопроса: почему не хватает, почему автомат не закрыл сам, что сделает пайплайн дальше — и даёт кнопку ускорить или забрать на себя.</p>
 
-<h2>Экран 4 · Календарь</h2>
+<h2>Экран 4 · Календарь — принцип Google Calendar</h2>
 <div class="win">
-  <div class="tbar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="tname">Август 2026</span></div>
-  <div class="scr">
-    <div class="cal">
-      <div class="h">Пн</div><div class="h">Вт</div><div class="h">Ср</div><div class="h">Чт</div><div class="h">Пт</div><div class="h">Сб</div><div class="h">Вс</div>
-      <div class="d">27</div><div class="d">28</div><div class="d">29</div><div class="d">30</div><div class="d">31</div><div class="d ev">1</div><div class="d">2</div>
-      <div class="d">3</div><div class="d">4</div><div class="d">5</div><div class="d">6</div><div class="d">7</div><div class="d ev pay">8</div><div class="d">9</div>
-      <div class="d">10</div><div class="d">11</div><div class="d">12</div><div class="d">13</div><div class="d">14</div><div class="d ev">15</div><div class="d">16</div>
-      <div class="d today">17</div><div class="d">18</div><div class="d">19</div><div class="d">20</div><div class="d">21</div><div class="d ev pay">22</div><div class="d">23</div>
-      <div class="d">24</div><div class="d">25</div><div class="d">26</div><div class="d">27</div><div class="d">28</div><div class="d ev">29</div><div class="d">30</div>
+  <div class="tbar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="tname">LCB · Календарь</span></div>
+  <div class="gtop">
+    <span class="today">Сегодня</span><span class="nav">‹ ›</span><span class="mon">Июль 2026</span>
+    <span class="spacer"></span><span class="mtext">Месяц ▾</span>
+  </div>
+  <div class="gcal">
+    <div class="gside">
+      <div class="mt">Мои календари</div>
+      <div class="lay"><span class="cb on"></span> События LCB</div>
+      <div class="lay"><span class="cb on br"></span> Брокер</div>
+      <div class="lay"><span class="cb"></span> Стоимость по датам</div>
+      <div class="lay"><span class="cb"></span> Дни рождения состава</div>
+      <div class="mt">Показывать</div>
+      <div class="lay"><span class="cb on"></span> Отменённые</div>
+      <div class="lay"><span class="cb on"></span> Лиды без даты-файнал</div>
     </div>
-    <div class="mtext" style="margin-top:10px">Зелёная точка — событие · латунная — событие с открытым денежным вопросом. Тап по дню открывает карточку.</div>
+    <div>
+      <div class="gwk">
+        <div class="h">Пн</div><div class="h">Вт</div><div class="h">Ср</div><div class="h">Чт</div><div class="h">Пт</div><div class="h">Сб</div><div class="h">Вс</div>
+        <div class="gd"><span class="dn">13</span></div>
+        <div class="gd"><span class="dn">14</span></div>
+        <div class="gd"><span class="dn">15</span></div>
+        <div class="gd"><span class="dn">16</span></div>
+        <div class="gd"><span class="dn">17</span>
+          <span class="chip c-cxl">✕ Maria V — свадьба</span>
+          <span class="chip c-neg">Tvoya_Vesna — Мск</span>
+          <span class="chip c-neg">Катерина — Москва</span>
+          <span class="more">ещё 2</span></div>
+        <div class="gd"><span class="dn today">18</span>
+          <span class="chip c-pay">Елена — корпоратив 600</span>
+          <span class="chip c-ok">dimylichka — сет 45’</span>
+          <span class="chip c-cxl">✕ Event home</span></div>
+        <div class="gd"><span class="dn">19</span></div>
+        <div class="gd"><span class="dn">20</span>
+          <span class="chip c-ok">Юлия Андросова</span></div>
+        <div class="gd"><span class="dn">21</span></div>
+        <div class="gd"><span class="dn">22</span></div>
+        <div class="gd"><span class="dn">23</span></div>
+        <div class="gd"><span class="dn">24</span></div>
+        <div class="gd"><span class="dn">25</span>
+          <span class="chip c-cxl">✕ Олеся С</span></div>
+        <div class="gd"><span class="dn">26</span>
+          <span class="chip c-cxl">✕ Ольга А</span></div>
+        <div class="gd"><span class="dn">27</span></div>
+        <div class="gd"><span class="dn">28</span></div>
+        <div class="gd"><span class="dn">29</span></div>
+        <div class="gd"><span class="dn">30</span></div>
+        <div class="gd"><span class="dn">31</span></div>
+        <div class="gd"><span class="dn">1 авг</span>
+          <span class="chip c-ok">Илья Шацкий — МО</span>
+          <span class="chip c-cxl">✕ iratrautr</span></div>
+        <div class="gd"><span class="dn">2</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="scr" style="border-top:1px solid var(--line)">
+    <div class="mtext">Событие = чип с именем прямо в сетке, как в Google Calendar. Цвет — статус: зелёный подтверждено · латунный — открыт денежный вопрос · жёлтый — переговоры · серый зачёркнутый — отменено (история видна, не удаляется). Переполнение дня — «ещё N». Слои слева включаются галочками, «Стоимость по датам» — оверлей суммы на день. Тап по чипу — карточка события, тап по дню — список дня.</div>
   </div>
 </div>
 
