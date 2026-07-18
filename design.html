@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LCB 2.0 — дизайн-концепт приложения</title>
+<style>
+:root {
+  --paper:#F6F7F5; --card:#FFFFFF; --ink:#1B211E; --mut:#68716C; --line:#E0E4E0;
+  --pine:#0E6B54; --pine-soft:#E3F1EC; --pine-line:#8FCDB9;
+  --brass:#8A6320; --brass-soft:#F6EEDC;
+  --ok:#3F7A1F; --ok-soft:#EAF3DE; --warn:#9A6A08; --warn-soft:#FAF0D7;
+  --dang:#B3372E; --dang-soft:#FBE9E7; --frame:#E9EBE8; --thumb:#D6DAD6;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --paper:#131715; --card:#1C2320; --ink:#E9EDEA; --mut:#8FA098; --line:#2A322E;
+  --pine:#63C4A4; --pine-soft:#12352B; --pine-line:#1E7A5E;
+  --brass:#D9AC5C; --brass-soft:#33270F;
+  --ok:#9BC96A; --ok-soft:#1E2A12; --warn:#E4B24A; --warn-soft:#2E2510;
+  --dang:#E8776C; --dang-soft:#381B18; --frame:#232A26; --thumb:#37413C;
+} }
+:root[data-theme="dark"] {
+  --paper:#131715; --card:#1C2320; --ink:#E9EDEA; --mut:#8FA098; --line:#2A322E;
+  --pine:#63C4A4; --pine-soft:#12352B; --pine-line:#1E7A5E;
+  --brass:#D9AC5C; --brass-soft:#33270F;
+  --ok:#9BC96A; --ok-soft:#1E2A12; --warn:#E4B24A; --warn-soft:#2E2510;
+  --dang:#E8776C; --dang-soft:#381B18; --frame:#232A26; --thumb:#37413C;
+}
+:root[data-theme="light"] {
+  --paper:#F6F7F5; --card:#FFFFFF; --ink:#1B211E; --mut:#68716C; --line:#E0E4E0;
+  --pine:#0E6B54; --pine-soft:#E3F1EC; --pine-line:#8FCDB9;
+  --brass:#8A6320; --brass-soft:#F6EEDC;
+  --ok:#3F7A1F; --ok-soft:#EAF3DE; --warn:#9A6A08; --warn-soft:#FAF0D7;
+  --dang:#B3372E; --dang-soft:#FBE9E7; --frame:#E9EBE8; --thumb:#D6DAD6;
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--paper); color:var(--ink);
+  font:15px/1.55 -apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif; }
+.wrap { max-width:960px; margin:0 auto; padding:32px 20px 80px; }
+.num { font-family: ui-monospace,"SF Mono",Menlo,monospace; font-variant-numeric:tabular-nums; }
+h1 { font-size:28px; font-weight:600; letter-spacing:-0.02em; margin:0 0 6px; text-wrap:balance; }
+h2 { font-size:19px; font-weight:600; letter-spacing:-0.01em; margin:44px 0 6px; }
+.lede { color:var(--mut); margin:0 0 8px; max-width:64ch; }
+.themebtn { position:sticky; top:12px; float:right; font:13px inherit; font-family:inherit;
+  background:var(--card); color:var(--ink); border:1px solid var(--line);
+  border-radius:999px; padding:7px 14px; cursor:pointer; z-index:5; }
+.eyebrow { font-size:12px; letter-spacing:0.08em; text-transform:uppercase; color:var(--pine); font-weight:600; }
+.win { background:var(--card); border:1px solid var(--line); border-radius:12px;
+  margin:18px 0 8px; overflow:hidden; }
+.tbar { display:flex; align-items:center; gap:6px; padding:9px 12px;
+  background:var(--frame); border-bottom:1px solid var(--line); }
+.tl { width:11px; height:11px; border-radius:50%; background:var(--thumb); }
+.tl.r { background:#E0655A; } .tl.y { background:#E0B44E; } .tl.g { background:#71BF5B; }
+.tname { font-size:12px; color:var(--mut); margin-left:8px; }
+.scr { padding:16px 18px; }
+.cap { font-size:13px; color:var(--mut); margin:0 0 30px; max-width:70ch; }
+.row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.pill { font-size:12px; padding:3px 10px; border-radius:999px; }
+.p-ok { background:var(--ok-soft); color:var(--ok); }
+.p-warn { background:var(--warn-soft); color:var(--warn); }
+.p-dang { background:var(--dang-soft); color:var(--dang); }
+.p-pine { background:var(--pine-soft); color:var(--pine); }
+.p-brass { background:var(--brass-soft); color:var(--brass); }
+.p-mut { background:var(--frame); color:var(--mut); }
+.grid { display:grid; gap:10px; }
+.g3 { grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); }
+.stat { background:var(--paper); border-radius:9px; padding:10px 13px; }
+.stat .l { font-size:12px; color:var(--mut); }
+.stat .v { font-size:21px; font-weight:600; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-top:10px; }
+.card.hot { border-color:var(--brass); }
+.chead { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px; }
+.cname { font-weight:600; font-size:14.5px; }
+.spacer { margin-left:auto; }
+.mtext { color:var(--mut); font-size:13.5px; }
+.btn { display:inline-block; font-size:13px; padding:7px 14px; border-radius:8px;
+  border:1px solid var(--line); background:transparent; color:var(--ink); }
+.btn.go { background:var(--pine); border-color:var(--pine); color:#fff; }
+:root[data-theme="dark"] .btn.go, .dm .btn.go { color:#0E1F19; }
+.btn.stop { color:var(--dang); border-color:var(--dang); }
+.cols { display:grid; grid-template-columns:200px minmax(0,1fr); gap:0; }
+.folders { border-right:1px solid var(--line); padding:10px 0; }
+.dirsw { display:flex; gap:4px; margin:0 12px 10px; background:var(--paper); border-radius:8px; padding:3px; }
+.dirsw span { flex:1; text-align:center; font-size:12.5px; padding:5px 0; border-radius:6px; color:var(--mut); }
+.dirsw .on { background:var(--card); color:var(--ink); font-weight:600; border:1px solid var(--line); }
+.folder { display:flex; align-items:center; gap:8px; padding:7px 14px; font-size:13.5px; color:var(--ink); }
+.folder .n { margin-left:auto; font-size:12px; color:var(--mut); }
+.folder.sel { background:var(--pine-soft); color:var(--pine); font-weight:600; border-right:2px solid var(--pine); }
+.folder.sel .n { color:var(--pine); }
+.thr { padding:10px 14px; border-bottom:1px solid var(--line); }
+.thr:last-child { border-bottom:none; }
+.thr .t1 { display:flex; gap:8px; align-items:baseline; }
+.thr .who { font-weight:600; font-size:14px; }
+.thr .when { margin-left:auto; font-size:12px; color:var(--mut); }
+.thr .prev { font-size:13px; color:var(--mut); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bub { max-width:78%; border-radius:12px; padding:8px 12px; font-size:13.5px; margin-top:8px; }
+.bub.in { background:var(--paper); border:1px solid var(--line); }
+.bub.out { background:var(--pine-soft); margin-left:auto; }
+.trace { font-size:12px; color:var(--mut); margin-top:4px; }
+.ck { display:flex; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); align-items:flex-start; }
+.ck:last-child { border-bottom:none; }
+.ckdot { width:18px; height:18px; border-radius:50%; flex:none; margin-top:1px;
+  display:flex; align-items:center; justify-content:center; font-size:11px; }
+.ckdot.done { background:var(--ok-soft); color:var(--ok); }
+.ckdot.gap { background:var(--dang-soft); color:var(--dang); }
+.ckdot.wait { background:var(--warn-soft); color:var(--warn); }
+.ck .body { min-width:0; }
+.ck .t { font-size:14px; font-weight:500; }
+.ck .why { font-size:13px; color:var(--mut); margin-top:2px; max-width:62ch; }
+.doc { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); }
+.doc:last-child { border-bottom:none; }
+.doc .ic { width:34px; height:34px; border-radius:8px; background:var(--paper); border:1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--mut); flex:none; }
+.doc .nm { font-size:14px; font-weight:500; }
+.doc .st { font-size:12.5px; color:var(--mut); }
+.cal { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-top:8px; }
+.cal .h { font-size:11px; color:var(--mut); text-align:center; padding:2px 0; }
+.cal .d { aspect-ratio:1.15; border:1px solid var(--line); border-radius:7px; padding:4px 6px; font-size:12px; color:var(--mut); position:relative; }
+.cal .d.ev { border-color:var(--pine-line); }
+.cal .d.ev::after { content:""; position:absolute; left:6px; bottom:5px; width:6px; height:6px; border-radius:50%; background:var(--pine); }
+.cal .d.pay::after { background:var(--brass); }
+.cal .d.today { background:var(--pine-soft); color:var(--pine); font-weight:600; }
+.proc { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-size:13.5px; }
+.proc:last-child { border-bottom:none; }
+.lamp { width:9px; height:9px; border-radius:50%; flex:none; }
+.lamp.up { background:var(--ok); } .lamp.dn { background:var(--dang); }
+.bar { height:8px; border-radius:4px; background:var(--paper); overflow:hidden; margin-top:6px; }
+.bar i { display:block; height:100%; background:var(--pine); }
+.bar i.w { background:var(--warn); } .bar i.b { background:var(--brass); }
+.phone { width:320px; margin:18px auto 8px; border:1px solid var(--line); border-radius:34px;
+  background:var(--card); padding:12px 10px 18px; }
+.pnotch { width:110px; height:24px; background:var(--frame); border-radius:999px; margin:0 auto 10px; }
+.push { background:var(--frame); border:1px solid var(--line); border-radius:12px; padding:9px 12px; margin-bottom:12px; }
+.push .a { font-size:11px; color:var(--mut); }
+.push .b { font-size:13px; font-weight:500; }
+.tabbar { display:flex; justify-content:space-around; border-top:1px solid var(--line); margin-top:12px; padding-top:9px; font-size:10.5px; color:var(--mut); text-align:center; }
+.tabbar .on { color:var(--pine); font-weight:600; }
+table.ia { width:100%; border-collapse:collapse; font-size:14px; margin-top:12px; }
+table.ia th { text-align:left; font-size:12px; color:var(--mut); font-weight:500; padding:6px 10px; border-bottom:1px solid var(--line); }
+table.ia td { padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+.miss { border-left:3px solid var(--brass); border-radius:0; padding:2px 0 2px 14px; margin:14px 0; }
+.miss .t { font-weight:600; font-size:14.5px; }
+.miss .d { color:var(--mut); font-size:13.5px; max-width:66ch; }
+.arch { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; margin-top:12px; }
+.arch .a { border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+.arch .a.rec { border:2px solid var(--pine); }
+.arch .t { font-weight:600; margin-bottom:4px; }
+.arch .d { font-size:13.5px; color:var(--mut); }
+@media (max-width:640px){ .cols { grid-template-columns:minmax(0,1fr); } .folders { border-right:none; border-bottom:1px solid var(--line); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<button class="themebtn" onclick="var r=document.documentElement,d=r.getAttribute('data-theme')==='dark'||(!r.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme: dark)').matches);r.setAttribute('data-theme',d?'light':'dark')">Тема: свет / тьма</button>
+
+<div class="eyebrow">Концепт · 18.07.2026</div>
+<h1>LCB 2.0 — приложение для macOS и iPhone</h1>
+<p class="lede">Один продукт в двух формах: полное окно на Mac и карманная версия на iPhone. Ниже — все экраны в обеих темах (переключатель справа сверху), архитектура и то, чего не было в исходном списке.</p>
+
+<h2>Что в приложении, а что остаётся в вебе</h2>
+<p class="lede">Приложение — для ежедневных решений. Тех-аналитика и админка остаются страницами дашборда: они нужны раз в неделю и не должны загромождать пульт.</p>
+<table class="ia">
+  <tr><th>В приложении (ежедневное)</th><th>Остаётся в вебе (по случаю)</th></tr>
+  <tr><td>Сегодня: апрувы, дайджест, статус подключений</td><td>Architecture / process-map, глубокая AI-аналитика</td></tr>
+  <tr><td>Переписки с папками: LCB | Брокер, клиенты | музыканты | подрядчики</td><td>Change ledger, аудиты, spend-trace по вызовам</td></tr>
+  <tr><td>Воронка (те же папки, вид доской)</td><td>Полные логи процессов, kill-switches</td></tr>
+  <tr><td>Календарь + карточка события (чек-лист, документы, отправка)</td><td>Casting/outreach служебные страницы</td></tr>
+  <tr><td>Система: процессы, токены, бэкап — компактно</td><td>Shadow-панель приёмки (на 14 дней, потом в архив)</td></tr>
+</table>
+
+<h2>Экран 1 · Сегодня</h2>
+<div class="win">
+  <div class="tbar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="tname">LCB · Сегодня</span></div>
+  <div class="scr">
+    <div class="row" style="margin-bottom:12px">
+      <span class="pill p-ok">TG ● 3/3 сессии</span>
+      <span class="pill p-ok">WA ●</span>
+      <span class="pill p-ok">VK ●</span>
+      <span class="pill p-warn">Туннель · перезапущен 14:02</span>
+      <span class="pill p-ok">Бэкап ✓ 05:41</span>
+    </div>
+    <div class="grid g3">
+      <div class="stat"><div class="l">Ждут твоего решения</div><div class="v num" style="color:var(--brass)">3</div></div>
+      <div class="stat"><div class="l">Горячие лиды</div><div class="v num">5</div></div>
+      <div class="stat"><div class="l">Процессы</div><div class="v num">78/80</div></div>
+      <div class="stat"><div class="l">Спорные тени</div><div class="v num">2</div></div>
+    </div>
+    <div class="card hot">
+      <div class="chead"><span class="pill p-brass">деньги</span><span class="cname">@katevent · предоплата 50% за 22.08</span><span class="spacer mtext">12 мин назад</span></div>
+      <div class="mtext">Агент подготовил реквизиты ИП и текст. Отправка только по твоей кнопке.</div>
+      <div class="row" style="margin-top:10px"><span class="btn go">Разрешить</span><span class="btn">Текст</span><span class="btn stop">Стоп</span></div>
+    </div>
+    <div class="card">
+      <div class="chead"><span class="pill p-pine">драфт</span><span class="cname">Юдина · ответ по составу на 24.08</span><span class="spacer mtext">31 мин</span></div>
+      <div class="mtext">Non-money: уйдёт автоматически в 21:00, если не вмешаешься.</div>
+    </div>
+    <div class="card">
+      <div class="chead"><span class="cname">Дайджест дня</span><span class="spacer mtext">22:00 MSK</span></div>
+      <div class="mtext">14 приглушённых событий: 6 auto-stop, 3 presend-блока, 2 просроченных обещания, 3 broker-затыка. Всё с причинами внутри.</div>
+    </div>
+  </div>
+</div>
+<p class="cap">Первый экран — только то, что требует человека. Деньги всегда карточкой с кнопкой (латунная рамка), остальное живёт в дайджесте и не дёргает.</p>
+
+<h2>Экран 2 · Переписки — папки как в Telegram</h2>
+<div class="win">
+  <div class="tbar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="tname">LCB · Переписки</span></div>
+  <div class="cols">
+    <div class="folders">
+      <div class="dirsw"><span class="on">LCB</span><span>Брокер</span></div>
+      <div class="folder">Горячие <span class="n num">3</span></div>
+      <div class="folder sel">Переговоры <span class="n num">7</span></div>
+      <div class="folder">Ждём клиента <span class="n num">12</span></div>
+      <div class="folder">Follow-up <span class="n num">9</span></div>
+      <div class="folder">Оплатили <span class="n num">4</span></div>
+      <div class="folder" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px">Музыканты <span class="n num">4</span></div>
+      <div class="folder">Штатные LCB <span class="n num">2</span></div>
+    </div>
+    <div>
+      <div class="thr">
+        <div class="t1"><span class="who">@Mironova_wedding</span><span class="pill p-pine">Переговоры</span><span class="when">14:20</span></div>
+        <div class="prev">Клиент: А итоговая цена с саксофоном какая будет?</div>
+      </div>
+      <div class="thr" style="background:var(--paper)">
+        <div class="t1"><span class="who">Олеся · агентство Лето</span><span class="pill p-warn">ждём интервал</span><span class="when">вчера</span></div>
+        <div class="bub in">Добрый день! По таймингу уточню у площадки и вернусь.</div>
+        <div class="bub out">Спасибо! Для договора нужен точный интервал «с — до», без него бухгалтерия не выпускает.</div>
+        <div class="trace">агент · авто (presend ✓) · причина: чек-лист события просит интервал · <a style="color:var(--pine)">ручной режим</a></div>
+      </div>
+      <div class="thr">
+        <div class="t1"><span class="who">LAZ (штатный)</span><span class="pill p-mut">музыканты</span><span class="when">11:03</span></div>
+        <div class="prev">Ты: Сбор 16:30, форма чёрный верх. Такси согласовано.</div>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="cap">Папки = стадии воронки, они же — сортировка переписок. Направления LCB и Брокер разведены переключателем, музыканты и штатные — всегда отдельно от клиентов. Под каждым авто-ответом — след агента: почему написал и кнопка забрать диалог в ручной режим.</p>
+
+<h2>Экран 3 · Карточка мероприятия</h2>
+<div class="win">
+  <div class="tbar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="tname">Свадьба · 22.08 · Миронова</span></div>
+  <div class="scr">
+    <div class="chead">
+      <span class="cname" style="font-size:17px">Свадьба Мироновых · 22.08, Порто-Франко</span>
+      <span class="spacer"></span><span class="pill p-brass num">Бюджет 340 000 ₽ · предоплата 50% ✓</span>
+    </div>
+    <div class="row" style="margin:8px 0 4px">
+      <span class="pill p-ok">Ира (вокал)</span><span class="pill p-ok">Стас (вокал)</span>
+      <span class="pill p-ok">LAZ</span><span class="pill p-ok">Барабаны</span>
+      <span class="pill p-warn">Сакс — ждёт подтверждения</span>
+    </div>
+    <div class="card">
+      <div class="cname" style="margin-bottom:4px">Чек-лист · 9 из 12</div>
+      <div class="ck"><div class="ckdot done">✓</div><div class="body"><div class="t">Договор подписан, предоплата получена</div></div></div>
+      <div class="ck"><div class="ckdot gap">!</div><div class="body"><div class="t">Интервал выступления не подтверждён</div>
+        <div class="why">Почему авто не закрыл: ответ может дать только агентство. Что сделано: спросили Олесю 18.07, срок ответа — до 25.07, дальше эскалация тебе. Что ускорит: один звонок площадке.</div>
+        <div class="row" style="margin-top:6px"><span class="btn">Поторопить</span><span class="btn">Закрыть вручную</span></div></div></div>
+      <div class="ck"><div class="ckdot wait">…</div><div class="body"><div class="t">Паспорта на выезд · 4 из 5</div>
+        <div class="why">Ждём Teddy — напоминание ушло сегодня 10:00, повтор через 48 ч.</div></div></div>
+      <div class="ck"><div class="ckdot gap">!</div><div class="body"><div class="t">Тайминг-таблица не отправлена в чат состава</div>
+        <div class="why">Почему авто не сделал: тайминг зависит от интервала выше — закроется цепочкой сам, как только площадка ответит.</div></div></div>
+    </div>
+    <div class="card">
+      <div class="cname" style="margin-bottom:2px">Документы</div>
+      <div class="doc"><div class="ic">PDF</div><div><div class="nm">Договор v3 · подписан</div><div class="st">обновлён 15.07</div></div><span class="spacer"></span><span class="btn">Открыть</span><span class="btn go">Отправить…</span></div>
+      <div class="doc"><div class="ic">PDF</div><div><div class="nm">Тех-райдер · полный состав</div><div class="st">6 позиций света, 12 звука</div></div><span class="spacer"></span><span class="btn">Открыть</span><span class="btn go">Отправить…</span></div>
+      <div class="doc"><div class="ic">DOC</div><div><div class="nm">Репертуар · выбрано 32 трека</div><div class="st">согласован с клиентом 12.07</div></div><span class="spacer"></span><span class="btn">Открыть</span><span class="btn go">Отправить…</span></div>
+      <div class="mtext" style="margin-top:8px">«Отправить…» открывает контакты этой карточки: Олеся (агентство) · площадка · звукорежиссёр · чат состава. Уходит через пайплайн с ревью, не мимо него.</div>
+    </div>
+  </div>
+</div>
+<p class="cap">Звезда приложения. Каждый красный пункт отвечает на три вопроса: почему не хватает, почему автомат не закрыл сам, что сделает пайплайн дальше — и даёт кнопку ускорить или забрать на себя.</p>
+
+<h2>Экран 4 · Календарь</h2>
+<div class="win">
+  <div class="tbar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="tname">Август 2026</span></div>
+  <div class="scr">
+    <div class="cal">
+      <div class="h">Пн</div><div class="h">Вт</div><div class="h">Ср</div><div class="h">Чт</div><div class="h">Пт</div><div class="h">Сб</div><div class="h">Вс</div>
+      <div class="d">27</div><div class="d">28</div><div class="d">29</div><div class="d">30</div><div class="d">31</div><div class="d ev">1</div><div class="d">2</div>
+      <div class="d">3</div><div class="d">4</div><div class="d">5</div><div class="d">6</div><div class="d">7</div><div class="d ev pay">8</div><div class="d">9</div>
+      <div class="d">10</div><div class="d">11</div><div class="d">12</div><div class="d">13</div><div class="d">14</div><div class="d ev">15</div><div class="d">16</div>
+      <div class="d today">17</div><div class="d">18</div><div class="d">19</div><div class="d">20</div><div class="d">21</div><div class="d ev pay">22</div><div class="d">23</div>
+      <div class="d">24</div><div class="d">25</div><div class="d">26</div><div class="d">27</div><div class="d">28</div><div class="d ev">29</div><div class="d">30</div>
+    </div>
+    <div class="mtext" style="margin-top:10px">Зелёная точка — событие · латунная — событие с открытым денежным вопросом. Тап по дню открывает карточку.</div>
+  </div>
+</div>
+
+<h2>Экран 5 · Система</h2>
+<div class="win">
+  <div class="tbar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="tname">LCB · Система</span></div>
+  <div class="scr">
+    <div class="grid g3">
+      <div class="stat"><div class="l">Процессы</div><div class="v num">78 / 80</div></div>
+      <div class="stat"><div class="l">Расход целевой</div><div class="v num" style="color:var(--ok)">61%</div></div>
+      <div class="stat"><div class="l">Впустую</div><div class="v num" style="color:var(--warn)">14%</div></div>
+      <div class="stat"><div class="l">API сегодня</div><div class="v num">$0.31</div></div>
+    </div>
+    <div class="card">
+      <div class="cname" style="margin-bottom:4px">Лежат — и почему</div>
+      <div class="proc"><span class="lamp dn"></span> contract-autogenerate <span class="mtext">· молотилка same-fingerprint, пауза до новых данных · фикс едет</span><span class="spacer"></span><span class="btn">Рестарт</span></div>
+      <div class="proc"><span class="lamp dn"></span> ig-story-responder <span class="mtext">· IG-сессия протухла 16.07, нужен re-login</span><span class="spacer"></span><span class="btn">Инструкция</span></div>
+    </div>
+    <div class="card">
+      <div class="cname">Токены по провайдерам</div>
+      <div class="mtext" style="margin-top:6px">Claude CLI · 5ч окно <span class="num">62%</span></div><div class="bar"><i style="width:62%"></i></div>
+      <div class="mtext" style="margin-top:6px">Codex CLI · 5ч окно <span class="num">38%</span></div><div class="bar"><i style="width:38%"></i></div>
+      <div class="mtext" style="margin-top:6px">Antigravity · 24ч <span class="num">0 / 1000</span></div><div class="bar"><i class="w" style="width:2%"></i></div>
+      <div class="mtext" style="margin-top:6px">Paid API · дневной гейт <span class="num">$0.31 / $0.50</span></div><div class="bar"><i class="b" style="width:62%"></i></div>
+    </div>
+  </div>
+</div>
+<p class="cap">Не «жив ли PID», а «полезен ли»: у каждого лежащего процесса — причина словами и действие. Эффективность расхода — из spend-watchdog: целевой / впустую / неизвестно.</p>
+
+<h2>iPhone · тот же продукт, карманная выжимка</h2>
+<div class="phone">
+  <div class="pnotch"></div>
+  <div class="push"><div class="a">LCB · сейчас</div><div class="b">Деньги: @katevent готова внести предоплату — нужна твоя кнопка</div></div>
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="stat"><div class="l">Решения</div><div class="v num" style="color:var(--brass)">3</div></div>
+    <div class="stat"><div class="l">Горячие</div><div class="v num">5</div></div>
+  </div>
+  <div class="card hot" style="margin-top:10px">
+    <div class="chead"><span class="pill p-brass">деньги</span><span class="cname" style="font-size:13.5px">@katevent · предоплата</span></div>
+    <div class="row" style="margin-top:8px"><span class="btn go" style="font-size:12px">Разрешить</span><span class="btn stop" style="font-size:12px">Стоп</span></div>
+  </div>
+  <div class="tabbar"><span class="on">Сегодня</span><span>Чаты</span><span>Календарь</span><span>События</span><span>Система</span></div>
+</div>
+<p class="cap" style="text-align:center">На телефоне — решения и чтение. Тяжёлое (документы, чек-листы, система) открывается, но заточено под Mac.</p>
+
+<h2>Архитектура: как это построить</h2>
+<div class="arch">
+  <div class="a rec">
+    <div class="t">Рекомендую: PWA поверх нашего API</div>
+    <div class="d">Один код для Mac и iPhone. Ставится в Dock и на домашний экран, пуши на iOS работают (16.4+). Данные — те же ручки бэкенда, что у дашборда. Деньги-пуши дублируются в TG-бот как сейчас — двойной канал надёжнее. Старт возможен до переезда на сервер: через текущий туннель с токеном доступа.</div>
+  </div>
+  <div class="a">
+    <div class="t">Позже, по желанию: нативный SwiftUI</div>
+    <div class="d">Красивее пуши и виджеты на экране блокировки, но двойная кодовая база и нужен стабильный публичный API. Имеет смысл только после переезда ядра на сервер и cutover. Не сейчас.</div>
+  </div>
+</div>
+<p class="lede" style="margin-top:12px">Обязательное условие обеих схем: вход по ключу (это CRM с клиентскими данными — публичный туннель без авторизации уже был инцидентом), и read-only режим при недоступном бэкенде: приложение показывает последний снимок и честную плашку «офлайн».</p>
+
+<h2>Чего не было в твоём списке — а быть должно</h2>
+<div class="miss"><div class="t">1 · Очередь апрувов — первым экраном</div><div class="d">Сейчас кнопки живут в TG-боте. В приложении «ждут решения» — главная витрина: деньги, договоры, спорные драфты. Без этого приложение — просмотрщик, а не пульт.</div></div>
+<div class="miss"><div class="t">2 · Финансы события</div><div class="d">Предоплата/остаток/долг по каждому событию и сводка месяца. Бюджет в карточке есть в твоём списке, а денежного среза «кто нам должен и сколько» — не было.</div></div>
+<div class="miss"><div class="t">3 · Дайджест вместо шума</div><div class="d">Дневной обзор приглушённых событий с причинами — уже работает в TG, в приложении ему место на «Сегодня». Иначе вернёмся к 74 сообщениям в день.</div></div>
+<div class="miss"><div class="t">4 · Ручной режим одним тапом из переписки</div><div class="d">Забрать диалог у автоматики (и вернуть) прямо из треда — точечно, без глобальных рубильников. Механика в бэке уже есть.</div></div>
+<div class="miss"><div class="t">5 · След агента у каждого авто-ответа</div><div class="d">Почему написал, каким ревью прошло, что заблокировано. Это твой ответ на «агент молчит/пишет не то» без раскопок в логах.</div></div>
+<div class="miss"><div class="t">6 · Поиск по всему</div><div class="d">Контакт, событие, документ, фраза из переписки — одна строка поиска. На объёме в сотни тредов без него никак.</div></div>
+<div class="miss"><div class="t">7 · Здоровье бэкапа и сессий</div><div class="d">Свежая зелёная отметка offsite-копии и статус трёх TG-сессий — прямо в строке подключений. Тихая смерть любого из них — худший класс инцидентов.</div></div>
+<div class="miss"><div class="t">8 · Медиатека промо</div><div class="d">Быстрый доступ к промо-пакетам LCB и подрядчиков из карточки и из переписки: что верифицировано, что можно слать клиенту.</div></div>
+<div class="miss"><div class="t">9 · Вход и роли</div><div class="d">Ключ доступа, и на будущее — роль «музыкант видит только своё событие без денег». Открывает путь к мини-кабинету состава.</div></div>
+<div class="miss"><div class="t">10 · Панель приёмки (временная)</div><div class="d">Те самые карточки «старый решил / новый решил» на 14 дней shadow — прямо в приложении, чтобы свайпать спорные с телефона.</div></div>
+
+<h2>Порядок работ</h2>
+<p class="lede">1) Согласуем этот концепт → 2) токены доступа к API + PWA-обёртка текущего дашборда (ставится на оба устройства сразу) → 3) экраны «Сегодня» и «Переписки» на новых данных → 4) карточка события с чек-листом и отправкой документов → 5) после cutover — календарь/система и, по желанию, нативная оболочка. Новые экраны строятся на данных нового ядра — это и есть замена дашборда, без переписывания старого.</p>
+
+</div>
+</body>
+</html>
