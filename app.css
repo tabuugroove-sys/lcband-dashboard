@@ -376,3 +376,25 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
   color:var(--dang); border-color:var(--dang); }
 .sview .draftbar { margin-top:0; margin-bottom:8px; }
 .sview .draftbar + .composer { margin-top:0; }
+
+/* ── v2.5: плавающая дата, латунные бейджи «ждут», меню «⋯» ── */
+.fdatewrap { position:sticky; top:6px; height:0; z-index:6; text-align:center; pointer-events:none; }
+.fdate { display:inline-block; font-size:11.5px; color:var(--mut); background:var(--card);
+  border:1px solid var(--line); border-radius:999px; padding:3px 12px;
+  opacity:0; transition:opacity 0.25s; box-shadow:0 2px 8px rgba(0,0,0,0.14); }
+.fdate.show { opacity:1; }
+@media (max-width:899px) { .fdatewrap { top:calc(58px + env(safe-area-inset-top)); } }
+@media (prefers-reduced-motion: reduce) { .fdate { transition:none; } }
+
+.rbadge2 { background:var(--brass-fill); color:var(--on-brass); top:auto; bottom:-6px; }
+.linklike { color:var(--pine); text-decoration:underline; padding:4px 3px; font-size:inherit; min-height:32px; }
+
+.dots { padding:5px 11px; min-height:32px; font-weight:700; flex:none; }
+.dbdots { min-height:26px; padding:0 8px; font-weight:700; color:var(--brass);
+  border:1px solid var(--brass-fill); border-radius:8px; background:none; font-size:13px; }
+.dbdots.ok { color:var(--ok); border-color:var(--ok); }
+.ctxmenu { position:fixed; z-index:70; background:var(--card); border:1px solid var(--line);
+  border-radius:12px; box-shadow:0 8px 28px rgba(0,0,0,0.25); padding:4px; min-width:220px; }
+.ctxmenu button { display:block; width:100%; text-align:left; padding:11px 13px;
+  border-radius:8px; font-size:14px; min-height:40px; }
+.ctxmenu button:hover { background:var(--frame); }

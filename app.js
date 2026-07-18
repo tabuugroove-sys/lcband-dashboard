@@ -4,7 +4,7 @@
    Ручных отправок нет: наружу уходят только approval/send|reject по approval_id. */
 "use strict";
 
-const APP_VERSION = "2.4.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
+const APP_VERSION = "2.5.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
 
 const S = {
   base: null,

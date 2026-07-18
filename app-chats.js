@@ -201,7 +201,7 @@ function drawRail() {
   r.innerHTML = RAIL_ITEMS.map((it) => {
     const on = S.dir === it.dir && (it.dir !== "lcb" || S.folder === it.folder);
     return `<button class="ritem ${on ? "on" : ""}" data-k="${it.key}">
-      <span class="ricon">${it.icon}<span class="rbadge" data-b="${it.key}" hidden></span></span>
+      <span class="ricon">${it.icon}<span class="rbadge" data-b="${it.key}" hidden></span><span class="rbadge rbadge2" data-p="${it.key}" hidden></span></span>
       <span class="rlabel">${it.label}</span></button>`;
   }).join("");
   r.querySelectorAll(".ritem").forEach((b) => (b.onclick = () => {
@@ -252,6 +252,50 @@ async function updateRailBadges(lcbRows) {
   } else {
     set("all", by.lcb);
   }
+  // латунный бейдж: контакты с pending-черновиком в папке
+  const setP = (k, n) => {
+    const b = document.querySelector(`.rbadge2[data-p="${k}"]`);
+    if (!b) return;
+    n = +n || 0;
+    if (n > 0) { b.hidden = false; b.textContent = n > 99 ? "99+" : String(n); }
+    else b.hidden = true;
+  };
+  for (const p of pendingCountsByPlace()) setP(p.key, p.count);
+}
+/* контакты с pending-черновиком по папкам/направлениям:
+   musicians/broker — counters.pending_by_dir (fallback: подсчёт из кэша тредов),
+   LCB-подпапки — клиентский подсчёт по stage загруженных lcb-тредов */
+function pendingCountsByPlace() {
+  const out = [];
+  const cachedRows = (dir) => {
+    const hit = S.cache["/api/threads?dir=" + dir];
+    return hit && hit.data ? (hit.data.threads || hit.data.rows || []) : null;
+  };
+  const lcbRows = cachedRows("lcb");
+  if (lcbRows) {
+    const per = {};
+    let all = 0;
+    for (const t of lcbRows) {
+      if (!t.has_pending_approval) continue;
+      const st = t.__stage || stageOf(t);
+      per[st] = (per[st] || 0) + 1;
+      all++;
+    }
+    for (const it of RAIL_ITEMS.filter((x) => x.dir === "lcb")) {
+      out.push(Object.assign({}, it, { count: it.key === "all" ? all : (per[it.key] || 0) }));
+    }
+  }
+  const byDir = (S.counters && S.counters.pending_by_dir) || null;
+  for (const key of ["musicians", "broker"]) {
+    const it = RAIL_ITEMS.find((x) => x.key === key);
+    let n = byDir && byDir[key] != null ? +byDir[key] : null;
+    if (n == null) {
+      const rows = cachedRows(key);
+      n = rows ? rows.filter((t) => t.has_pending_approval).length : 0;
+    }
+    out.push(Object.assign({}, it, { count: n }));
+  }
+  return out;
 }
 
 /* направления/папки (mobile); на desktop счётчики капают в рейл */
@@ -353,14 +397,34 @@ async function drawThreads() {
   $("#chatsBar").innerHTML = anyUnread ? `<button class="btn" id="readAll">Прочитать всё</button>` : "";
   if (anyUnread) $("#readAll").onclick = () => markAllRead(list);
   listBox.innerHTML = list.slice(0, 100).map(threadRowHtml).join("")
-    || `<div class="empty">${S.pendingOnly ? "Черновиков агента нет" : "В этой папке тихо"}</div>`;
+    || (S.pendingOnly ? pendingEmptyHtml() : `<div class="empty">В этой папке тихо</div>`);
   if (fellBack) listBox.insertAdjacentHTML("beforeend",
     `<div class="mtext" style="text-align:center;margin-top:8px">Упрощённый список (без unread) — новая ручка тредов недоступна</div>`);
   listBox.querySelectorAll(".trow").forEach((b) => (b.onclick = () => {
     const nq = b.dataset.q;
     if (nq) nav("#chat/" + S.dir + "/" + encodeURIComponent(nq));
   }));
+  listBox.querySelectorAll(".linklike[data-hd]").forEach((b) => (b.onclick = () => {
+    S.dir = b.dataset.hd;
+    S.folder = b.dataset.hf; // фильтр «ждут» сохраняется
+    if (isDesktop()) { drawRail(); updateCountersRow(); drawThreads(); }
+    else renderChats();
+  }));
   markSelectedRow();
+}
+/* фильтр «ждут» пуст в этой папке → подсказка-ссылки, где черновики есть */
+function pendingEmptyHtml() {
+  const places = pendingCountsByPlace().filter((p) => {
+    if (p.count <= 0) return false;
+    if (p.dir === S.dir && (p.dir !== "lcb" || p.folder === S.folder)) return false; // текущая папка
+    return true;
+  });
+  // «Все LCB» показываем только если черновики вне именованных подпапок (stage=other)
+  const namedSum = places.filter((p) => p.dir === "lcb" && p.key !== "all").reduce((a, p) => a + p.count, 0);
+  const shown = places.filter((p) => p.key !== "all" || (p.count > namedSum));
+  if (!shown.length) return `<div class="empty">Черновиков агента нет</div>`;
+  return `<div class="empty">Черновики ждут в:<br>${shown.map((p) =>
+    `<button class="linklike" data-hd="${p.dir}" data-hf="${p.folder}">${p.icon} ${p.label} (${p.count})</button>`).join(" · ")}</div>`;
 }
 function threadRowHtml(t) {
   const nq = threadNavQ(t);
@@ -437,12 +501,28 @@ function threadShellHtml(row, q, channel, withBack) {
       <div class="tt"><div class="cname">${esc(title)}</div>
         <div class="mtext" id="thrSub">${esc(channel)}</div></div>
       <span class="spacer"></span><span id="tgOpen"></span>
+      <button class="btn dots" id="thrMenuBtn" title="Меню" aria-label="Меню треда">⋯</button>
     </div>
     <div id="chatView"><div class="skel"></div></div>
     <div id="threadFoot"></div>`;
 }
 async function startThread(dir, q, row, channel) {
-  S.chat = { dir, q, channel, row, msgs: [], meta: null, lastId: 0, err: null, src: "", outbox: [], sending: false, footMode: null, draft: null };
+  S.chat = { dir, q, channel, row, msgs: [], meta: null, lastId: 0, err: null, src: "", outbox: [], sending: false, footMode: null, draft: null, reportedDraftId: null };
+  const mb = $("#thrMenuBtn");
+  if (mb) mb.onclick = (e) => {
+    e.stopPropagation();
+    const items = [{ label: "🔧 Отправить на разбор", fn: () => reportIssue("thread") }];
+    const un = S.chat ? threadUsername(S.chat) : "";
+    if (un) items.push({
+      label: "Скопировать @" + un,
+      fn: () => {
+        if (navigator.clipboard) navigator.clipboard.writeText("@" + un).then(() => toast("Скопировано: @" + un)).catch(() => {});
+      },
+    });
+    openCtxMenu(mb, items);
+  };
+  const cv = $("#chatView");
+  if (cv) cv.addEventListener("scroll", floatDateOnScroll, { passive: true }); // плавающая дата (desktop-панель)
   drawComposer(); // до meta — по row/q; после loadThread уточнится
   await loadThread(true);
   startPoll("screen:thread", pollThread, channel === "WA" ? 30000 : 15000);
@@ -664,9 +744,16 @@ function drawDraftBar() {
   const c = S.chat;
   if (!c || !c.draft) { bar.hidden = true; bar.innerHTML = ""; return; }
   bar.hidden = false;
+  const reported = c.reportedDraftId === c.draft.id;
   bar.innerHTML = `✋ Черновик агента${c.draft.money ? " · деньги" : ""}<span class="spacer"></span>
+    <button class="dbdots${reported ? " ok" : ""}" id="draftMenuBtn" title="Меню черновика"${reported ? " disabled" : ""}>${reported ? "✓" : "⋯"}</button>
     <button class="btn dbreject" id="draftReject">Отклонить</button>`;
   $("#draftReject").onclick = rejectThreadDraft;
+  const dm = $("#draftMenuBtn");
+  if (dm && !reported) dm.onclick = (e) => {
+    e.stopPropagation();
+    openCtxMenu(dm, [{ label: "🔧 Отправить на разбор", fn: () => reportIssue("draft") }]);
+  };
 }
 async function rejectThreadDraft() {
   const c = S.chat;
@@ -817,7 +904,8 @@ function drawThreadMsgs() {
   const c = S.chat;
   const v = $("#chatView");
   if (!c || !v) return;
-  let html = "";
+  // плавающая дата при прокрутке: липкий чип поверх ленты (как в Telegram)
+  let html = `<div class="fdatewrap"><span class="fdate" id="floatDate"></span></div>`;
   if (c.msgs.length >= 40) html += `<div class="mtext" style="text-align:center;margin:6px 0">показаны последние 40 сообщений</div>`;
   if (c.err && !c.msgs.length) {
     const e = c.err;
@@ -828,18 +916,20 @@ function drawThreadMsgs() {
   let lastDay = "";
   for (const m of c.msgs) {
     const day = m.__epoch ? mskDateIso(new Date(m.__epoch * 1000)) : "";
-    if (day && day !== lastDay) { html += `<div class="bubday"><span>${esc(dayLabel(m.__epoch))}</span></div>`; lastDay = day; }
+    const dl = m.__epoch ? dayLabel(m.__epoch) : "";
+    if (day && day !== lastDay) { html += `<div class="bubday" data-day="${esc(dl)}"><span>${esc(dl)}</span></div>`; lastDay = day; }
     const stamp = m.__epoch ? mskHM(new Date(m.__epoch * 1000)) : String(m.date || "").slice(0, 16);
-    html += `<div class="bub ${m.out ? "out" : "in"}">${esc(trunc(m.text || "", 4000)) || (m.media ? "📎 медиа" : "")}
+    html += `<div class="bub ${m.out ? "out" : "in"}"${dl ? ` data-day="${esc(dl)}"` : ""}>${esc(trunc(m.text || "", 4000)) || (m.media ? "📎 медиа" : "")}
       <div class="bmeta">${esc(stamp)}${m.out ? " · мы" : ""}</div></div>`;
   }
   // операторские отправки этой сессии (optimistic / fail / sent до серверного эха)
+  const todayLbl = dayLabel(Math.round(Date.now() / 1000));
   html += (c.outbox || []).map((o, i) => {
     const t = esc(trunc(o.text, 4000));
-    if (o.status === "pending") return `<div class="bub out op-pending">${t}<div class="bmeta">отправляется…</div></div>`;
-    if (o.status === "fail") return `<div class="bub out op-fail">${t}<div class="bmeta">не ушло: ${esc(o.err || "ошибка")}</div>
+    if (o.status === "pending") return `<div class="bub out op-pending" data-day="${esc(todayLbl)}">${t}<div class="bmeta">отправляется…</div></div>`;
+    if (o.status === "fail") return `<div class="bub out op-fail" data-day="${esc(todayLbl)}">${t}<div class="bmeta">не ушло: ${esc(o.err || "ошибка")}</div>
       <button class="btn opretry" data-ob="${i}">Повторить</button></div>`;
-    return `<div class="bub out">${t}<div class="bmeta">${esc(mskHM(new Date((o.epoch || 0) * 1000)))} · мы</div></div>`;
+    return `<div class="bub out" data-day="${esc(todayLbl)}">${t}<div class="bmeta">${esc(mskHM(new Date((o.epoch || 0) * 1000)))} · мы</div></div>`;
   }).join("");
   if (!c.msgs.length && !(c.outbox || []).length && !c.err) html += `<div class="empty">Локальная история пуста</div>`;
   if (c.src && c.msgs.length) html += `<div class="mtext" style="margin:10px 0;text-align:center">Источник: ${esc(c.src)}</div>`;
@@ -850,6 +940,97 @@ function drawThreadMsgs() {
     if (o.apId) sendApprovalDraft({ id: o.apId, text: o.text, money: false }, o); // confirm уже был при первой попытке
     else operatorSend(o.text, o, null);
   }));
+}
+
+/* ── плавающая дата при прокрутке треда (rAF-троттлинг, автоскрытие ~1с) ── */
+let _fdRaf = 0, _fdTimer = 0;
+function floatDateOnScroll() {
+  if (_fdRaf) return;
+  _fdRaf = requestAnimationFrame(() => { _fdRaf = 0; floatDateTick(); });
+}
+function floatDateTick() {
+  const v = $("#chatView");
+  const chip = $("#floatDate");
+  if (!v || !chip || !S.chat) return;
+  const inPanel = !!v.closest(".sview");
+  const tb = document.getElementById("topbar");
+  const boundary = inPanel ? v.getBoundingClientRect().top : ((tb ? tb.getBoundingClientRect().bottom : 0));
+  let label = "";
+  for (const el2 of v.children) {
+    if (!el2.dataset || !el2.dataset.day) continue;
+    if (el2.getBoundingClientRect().bottom > boundary + 6) { label = el2.dataset.day; break; }
+  }
+  if (!label) return;
+  chip.textContent = label;
+  chip.classList.add("show");
+  clearTimeout(_fdTimer);
+  _fdTimer = setTimeout(() => { const c2 = $("#floatDate"); if (c2) c2.classList.remove("show"); }, 1000);
+}
+/* mobile: скроллится window, а не #chatView */
+window.addEventListener("scroll", () => {
+  if (typeof S !== "undefined" && S.chat && !isDesktop()) floatDateOnScroll();
+}, { passive: true });
+
+/* ── меню «⋯»: отправить на разбор / скопировать username ───────────────── */
+function closeCtxMenu() {
+  const m = $("#ctxMenu");
+  if (m) m.remove();
+  document.removeEventListener("click", _ctxOutside, true);
+  document.removeEventListener("keydown", _ctxEsc, true);
+}
+function _ctxOutside(e) {
+  if (!e.target.closest || !e.target.closest("#ctxMenu")) closeCtxMenu();
+}
+function _ctxEsc(e) {
+  if (e.key === "Escape") { e.stopPropagation(); closeCtxMenu(); }
+}
+function openCtxMenu(anchor, items) {
+  closeCtxMenu();
+  const m = el(`<div id="ctxMenu" class="ctxmenu">${items.map((it, i) =>
+    `<button data-i="${i}">${esc(it.label)}</button>`).join("")}</div>`);
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect();
+  m.style.top = Math.max(8, Math.min(window.innerHeight - m.offsetHeight - 8, r.bottom + 6)) + "px";
+  m.style.left = Math.max(8, Math.min(window.innerWidth - m.offsetWidth - 8, r.right - m.offsetWidth)) + "px";
+  m.querySelectorAll("button").forEach((b) => (b.onclick = (e) => {
+    e.stopPropagation();
+    const it = items[+b.dataset.i];
+    closeCtxMenu();
+    if (it) it.fn();
+  }));
+  setTimeout(() => {
+    document.addEventListener("click", _ctxOutside, true);
+    document.addEventListener("keydown", _ctxEsc, true);
+  }, 0);
+}
+/* самолечение: POST /api/app/report_issue — контекст треда/черновика + заметка */
+async function reportIssue(source) {
+  const c = S.chat;
+  if (!c) return;
+  const note = prompt("Что не так? Коротко");
+  if (note == null || !note.trim()) return;
+  const draftId = source === "draft" && c.draft ? c.draft.id : null;
+  const body = {
+    source,
+    dir: c.dir,
+    thread: threadUsername(c) || threadReadKey(c) || c.q,
+    note: note.trim().slice(0, 500),
+    last_msgs: c.msgs.slice(-6).map((m) => ({ ts: m.__epoch || 0, out: !!m.out, text: trunc(String(m.text || ""), 200) })),
+  };
+  if (draftId) {
+    body.approval_id = draftId;
+    body.draft_text = trunc(String(c.draft.text || ""), 500);
+  }
+  try {
+    await api("/api/app/report_issue", { method: "POST", body, timeout: 30000 });
+    toast("Отправлено на разбор — агент разберётся и починит; результат придёт в дайджест");
+    if (draftId) { c.reportedDraftId = draftId; drawDraftBar(); } // ⋯ → ✓ на полоске
+  } catch (e) {
+    if (e.status === 404) toast("Разбор ещё не подключён", true);
+    else if (e.status === 403) toast("Нужен код доступа — введи в шторке индикатора", true);
+    else if (e.status === 409 || e.status === 503) toast("Не принято: " + ((e.data && e.data.error) || e.status), true);
+    else if (!e.network) toast("Не вышло: " + e.message, true);
+  }
 }
 
 /* app-локальный read-state (§4.2.3). КАНОН: только POST /api/app/read;
