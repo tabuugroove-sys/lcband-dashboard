@@ -4,7 +4,7 @@
    Ручных отправок нет: наружу уходят только approval/send|reject по approval_id. */
 "use strict";
 
-const APP_VERSION = "2.9.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
+const APP_VERSION = "3.0.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
 
 const S = {
   base: null,
@@ -24,6 +24,7 @@ const S = {
   pendingOnly: false, // фильтр «только с черновиком агента» (счётчик «ждут»)
   counters: null,
   thrIndex: {},
+  stallMap: {}, // username → epoch последнего молчания агента за 24ч (значок ⚠ в списке)
   chat: null,
   readTimer: null,
   lastList: null, // отфильтрованный список тредов (для «есть ли тред в папке»)

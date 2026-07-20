@@ -359,6 +359,57 @@ function drawFolders(rows) {
   f.querySelectorAll("button").forEach((b) => (b.onclick = () => { S.folder = b.dataset.f; drawThreads(); }));
 }
 
+/* ── молчания агента: «хотел ответить, но остановился» (Михаил 20.07) ─────
+   Раньше это уходило только в дневной дайджест, и тред в мессенджере выглядел
+   так, будто ничего не происходило. Источник — /api/app/thread_events (read-only
+   срез notify_digest_queue.jsonl). Ручка только в v1: у Core своей ленты нет. */
+/* ключ сравнения с account в очереди: без @/регистра, служебный id-префикс снят
+   (тред без username живёт как id<digits>, в очереди тот же контакт — @<digits>) */
+function stallKey(username) {
+  const k = String(username || "").replace(/^@/, "").trim().toLowerCase();
+  if (/^id:?\d+$/.test(k)) return k.replace(/^id:?/, "");
+  return k;
+}
+function stallEpoch(ts) {
+  const t = parseDateFlexible(ts || "");
+  return isNaN(t) ? 0 : Math.round(t / 1000);
+}
+async function fetchThreadEvents(username) {
+  const key = stallKey(username);
+  if (S.brain === "core2" || !key) return [];
+  const path = "/api/app/thread_events?limit=20&thread=" + encodeURIComponent(key);
+  try {
+    const r = await api(path, { ttl: 30000 });
+    return (r.events || [])
+      .map((e) => Object.assign({}, e, { __epoch: stallEpoch(e.ts) }))
+      .filter((e) => e.__epoch > 0);
+  } catch (e) {
+    warnOnce("thrEvents", "GET /api/app/thread_events недоступна (" + (e.status || "сеть") +
+      ") — молчания агента в ленте не показываются");
+    return [];
+  }
+}
+/* карта «у кого за 24ч агент промолчал» для значка ⚠ в списке тредов */
+async function fetchStallMap() {
+  if (S.brain === "core2") return {};
+  try {
+    const r = await api("/api/app/thread_events?limit=200", { ttl: 60000 });
+    const cutoff = Math.round(Date.now() / 1000) - 86400;
+    const map = {};
+    for (const e of r.events || []) {
+      const ep = stallEpoch(e.ts);
+      const acc = stallKey(e.account);
+      if (!acc || ep < cutoff) continue;
+      if (!map[acc] || ep > map[acc]) map[acc] = ep;
+    }
+    return map;
+  } catch (e) {
+    warnOnce("thrEvents", "GET /api/app/thread_events недоступна (" + (e.status || "сеть") +
+      ") — молчания агента в ленте не показываются");
+    return {};
+  }
+}
+
 async function drawThreads() {
   const listBox = $("#thrList");
   if (!listBox) return;
@@ -419,6 +470,7 @@ async function drawThreads() {
     S.folderRevealQ = null;
   }
   drawFolders(rows);
+  S.stallMap = await fetchStallMap(); // ⚠ у строк, где агент промолчал за 24ч
   let list = rows.slice();
   if (S.dir === "lcb" && S.folder !== "all") list = list.filter((t) => t.__stage === S.folder);
   if (S.unreadOnly) list = list.filter((t) => +t.unread > 0);
@@ -471,6 +523,8 @@ function threadRowHtml(t) {
   const prev = t.preview != null && t.preview !== ""
     ? (t.preview_out ? "Вы: " : "") + t.preview
     : (t.status || "");
+  // ⚠ только если мяч у нас: последнее сообщение входящее И агент промолчал за 24ч
+  const stallFlag = !t.preview_out && uname && S.stallMap && S.stallMap[stallKey(uname)];
   return `<button class="thr trow" data-q="${esc(nq)}">
     ${avatarHtml(t)}
     <span class="tmain">
@@ -478,6 +532,7 @@ function threadRowHtml(t) {
         ${uname ? `<span class="uname">@${esc(uname)}</span>` : ""}
         <span class="when">${esc(when)}</span></span>
       <span class="t2"><span class="prev">${esc(trunc(prev, 120))}</span>
+        ${stallFlag ? `<span class="stall-warn" title="агент хотел ответить, но остановился — смотри тред">⚠</span>` : ""}
         ${t.has_pending_approval ? `<span class="pend-dot" title="есть черновик — ждёт подтверждения"></span>` : ""}
         ${unreadBadge(t.unread)}</span>
     </span></button>`;
@@ -546,7 +601,7 @@ function threadShellHtml(row, q, channel, withBack) {
     <div id="threadFoot"></div>`;
 }
 async function startThread(dir, q, row, channel) {
-  S.chat = { dir, q, channel, row, msgs: [], meta: null, lastId: 0, err: null, src: "", outbox: [], sending: false, footMode: null, draft: null, reportedDraftId: null };
+  S.chat = { dir, q, channel, row, msgs: [], meta: null, lastId: 0, err: null, src: "", outbox: [], sending: false, footMode: null, draft: null, reportedDraftId: null, events: [] };
   const mb = $("#thrMenuBtn");
   if (mb) mb.onclick = (e) => {
     e.stopPropagation();
@@ -651,6 +706,7 @@ async function loadThread(initial) {
   drawTgOpen();
   drawComposer();
   await refreshThreadDraft(true); // pending-черновик агента → в поле ввода
+  c.events = await fetchThreadEvents(threadUsername(c)); // молчания агента → в ленту
   drawThreadMsgs();
   if (initial && !c.err) chatScrollBottom(true);
 }
@@ -663,6 +719,10 @@ async function pollThread() {
     const inc = (r.messages || [])
       .map((m) => Object.assign({}, m, { __epoch: msgEpoch(m) }))
       .filter((m) => (+m.id || 0) > c.lastId);
+    // новое молчание агента должно появиться в ленте без перезахода в тред
+    const evsBefore = (c.events || []).length;
+    c.events = await fetchThreadEvents(threadUsername(c));
+    if (!inc.length && c.events.length !== evsBefore) drawThreadMsgs();
     if (inc.length) {
       c.msgs = c.msgs.concat(inc);
       c.lastId = c.msgs.reduce((a, m) => Math.max(a, +m.id || 0), 0);
@@ -949,6 +1009,26 @@ function dayLabel(ep) {
   const d = new Date(ep * 1000);
   return mskParts(d).year === mskParts(new Date()).year ? _dayFmt.format(d) : _dayYearFmt.format(d);
 }
+/* системная плашка в ленте (не пузырь): «агент хотел ответить, но остановился».
+   transient — инфра-сбой, агент повторит сам; остальное — решение, ждёт человека */
+const _STALL_PREFIXES = ["автоответ остановлен:", "silent:", "presend заблокировал",
+  "2 заблокированных драфтов подряд:"];
+function shortStallReason(reason) {
+  let s = String(reason || "").trim();
+  for (let i = 0; i < 3; i++) {
+    const low = s.toLowerCase();
+    const hit = _STALL_PREFIXES.find((p) => low.startsWith(p));
+    if (!hit) break;
+    s = s.slice(hit.length).trim().replace(/^[:—-]\s*/, "");
+  }
+  return s || "причина не записана";
+}
+function sysEventHtml(e, dl) {
+  const note = e.transient ? "повторит сам" : "ждёт тебя";
+  return `<div class="sysev${e.transient ? " tr" : ""}" data-day="${esc(dl)}" title="${esc((e.kind || "") + " · " + (e.module || "") + " · " + (e.reason || ""))}">
+    <span class="sysevtxt">⚠ Агент не ответил: ${esc(trunc(shortStallReason(e.reason), 160))}
+      <span class="sysevnote">(${esc(note)})</span></span></div>`;
+}
 function drawThreadMsgs() {
   const c = S.chat;
   const v = $("#chatView");
@@ -963,14 +1043,28 @@ function drawThreadMsgs() {
       : "Ошибка: " + esc(e.message)}</div>`;
   }
   let lastDay = "";
+  // системные плашки «агент не ответил» встают в общую хронологию по ts
+  const evs = (c.events || []).slice().sort((a, b) => a.__epoch - b.__epoch);
+  let ei = 0;
+  const flushEvents = (untilEp) => {
+    while (ei < evs.length && (untilEp == null || evs[ei].__epoch <= untilEp)) {
+      const e = evs[ei++];
+      const day = mskDateIso(new Date(e.__epoch * 1000));
+      const dl = dayLabel(e.__epoch);
+      if (day !== lastDay) { html += `<div class="bubday" data-day="${esc(dl)}"><span>${esc(dl)}</span></div>`; lastDay = day; }
+      html += sysEventHtml(e, dl);
+    }
+  };
   for (const m of c.msgs) {
     const day = m.__epoch ? mskDateIso(new Date(m.__epoch * 1000)) : "";
     const dl = m.__epoch ? dayLabel(m.__epoch) : "";
+    if (m.__epoch) flushEvents(m.__epoch);
     if (day && day !== lastDay) { html += `<div class="bubday" data-day="${esc(dl)}"><span>${esc(dl)}</span></div>`; lastDay = day; }
     const stamp = m.__epoch ? mskHM(new Date(m.__epoch * 1000)) : String(m.date || "").slice(0, 16);
     html += `<div class="bub ${m.out ? "out" : "in"}"${dl ? ` data-day="${esc(dl)}"` : ""}>${esc(trunc(m.text || "", 4000)) || (m.media ? "📎 медиа" : "")}
       <div class="bmeta">${esc(stamp)}${m.out ? " · мы" : ""}</div></div>`;
   }
+  flushEvents(null); // молчания свежее последнего сообщения — в хвост ленты
   // операторские отправки этой сессии (optimistic / fail / sent до серверного эха)
   const todayLbl = dayLabel(Math.round(Date.now() / 1000));
   html += (c.outbox || []).map((o, i) => {
