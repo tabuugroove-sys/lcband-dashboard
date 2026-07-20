@@ -1,10 +1,10 @@
 /* LCB app v2 — точка входа: состояние S, роутер, APP_VERSION, обновление PWA (§5.6).
    Модули: app-api.js (API/индикатор), app-cal.js, app-chats.js, app-today.js,
-   app-event.js, app-sys.js — подключаются <script>-тегами до этого файла.
+   app-event.js, app-assurance.js, app-sys.js — подключаются <script>-тегами до этого файла.
    Ручных отправок нет: наружу уходят только approval/send|reject по approval_id. */
 "use strict";
 
-const APP_VERSION = "3.0.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
+const APP_VERSION = "3.1.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
 
 const S = {
   base: null,
@@ -36,7 +36,7 @@ const S = {
 };
 
 /* ── роутинг ────────────────────────────────────────────────────────────── */
-const SCREENS = { cal: "scr-cal", chats: "scr-chats", today: "scr-today", sys: "scr-sys", cast: "scr-cast", core2: "scr-core2", view: "scr-view" };
+const SCREENS = { cal: "scr-cal", chats: "scr-chats", today: "scr-today", sys: "scr-sys", cast: "scr-cast", core2: "scr-core2", assurance: "scr-assurance", view: "scr-view" };
 function nav(hash) { location.hash = hash; }
 function route() {
   stopPollsByPrefix("screen:");
@@ -48,6 +48,7 @@ function route() {
   // desktop (≥900px): тред живёт в split-панели экрана «Чаты», не в отдельном view
   const deskChat = name === "chat" && typeof isDesktop === "function" && isDesktop();
   const tab = ["cal", "today", "chats", "sys", "cast", "core2"].includes(name) ? name
+    : name === "assurance" ? "assurance"
     : deskChat ? "chats"
     : (name === "event" || name === "chat" ? "view" : "cal");
   S.tab = tab;
@@ -56,7 +57,8 @@ function route() {
   // сохраняет текущий мозг — открытый из LCB 2.0 тред читает Core
   if (name !== "core2" && !(name === "chat" && !deskChat)) S.brain = "v1";
   for (const [k, id] of Object.entries(SCREENS)) $("#" + id).classList.toggle("on", k === tab);
-  const hiTab = tab === "view" ? (name === "chat" ? "chats" : "cal") : tab;
+  const hiTab = name === "assurance" ? (rawArg === "core2" ? "core2" : "sys")
+    : tab === "view" ? (name === "chat" ? "chats" : "cal") : tab;
   document.querySelectorAll("#tabbar button").forEach((b) => b.classList.toggle("on", b.dataset.tab === hiTab));
   if (name === "cal") renderCal();
   else if (name === "today") renderToday();
@@ -64,6 +66,7 @@ function route() {
   else if (name === "sys") renderSys();
   else if (name === "cast") renderCast();
   else if (name === "core2") renderCore2();
+  else if (name === "assurance") renderAssurance(rawArg || "sys");
   else if (name === "event") renderEvent(decodeURIComponent(rawArg || ""));
   else if (name === "chat") {
     let dir = "lcb", rq = rawArg || "";

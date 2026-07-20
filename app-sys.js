@@ -4,9 +4,11 @@
 async function renderSys() {
   const box = $("#scr-sys");
   box.innerHTML = `<div class="stats" id="sysKpi"></div>
+    ${assuranceEntryHtml("sysAssurance")}
     <div class="card"><div class="cname">Процессы за 24ч</div><div id="procBox"><div class="skel"></div></div></div>
     <div class="card"><div class="cname">Токены сегодня</div><div id="tokBox"><div class="skel"></div></div></div>
     <div class="card"><div class="cname">Здоровье рантайма</div><div id="rhBox"><div class="skel"></div></div></div>`;
+  bindAssuranceEntry("sysAssurance", "sys");
   try {
     const [act, usage, rh, tun] = await Promise.all([
       api("/api/process_activity_24h", { ttl: 120000 }),

@@ -75,10 +75,12 @@ async function renderCore2() {
   const box = $("#scr-core2");
   box.innerHTML = `
     <div id="c2Status"><div class="skel"></div></div>
+    ${assuranceEntryHtml("c2Assurance")}
     <div class="dirsw" id="c2Tabs" style="margin-top:8px">${C2_TABS.map((t) =>
       `<button data-t="${t.key}" class="${S.c2tab === t.key ? "on" : ""}">${t.label}</button>`).join("")}</div>
     <div id="c2Body" style="margin-top:10px"><div class="skel"></div></div>
     <div class="mtext" style="margin:10px 0">Это витрина: приложение в core.db не пишет (read-only). Мозги этого экрана — новое ядро Core.</div>`;
+  bindAssuranceEntry("c2Assurance", "core2");
   $("#c2Tabs").querySelectorAll("button").forEach((b) => (b.onclick = () => {
     if (S.c2tab !== b.dataset.t) { S.c2tab = b.dataset.t; renderCore2(); }
   }));
