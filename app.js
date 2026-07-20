@@ -4,14 +4,14 @@
    Ручных отправок нет: наружу уходят только approval/send|reject по approval_id. */
 "use strict";
 
-const APP_VERSION = "2.5.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
+const APP_VERSION = "2.6.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
 
 const S = {
   base: null,
   token: localStorage.getItem("lcb_app_token") || "",
   tab: null,
   month: null, // Date первого числа показанного месяца
-  layers: { events: true, leads: true, cancelled: true },
+  layers: { events: true, leads: true, followup: true, cancelled: true, broker: true },
   cache: {}, // path -> {t, data, etag}
   offline: false,
   offlineAt: null, // epoch ms снимка из SW-кэша

@@ -18,6 +18,30 @@ function calLayerReason(e) {
   if (e.status === 403) return "нужен ключ — шторка индикатора";
   return e.status ? "ошибка " + e.status : "сеть";
 }
+/* брокерские даты приходят строками «17.07» / «1 августа» — год эвристикой:
+   собранная дата ушла в прошлое больше чем на ~45 дней → следующий год */
+const BROKER_MONTHS = { "января": 1, "февраля": 2, "марта": 3, "апреля": 4, "мая": 5, "июня": 6,
+  "июля": 7, "августа": 8, "сентября": 9, "октября": 10, "ноября": 11, "декабря": 12 };
+function _calIso(y, mo, d) { return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`; }
+function brokerDateIso(s) {
+  s = String(s || "").trim().toLowerCase();
+  if (!s) return null;
+  let d = null, mo = null;
+  let m = s.match(/^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?/);
+  if (m) {
+    d = +m[1]; mo = +m[2];
+    if (m[3]) { let y = +m[3]; if (y < 100) y += 2000; return _calIso(y, mo, d); }
+  } else {
+    m = s.match(/^(\d{1,2})\s+([а-яё]+)/);
+    if (m && BROKER_MONTHS[m[2]]) { d = +m[1]; mo = BROKER_MONTHS[m[2]]; }
+  }
+  if (!d || !mo || mo > 12 || d > 31) return null;
+  const today = mskDateIso(new Date());
+  const y = +today.slice(0, 4);
+  const cand = _calIso(y, mo, d);
+  const diffDays = (Date.parse(cand) - Date.parse(today)) / 86400000;
+  return diffDays < -45 ? _calIso(y + 1, mo, d) : cand;
+}
 async function renderCal() {
   const box = $("#scr-cal");
   if (!S.month) { const n = new Date(); S.month = new Date(n.getFullYear(), n.getMonth(), 1); }
@@ -30,7 +54,9 @@ async function renderCal() {
     <div class="callay">
       <button class="lay ${S.layers.events ? "on" : ""}" data-l="events">События</button>
       <button class="lay ${S.layers.leads ? "on" : ""}" data-l="leads">Лиды с датами</button>
+      <button class="lay warn ${S.layers.followup ? "on" : ""}" data-l="followup">Follow-up</button>
       <button class="lay ${S.layers.cancelled ? "on" : ""}" data-l="cancelled">Отменённые</button>
+      <button class="lay ${S.layers.broker ? "on" : ""}" data-l="broker">Брокер</button>
     </div>
     <div id="calGrid"><div class="skel"></div></div>
     <div id="calNote" class="mtext" style="margin-top:8px"></div>
@@ -42,10 +68,11 @@ async function renderCal() {
   startPoll("screen:cal", () => {
     delete S.cache["/api/events?include_past=1"];
     delete S.cache["/api/leads_with_dates"];
+    delete S.cache["/api/threads?dir=broker"];
     renderCal();
   }, 60000);
 
-  let events = [], leads = [], evErr = null, leadErr = null;
+  let events = [], leads = [], broker = [], evErr = null, leadErr = null, brokerErr = null;
   try {
     const r = await api("/api/events?include_past=1", { ttl: 60000 });
     events = r.events || [];
@@ -54,6 +81,12 @@ async function renderCal() {
     const r = await api("/api/leads_with_dates", { ttl: 60000 });
     leads = r.leads || [];
   } catch (e) { leadErr = e; }
+  if (S.layers.broker) {
+    try {
+      const r = await api("/api/threads?dir=broker", { ttl: 60000 });
+      broker = r.threads || r.rows || [];
+    } catch (e) { brokerErr = e; }
+  }
 
   const byDay = {};
   const put = (iso, chip) => { if (!iso) return; (byDay[iso] = byDay[iso] || []).push(chip); };
@@ -62,8 +95,29 @@ async function renderCal() {
     if (cls === "c-cxl" && !S.layers.cancelled) continue;
     put(ev.date, { cls, label: (cls === "c-cxl" ? "✕ " : "") + (ev.title || ev.linked_order_client || ev.id), href: "#event/" + encodeURIComponent(ev.id), sub: ev.business_state || "" });
   }
-  if (S.layers.leads) for (const l of leads) {
-    put(l.event_date_iso, { cls: leadColor(l), label: (l.client || l.username || "лид"), href: l.username ? "#chat/lcb/" + encodeURIComponent(l.username) : "#chats", sub: l.status || "" });
+  // Follow-up-лиды — отдельный слой (то же соответствие статусов, что папка в чатах);
+  // остальные лиды сохраняют цвет по стадии (contract/prepayment — латунь)
+  const FU_LEAD_STATUSES = ["Follow-up", "Посредник"];
+  for (const l of leads) {
+    const isFu = FU_LEAD_STATUSES.includes(String(l.status || ""));
+    if (isFu ? !S.layers.followup : !S.layers.leads) continue;
+    put(l.event_date_iso, {
+      cls: isFu ? "c-neg" : leadColor(l),
+      label: (isFu ? "⏳ " : "") + (l.client || l.username || "лид"),
+      href: l.username ? "#chat/lcb/" + encodeURIComponent(l.username) : "#chats",
+      sub: l.status || "",
+    });
+  }
+  if (S.layers.broker) for (const b of broker) {
+    const iso = brokerDateIso(b.event_date);
+    if (!iso) continue;
+    const nq = threadNavQ(b);
+    put(iso, {
+      cls: "c-brk",
+      label: "🤝 " + (b.display || b.username || "брокер"),
+      href: nq ? "#chat/broker/" + encodeURIComponent(nq) : "#chats",
+      sub: b.status || "",
+    });
   }
 
   const q = S.search.toLowerCase();
@@ -97,6 +151,7 @@ async function renderCal() {
   if (evErr && leadErr) note = `⚠ Слои событий и лидов недоступны (${calLayerReason(evErr)}) — календарь может быть пустым`;
   else if (evErr) note = `⚠ Слой событий недоступен (${calLayerReason(evErr)}) — показаны только лиды`;
   else if (leadErr) note = `⚠ Слой лидов недоступен (${calLayerReason(leadErr)}) — показаны только события`;
+  if (brokerErr) note += (note ? " · " : "⚠ ") + `Слой брокера недоступен (${calLayerReason(brokerErr)})`;
   const noteEl = $("#calNote");
   if (noteEl) noteEl.textContent = note;
 
