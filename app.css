@@ -340,6 +340,8 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
   .sview #threadFoot { flex:none; border-top:1px solid var(--frame); padding:8px 12px; }
   .sview #threadFoot .chatnote { margin:0; padding:0; border:none; }
   .sview .composer { margin-top:0; }
+  /* v2.9: тот же мессенджер внутри LCB 2.0 (#c2Body) — над ним статус + вкладки */
+  #c2Body .split { height:calc(100vh - 264px); min-height:380px; }
 }
 /* страховка при ресайзе: split-разметка на узком экране складывается в колонку */
 @media (max-width:899px) {

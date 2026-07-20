@@ -1,6 +1,8 @@
 /* LCB app v2 — экран «LCB 2.0» (#core2): окно в новое ядро (Core), read-only.
    Структура повторяет основное приложение (v1): Чаты · События · Решения —
    разница только в «мозгах»: данные отдаёт Core, не legacy-пайплайн.
+   Вкладка «Чаты» = НАСТОЯЩИЙ мессенджер app-chats.js (S.brain="core2",
+   renderChats() в #c2Body): вёрстка и функциональность 1-в-1 с v1.
    Плюс «Арбитраж»: судейство «старый vs Core» по shadow-сравнениям — вердикты
    Михаила пишутся append-only и становятся ground truth для cutover.
    Приложение в core.db НЕ пишет: бэкенд открывает базу строго mode=ro. */
@@ -47,16 +49,6 @@ function c2Short(id) {
   const i = s.lastIndexOf(":");
   return i > -1 ? s.slice(i + 1) : s;
 }
-function c2Initials(s) {
-  const t = String(s || "?").replace(/[^\p{L}\p{N} ]/gu, " ").trim();
-  const parts = t.split(/\s+/).filter(Boolean);
-  return ((parts[0] || "?")[0] + (parts[1] ? parts[1][0] : "")).toUpperCase();
-}
-function c2Hue(s) {
-  let h = 0;
-  for (const ch of String(s || "")) h = (h * 31 + ch.codePointAt(0)) % 360;
-  return h;
-}
 function c2Err(e, what) {
   if (e.status === 403) return `<div class="empty">Раздел закрыт — введи ключ в шторке индикатора</div>`;
   if (e.status === 404 || e.status === 503) {
@@ -66,8 +58,20 @@ function c2Err(e, what) {
   return `<div class="empty">${esc(what)}: ${esc(e.message)}</div>`;
 }
 
+/* уход с вкладки «Чаты» (или переключение вкладок LCB 2.0): вернуть v1-мозг
+   и остановить чат-поллы; уход с экрана целиком делает роутер v1-чатов */
+function c2LeaveChats() {
+  if (S.brain !== "core2") return;
+  stopPoll("screen:chats");
+  stopPoll("screen:thread");
+  if (S.readTimer) { clearTimeout(S.readTimer); S.readTimer = null; }
+  S.chat = null;
+  S.brain = "v1";
+}
+
 async function renderCore2() {
   if (!S.c2tab) S.c2tab = "chats";
+  if (S.c2tab !== "chats") c2LeaveChats();
   const box = $("#scr-core2");
   box.innerHTML = `
     <div id="c2Status"><div class="skel"></div></div>
@@ -80,8 +84,11 @@ async function renderCore2() {
   }));
   loadCore2Status();
   const body = $("#c2Body");
-  if (S.c2tab === "chats") c2Chats(body);
-  else if (S.c2tab === "events") c2Events(body);
+  if (S.c2tab === "chats") {
+    // тот же мессенджер, что экран «Чаты» (v1): один код, мозг — Core
+    S.brain = "core2";
+    renderChats();
+  } else if (S.c2tab === "events") c2Events(body);
   else if (S.c2tab === "dec") c2Decisions(body);
   else if (S.c2tab === "arb") c2Arbitr(body);
   else c2Overview(body);
@@ -110,50 +117,29 @@ async function loadCore2Status() {
   } catch (e) { b.innerHTML = c2Err(e, "Статус Core"); }
 }
 
-/* ── Чаты (структура v1: строки тредов → переписка) ─────────────────────── */
-async function c2Chats(b) {
-  try {
-    const w = await api("/api/core2/world", { ttl: 30000 });
-    if (w.available === false) { b.innerHTML = c2Err({ message: w.reason || "недоступно" }, "Чаты Core"); return; }
-    const byThread = {};
-    (w.messages || []).forEach((m) => {
-      const t = byThread[m.thread_id] || (byThread[m.thread_id] = { id: m.thread_id, msgs: 0, last: null });
-      t.msgs++;
-      if (!t.last || (m.sent_at_epoch || 0) >= (t.last.sent_at_epoch || 0)) t.last = m;
-    });
-    const rows = Object.values(byThread).sort((a, b2) => ((b2.last || {}).sent_at_epoch || 0) - ((a.last || {}).sent_at_epoch || 0));
-    if (!rows.length) { b.innerHTML = `<div class="empty">Core ещё не записал переписок</div>`; return; }
-    b.innerHTML = rows.map((t) => {
-      const short = c2Short(t.id).slice(0, 12);
-      return `<div class="thr trow card" data-tid="${esc(t.id)}" style="cursor:pointer">
-        <span class="ava" style="background:hsl(${c2Hue(t.id)} 45% 62%)">${esc(c2Initials(short))}</span>
-        <span class="tmain">
-          <span class="t1"><span class="who">Тред ${esc(short)}</span>
-            <span class="uname num">${t.msgs} сооб.</span>
-            <span class="when num">${c2When((t.last || {}).sent_at_epoch)}</span></span>
-          <span class="t2"><span class="prev">${esc(((t.last || {}).body || "").replace(/\s+/g, " ").slice(0, 90) || "—")}</span></span>
-        </span>
-      </div>`;
-    }).join("");
-    b.querySelectorAll("[data-tid]").forEach((r) => (r.onclick = () => c2OpenThread(b, r.dataset.tid)));
-  } catch (e) { b.innerHTML = c2Err(e, "Чаты Core"); }
-}
-async function c2OpenThread(b, tid) {
-  b.innerHTML = `<div class="skel"></div>`;
-  try {
-    const r = await api("/api/core2/thread?tid=" + encodeURIComponent(tid), { ttl: 15000 });
-    b.innerHTML = `<div class="card">
-      <div class="chead"><span class="cname">Тред ${esc(c2Short(tid).slice(0, 16))}</span>
-        <span class="spacer"></span><button class="btn" id="c2Back">‹ К тредам</button></div>
-      <div style="margin-top:8px">${(r.messages || []).map((m) => `
-        <div class="bub ${m.direction === "inbound" ? "in" : "out"}" style="white-space:pre-wrap">${esc(m.body || "")}
-          <div class="bmeta num">${c2When(m.sent_at_epoch)}${m.direction !== "inbound" ? " · мы" : ""}</div>
-        </div>`).join("") || `<div class="empty">пусто</div>`}</div></div>`;
-    $("#c2Back").onclick = () => c2Chats(b);
-  } catch (e) { b.innerHTML = c2Err(e, "Тред Core"); }
-}
+/* ── Чаты: рендерит настоящий мессенджер (app-chats.js) в #c2Body ─────────
+   Отдельного c2Chats больше нет: renderCore2 ставит S.brain="core2" и зовёт
+   renderChats() — тот же код, что экран «Чаты» (v1), источник — ядро Core. */
 
-/* ── События (структура v1: карточки сделок/броней) ─────────────────────── */
+/* ── События: каркас v1-карточки события (app-event.js) на данных Core ──── */
+function c2NotMoved(label) {
+  return `<div class="brow"><span class="k">${esc(label)}</span><span class="feenote">не перенесено в Core</span></div>`;
+}
+function c2EventCardHtml(kindPill, name, createdEp, metaLine) {
+  return `<div class="card">
+    <div class="chead">${kindPill}<span class="cname" style="font-size:17px">${esc(name)}</span>
+      <span class="spacer pill p-brass num">создано ${c2When(createdEp)}</span></div>
+    <div class="mtext" style="margin-top:2px">${esc(metaLine)}</div>
+    <div class="bsec">Состав и гонорары</div>
+    ${c2NotMoved("Участники и оплаты")}
+    <div class="bsec">Бухгалтерия</div>
+    ${c2NotMoved("Клиент · группа · расходы")}
+    <div class="bsec">Чек-лист</div>
+    ${c2NotMoved("Пункты подготовки")}
+    <div class="bsec">Документы</div>
+    ${c2NotMoved("Договор · паспорта · тайминг")}
+  </div>`;
+}
 async function c2Events(b) {
   try {
     const w = await api("/api/core2/world", { ttl: 30000 });
@@ -161,17 +147,16 @@ async function c2Events(b) {
     const personName = {};
     (w.persons || []).forEach((p) => { personName[p.person_id] = p.display_name || ""; });
     const cards = [];
-    (w.bookings || []).forEach((bk) => cards.push(`
-      <div class="card"><div class="chead"><span class="pill p-ok">бронь</span>
-        <span class="cname">${esc(personName[bk.client_person_id] || c2Short(bk.booking_id).slice(0, 20))}</span>
-        <span class="spacer mtext num">${c2When(bk.created_at_epoch)}</span></div>
-      <div class="mtext" style="margin-top:4px">${esc(c2Short(bk.booking_id))} · создал: ${esc(bk.created_by || "—")}</div>
-      <div class="mtext" style="margin-top:4px">Core пока хранит скелет брони — условия/состав/деньги приедут по мере переноса событийного контура.</div></div>`));
-    (w.opportunities || []).forEach((o) => cards.push(`
-      <div class="card"><div class="chead"><span class="pill p-pine">сделка</span>
-        <span class="cname">${esc(personName[o.person_id] || c2Short(o.opportunity_id).slice(0, 20))}</span>
-        <span class="spacer mtext num">${c2When(o.created_at_epoch)}</span></div>
-      <div class="mtext" style="margin-top:4px">${esc(c2Short(o.opportunity_id))} · создал: ${esc(o.created_by || "—")}</div></div>`));
+    (w.bookings || []).forEach((bk) => cards.push(c2EventCardHtml(
+      `<span class="pill p-ok">бронь</span>`,
+      personName[bk.client_person_id] || c2Short(bk.booking_id).slice(0, 20),
+      bk.created_at_epoch,
+      `${c2Short(bk.booking_id)} · создал: ${bk.created_by || "—"}`)));
+    (w.opportunities || []).forEach((o) => cards.push(c2EventCardHtml(
+      `<span class="pill p-pine">сделка</span>`,
+      personName[o.person_id] || c2Short(o.opportunity_id).slice(0, 20),
+      o.created_at_epoch,
+      `${c2Short(o.opportunity_id)} · создал: ${o.created_by || "—"}`)));
     const obls = (w.obligations || []).map((o) => `
       <div class="proc"><span class="pill p-warn">${esc(o.kind || "—")}</span>
         <span>${esc(o.owner || "")}</span>

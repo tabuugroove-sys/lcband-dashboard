@@ -10,6 +10,25 @@
 
 function isDesktop() { return matchMedia("(min-width:900px)").matches; }
 
+/* ── «мозг» мессенджера: v1 (legacy pipeline) или core2 (ядро Core) ───────
+   Одна и та же вёрстка/логика; различаются только источник чтений и корень
+   рендера. Активен ровно один корень — второй чистится (дубликаты id
+   недопустимы). Экран «Чаты» (v1) ставит S.brain="v1" в роутере. */
+function chatsRoot() { return S.brain === "core2" ? $("#c2Body") : $("#scr-chats"); }
+function chatsUiActive() {
+  return S.tab === "chats" || (S.tab === "core2" && S.brain === "core2" && S.c2tab === "chats");
+}
+/* маппинг ЧТЕНИЙ на мозг Core: формы ответов те же, источник — core.db.
+   Кэш-ключи S.cache расходятся автоматически (другие пути); инвалидации
+   обязаны ходить через этот же маппинг. POST-ручки не маппятся. */
+function brainPath(p) {
+  if (S.brain !== "core2") return p;
+  if (p.startsWith("/api/threads?")) return "/api/core2/threads?" + p.slice("/api/threads?".length);
+  if (p.startsWith("/api/chat?")) return "/api/core2/chat?" + p.slice("/api/chat?".length);
+  if (p === "/api/app/counters") return "/api/core2/counters";
+  return p;
+}
+
 const DIRS = [
   { key: "lcb", label: "LCB" },
   { key: "musicians", label: "Музыканты" },
@@ -78,8 +97,15 @@ function unreadBadge(n) {
   return `<span class="ub${s ? "" : " dot"}">${s}</span>`;
 }
 
-/* ── ключи тредов для /api/app/read (§4.2.3) и навигации ────────────────── */
+/* ── ключи тредов для /api/app/read (§4.2.3) и навигации ──────────────────
+   core2: сервер отдаёт канонические read_channel/read_thread — общий стор
+   прочитанности (POST /api/app/read прежний), q треда = read_thread. */
+function threadReadChannelOf(t) {
+  if (S.brain === "core2" && t && t.read_channel) return String(t.read_channel).toUpperCase();
+  return String((t && t.channel) || "TG").toUpperCase();
+}
 function threadKeyOf(t) {
+  if (S.brain === "core2") return String((t && t.read_thread) || "");
   const ch = String(t.channel || "TG").toUpperCase();
   if (ch === "VK") {
     const u = String(t.username || "");
@@ -92,6 +118,7 @@ function threadKeyOf(t) {
   return "";
 }
 function threadNavQ(t) {
+  if (S.brain === "core2") return String((t && t.read_thread) || "");
   const ch = String(t.channel || "TG").toUpperCase();
   if (ch === "VK") return String(t.username || "").startsWith("vk:") ? t.username : "vk:" + (t.user_id || t.vk_id || "");
   if (ch === "WA") return "wa:" + String(t.phone || t.username || "").replace(/^wa:/, "");
@@ -104,20 +131,21 @@ function threadChannelOf(row, q) {
 
 /* ── счётчики (§3.3.1): /api/app/counters, деградация без ручки → «—» ───── */
 async function fetchCounters() {
+  const path = brainPath("/api/app/counters");
   try {
-    const c = await api("/api/app/counters", { ttl: 25000 });
+    const c = await api(path, { ttl: 25000 });
     S.counters = c;
     S.flags.noCounters = false;
   } catch (e) {
     if (e.status === 404 || e.status === 503) {
       S.flags.noCounters = true;
-      warnOnce("counters", "GET /api/app/counters недоступна — счётчики показывают «—»");
+      warnOnce("counters:" + path, "GET " + path + " недоступна — счётчики показывают «—»");
     } else if (e.status === 403) {
       S.counters = null;
     }
   }
   updateChatsBadge();
-  if (S.tab === "chats") { updateCountersRow(); drawDirs(); }
+  if (chatsUiActive()) { updateCountersRow(); drawDirs(); }
 }
 function updateChatsBadge() {
   const b = $("#chatsTabBadge");
@@ -158,11 +186,15 @@ function toggleSentBreak() {
 }
 
 /* ── экран «Чаты»: mobile-стек или desktop split-view ───────────────────── */
-function chatsPollTick() { delete S.cache["/api/threads?dir=" + S.dir]; drawThreads(); }
+function chatsPollTick() { delete S.cache[brainPath("/api/threads?dir=" + S.dir)]; drawThreads(); }
 function splitEmptyHtml() { return `<div class="sempty">Выбери диалог слева</div>`; }
 
 async function renderChats() {
-  const box = $("#scr-chats");
+  const box = chatsRoot();
+  if (!box) return;
+  // рендер в один корень: второй чистим, чтобы не плодить дубликаты id
+  const other = S.brain === "core2" ? $("#scr-chats") : $("#c2Body");
+  if (other && other !== box) other.innerHTML = "";
   if (isDesktop()) {
     box.innerHTML = `
       <div class="split">
@@ -236,7 +268,7 @@ async function updateRailBadges(lcbRows) {
   set("broker", by.broker);
   let rows = lcbRows;
   if (!rows) {
-    const hit = S.cache["/api/threads?dir=lcb"];
+    const hit = S.cache[brainPath("/api/threads?dir=lcb")];
     if (hit && hit.data) rows = hit.data.threads || hit.data.rows || [];
   }
   if (rows) {
@@ -268,7 +300,7 @@ async function updateRailBadges(lcbRows) {
 function pendingCountsByPlace() {
   const out = [];
   const cachedRows = (dir) => {
-    const hit = S.cache["/api/threads?dir=" + dir];
+    const hit = S.cache[brainPath("/api/threads?dir=" + dir)];
     return hit && hit.data ? (hit.data.threads || hit.data.rows || []) : null;
   };
   const lcbRows = cachedRows("lcb");
@@ -331,8 +363,9 @@ async function drawThreads() {
   const listBox = $("#thrList");
   if (!listBox) return;
   let rows = null, fellBack = false;
+  const thrPath = brainPath("/api/threads?dir=" + S.dir);
   try {
-    const r = await api("/api/threads?dir=" + S.dir, { ttl: 60000 });
+    const r = await api(thrPath, { ttl: 60000 });
     rows = r.threads || r.rows || (Array.isArray(r) ? r : []);
   } catch (e) {
     if (e.status === 403) {
@@ -341,8 +374,9 @@ async function drawThreads() {
       $("#chatsBar").innerHTML = "";
       return;
     }
-    warnOnce("thr_" + S.dir, "GET /api/threads?dir=" + S.dir + " недоступна (" + (e.status || "сеть") + ")");
-    if (S.dir === "lcb") {
+    warnOnce("thr_" + S.brain + "_" + S.dir, "GET " + thrPath + " недоступна (" + (e.status || "сеть") + ")");
+    // деградация до legacy-источников — только в v1: core2 не подменяем legacy-данными
+    if (S.brain !== "core2" && S.dir === "lcb") {
       // деградация до v1-источников: без unread/preview, но без белого экрана
       try {
         const snap = await api("/api/db/snapshot", { ttl: 120000 });
@@ -402,7 +436,11 @@ async function drawThreads() {
     `<div class="mtext" style="text-align:center;margin-top:8px">Упрощённый список (без unread) — новая ручка тредов недоступна</div>`);
   listBox.querySelectorAll(".trow").forEach((b) => (b.onclick = () => {
     const nq = b.dataset.q;
-    if (nq) nav("#chat/" + S.dir + "/" + encodeURIComponent(nq));
+    if (!nq) return;
+    // core2-desktop: тред открывается в панели без смены hash (#core2 остаётся);
+    // v1 и mobile — прежний роутинг через #chat/<dir>/<q>
+    if (S.brain === "core2" && isDesktop()) openThreadInPanel(S.dir, nq);
+    else nav("#chat/" + S.dir + "/" + encodeURIComponent(nq));
   }));
   listBox.querySelectorAll(".linklike[data-hd]").forEach((b) => (b.onclick = () => {
     S.dir = b.dataset.hd;
@@ -459,7 +497,7 @@ function clearUnreadDom(q) {
 async function markAllRead(list) {
   const now = Math.round(Date.now() / 1000);
   const items = list.filter((t) => +t.unread > 0).map((t) => ({
-    channel: String(t.channel || "TG").toUpperCase(),
+    channel: threadReadChannelOf(t),
     thread: threadKeyOf(t),
     last_seen_epoch: t.__epoch || now,
   })).filter((x) => x.thread);
@@ -468,7 +506,7 @@ async function markAllRead(list) {
   drawThreads();
   try {
     await api("/api/app/read", { method: "POST", body: { threads: items } });
-    delete S.cache["/api/app/counters"];
+    delete S.cache[brainPath("/api/app/counters")];
     fetchCounters();
     toast("Прочитано: " + items.length);
   } catch (e) {
@@ -479,6 +517,7 @@ async function markAllRead(list) {
 
 /* ── черновики агента: /api/approvals?full=1 (§4.2.2) ───────────────────── */
 async function approvalsFull() {
+  if (S.brain === "core2") return []; // у Core черновиков нет — /api/approvals не дёргаем
   try {
     const r = await api("/api/approvals?full=1", { ttl: 30000 });
     return r.approvals || [];
@@ -555,8 +594,10 @@ async function openThreadInPanel(dir, q) {
   markSelectedRow();
   await p;
 }
-/* точка входа роутера для desktop: #chat/<dir>/<q> живёт внутри экрана «Чаты» */
+/* точка входа роутера для desktop: #chat/<dir>/<q> живёт внутри экрана «Чаты»;
+   это всегда v1-мозг — core2-desktop открывает треды в панели без смены hash */
 async function renderChatsWithThread(dir, q) {
+  S.brain = "v1";
   const shell = document.querySelector("#scr-chats .split");
   const dirChanged = S.dir !== dir;
   if (dirChanged) S.dir = dir;
@@ -580,7 +621,14 @@ function closeThreadPanel() {
 }
 
 function chatEndpoint(c) {
+  if (S.brain === "core2") return "/api/chat"; // brainPath маппит в /api/core2/chat для любого канала
   return c.channel === "VK" ? "/api/vk_chat" : c.channel === "WA" ? "/api/wa_chat" : "/api/chat";
+}
+/* единый mapped-путь выборки треда: им же инвалидируется кэш после отправок */
+function chatFetchPath(c, suffix) {
+  // core2: q = read_thread как есть (это канонический thread_id, префиксы не срезать)
+  const qParam = S.brain === "core2" ? c.q : c.q.replace(/^(vk:|wa:|id:)/, "");
+  return brainPath(`${chatEndpoint(c)}?q=${encodeURIComponent(qParam)}&limit=40${suffix || ""}`);
 }
 function chatScrollBottom(initial) {
   const v = $("#chatView");
@@ -591,9 +639,8 @@ function chatScrollBottom(initial) {
 async function loadThread(initial) {
   const c = S.chat;
   if (!c) return;
-  const qParam = c.q.replace(/^(vk:|wa:|id:)/, "");
   try {
-    const r = await api(`${chatEndpoint(c)}?q=${encodeURIComponent(qParam)}&limit=40`, { ttl: initial ? 15000 : 0 });
+    const r = await api(chatFetchPath(c, ""), { ttl: initial ? 15000 : 0 });
     c.meta = r.meta || null;
     c.src = r.source || "";
     c.msgs = (r.messages || []).map((m) => Object.assign({}, m, { __epoch: msgEpoch(m) }));
@@ -612,8 +659,7 @@ async function pollThread() {
   if (!c) return;
   try {
     if (c.channel === "WA") { await loadThread(false); return; } // у WA инкремента нет — полная выборка
-    const qParam = c.q.replace(/^(vk:|wa:|id:)/, "");
-    const r = await api(`${chatEndpoint(c)}?q=${encodeURIComponent(qParam)}&limit=40&since_id=${c.lastId}`, { ttl: 0 });
+    const r = await api(chatFetchPath(c, "&since_id=" + c.lastId), { ttl: 0 });
     const inc = (r.messages || [])
       .map((m) => Object.assign({}, m, { __epoch: msgEpoch(m) }))
       .filter((m) => (+m.id || 0) > c.lastId);
@@ -636,8 +682,9 @@ async function pollThread() {
   } catch (e) { /* обрыв покажет индикатор; тред остаётся на снимке */ }
 }
 function threadUsername(c) {
+  // core2: q = thread_id Core, а не username — фолбэк на q только в v1
   const u = (c.meta && c.meta.username) || (c.row && c.row.username) ||
-    (c.channel === "TG" && !/^(id:|vk:|wa:|-?\d)/.test(c.q) ? c.q : "");
+    (S.brain !== "core2" && c.channel === "TG" && !/^(id:|vk:|wa:|-?\d)/.test(c.q) ? c.q : "");
   return String(u || "").replace(/^@/, "");
 }
 function drawThreadSub() {
@@ -671,6 +718,7 @@ function drawTgOpen() {
 
 /* ── операторский ввод + черновик агента в поле (единый отправщик) ──────── */
 function composerMode(c) {
+  if (S.brain === "core2") return "noteCore2"; // ручных send/approve в core2-мозге нет
   if (c.channel === "VK") return "noteVK";
   if (c.channel !== "TG") return "note";
   const key = threadReadKey(c);
@@ -686,6 +734,7 @@ function threadFootHtml(mode) {
         <button id="opSend" class="opsend" aria-label="Отправить">↑</button></div>
       <div class="opnote">Уходит с твоего аккаунта через единый отправщик · Время — МСК</div>`;
   }
+  if (mode === "noteCore2") return `<div class="chatnote">Core в тени — отправка появится после переключения</div>`;
   const via = mode === "noteVK" ? "через VK" : "кнопкой «Открыть в Telegram»";
   return `<div class="chatnote">Ручной ответ — ${via}. Время — МСК.</div>`;
 }
@@ -776,8 +825,8 @@ async function rejectThreadDraft() {
 function afterDraftConsumed(c) {
   delete S.cache["/api/approvals?full=1"];
   delete S.cache["/api/approvals"];
-  delete S.cache["/api/app/counters"];
-  delete S.cache["/api/threads?dir=" + c.dir]; // has_pending_approval мог измениться
+  delete S.cache[brainPath("/api/app/counters")];
+  delete S.cache[brainPath("/api/threads?dir=" + c.dir)]; // has_pending_approval мог измениться
   fetchCounters();
   c.draft = null;
   drawDraftBar();
@@ -821,7 +870,7 @@ async function sendApprovalDraft(draft, retryItem) {
     if (r && r.status === "already_sent") toast("Уже отправлено");
     item.status = "sent";
     item.epoch = Math.round(Date.now() / 1000);
-    delete S.cache[`${chatEndpoint(c)}?q=${encodeURIComponent(c.q.replace(/^(vk:|wa:|id:)/, ""))}&limit=40`];
+    delete S.cache[chatFetchPath(c, "")];
     afterDraftConsumed(c);
     setTimeout(() => { if (S.chat === c) pollThread(); }, 1500);
   } catch (e) {
@@ -867,8 +916,8 @@ async function operatorSend(text, retryItem, draftToClose) {
       afterDraftConsumed(c);
     }
     // инвалидация кэша треда и счётчиков; серверное эхо подъедет поллингом
-    delete S.cache[`${chatEndpoint(c)}?q=${encodeURIComponent(c.q.replace(/^(vk:|wa:|id:)/, ""))}&limit=40`];
-    delete S.cache["/api/app/counters"];
+    delete S.cache[chatFetchPath(c, "")];
+    delete S.cache[brainPath("/api/app/counters")];
     fetchCounters();
     setTimeout(() => { if (S.chat === c) pollThread(); }, 1500);
   } catch (e) {
@@ -1036,6 +1085,8 @@ async function reportIssue(source) {
 /* app-локальный read-state (§4.2.3). КАНОН: только POST /api/app/read;
    TG-статусы прочитанности приложение не трогает никогда. */
 function threadReadKey(c) {
+  // core2: q треда = read_thread (канонический ключ общего стора прочитанности)
+  if (S.brain === "core2") return (c.row && c.row.read_thread) || c.q || null;
   if (c.channel === "VK") {
     const vid = (c.meta && c.meta.user_id) || (c.q.startsWith("vk:") ? c.q.slice(3) : c.q);
     return vid ? "vk:" + String(vid).replace(/^vk:/, "") : null;
@@ -1062,15 +1113,16 @@ async function postThreadRead() {
   clearUnreadDom(c.q); // точка гаснет прямо в списке слева, без перерисовки панели
   updateChatsBadge();
   if (isDesktop()) updateRailBadges(null);
+  const ch = threadReadChannelOf(c.row || { channel: c.channel }); // core2 → read_channel
   try {
-    await api("/api/app/read", { method: "POST", body: { channel: c.channel, thread: key, last_seen_epoch: epoch } });
-    delete S.cache["/api/app/counters"];
+    await api("/api/app/read", { method: "POST", body: { channel: ch, thread: key, last_seen_epoch: epoch } });
+    delete S.cache[brainPath("/api/app/counters")];
   } catch (e) {
     if (e.status === 404 || e.status === 503) warnOnce("appread", "POST /api/app/read недоступна — read-state не сохраняется");
   }
 }
 function clearUnreadLocal(dir, key) {
-  const hit = S.cache["/api/threads?dir=" + dir];
+  const hit = S.cache[brainPath("/api/threads?dir=" + dir)];
   if (!hit || !hit.data) return;
   const arr = hit.data.threads || hit.data.rows || [];
   const k = String(key).toLowerCase();
@@ -1118,7 +1170,7 @@ function kbRailMove(delta) {
 document.addEventListener("keydown", (e) => {
   if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Escape"].includes(e.key)) return;
   if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
-  if (typeof S === "undefined" || S.tab !== "chats" || !isDesktop()) return;
+  if (typeof S === "undefined" || !chatsUiActive() || !isDesktop()) return;
   const ae = document.activeElement;
   // поле ввода: стрелки = обычное редактирование; ← на позиции 0 и Esc — в список
   if (ae && ae.id === "opInput") {

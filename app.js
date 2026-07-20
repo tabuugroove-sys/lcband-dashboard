@@ -4,7 +4,7 @@
    Ручных отправок нет: наружу уходят только approval/send|reject по approval_id. */
 "use strict";
 
-const APP_VERSION = "2.8.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
+const APP_VERSION = "2.9.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
 
 const S = {
   base: null,
@@ -17,6 +17,7 @@ const S = {
   offlineAt: null, // epoch ms снимка из SW-кэша
   search: "",
   // мессенджер
+  brain: "v1", // «мозг» чтений экрана «Чаты»: v1 (legacy) | core2 (ядро Core, вкладка LCB 2.0)
   dir: "lcb",
   folder: "hot",
   unreadOnly: false,
@@ -50,6 +51,9 @@ function route() {
     : (name === "event" || name === "chat" ? "view" : "cal");
   S.tab = tab;
   if (name !== "chat") S.chat = null;
+  // «мозг» чатов: вне LCB 2.0 всегда v1; mobile-тред (#chat при узком экране)
+  // сохраняет текущий мозг — открытый из LCB 2.0 тред читает Core
+  if (name !== "core2" && !(name === "chat" && !deskChat)) S.brain = "v1";
   for (const [k, id] of Object.entries(SCREENS)) $("#" + id).classList.toggle("on", k === tab);
   const hiTab = tab === "view" ? (name === "chat" ? "chats" : "cal") : tab;
   document.querySelectorAll("#tabbar button").forEach((b) => b.classList.toggle("on", b.dataset.tab === hiTab));
@@ -130,6 +134,6 @@ resolveBase(false).then(() => {
   // heartbeat /api/health 25с при видимой вкладке (§3.8)
   startPoll("hb", heartbeat, 25000);
   // счётчики 30с независимо от активной вкладки — бейдж на tabbar (§3.3.1)
-  startPoll("counters", () => { delete S.cache["/api/app/counters"]; fetchCounters(); }, 30000);
+  startPoll("counters", () => { delete S.cache[brainPath("/api/app/counters")]; fetchCounters(); }, 30000);
   fetchCounters();
 });
