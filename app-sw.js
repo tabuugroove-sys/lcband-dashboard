@@ -5,13 +5,14 @@
    - /api/: network-first; успешный ответ кэшируется с меткой X-LCB-Cached-At,
      офлайн-фолбэк отдаёт снимок с X-LCB-Offline:1 → плашка «Офлайн · снимок HH:MM»;
    - /api/health НЕ кэшируется и не имеет фолбэка — heartbeat индикатора честный. */
-const VERSION = "2.6.0";
+const VERSION = "2.8.0";
 const SHELL = "lcb-app-shell-" + VERSION;
 const DATA = "lcb-app-data-" + VERSION;
 const SHELL_FILES = [
   "./app.html", "./app.css", "./app.js",
   "./app-api.js", "./app-cal.js", "./app-chats.js",
   "./app-today.js", "./app-event.js", "./app-sys.js", "./app-broadcast.js",
+  "./app-core2.js",
   "./app.webmanifest",
   "./app-icon-192.png", "./app-icon-512.png", "./app-icon-180.png",
 ];

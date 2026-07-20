@@ -4,7 +4,7 @@
    Ручных отправок нет: наружу уходят только approval/send|reject по approval_id. */
 "use strict";
 
-const APP_VERSION = "2.6.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
+const APP_VERSION = "2.8.0"; // бампать в каждом релизе фронта вместе с VERSION в app-sw.js
 
 const S = {
   base: null,
@@ -34,7 +34,7 @@ const S = {
 };
 
 /* ── роутинг ────────────────────────────────────────────────────────────── */
-const SCREENS = { cal: "scr-cal", chats: "scr-chats", today: "scr-today", sys: "scr-sys", cast: "scr-cast", view: "scr-view" };
+const SCREENS = { cal: "scr-cal", chats: "scr-chats", today: "scr-today", sys: "scr-sys", cast: "scr-cast", core2: "scr-core2", view: "scr-view" };
 function nav(hash) { location.hash = hash; }
 function route() {
   stopPollsByPrefix("screen:");
@@ -45,7 +45,7 @@ function route() {
   const rawArg = slash === -1 ? null : h.slice(slash + 1);
   // desktop (≥900px): тред живёт в split-панели экрана «Чаты», не в отдельном view
   const deskChat = name === "chat" && typeof isDesktop === "function" && isDesktop();
-  const tab = ["cal", "today", "chats", "sys", "cast"].includes(name) ? name
+  const tab = ["cal", "today", "chats", "sys", "cast", "core2"].includes(name) ? name
     : deskChat ? "chats"
     : (name === "event" || name === "chat" ? "view" : "cal");
   S.tab = tab;
@@ -58,6 +58,7 @@ function route() {
   else if (name === "chats") renderChats();
   else if (name === "sys") renderSys();
   else if (name === "cast") renderCast();
+  else if (name === "core2") renderCore2();
   else if (name === "event") renderEvent(decodeURIComponent(rawArg || ""));
   else if (name === "chat") {
     let dir = "lcb", rq = rawArg || "";

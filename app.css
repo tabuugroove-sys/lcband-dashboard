@@ -420,3 +420,9 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
 .brow .k { color:var(--mut); }
 .mymoney { margin-top:13px; padding-top:11px; border-top:2px solid var(--pine);
   color:var(--pine); font-size:18px; font-weight:700; display:flex; justify-content:space-between; }
+
+/* ── LCB 2.0 (#core2): плитки-счётчики Core ─────────────────────────────── */
+.c2tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(108px,1fr)); gap:8px; }
+.c2tile { border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+.c2tile .num { font-size:22px; font-weight:700; }
+.c2tile.z .num { color:var(--mut); font-weight:500; }
