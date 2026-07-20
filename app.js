@@ -11,7 +11,7 @@ const S = {
   token: localStorage.getItem("lcb_app_token") || "",
   tab: null,
   month: null, // Date первого числа показанного месяца
-  layers: { events: true, leads: true, followup: true, cancelled: true, broker: true },
+  layers: { lcb: true, broker: true, events: true, leads: true, followup: true, cancelled: true },
   cache: {}, // path -> {t, data, etag}
   offline: false,
   offlineAt: null, // epoch ms снимка из SW-кэша

@@ -136,10 +136,16 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
 #calHead .mon { font-size:19px; font-weight:600; text-transform:capitalize; }
 #calHead button { border:1px solid var(--line); background:var(--card); border-radius:8px;
   padding:6px 12px; font-size:13px; }
-.callay { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
-.callay .lay { font-size:12px; padding:4px 11px; border-radius:999px; border:1px solid var(--line);
-  color:var(--mut); background:var(--card); }
-.callay .lay.on { background:var(--pine-soft); color:var(--pine); border-color:var(--pine-line); font-weight:600; }
+.calfilterbar { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:10px; }
+.calfilter-actions { display:flex; gap:6px; flex:0 0 auto; }
+.calfilter-actions button { min-height:32px; padding:5px 10px; font-size:12px; }
+.callay { display:flex; gap:6px; flex-wrap:wrap; margin:0; justify-content:flex-end; }
+.calcheck { display:inline-flex; align-items:center; gap:6px; min-height:32px; padding:4px 10px;
+  border:1px solid var(--line); border-radius:7px; background:var(--card); color:var(--mut);
+  font-size:12px; cursor:pointer; user-select:none; }
+.calcheck input { width:15px; height:15px; margin:0; accent-color:var(--pine); }
+.calcheck:has(input:checked) { background:var(--pine-soft); color:var(--pine); border-color:var(--pine-line); font-weight:600; }
+.calcheck.brand-broker:has(input:checked) { color:var(--warn); border-color:var(--warn); background:var(--warn-soft); }
 #calGrid { background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
 .gwk { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); }
 .gwk .h { font-size:11px; color:var(--mut); text-align:center; padding:7px 0 5px; border-bottom:1px solid var(--line); }
@@ -157,8 +163,19 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
 .c-pay { background:var(--brass-fill); color:var(--on-brass); }
 .c-neg { background:var(--warn-soft); color:var(--warn); }
 .c-cxl { background:var(--frame); color:var(--mut); text-decoration:line-through; }
+.c-lost { background:var(--paper); color:var(--mut); border:1px solid var(--line); }
 .more { font-size:11px; color:var(--mut); padding:1px 6px; }
 @media (max-width:640px) { .gd { min-height:72px; } .chip { font-size:10px; } }
+.cal-undated { margin-top:12px; border:1px solid var(--line); border-radius:8px; background:var(--card); }
+.cal-undated summary { cursor:pointer; padding:10px 12px; font-weight:600; }
+.cal-undated-list { max-height:420px; overflow:auto; padding:0 10px 10px; }
+.cal-undated-list .thr { margin-top:6px; }
+@media (max-width:760px) {
+  .calfilterbar { flex-direction:column; }
+  .callay { justify-content:flex-start; }
+  .calfilter-actions { width:100%; }
+  .calfilter-actions button { flex:1; }
+}
 
 /* ── чаты ───────────────────────────────────────────────── */
 .dirsw { display:flex; gap:4px; background:var(--card); border:1px solid var(--line);
@@ -488,7 +505,7 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
 .ctxmenu button:hover { background:var(--frame); }
 
 /* ── v2.6: карточка события (гонорары/бухгалтерия) + слои календаря ── */
-.callay .lay.warn.on { background:var(--warn-soft); color:var(--warn); border-color:var(--warn); }
+.calcheck.warn:has(input:checked) { background:var(--warn-soft); color:var(--warn); border-color:var(--warn); }
 .c-brk { background:var(--pine-soft); color:var(--pine); }
 .ftablewrap { overflow-x:auto; margin-top:8px; }
 .ftable { width:100%; border-collapse:collapse; font-size:13.5px; }
