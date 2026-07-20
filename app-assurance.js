@@ -119,7 +119,7 @@ function drawAssurance(data, origin) {
       <div><b class="num">${h.open_gaps || 0}</b><span>могут повториться</span></div>
       <div><b class="num">${h.with_test_refs || 0}</b><span>имеют ссылки на тесты</span></div>
       <div><b class="num">${h.regression_teeth || 0}</b><span>имеют прямой red-run</span></div>
-      <div><b class="num">${l.guarded || 0}/${l.records || 0}</b><span>изменений с полной записью</span></div>
+      <div><b class="num">${l.guarded || 0}/${l.records || 0}</b><span>verified + deployed + pass</span></div>
     </div>
     ${!l.validator_ok ? `<div class="assure-ledger-warn"><b>Реестр изменений сейчас не зелёный.</b>
       ${l.invalid_records || 0} записей с ошибками validator${duplicateText ? ` · дубли: ${esc(duplicateText)}` : ""}</div>` : ""}
