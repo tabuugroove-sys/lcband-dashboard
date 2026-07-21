@@ -8,6 +8,7 @@ const API = Object.freeze({
   messages: "/api/core/messages",
   coordinationCases: "/api/core/coordination-cases",
   send: "/api/core/send",
+  dismissDraft: "/api/core/drafts/dismiss",
   work: "/api/core/work",
   operations: "/api/core/operations",
 });
@@ -50,6 +51,7 @@ const state = {
   calendarLoading: false,
   calendarRefreshedAt: 0,
   sending: false,
+  dismissingDraft: false,
   selectedDraftId: "",
   threadReady: false,
   threadRequestController: null,
@@ -677,7 +679,7 @@ async function openThread(threadId, updateHash = true) {
       previousDay = day;
       return `${divider}<div class="message ${message.direction === "outbound" ? "outbound" : ""}">${escapeHtml(message.body || "[медиа без текста]")}<div class="message-meta">${escapeHtml(message.direction)} · ${escapeHtml(formatDate(message.sent_at_epoch))}</div></div>`;
     }).join("");
-    const draft = (payload.drafts || []).find((item) => !item.is_superseded);
+    const draft = (payload.drafts || []).find((item) => !item.is_superseded && !item.is_dismissed);
     let draftHtml = "";
     if (draft) {
       const violations = draft.rewrite_constraints?.style_violations || [];
@@ -690,8 +692,9 @@ async function openThread(threadId, updateHash = true) {
       const action = draft.text && !draft.is_stale
         ? `<button type="button" data-draft-use="${escapeHtml(draft.draft_id)}">Использовать</button>`
         : "";
+      const dismiss = `<button type="button" data-draft-dismiss="${escapeHtml(draft.draft_id)}">Удалить</button>`;
       const scenario = draft.rewrite_constraints?.ai_scenario_type || draft.scenario_type || "other";
-      draftHtml = `<section class="draft-message ${draft.is_stale ? "is-stale" : ""}" data-draft-id="${escapeHtml(draft.draft_id)}"><div class="draft-message-head"><strong>Черновик V2</strong><span>${escapeHtml(status)}</span></div><div class="draft-message-text">${escapeHtml(detail)}</div><div class="draft-message-foot"><small>${escapeHtml(scenario)}${violations.length ? ` · замечаний стиля: ${violations.length}` : ""}</small>${action}</div></section>`;
+      draftHtml = `<section class="draft-message ${draft.is_stale ? "is-stale" : ""}" data-draft-id="${escapeHtml(draft.draft_id)}"><div class="draft-message-head"><strong>Черновик V2</strong><span>${escapeHtml(status)}</span></div><div class="draft-message-text">${escapeHtml(detail)}</div><div class="draft-message-foot"><small>${escapeHtml(scenario)}${violations.length ? ` · замечаний стиля: ${violations.length}` : ""}</small><span>${dismiss}${action}</span></div></section>`;
     }
     byId("messageList").innerHTML = historyHtml || draftHtml
       ? `${historyHtml}${draftHtml}`
@@ -704,6 +707,28 @@ async function openThread(threadId, updateHash = true) {
         byId("manualSendText").value = selected.text;
         renderManualSendState();
         byId("manualSendText").focus();
+      });
+    });
+    byId("messageList").querySelectorAll("[data-draft-dismiss]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (state.dismissingDraft) return;
+        const draftId = button.dataset.draftDismiss;
+        if (!window.confirm("Удалить этот черновик из рабочего окна?")) return;
+        state.dismissingDraft = true;
+        button.disabled = true;
+        try {
+          await apiPost(API.dismissDraft, { draft_id: draftId, thread_id: threadId });
+          if (state.selectedDraftId === draftId) {
+            state.selectedDraftId = "";
+            byId("manualSendText").value = "";
+          }
+          toast("Черновик удалён.");
+          await openThread(threadId, false);
+        } catch (error) {
+          toast(`Черновик не удалён: ${error.message}`);
+        } finally {
+          state.dismissingDraft = false;
+        }
       });
     });
     const list = byId("messageList");
