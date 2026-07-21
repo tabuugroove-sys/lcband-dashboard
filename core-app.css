@@ -305,6 +305,10 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .chat-folders .folder-label { max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-folders b { position: absolute; top: 3px; left: calc(50% + 11px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--blue); color: white; font-size: 10px; font-weight: 600; line-height: 16px; text-align: center; }
 .chat-folders b:empty, .chat-folders b[data-empty="true"] { display: none; }
+.coordination-folders { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--line); }
+.chat-folders .coordination-folder .folder-label { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: normal; word-break: normal; }
+.chat-folders .coordination-folder .folder-icon { color: var(--brass-fill); }
+.chat-folders .coordination-folder b { background: var(--brass-fill); }
 .thread-pane { min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
 .chat-status-filters { margin: 10px 10px 6px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .chat-status-filter { min-width: 0; min-height: 46px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink); text-align: left; cursor: pointer; }

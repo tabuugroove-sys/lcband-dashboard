@@ -6,6 +6,7 @@ const API = Object.freeze({
   calendar: "/api/core/calendar",
   threads: "/api/core/threads",
   messages: "/api/core/messages",
+  coordinationCases: "/api/core/coordination-cases",
   send: "/api/core/send",
   work: "/api/core/work",
   operations: "/api/core/operations",
@@ -16,6 +17,7 @@ const state = {
   summary: null,
   calendar: { events: [], business_events: 0, technical_events: 0, model_ready: false },
   threads: [],
+  coordinationCases: [],
   work: null,
   operations: null,
   activeView: "calendar",
@@ -455,15 +457,38 @@ function chatStatusSets() {
   };
 }
 
+function activeCoordinationCase() {
+  if (!state.chatFolder.startsWith("case:")) return null;
+  const caseId = state.chatFolder.slice(5);
+  return state.coordinationCases.find((item) => item.case_id === caseId) || null;
+}
+
+function coordinationContextForThread(threadId) {
+  const item = activeCoordinationCase();
+  if (!item) return null;
+  const participant = (item.participants || []).find((link) => link.thread_id === threadId);
+  return participant ? { item, participant } : null;
+}
+
+function coordinationRoleLabel(role) {
+  return ({ requester: "организатор", responsible: "ответственный", observer: "участник" })[role] || "участник";
+}
+
 function visibleThreads() {
   const hot = hotThreadIds();
   const statuses = chatStatusSets();
   const query = state.query.toLowerCase();
+  const coordination = activeCoordinationCase();
+  const coordinationThreadIds = new Set((coordination?.participants || []).map((item) => item.thread_id));
   return state.threads.filter((thread) => {
     if (thread.is_technical) return false;
     if (state.chatStatus && !statuses[state.chatStatus].has(thread.thread_id)) return false;
-    if (state.chatFolder === "hot" && !hot.has(thread.thread_id)) return false;
-    if (!["all", "hot"].includes(state.chatFolder) && thread.business_bucket !== state.chatFolder) return false;
+    if (coordination) {
+      if (!coordinationThreadIds.has(thread.thread_id)) return false;
+    } else {
+      if (state.chatFolder === "hot" && !hot.has(thread.thread_id)) return false;
+      if (!["all", "hot"].includes(state.chatFolder) && thread.business_bucket !== state.chatFolder) return false;
+    }
     if (!query) return true;
     return [threadTitle(thread), thread.peer_external_id, thread.last_body, roleLabel(thread)]
       .some((value) => String(value || "").toLowerCase().includes(query));
@@ -485,6 +510,19 @@ function renderThreadFolders() {
     const badge = byId(`folder${key}`);
     badge.textContent = formatNumber(value);
     badge.hidden = Number(value) === 0;
+  });
+  if (state.chatFolder.startsWith("case:") && !activeCoordinationCase()) state.chatFolder = "all";
+  byId("coordinationFolders").innerHTML = state.coordinationCases.map((item) => {
+    const folder = `case:${item.case_id}`;
+    const count = (item.participants || []).length;
+    return `<button class="coordination-folder ${folder === state.chatFolder ? "is-active" : ""}" data-coordination-folder="${escapeHtml(folder)}" title="${escapeHtml(item.title)}"><span class="folder-icon">▣</span><span class="folder-label">${escapeHtml(item.title)}</span><b>${formatNumber(count)}</b></button>`;
+  }).join("");
+  byId("coordinationFolders").querySelectorAll("[data-coordination-folder]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.chatFolder = button.dataset.coordinationFolder;
+      state.chatStatus = "";
+      renderThreads();
+    });
   });
   document.querySelectorAll("[data-chat-folder]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.chatFolder === state.chatFolder);
@@ -517,7 +555,11 @@ function renderThreads() {
   byId("threadTotal").textContent = `${threads.length} тредов`;
   byId("threadList").innerHTML = threads.length ? threads.map((thread) => {
     const name = threadTitle(thread);
-    return `<button class="thread-button ${thread.thread_id === state.selectedThreadId ? "is-active" : ""}" data-thread-id="${escapeHtml(thread.thread_id)}"><span class="thread-avatar">${avatarContent(thread, name)}</span><span><span class="thread-top"><span class="thread-name">${escapeHtml(name)}</span><time class="thread-time">${escapeHtml(formatDate(thread.last_message_epoch))}</time></span><span class="thread-label">${escapeHtml(channelLabel(thread.channel))} · ${escapeHtml(roleLabel(thread))}</span><span class="thread-preview">${escapeHtml(thread.last_body || "Нет сообщений")}</span></span></button>`;
+    const coordination = coordinationContextForThread(thread.thread_id);
+    const label = coordination
+      ? `${coordination.item.title} · ${coordinationRoleLabel(coordination.participant.participant_role)}`
+      : `${channelLabel(thread.channel)} · ${roleLabel(thread)}`;
+    return `<button class="thread-button ${thread.thread_id === state.selectedThreadId ? "is-active" : ""}" data-thread-id="${escapeHtml(thread.thread_id)}"><span class="thread-avatar">${avatarContent(thread, name)}</span><span><span class="thread-top"><span class="thread-name">${escapeHtml(name)}</span><time class="thread-time">${escapeHtml(formatDate(thread.last_message_epoch))}</time></span><span class="thread-label">${escapeHtml(label)}</span><span class="thread-preview">${escapeHtml(thread.last_body || "Нет сообщений")}</span></span></button>`;
   }).join("") : '<div class="empty-state"><strong>Здесь пока пусто</strong>Core не записал треды этой категории. Роли не подменяются догадками.</div>';
   byId("threadList").querySelectorAll("[data-thread-id]").forEach((button) => {
     button.addEventListener("click", () => openThread(button.dataset.threadId));
@@ -787,11 +829,12 @@ async function refreshAll() {
   byId("refreshButton").disabled = true;
   setConnection("loading", "Обновление");
   try {
-    const [health, summary, calendar, threadsPayload, work, operations] = await Promise.all([
+    const [health, summary, calendar, threadsPayload, coordinationPayload, work, operations] = await Promise.all([
       apiGet(API.health),
       apiGet(API.summary),
       apiGet(API.calendar),
       apiGet(`${API.threads}?limit=200`),
+      apiGet(API.coordinationCases),
       apiGet(API.work),
       apiGet(API.operations),
     ]);
@@ -799,6 +842,7 @@ async function refreshAll() {
     state.summary = summary;
     state.calendar = calendar;
     state.threads = threadsPayload.threads || [];
+    state.coordinationCases = coordinationPayload.cases || [];
     state.work = work;
     state.operations = operations;
     renderCalendar();
