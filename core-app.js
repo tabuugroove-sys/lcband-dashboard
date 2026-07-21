@@ -1067,6 +1067,15 @@ async function refreshAll() {
     state.summary = summary;
     state.fees = fees;
     state.threads = threadsPayload.threads || [];
+    if (state.selectedThreadId) {
+      const refreshedThread = state.threads.find(
+        (item) => item.thread_id === state.selectedThreadId,
+      );
+      if (refreshedThread) {
+        state.selectedThread = { ...(state.selectedThread || {}), ...refreshedThread };
+        renderConversationRole(state.selectedThread);
+      }
+    }
     state.coordinationCases = coordinationPayload.cases || [];
     state.work = work;
     state.operations = operations;
