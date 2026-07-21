@@ -242,6 +242,22 @@
         </div>
       </section>
 
+      <section class="screen" id="screen-fees">
+        <div class="page-head"><div><p class="eyebrow">Внутренний каталог</p><h1>Гонорары музыкантов</h1></div><span class="pill hold" id="feesStatusPill">Требует подтверждения</span></div>
+        <section class="fees-notice">
+          <div class="broadcast-symbol" aria-hidden="true">₽</div>
+          <div><h2>Гонорары, не клиентские цены</h2><p>Этот раздел хранит внутренние ставки для расчёта состава. Клиентские цены остаются только в <code>price_canon.py</code>. Пока ставки не подтверждены, агент не может использовать их для автоматического предложения.</p></div>
+        </section>
+        <section class="band-section fees-section">
+          <div class="section-head"><h2>Матрица ставок</h2><span id="feesCurrency">RUB</span></div>
+          <div class="fees-table-wrap"><table class="fees-table"><thead id="feesHead"></thead><tbody id="feesBody"></tbody></table></div>
+        </section>
+        <section class="band-section fees-section">
+          <div class="section-head"><h2>Исторические источники</h2><span>только справка</span></div>
+          <div id="feesHistory"></div>
+        </section>
+      </section>
+
       <section class="screen" id="screen-broadcast">
         <div class="page-head"><div><p class="eyebrow">Кампании</p><h1>Рассылка</h1></div><span class="pill hold">SEND HOLD</span></div>
         <section class="broadcast-band">

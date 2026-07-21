@@ -3,6 +3,7 @@
 const API = Object.freeze({
   health: "/api/core/health",
   summary: "/api/core/summary",
+  fees: "/api/core/fees",
   calendar: "/api/core/calendar",
   threads: "/api/core/threads",
   messages: "/api/core/messages",
@@ -16,6 +17,7 @@ const API = Object.freeze({
 const state = {
   health: null,
   summary: null,
+  fees: null,
   calendar: { events: [], business_events: 0, technical_events: 0, model_ready: false },
   threads: [],
   coordinationCases: [],
@@ -229,6 +231,7 @@ function setView(view) {
   if (view === "chats") renderThreads();
   if (view === "today") renderToday();
   if (view === "system") renderSystem();
+  if (view === "fees") renderFees();
   if (view === "broadcast") renderBroadcast();
 }
 
@@ -247,7 +250,7 @@ function route() {
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "today", "system", "broadcast"].includes(name)
+  const view = ["calendar", "chats", "today", "system", "fees", "broadcast"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";
@@ -927,6 +930,22 @@ function renderBroadcast() {
   byId("broadcastChannels").innerHTML = channels.length ? channels.map((item) => `<div class="channel-cell"><strong>${escapeHtml(channelLabel(item.channel))}</strong><span>${formatNumber(item.threads)} тредов в Core · отправка выключена</span></div>`).join("") : '<div class="empty-state"><strong>Каналов нет</strong>Core пока не записал каналы.</div>';
 }
 
+function formatFeeAmount(amountMinor, currency = "RUB") {
+  if (amountMinor === null || amountMinor === undefined) return "Не задано";
+  return `${formatNumber(Number(amountMinor) / 100)} ${currency}`;
+}
+
+function renderFees() {
+  const payload = state.fees || { columns: [], products: [], historical_sources: [], currency: "RUB" };
+  const columns = payload.columns || [];
+  byId("feesCurrency").textContent = payload.currency || "RUB";
+  byId("feesStatusPill").textContent = payload.policy?.active_rates_confirmed ? "Ставки активны" : "Требует подтверждения";
+  byId("feesStatusPill").className = `pill ${payload.policy?.active_rates_confirmed ? "ok" : "hold"}`;
+  byId("feesHead").innerHTML = `<tr><th>Категория</th>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr>`;
+  byId("feesBody").innerHTML = (payload.products || []).map((product) => `<tr><th><strong>${escapeHtml(product.label)}</strong><small>${escapeHtml(product.description)}</small></th>${columns.map((column) => `<td><span class="fee-value ${product.usable_for_auto_quote ? "is-active" : "is-unconfirmed"}">${escapeHtml(formatFeeAmount(product.rates?.[column.id], payload.currency))}</span></td>`).join("")}</tr>`).join("");
+  byId("feesHistory").innerHTML = (payload.historical_sources || []).map((source) => `<article class="fee-history"><div><strong>${escapeHtml(source.title)}</strong><span class="pill hold">Историческое · не использовать автоматически</span></div><p>${escapeHtml(source.note)}</p><div class="fee-role-grid">${(source.role_rates || []).map((item) => `<span><b>${escapeHtml(item.role)}</b>${escapeHtml(formatFeeAmount(item.amount_minor, payload.currency))}</span>`).join("")}</div></article>`).join("") || '<div class="empty-state">Источники ставок ещё не добавлены.</div>';
+}
+
 function updateCounts() {
   const work = state.work || {};
   const today = (work.obligations || []).filter((item) => !["resolved", "closed", "cancelled", "completed"].includes(item.status)).length
@@ -958,9 +977,10 @@ async function refreshAll() {
   byId("refreshButton").disabled = true;
   setConnection("loading", "Обновление");
   try {
-    const [health, summary, threadsPayload, coordinationPayload, work, operations] = await Promise.all([
+    const [health, summary, fees, threadsPayload, coordinationPayload, work, operations] = await Promise.all([
       apiGet(API.health),
       apiGet(API.summary),
+      apiGet(API.fees),
       apiGet(`${API.threads}?limit=200`),
       apiGet(API.coordinationCases),
       apiGet(API.work),
@@ -968,6 +988,7 @@ async function refreshAll() {
     ]);
     state.health = health;
     state.summary = summary;
+    state.fees = fees;
     state.threads = threadsPayload.threads || [];
     state.coordinationCases = coordinationPayload.cases || [];
     state.work = work;
@@ -976,6 +997,7 @@ async function refreshAll() {
     renderThreads();
     renderToday();
     renderSystem();
+    renderFees();
     renderBroadcast();
     renderManualSendState();
     updateCounts();
