@@ -187,6 +187,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .pill.ok { background: var(--ok-soft); color: var(--ok); }
 .pill.danger { background: var(--danger-soft); color: var(--danger); }
 .pill.technical { background: var(--frame); color: var(--muted); }
+.role-picker { position: relative; margin-left: auto; }
+.role-pill { border: 0; cursor: pointer; }
+.role-pill::after { content: "⌄"; margin-left: 5px; font-size: 10px; }
+.role-pill.is-ai { background: #edf4ff; color: #37648d; }
+.role-pill.is-operator { background: var(--pine-soft); color: var(--pine); }
+.role-menu { position: absolute; top: calc(100% + 7px); right: 0; z-index: 80; width: min(310px, calc(100vw - 24px)); max-height: min(460px, calc(100vh - 140px)); padding: 7px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); box-shadow: 0 14px 36px rgba(40, 51, 47, .18); }
+.role-menu-status { padding: 7px 9px 9px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+.role-menu-status strong { display: block; margin-bottom: 2px; color: var(--ink); font-size: 11px; }
+.role-menu button { width: 100%; min-height: 34px; padding: 7px 9px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.role-menu button:hover, .role-menu button.is-selected { background: var(--pine-soft); color: var(--pine); }
+.role-menu button:disabled { cursor: wait; opacity: .55; }
 
 main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .screen { display: none; }
@@ -378,7 +389,7 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .conversation-head { min-height: 66px; padding: 10px 15px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); }
 .conversation-head h2 { margin: 0; font-size: 16px; }
 .conversation-head p { margin: 1px 0 0; color: var(--muted); font-size: 11px; }
-.conversation-head .pill { margin-left: auto; }
+.conversation-head .pill { margin-left: 0; }
 .mobile-back { display: none; border: 0; background: transparent; color: var(--pine); font-size: 26px; cursor: pointer; }
 .message-list { min-height: 0; padding: 10px 16px; overflow-y: auto; background: var(--paper); }
 .message-day { width: fit-content; margin: 9px auto; padding: 3px 9px; border-radius: 999px; background: var(--frame); color: var(--muted); font-size: 10px; }
@@ -560,7 +571,8 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   .conversation { position: fixed; inset: 62px 0 67px; z-index: 45; display: none; background: var(--card); }
   .conversation.is-open { display: flex; }
   .mobile-back { display: block; }
-  .conversation-head .pill { display: none; }
+  .role-picker { margin-left: auto; }
+  .role-pill { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
   .message { max-width: 88%; }
   .composer-hold small { font-size: 9px; }
   .broadcast-band { align-items: flex-start; }

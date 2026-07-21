@@ -10,6 +10,7 @@ const API = Object.freeze({
   coordinationCases: "/api/core/coordination-cases",
   send: "/api/core/send",
   dismissDraft: "/api/core/drafts/dismiss",
+  assignRole: "/api/core/roles/assign",
   work: "/api/core/work",
   operations: "/api/core/operations",
 });
@@ -54,6 +55,8 @@ const state = {
   calendarRefreshedAt: 0,
   sending: false,
   dismissingDraft: false,
+  assigningRole: false,
+  selectedThread: null,
   selectedDraftId: "",
   threadReady: false,
   threadRequestController: null,
@@ -72,6 +75,26 @@ const CALENDAR_STAGE_LABELS = Object.freeze({
   lead: "Новая заявка",
   cancelled: "Отмена",
 });
+
+const ROLE_OPTIONS = Object.freeze([
+  ["client_organizer", "Организатор"],
+  ["client_private", "Частный клиент"],
+  ["client_agency", "Агентство"],
+  ["payer", "Плательщик"],
+  ["venue_rep", "Представитель площадки"],
+  ["tech_contact", "Технический контакт"],
+  ["lcb_team_member", "Музыкант LCB"],
+  ["vendor_performer", "Подрядчик-артист"],
+  ["vendor_tech", "Технический подрядчик"],
+  ["vendor_media", "Фото / видео подрядчик"],
+  ["vendor_other", "Другой подрядчик"],
+  ["lead_source", "Источник лида"],
+  ["aggregator", "Агрегатор"],
+  ["referrer", "Рекомендатель"],
+  ["accounting", "Бухгалтерия"],
+  ["personal", "Личное / нерабочее"],
+  ["unknown_review", "Пока не определено"],
+]);
 
 const byId = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? "")
@@ -137,21 +160,63 @@ function channelLabel(value) {
 }
 
 function roleLabel(thread) {
-  const labels = {
-    client_organizer: "Организатор",
-    client_private: "Частный клиент",
-    client_agency: "Агентство",
-    payer: "Плательщик",
-    venue_rep: "Площадка",
-    tech_contact: "Технический контакт",
-    lcb_team_member: "Музыкант LCB",
-    vendor_performer: "Подрядчик-музыкант",
-    vendor_tech: "Технический подрядчик",
-    vendor_media: "Фото / видео",
-    vendor_other: "Подрядчик",
-  };
   if (thread.is_technical) return "Техническая канарейка";
-  return labels[thread.relationship_role] || "Роль не определена";
+  return ROLE_OPTIONS.find(([role]) => role === thread.relationship_role)?.[1] || "Роль не определена";
+}
+
+function renderConversationRole(thread) {
+  state.selectedThread = thread || null;
+  const button = byId("conversationRole");
+  const menu = byId("conversationRoleMenu");
+  button.textContent = roleLabel(thread || {});
+  button.classList.toggle("is-ai", thread?.role_source === "ai");
+  button.classList.toggle("is-operator", thread?.role_source === "operator");
+  button.disabled = Boolean(thread?.is_technical || !thread?.thread_id || state.assigningRole);
+  const confidence = thread?.role_confidence === null || thread?.role_confidence === undefined
+    ? null
+    : Math.round(Number(thread.role_confidence) * 100);
+  const status = thread?.role_source === "operator"
+    ? "Роль исправлена Михаилом и имеет приоритет над AI."
+    : thread?.role_source === "ai"
+      ? `AI определил по переписке${confidence === null ? "" : ` · уверенность ${confidence}%`}.`
+      : "AI ещё не определил роль по переписке.";
+  button.title = `${status} Нажми, чтобы изменить.`;
+  menu.innerHTML = `<div class="role-menu-status"><strong>${escapeHtml(roleLabel(thread || {}))}</strong>${escapeHtml(status)}</div>${ROLE_OPTIONS.map(([role, label]) => `<button type="button" role="option" data-role-value="${escapeHtml(role)}" class="${role === thread?.relationship_role ? "is-selected" : ""}" aria-selected="${role === thread?.relationship_role}">${escapeHtml(label)}</button>`).join("")}`;
+  menu.querySelectorAll("[data-role-value]").forEach((option) => {
+    option.addEventListener("click", () => assignConversationRole(option.dataset.roleValue));
+  });
+}
+
+function closeRoleMenu() {
+  byId("conversationRoleMenu").hidden = true;
+  byId("conversationRole").setAttribute("aria-expanded", "false");
+}
+
+async function assignConversationRole(role) {
+  if (state.assigningRole || !state.selectedThreadId) return;
+  state.assigningRole = true;
+  closeRoleMenu();
+  renderConversationRole(state.selectedThread || {});
+  const requestId = globalThis.crypto?.randomUUID?.()
+    || `role-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  try {
+    const result = await apiPost(API.assignRole, {
+      thread_id: state.selectedThreadId,
+      role,
+      request_id: requestId,
+    });
+    const current = state.threads.find((item) => item.thread_id === state.selectedThreadId);
+    if (current) Object.assign(current, result);
+    state.selectedThread = { ...(state.selectedThread || {}), ...result };
+    renderThreads();
+    renderConversationRole(state.selectedThread);
+    toast(`Роль сохранена: ${roleLabel(state.selectedThread)}.`);
+  } catch (error) {
+    toast(`Роль не сохранена: ${error.message}`);
+  } finally {
+    state.assigningRole = false;
+    renderConversationRole(state.selectedThread || {});
+  }
 }
 
 function threadTitle(thread) {
@@ -646,6 +711,7 @@ async function openThread(threadId, updateHash = true) {
   state.threadRequestController = controller;
   state.selectedThreadId = threadId;
   state.selectedDraftId = "";
+  state.selectedThread = null;
   state.threadReady = false;
   byId("manualSendText").value = "";
   markThreadReadLocally(threadId);
@@ -657,7 +723,7 @@ async function openThread(threadId, updateHash = true) {
   byId("conversationName").textContent = selectedName;
   byId("conversationAvatar").innerHTML = avatarContent(selectedThread, selectedName);
   byId("conversationMeta").textContent = `${selectedThread.handle ? `@${selectedThread.handle}` : selectedThread.peer_external_id || "—"} · ${channelLabel(selectedThread.channel)} · загрузка переписки`;
-  byId("conversationRole").textContent = roleLabel(selectedThread);
+  renderConversationRole(selectedThread);
   byId("messageList").innerHTML = '<div class="empty-state"><strong>Загружаю переписку</strong>Предыдущий диалог очищен.</div>';
   byId("conversation").classList.add("is-open");
   renderManualSendState();
@@ -674,7 +740,7 @@ async function openThread(threadId, updateHash = true) {
     byId("conversationName").textContent = name;
     byId("conversationAvatar").innerHTML = avatarContent(thread, name);
     byId("conversationMeta").textContent = `${thread.handle ? `@${thread.handle}` : thread.peer_external_id || "—"} · ${channelLabel(thread.channel)} · ${thread.current_owner || "владелец не назначен"}`;
-    byId("conversationRole").textContent = roleLabel(thread);
+    renderConversationRole(thread);
     let previousDay = "";
     const historyHtml = (payload.messages || []).map((message) => {
       const day = dateKey(message.sent_at_epoch);
@@ -1097,6 +1163,14 @@ function bindEvents() {
     location.hash = "chats";
   });
   byId("manualSendForm").addEventListener("submit", sendManualReply);
+  byId("conversationRole").addEventListener("click", (event) => {
+    event.stopPropagation();
+    const menu = byId("conversationRoleMenu");
+    menu.hidden = !menu.hidden;
+    byId("conversationRole").setAttribute("aria-expanded", String(!menu.hidden));
+  });
+  byId("conversationRoleMenu").addEventListener("click", (event) => event.stopPropagation());
+  document.addEventListener("click", closeRoleMenu);
   document.querySelectorAll("[data-chat-status]").forEach((button) => {
     button.addEventListener("click", () => {
       state.chatStatus = state.chatStatus === button.dataset.chatStatus ? "" : button.dataset.chatStatus;

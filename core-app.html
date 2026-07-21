@@ -170,7 +170,10 @@
                   <h2 id="conversationName">Тред</h2>
                   <p id="conversationMeta"></p>
                 </div>
-                <span class="pill" id="conversationRole">роль не определена</span>
+                <div class="role-picker" id="rolePicker">
+                  <button class="pill role-pill" id="conversationRole" type="button" aria-haspopup="listbox" aria-expanded="false" title="Выбрать роль">роль не определена</button>
+                  <div class="role-menu" id="conversationRoleMenu" role="listbox" hidden></div>
+                </div>
               </header>
               <div class="message-list" id="messageList"></div>
               <form class="composer-hold" id="manualSendForm">
