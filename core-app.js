@@ -160,8 +160,12 @@ function channelLabel(value) {
 }
 
 function roleLabel(thread) {
-  if (thread.is_technical) return "Техническая канарейка";
+  if (isTechnicalThread(thread)) return "Внутреннее техническое сообщение";
   return ROLE_OPTIONS.find(([role]) => role === thread.relationship_role)?.[1] || "Роль не определена";
+}
+
+function isTechnicalThread(thread) {
+  return Boolean(thread?.is_technical || thread?.business_bucket === "technical");
 }
 
 function renderConversationRole(thread) {
@@ -171,7 +175,7 @@ function renderConversationRole(thread) {
   button.textContent = roleLabel(thread || {});
   button.classList.toggle("is-ai", thread?.role_source === "ai");
   button.classList.toggle("is-operator", thread?.role_source === "operator");
-  button.disabled = Boolean(thread?.is_technical || !thread?.thread_id || state.assigningRole);
+  button.disabled = Boolean(isTechnicalThread(thread) || !thread?.thread_id || state.assigningRole);
   const confidence = thread?.role_confidence === null || thread?.role_confidence === undefined
     ? null
     : Math.round(Number(thread.role_confidence) * 100);
@@ -580,7 +584,7 @@ function isSentTodayMoscow(thread) {
 }
 
 function chatStatusSets() {
-  const business = state.threads.filter((thread) => !thread.is_technical);
+  const business = state.threads.filter((thread) => !isTechnicalThread(thread));
   const read = readThreadIds();
   return {
     unread: new Set(business.filter((thread) => thread.last_direction !== "outbound" && !read.has(thread.thread_id)).map((thread) => thread.thread_id)),
@@ -613,13 +617,18 @@ function visibleThreads() {
   const coordination = activeCoordinationCase();
   const coordinationThreadIds = new Set((coordination?.participants || []).map((item) => item.thread_id));
   return state.threads.filter((thread) => {
-    if (thread.is_technical) return false;
+    const technical = isTechnicalThread(thread);
+    if (state.chatFolder === "technical") {
+      if (!technical) return false;
+    } else if (technical) {
+      return false;
+    }
     if (state.chatStatus && !statuses[state.chatStatus].has(thread.thread_id)) return false;
     if (coordination) {
       if (!coordinationThreadIds.has(thread.thread_id)) return false;
     } else {
       if (state.chatFolder === "hot" && !hot.has(thread.thread_id)) return false;
-      if (!["all", "hot"].includes(state.chatFolder) && thread.business_bucket !== state.chatFolder) return false;
+      if (!["all", "hot", "technical"].includes(state.chatFolder) && thread.business_bucket !== state.chatFolder) return false;
     }
     if (!query) return true;
     return [threadTitle(thread), thread.peer_external_id, thread.last_body, roleLabel(thread)]
@@ -628,13 +637,15 @@ function visibleThreads() {
 }
 
 function renderThreadFolders() {
-  const business = state.threads.filter((thread) => !thread.is_technical);
+  const business = state.threads.filter((thread) => !isTechnicalThread(thread));
+  const technical = state.threads.filter(isTechnicalThread);
   const hot = hotThreadIds();
   const counts = {
     All: business.length,
     New: business.filter((thread) => thread.business_bucket === "new").length,
     Hot: business.filter((thread) => hot.has(thread.thread_id)).length,
     Lcb: business.filter((thread) => thread.business_bucket === "lcb").length,
+    Technical: technical.length,
     Musicians: business.filter((thread) => thread.business_bucket === "musicians").length,
     Broker: business.filter((thread) => thread.business_bucket === "broker").length,
   };
