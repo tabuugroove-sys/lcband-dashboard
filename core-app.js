@@ -496,6 +496,8 @@ function syncChannelFilter() {
   const channels = [...new Set(state.threads.map((item) => item.channel))].sort();
   select.innerHTML = '<option value="">Все каналы</option>' + channels.map((channel) => `<option value="${escapeHtml(channel)}">${escapeHtml(channelLabel(channel))}</option>`).join("");
   select.value = channels.includes(state.channel) ? state.channel : "";
+}
+
 function renderChatStatusFilters() {
   const statuses = chatStatusSets();
   byId("countUnread").textContent = formatNumber(statuses.unread.size);
