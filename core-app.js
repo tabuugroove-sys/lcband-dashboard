@@ -37,8 +37,12 @@ const state = {
   },
   month: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   loading: false,
+  calendarLoading: false,
+  calendarRefreshedAt: 0,
   sending: false,
   selectedDraftId: "",
+  threadReady: false,
+  threadRequestController: null,
 };
 
 const byId = (id) => document.getElementById(id);
@@ -135,8 +139,12 @@ function initials(value) {
   return parts.slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "C";
 }
 
-async function apiGet(url) {
-  const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
+async function apiGet(url, options = {}) {
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+    signal: options.signal,
+  });
   const payload = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
   if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
   return payload;
@@ -188,7 +196,10 @@ function setView(view) {
     screen.classList.toggle("is-active", screen.id === `screen-${view}`);
   });
   byId("globalSearchWrap").hidden = !["calendar", "chats"].includes(view);
-  if (view === "calendar") renderCalendar();
+  if (view === "calendar") {
+    renderCalendar();
+    refreshCalendar();
+  }
   if (view === "chats") renderThreads();
   if (view === "today") renderToday();
   if (view === "system") renderSystem();
@@ -573,12 +584,32 @@ function dateKey(epoch) {
 }
 
 async function openThread(threadId, updateHash = true) {
+  if (updateHash) history.replaceState(null, "", `#chat/${encodeURIComponent(threadId)}`);
+  state.threadRequestController?.abort();
+  const controller = new AbortController();
+  state.threadRequestController = controller;
   state.selectedThreadId = threadId;
   state.selectedDraftId = "";
+  state.threadReady = false;
+  byId("manualSendText").value = "";
   markThreadReadLocally(threadId);
   renderThreads();
+  const selectedThread = state.threads.find((item) => item.thread_id === threadId) || {};
+  const selectedName = threadTitle(selectedThread);
+  byId("conversationEmpty").hidden = true;
+  byId("conversationContent").hidden = false;
+  byId("conversationName").textContent = selectedName;
+  byId("conversationAvatar").innerHTML = avatarContent(selectedThread, selectedName);
+  byId("conversationMeta").textContent = `${selectedThread.handle ? `@${selectedThread.handle}` : selectedThread.peer_external_id || "—"} · ${channelLabel(selectedThread.channel)} · загрузка переписки`;
+  byId("conversationRole").textContent = roleLabel(selectedThread);
+  byId("messageList").innerHTML = '<div class="empty-state"><strong>Загружаю переписку</strong>Предыдущий диалог очищен.</div>';
+  byId("conversation").classList.add("is-open");
+  renderManualSendState();
   try {
-    const payload = await apiGet(`${API.messages}?thread_id=${encodeURIComponent(threadId)}&limit=200`);
+    const payload = await apiGet(
+      `${API.messages}?thread_id=${encodeURIComponent(threadId)}&limit=200`,
+      { signal: controller.signal },
+    );
     if (state.selectedThreadId !== threadId) return;
     const thread = { ...(state.threads.find((item) => item.thread_id === threadId) || {}), ...(payload.thread || {}) };
     const name = threadTitle(thread);
@@ -627,14 +658,20 @@ async function openThread(threadId, updateHash = true) {
     const list = byId("messageList");
     list.scrollTop = list.scrollHeight;
     byId("conversation").classList.add("is-open");
-    if (updateHash) location.hash = `chat/${encodeURIComponent(threadId)}`;
+    state.threadReady = true;
+    renderManualSendState();
   } catch (error) {
+    if (controller.signal.aborted || state.selectedThreadId !== threadId) return;
+    byId("messageList").innerHTML = '<div class="empty-state"><strong>Переписка не загрузилась</strong><button type="button" data-thread-retry>Повторить</button></div>';
+    byId("messageList").querySelector("[data-thread-retry]")?.addEventListener("click", () => openThread(threadId, false));
     toast(`Тред не открыт: ${error.message}`);
+  } finally {
+    if (state.threadRequestController === controller) state.threadRequestController = null;
   }
 }
 
 function renderManualSendState() {
-  const enabled = Boolean(state.health?.manual_send_enabled);
+  const enabled = Boolean(state.health?.manual_send_enabled && state.threadReady && state.selectedThreadId);
   const form = byId("manualSendForm");
   const text = byId("manualSendText");
   const button = byId("manualSendButton");
@@ -651,7 +688,7 @@ function renderManualSendState() {
 
 async function sendManualReply(event) {
   event.preventDefault();
-  if (state.sending || !state.health?.manual_send_enabled || !state.selectedThreadId) return;
+  if (state.sending || !state.health?.manual_send_enabled || !state.threadReady || !state.selectedThreadId) return;
   const field = byId("manualSendText");
   const text = field.value.trim();
   if (!text) return;
@@ -823,16 +860,31 @@ function updateCounts() {
   setBadge("navChatsCount", 0);
 }
 
+async function refreshCalendar(force = false) {
+  const now = Date.now();
+  if (state.calendarLoading) return;
+  if (!force && state.calendarRefreshedAt && now - state.calendarRefreshedAt < 300000) return;
+  state.calendarLoading = true;
+  try {
+    state.calendar = await apiGet(API.calendar);
+    state.calendarRefreshedAt = Date.now();
+    renderCalendar();
+  } catch (error) {
+    if (state.activeView === "calendar") toast(`Календарь не обновлён: ${error.message}`);
+  } finally {
+    state.calendarLoading = false;
+  }
+}
+
 async function refreshAll() {
   if (state.loading) return;
   state.loading = true;
   byId("refreshButton").disabled = true;
   setConnection("loading", "Обновление");
   try {
-    const [health, summary, calendar, threadsPayload, coordinationPayload, work, operations] = await Promise.all([
+    const [health, summary, threadsPayload, coordinationPayload, work, operations] = await Promise.all([
       apiGet(API.health),
       apiGet(API.summary),
-      apiGet(API.calendar),
       apiGet(`${API.threads}?limit=200`),
       apiGet(API.coordinationCases),
       apiGet(API.work),
@@ -840,7 +892,6 @@ async function refreshAll() {
     ]);
     state.health = health;
     state.summary = summary;
-    state.calendar = calendar;
     state.threads = threadsPayload.threads || [];
     state.coordinationCases = coordinationPayload.cases || [];
     state.work = work;
