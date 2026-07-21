@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e6b54">
+  <title>LCB 2.0</title>
+  <link rel="icon" type="image/png" href="app-icon-192.png">
+  <link rel="apple-touch-icon" href="app-icon-180.png">
+  <link rel="stylesheet" href="core-app.css">
+</head>
+<body>
+  <header class="topbar">
+    <strong class="brand">LCB 2.0</strong>
+    <label class="search" id="globalSearchWrap">
+      <span aria-hidden="true">⌕</span>
+      <input id="globalSearch" type="search" placeholder="Поиск: контакт, событие…" autocomplete="off">
+    </label>
+    <button class="icon-button" id="refreshButton" title="Обновить" aria-label="Обновить">↻</button>
+    <button class="icon-button" id="themeButton" title="Тема" aria-label="Переключить тему">◐</button>
+    <button class="connection" id="connectionButton" aria-label="Состояние Core">
+      <span class="status-dot" id="connectionDot"></span>
+      <span id="connectionLabel">Подключение</span>
+    </button>
+  </header>
+
+  <nav class="tabbar" aria-label="Разделы приложения">
+    <button class="tab-button is-active" data-view="calendar"><span class="tab-icon" aria-hidden="true">▦</span>Календарь</button>
+    <button class="tab-button" data-view="chats"><span class="tab-icon" aria-hidden="true">✉<span class="tab-badge" id="navChatsCount" hidden></span></span>Чаты</button>
+    <button class="tab-button" data-view="today"><span class="tab-icon" aria-hidden="true">☉<span class="tab-badge brass" id="navTodayCount" hidden></span></span>Сегодня</button>
+    <button class="tab-button" data-view="system"><span class="tab-icon" aria-hidden="true">◔</span>Система</button>
+    <button class="tab-button" data-view="broadcast"><span class="tab-icon" aria-hidden="true">✈</span>Рассылка</button>
+  </nav>
+
+  <div class="workspace">
+    <div class="shadow-strip" id="shadowStrip">
+      <span><strong>LC Band 2.0</strong> · shadow-writer создаёт черновики · отправка только вручную · автоответы HOLD</span>
+      <span class="pill hold">SEND HOLD</span>
+    </div>
+
+    <main>
+      <section class="screen is-active" id="screen-calendar">
+        <div id="calendarHome">
+          <div class="calendar-head">
+            <button class="compact-button" id="calendarPrev" title="Предыдущий месяц" aria-label="Предыдущий месяц">‹</button>
+            <h1 id="calendarMonth">Месяц</h1>
+            <button class="compact-button" id="calendarNext" title="Следующий месяц" aria-label="Следующий месяц">›</button>
+            <button class="text-button" id="calendarToday">Сегодня</button>
+            <span class="calendar-spacer"></span>
+          </div>
+          <div class="calendar-filterbar" aria-label="Фильтры календаря">
+            <label><input id="filterLcb" type="checkbox" checked> LCB</label>
+            <label><input id="filterBroker" type="checkbox" checked> Broker</label>
+            <label><input id="filterJobs" type="checkbox" checked> События</label>
+            <label><input id="filterRequests" type="checkbox" checked> Заявки</label>
+            <label><input id="filterCancelled" type="checkbox" checked> Отменённые</label>
+            <label><input id="filterTechnical" type="checkbox"> Технические</label>
+            <span class="calendar-filter-actions">
+              <button class="text-button" id="calendarSelectAll" type="button">Выбрать все</button>
+              <button class="text-button" id="calendarClearAll" type="button">Снять все</button>
+            </span>
+          </div>
+          <div class="calendar-summary" id="calendarSummary"></div>
+          <div class="calendar-grid" id="calendarGrid" aria-live="polite"></div>
+          <details class="undated-calendar" id="undatedCalendar" open>
+            <summary>Без даты <span id="undatedCount">0</span></summary>
+            <div class="undated-list" id="undatedList"></div>
+          </details>
+        </div>
+
+        <article class="event-detail" id="eventDetail" hidden>
+          <button class="back-button" id="eventBack">‹ Назад</button>
+          <header class="event-header">
+            <div>
+              <p class="eyebrow" id="eventKind">Событие Core</p>
+              <h1 id="eventTitle">Событие</h1>
+              <p id="eventMeta"></p>
+            </div>
+            <span class="pill" id="eventStatus">status</span>
+          </header>
+          <div class="event-tags" id="eventTags"></div>
+
+          <section class="band-section">
+            <div class="section-head"><h2>Чек-лист события</h2><span id="eventChecklistScore">0/7</span></div>
+            <div class="checklist" id="eventChecklist"></div>
+          </section>
+
+          <section class="band-section">
+            <div class="section-head"><h2>Финансы</h2><span>Только подтверждённые данные Core</span></div>
+            <div class="finance-grid" id="eventFinance"></div>
+          </section>
+
+          <div class="event-columns">
+            <section class="band-section"><div class="section-head"><h2>Состав</h2></div><div id="eventLineup"></div></section>
+            <section class="band-section"><div class="section-head"><h2>Договор и программа</h2></div><div id="eventDocuments"></div></section>
+          </div>
+        </article>
+      </section>
+
+      <section class="screen chats-screen" id="screen-chats">
+        <div class="chat-shell">
+          <aside class="chat-folders" aria-label="Папки чатов">
+            <button data-chat-folder="hot"><span class="folder-icon">🔥</span><span class="folder-label">Горячие</span><b id="folderHot">0</b></button>
+            <button data-chat-folder="new"><span class="folder-icon">✨</span><span class="folder-label">Новые</span><b id="folderNew">0</b></button>
+            <button class="is-active" data-chat-folder="all"><span class="folder-icon">👥</span><span class="folder-label">Все Core</span><b id="folderAll">0</b></button>
+            <button data-chat-folder="lcb"><span class="folder-icon">LC</span><span class="folder-label">Все LCB</span><b id="folderLcb">0</b></button>
+            <button data-chat-folder="musicians"><span class="folder-icon">🎸</span><span class="folder-label">Музыканты</span><b id="folderMusicians">0</b></button>
+            <button data-chat-folder="broker"><span class="folder-icon">🤝</span><span class="folder-label">Брокер</span><b id="folderBroker">0</b></button>
+          </aside>
+
+          <aside class="thread-pane">
+            <div class="chat-status-filters" aria-label="Фильтры чатов">
+              <button class="chat-status-filter blue" id="filterUnread" data-chat-status="unread" title="Непрочитано в LCB 2.0; unread в мессенджерах не меняется">
+                <span><i></i><b id="countUnread">0</b></span><small>непрочитано</small>
+              </button>
+              <button class="chat-status-filter brass" id="filterPending" data-chat-status="pending" title="Треды с открытым обязательством или черновиком">
+                <span><i></i><b id="countPending">0</b></span><small>ждут подтверждения</small>
+              </button>
+              <button class="chat-status-filter green" id="filterSent" data-chat-status="sent" title="Подтверждённые исходящие Core за день МСК">
+                <span><i></i><b id="countSent">0</b></span><small>отправлено · за день</small>
+              </button>
+            </div>
+            <label class="thread-search"><input id="chatSearch" type="search" placeholder="Поиск" autocomplete="off"></label>
+            <div class="thread-tools">
+              <select id="channelFilter" aria-label="Канал">
+                <option value="">Все каналы</option>
+              </select>
+              <span id="threadTotal">0</span>
+            </div>
+            <div class="thread-list" id="threadList" aria-live="polite"></div>
+          </aside>
+
+          <section class="conversation" id="conversation">
+            <div class="conversation-empty" id="conversationEmpty">
+              <span class="empty-icon" aria-hidden="true">✉</span>
+              <strong>Выберите диалог слева</strong>
+              <p>Показаны только сообщения, уже записанные новым Core.</p>
+            </div>
+            <div class="conversation-content" id="conversationContent" hidden>
+              <header class="conversation-head">
+                <button class="mobile-back" id="chatBack" title="К списку" aria-label="К списку">‹</button>
+                <span class="thread-avatar large" id="conversationAvatar">C</span>
+                <div>
+                  <h2 id="conversationName">Тред</h2>
+                  <p id="conversationMeta"></p>
+                </div>
+                <span class="pill" id="conversationRole">роль не определена</span>
+              </header>
+              <div class="message-list" id="messageList"></div>
+              <form class="composer-hold" id="manualSendForm">
+                <label aria-label="Сообщение">
+                  <textarea id="manualSendText" rows="1" placeholder="Ручной ответ в Telegram" disabled></textarea>
+                </label>
+                <button id="manualSendButton" disabled aria-disabled="true" title="Отправить точный текст">↑</button>
+                <small id="manualSendNote">Автоответы в HOLD. Ручной текст отправляется дословно через единственного Telegram-отправщика.</small>
+              </form>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-today">
+        <div class="page-head"><div><p class="eyebrow">Операционная очередь</p><h1>Сегодня</h1></div><span class="pill hold">Решения человека не обходятся</span></div>
+        <div class="today-metrics" id="todayMetrics"></div>
+        <section class="operations-band" aria-labelledby="operationsTitle">
+          <div class="section-head operations-head">
+            <div><p class="eyebrow">Срез за бизнес-день</p><h2 id="operationsTitle">Что происходит</h2></div>
+            <span class="source-note" id="operationsSource">Проверка источников</span>
+          </div>
+          <div class="operations-metrics" id="operationsMetrics"></div>
+          <div class="operations-columns">
+            <section class="operations-panel">
+              <div class="section-head"><h3>Каналы</h3><span>приём и отправка</span></div>
+              <div class="channel-health" id="channelHealth"></div>
+            </section>
+            <section class="operations-panel">
+              <div class="section-head"><h3>AI и токены</h3><span>сегодня</span></div>
+              <div id="tokenUsage"></div>
+            </section>
+          </div>
+          <div class="operations-columns">
+            <section class="operations-panel">
+              <div class="section-head"><h3>Питчи</h3><span>отправлено / остановлено</span></div>
+              <div id="pitchOperations"></div>
+            </section>
+            <section class="operations-panel">
+              <div class="section-head"><h3>Почему не отправлено</h3><span>follow-up</span></div>
+              <div id="followupBlockers"></div>
+            </section>
+          </div>
+          <section class="operations-panel followup-panel">
+            <div class="section-head"><h3>Follow-up сейчас</h3><span id="followupProjectionState">Проверка Core</span></div>
+            <div class="followup-queue" id="followupQueue"></div>
+          </section>
+          <div class="operations-alerts" id="operationsAlerts"></div>
+        </section>
+        <div class="work-tabs" role="tablist" aria-label="Рабочие очереди">
+          <button class="is-active" data-work-tab="obligations">Обязательства <span id="countObligations">0</span></button>
+          <button data-work-tab="drafts">Черновики <span id="countDrafts">0</span></button>
+          <button data-work-tab="approvals">Решения <span id="countApprovals">0</span></button>
+          <button data-work-tab="outbound_intents">Исходящие <span id="countOutbound">0</span></button>
+          <button data-work-tab="domain_events">Журнал <span id="countEvents">0</span></button>
+        </div>
+        <div class="work-list" id="workList"></div>
+      </section>
+
+      <section class="screen" id="screen-system">
+        <div class="page-head"><div><p class="eyebrow">LC Band 2.0</p><h1>Система</h1></div><span class="pill" id="systemHealthPill">Проверка</span></div>
+        <section class="system-band">
+          <div><h2>Новый Core работает отдельно</h2><p>Приложение читает каноническую Core DB без legacy fallback. Отдельный shadow-writer записывает только черновики; он не меняет unread и не имеет доступа к транспортам мессенджеров.</p></div>
+          <div class="system-state" id="systemState"></div>
+        </section>
+        <div class="system-columns">
+          <section class="band-section"><div class="section-head"><h2>Данные</h2></div><dl class="definition-list" id="schemaDetails"></dl></section>
+          <section class="band-section"><div class="section-head"><h2>Предохранители</h2></div><ul class="guard-list"><li><b>×</b><span><strong>Нет read fallback</strong><small>Контакты и сообщения читаются из Core.</small></span></li><li><b>✓</b><span><strong>Черновик не является отправкой</strong><small>Shadow-writer создаёт immutable draft без outbound intent и без messenger SDK.</small></span></li><li><b>✓</b><span><strong>Ручная отправка отделена</strong><small>Только точный текст оператора через единственного delivery-owner и provider receipt.</small></span></li><li><b>×</b><span><strong>Автоответы выключены</strong><small>Агенты остаются в SEND HOLD.</small></span></li></ul></section>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-broadcast">
+        <div class="page-head"><div><p class="eyebrow">Кампании</p><h1>Рассылка</h1></div><span class="pill hold">SEND HOLD</span></div>
+        <section class="broadcast-band">
+          <div class="broadcast-symbol" aria-hidden="true">✈</div>
+          <div><h2>Рассылка ещё не подключена к Core</h2><p>Интерфейс сохранён на привычном месте, но запуск кампании будет доступен только после отдельной typed-команды, approval и delivery receipt. Legacy-рассылку это приложение не вызывает.</p></div>
+        </section>
+        <div class="channel-summary" id="broadcastChannels"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <script src="core-app.js"></script>
+</body>
+</html>
