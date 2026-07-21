@@ -343,18 +343,47 @@ function isoDate(date) {
 function calendarEvents() {
   const query = state.query.toLowerCase();
   return (state.calendar.events || []).filter((event) => {
-    const filters = state.calendarFilters;
-    if (event.is_technical && !filters.technical) return false;
-    if (event.business_line === "lcb" && !filters.lcb) return false;
-    if (event.business_line === "broker" && !filters.broker) return false;
-    if (event.record_type === "job" && !filters.jobs) return false;
-    if (event.record_type === "request" && !filters.requests) return false;
-    const funnelStage = eventFunnelStage(event);
-    if (funnelStage && filters[funnelStage] === false) return false;
+    if (!calendarEventMatchesFilters(event)) return false;
     if (!query) return true;
     return [eventTitle(event), event.venue_ref, event.event_date, event.service_format, event.username]
       .some((value) => String(value || "").toLowerCase().includes(query));
   });
+}
+
+function calendarEventMatchesFilters(event) {
+  const filters = state.calendarFilters;
+  const businessLine = String(event.business_line || "").toLowerCase();
+  const recordType = String(event.record_type || "").toLowerCase();
+  const isTechnical = Boolean(event.is_technical);
+  const selectedBusinessLines = [
+    filters.lcb ? "lcb" : null,
+    filters.broker ? "broker" : null,
+  ].filter(Boolean);
+
+  // Business line and record type are independent dimensions. With neither
+  // record-type checkbox selected, keep all record types for the chosen line;
+  // this makes selecting only LCB/Broker useful instead of showing zero rows.
+  if (isTechnical) {
+    if (!filters.technical) return false;
+  } else if (!selectedBusinessLines.includes(businessLine)) {
+    return false;
+  }
+  const selectedRecordTypes = [
+    filters.jobs ? "job" : null,
+    filters.requests ? "request" : null,
+  ].filter(Boolean);
+  if (selectedRecordTypes.length && !selectedRecordTypes.includes(recordType)) return false;
+
+  const cancelled = Boolean(
+    event.cancelled
+      || event.lifecycle === "cancelled"
+      || event.occurrence_status === "cancelled"
+      || event.funnel_stage === "cancelled"
+  );
+  if (cancelled && !filters.cancelled) return false;
+  const funnelStage = eventFunnelStage(event);
+  if (funnelStage && filters[funnelStage] === false) return false;
+  return true;
 }
 
 function eventFunnelStage(event) {
