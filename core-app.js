@@ -576,11 +576,13 @@ function markThreadReadLocally(threadId) {
 }
 
 function isSentTodayMoscow(thread) {
-  if (thread.last_direction !== "outbound" || !thread.last_message_epoch) return false;
+  const outboundEpoch = thread.last_outbound_epoch
+    || (thread.last_direction === "outbound" ? thread.last_message_epoch : null);
+  if (!outboundEpoch) return false;
   const day = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Moscow", year: "numeric", month: "2-digit", day: "2-digit",
   });
-  return day.format(new Date(Number(thread.last_message_epoch) * 1000)) === day.format(new Date());
+  return day.format(new Date(Number(outboundEpoch) * 1000)) === day.format(new Date());
 }
 
 function chatStatusSets() {
@@ -689,12 +691,34 @@ function renderChatStatusFilters() {
   });
 }
 
+function clearSelectedConversation() {
+  state.threadRequestController?.abort();
+  state.threadRequestController = null;
+  state.selectedThreadId = "";
+  state.selectedThread = null;
+  state.selectedDraftId = "";
+  state.threadReady = false;
+  byId("manualSendText").value = "";
+  byId("conversationContent").hidden = true;
+  byId("conversationEmpty").hidden = false;
+  byId("conversation").classList.remove("is-open");
+  closeRoleMenu();
+  renderManualSendState();
+  if (location.hash.startsWith("#chat/")) history.replaceState(null, "", "#chats");
+}
+
 function renderThreads() {
   renderThreadFolders();
   syncChannelFilter();
   byId("chatSearch").value = state.query;
   renderChatStatusFilters();
   const threads = visibleThreads();
+  if (
+    state.selectedThreadId
+    && !threads.some((thread) => thread.thread_id === state.selectedThreadId)
+  ) {
+    clearSelectedConversation();
+  }
   byId("threadTotal").textContent = `${threads.length} тредов`;
   byId("threadList").innerHTML = threads.length ? threads.map((thread) => {
     const name = threadTitle(thread);
@@ -1054,7 +1078,7 @@ async function refreshAll() {
   byId("refreshButton").disabled = true;
   setConnection("loading", "Обновление");
   try {
-    const [health, summary, fees, threadsPayload, coordinationPayload, work, operations] = await Promise.all([
+    const results = await Promise.allSettled([
       apiGet(API.health),
       apiGet(API.summary),
       apiGet(API.fees),
@@ -1063,9 +1087,16 @@ async function refreshAll() {
       apiGet(API.work),
       apiGet(API.operations),
     ]);
+    const [healthResult, summaryResult, feesResult, threadsResult, coordinationResult, workResult, operationsResult] = results;
+    if (healthResult.status !== "fulfilled" || threadsResult.status !== "fulfilled") {
+      const failure = healthResult.status === "rejected" ? healthResult.reason : threadsResult.reason;
+      throw failure instanceof Error ? failure : new Error(String(failure || "Core read failed"));
+    }
+    const health = healthResult.value;
+    const threadsPayload = threadsResult.value;
     state.health = health;
-    state.summary = summary;
-    state.fees = fees;
+    if (summaryResult.status === "fulfilled") state.summary = summaryResult.value;
+    if (feesResult.status === "fulfilled") state.fees = feesResult.value;
     state.threads = threadsPayload.threads || [];
     if (state.selectedThreadId) {
       const refreshedThread = state.threads.find(
@@ -1076,9 +1107,11 @@ async function refreshAll() {
         renderConversationRole(state.selectedThread);
       }
     }
-    state.coordinationCases = coordinationPayload.cases || [];
-    state.work = work;
-    state.operations = operations;
+    if (coordinationResult.status === "fulfilled") {
+      state.coordinationCases = coordinationResult.value.cases || [];
+    }
+    if (workResult.status === "fulfilled") state.work = workResult.value;
+    if (operationsResult.status === "fulfilled") state.operations = operationsResult.value;
     renderCalendar();
     renderThreads();
     renderToday();
@@ -1087,7 +1120,11 @@ async function refreshAll() {
     renderBroadcast();
     renderManualSendState();
     updateCounts();
-    setConnection(health.ok ? "ok" : "error", health.ok ? "Core доступен" : "Core неполон");
+    const partial = results.slice(1).some((result, index) => index !== 2 && result.status === "rejected");
+    setConnection(
+      health.ok ? "ok" : "error",
+      health.ok ? (partial ? "Core доступен · часть данных" : "Core доступен") : "Core неполон",
+    );
     if (state.selectedEventId) openEvent(state.selectedEventId, false);
   } catch (error) {
     setConnection("error", "Core недоступен");
@@ -1193,7 +1230,9 @@ function bindEvents() {
   document.addEventListener("click", closeRoleMenu);
   document.querySelectorAll("[data-chat-status]").forEach((button) => {
     button.addEventListener("click", () => {
-      state.chatStatus = state.chatStatus === button.dataset.chatStatus ? "" : button.dataset.chatStatus;
+      const nextStatus = state.chatStatus === button.dataset.chatStatus ? "" : button.dataset.chatStatus;
+      state.chatStatus = nextStatus;
+      if (nextStatus) state.chatFolder = "all";
       renderThreads();
     });
   });
