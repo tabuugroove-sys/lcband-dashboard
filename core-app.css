@@ -216,6 +216,29 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .calendar-filterbar input { margin: 0 5px 0 0; accent-color: var(--pine); vertical-align: -1px; }
 .calendar-filter-actions { display: flex; gap: 4px; margin-left: auto; }
 .calendar-filter-actions .text-button { min-height: 29px; padding: 0 8px; font-size: 11px; }
+.calendar-stage-filterbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+.calendar-filter-title { color: var(--ink); font-size: 11px; font-weight: 700; }
+.stage-filter { color: var(--muted); font-size: 11px; white-space: nowrap; cursor: pointer; }
+.stage-filter input { margin: 0 4px 0 0; accent-color: var(--pine); vertical-align: -1px; }
+.calendar-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 11px; min-height: 30px; color: var(--muted); font-size: 10px; }
+.legend-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.legend-item i { width: 9px; height: 9px; display: inline-block; border-radius: 3px; background: var(--frame); }
+.legend-item.performed i, .stage-filter.performed input { accent-color: #7652a7; }
+.legend-item.performed i { background: #7652a7; }
+.legend-item.content-received i { background: #c5b5d4; }
+.legend-item.prepayment i { background: #b42318; }
+.legend-item.contract i { background: #c77722; }
+.legend-item.confirmed i { background: #c39b23; }
+.legend-item.negotiating i { background: #4f8f68; }
+.legend-item.followup-cold i { background: #a3bda1; }
+.legend-item.cancelled i { background: #b8bec2; }
 .calendar-summary { min-height: 30px; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
 .calendar-grid { overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
 .calendar-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
@@ -248,10 +271,18 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   font-weight: 600;
   cursor: pointer;
 }
-.event-chip.tentative, .event-chip.scheduled { background: var(--warn-soft); color: var(--warn); }
-.event-chip.cancelled { background: var(--frame); color: var(--muted); text-decoration: line-through; }
+.event-chip.funnel-performed { background: #7652a7; color: white; }
+.event-chip.funnel-content-pending { background: #a98ac4; color: #2d2039; }
+.event-chip.funnel-content-received { background: #c5b5d4; color: #30263a; }
+.event-chip.funnel-prepayment { background: #b42318; color: white; }
+.event-chip.funnel-contract { background: #c77722; color: white; }
+.event-chip.funnel-confirmed { background: #c39b23; color: white; }
+.event-chip.funnel-negotiating { background: #4f8f68; color: white; }
+.event-chip.funnel-followup-waiting { background: #78a875; color: #17351f; }
+.event-chip.funnel-followup-cold { background: #a3bda1; color: #263a29; }
+.event-chip.funnel-lead { background: #2f8f72; color: white; }
+.event-chip.funnel-cancelled { background: #b8bec2; color: #586067; text-decoration: line-through; }
 .event-chip.technical { background: var(--frame); color: var(--muted); }
-.event-chip.broker { background: #9b661a; }
 .event-chip.request { opacity: .78; }
 .calendar-empty-note { padding: 34px 18px; text-align: center; color: var(--muted); }
 .undated-calendar { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
@@ -494,6 +525,7 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   main { padding: 12px 12px 28px; }
   .calendar-day { min-height: 76px; }
   .calendar-filter-actions { width: 100%; margin-left: 0; }
+  .calendar-stage-filterbar { gap: 5px 8px; }
   .calendar-day-number { width: 20px; height: 20px; }
   .event-chip { min-height: 19px; padding: 2px 4px; font-size: 9px; }
   .event-columns, .system-columns, .system-band { grid-template-columns: 1fr; }

@@ -32,8 +32,18 @@ const state = {
     broker: true,
     jobs: true,
     requests: true,
-    cancelled: true,
     technical: false,
+    performed: true,
+    content_pending: true,
+    content_received: true,
+    prepayment: true,
+    contract: true,
+    confirmed: true,
+    negotiating: true,
+    followup_waiting: true,
+    followup_cold: true,
+    lead: true,
+    cancelled: true,
   },
   month: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   loading: false,
@@ -44,6 +54,20 @@ const state = {
   threadReady: false,
   threadRequestController: null,
 };
+
+const CALENDAR_STAGE_LABELS = Object.freeze({
+  performed: "Состоялось",
+  content_pending: "Фото/видео запросить",
+  content_received: "Фото/видео получены",
+  prepayment: "Предоплата получена",
+  contract: "Договор",
+  confirmed: "Подтверждено",
+  negotiating: "Переговоры",
+  followup_waiting: "Ждём ответа",
+  followup_cold: "Нет ответа",
+  lead: "Новая заявка",
+  cancelled: "Отмена",
+});
 
 const byId = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? "")
@@ -251,11 +275,27 @@ function calendarEvents() {
     if (event.business_line === "broker" && !filters.broker) return false;
     if (event.record_type === "job" && !filters.jobs) return false;
     if (event.record_type === "request" && !filters.requests) return false;
-    if (event.cancelled && !filters.cancelled) return false;
+    const funnelStage = eventFunnelStage(event);
+    if (funnelStage && filters[funnelStage] === false) return false;
     if (!query) return true;
     return [eventTitle(event), event.venue_ref, event.event_date, event.service_format, event.username]
       .some((value) => String(value || "").toLowerCase().includes(query));
   });
+}
+
+function eventFunnelStage(event) {
+  if (event.funnel_stage && CALENDAR_STAGE_LABELS[event.funnel_stage]) return event.funnel_stage;
+  if (event.cancelled || event.lifecycle === "cancelled" || event.occurrence_status === "cancelled") return "cancelled";
+  if (event.lifecycle === "performed" || event.occurrence_status === "performed") return "performed";
+  if (event.lifecycle === "prepayment") return "prepayment";
+  if (event.lifecycle === "contract") return "contract";
+  if (event.lifecycle === "confirmed") return "confirmed";
+  if (event.lifecycle === "negotiation") return "negotiating";
+  return "lead";
+}
+
+function funnelStageLabel(event) {
+  return CALENDAR_STAGE_LABELS[eventFunnelStage(event)] || "Этап не определён";
 }
 
 function syncCalendarFilterControls() {
@@ -266,6 +306,16 @@ function syncCalendarFilterControls() {
     filterRequests: "requests",
     filterCancelled: "cancelled",
     filterTechnical: "technical",
+    filterStagePerformed: "performed",
+    filterStageContentPending: "content_pending",
+    filterStageContentReceived: "content_received",
+    filterStagePrepayment: "prepayment",
+    filterStageContract: "contract",
+    filterStageConfirmed: "confirmed",
+    filterStageNegotiating: "negotiating",
+    filterStageFollowupWaiting: "followup_waiting",
+    filterStageFollowupCold: "followup_cold",
+    filterStageLead: "lead",
   };
   Object.entries(mapping).forEach(([id, key]) => {
     byId(id).checked = Boolean(state.calendarFilters[key]);
@@ -278,7 +328,7 @@ function renderCalendar() {
   const payload = state.calendar || {};
   const summary = [];
   if (!payload.model_ready) summary.push('<span class="pill danger">Модель календаря не готова</span>');
-  summary.push(`<span>LCB ${formatNumber((payload.by_business_line || {}).lcb)} · Broker ${formatNumber((payload.by_business_line || {}).broker)}</span>`);
+  summary.push(`<span>LCBand ${formatNumber((payload.by_business_line || {}).lcb)} · Broker ${formatNumber((payload.by_business_line || {}).broker)}</span>`);
   if (Number(payload.technical_events || 0)) {
     summary.push(`<span>· ${formatNumber(payload.technical_events)} технических</span>`);
   }
@@ -315,7 +365,7 @@ function renderCalendar() {
     const events = eventsByDate.get(key) || [];
     html += `<div class="calendar-day ${outside ? "outside" : ""}">
       <span class="calendar-day-number ${key === today ? "today" : ""}">${date.getDate()}</span>
-      ${events.slice(0, 3).map((event) => `<button class="event-chip ${escapeHtml(event.occurrence_status || event.booking_status || "")} ${event.is_technical ? "technical" : ""} ${escapeHtml(event.business_line || "")} ${escapeHtml(event.record_type || "")}" data-event-id="${escapeHtml(event.calendar_id || event.occurrence_id)}" title="${escapeHtml(eventTitle(event))}">${escapeHtml(eventTitle(event))}</button>`).join("")}
+      ${events.slice(0, 3).map((event) => `<button class="event-chip funnel-${escapeHtml(eventFunnelStage(event))} ${event.is_technical ? "technical" : ""} ${escapeHtml(event.business_line || "")} ${escapeHtml(event.record_type || "")}" data-event-id="${escapeHtml(event.calendar_id || event.occurrence_id)}" title="${escapeHtml(`${eventTitle(event)} · ${funnelStageLabel(event)}`)}">${escapeHtml(eventTitle(event))}</button>`).join("")}
       ${events.length > 3 ? `<span class="thread-label">+${events.length - 3}</span>` : ""}
     </div>`;
   }
@@ -327,7 +377,7 @@ function renderCalendar() {
   const undated = visibleEvents.filter((event) => !event.event_date);
   byId("undatedCount").textContent = formatNumber(undated.length);
   byId("undatedList").innerHTML = undated.length
-    ? undated.map((event) => `<button class="undated-item" data-event-id="${escapeHtml(event.calendar_id || event.occurrence_id)}"><strong>${escapeHtml(eventTitle(event))}</strong><span>${event.business_line === "broker" ? "Broker" : "LCB"} · ${event.record_type === "job" ? "событие" : "заявка"} · ${escapeHtml(event.status || event.booking_status || "без статуса")}</span></button>`).join("")
+    ? undated.map((event) => `<button class="undated-item" data-event-id="${escapeHtml(event.calendar_id || event.occurrence_id)}"><strong>${escapeHtml(eventTitle(event))}</strong><span>${event.business_line === "broker" ? "Broker" : "LCBand"} · ${event.record_type === "job" ? "событие" : "заявка"} · ${escapeHtml(funnelStageLabel(event))}</span></button>`).join("")
     : '<div class="calendar-empty-note">По выбранным фильтрам записей без даты нет</div>';
   byId("undatedList").querySelectorAll("[data-event-id]").forEach((button) => {
     button.addEventListener("click", () => openEvent(button.dataset.eventId));
@@ -345,7 +395,7 @@ function renderEventDetail(event) {
     byId("eventMeta").textContent = `${formatEventDate(event.event_date)} · ${event.venue_ref || "площадка не указана"}`;
     byId("eventStatus").textContent = event.status || event.lifecycle || "unknown";
     byId("eventStatus").className = `pill ${event.cancelled ? "danger" : event.event_date ? "ok" : "hold"}`;
-    byId("eventTags").innerHTML = [event.service_format, event.username ? `@${event.username}` : null, "read-only import"]
+    byId("eventTags").innerHTML = [funnelStageLabel(event), event.service_format, event.username ? `@${event.username}` : null, "read-only import"]
       .filter(Boolean).map((tag) => `<span class="pill">${escapeHtml(tag)}</span>`).join("");
     byId("eventChecklistScore").textContent = "legacy";
     byId("eventChecklist").innerHTML = `<div class="check-row wait"><span class="check-dot">…</span><div><strong>Детали ещё в текущем пайплайне</strong><small>В Core импортирован календарный факт. Договор, оплата, состав, райдер и репертуар не считаются перенесёнными без отдельных доказательств.</small></div></div>`;
@@ -362,6 +412,7 @@ function renderEventDetail(event) {
   byId("eventStatus").textContent = event.occurrence_status || event.booking_status || "unknown";
   byId("eventStatus").className = `pill ${event.occurrence_status === "cancelled" ? "danger" : event.date_firm ? "ok" : "hold"}`;
   const tags = [
+    funnelStageLabel(event),
     event.service_format,
     event.date_firm ? "дата подтверждена" : "дата мягкая",
     event.channel ? channelLabel(event.channel) : null,
@@ -968,6 +1019,16 @@ function bindEvents() {
     filterRequests: "requests",
     filterCancelled: "cancelled",
     filterTechnical: "technical",
+    filterStagePerformed: "performed",
+    filterStageContentPending: "content_pending",
+    filterStageContentReceived: "content_received",
+    filterStagePrepayment: "prepayment",
+    filterStageContract: "contract",
+    filterStageConfirmed: "confirmed",
+    filterStageNegotiating: "negotiating",
+    filterStageFollowupWaiting: "followup_waiting",
+    filterStageFollowupCold: "followup_cold",
+    filterStageLead: "lead",
   };
   Object.entries(calendarFilterInputs).forEach(([id, key]) => {
     byId(id).addEventListener("change", (event) => {
