@@ -16,6 +16,26 @@
       <span aria-hidden="true">⌕</span>
       <input id="globalSearch" type="search" placeholder="Поиск: контакт, событие…" autocomplete="off">
     </label>
+    <div class="autonomy-picker" id="autonomyPicker">
+      <button class="autonomy-button" id="autonomyButton" type="button" aria-haspopup="menu" aria-expanded="false" title="Режим общения агента">
+        <span class="autonomy-icon" aria-hidden="true">✋</span>
+        <span><small>Режим агента</small><strong id="autonomyLabel">Спрашивать</strong></span>
+        <span aria-hidden="true">⌄</span>
+      </button>
+      <div class="autonomy-menu" id="autonomyMenu" role="menu" hidden>
+        <p>Как агенту вести переписку?</p>
+        <button type="button" data-autonomy-mode="approval_required" role="menuitemradio">
+          <span aria-hidden="true">✋</span><span><strong>Спрашивать</strong><small>Каждый ответ сначала показывать тебе.</small></span>
+        </button>
+        <button type="button" data-autonomy-mode="exception_only" role="menuitemradio">
+          <span aria-hidden="true">◌</span><span><strong>Спрашивать при отклонении</strong><small>Обычные ответы самостоятельно; риск и ситуация не по плану — тебе.</small></span>
+        </button>
+        <button type="button" data-autonomy-mode="autonomous" role="menuitemradio">
+          <span aria-hidden="true">◎</span><span><strong>Самостоятельно</strong><small>Вести обычную переписку без обращения к тебе.</small></span>
+        </button>
+        <div class="autonomy-guard">Деньги, договоры, документы, отмены и неизвестные факты всегда проходят отдельные проверки.</div>
+      </div>
+    </div>
     <button class="icon-button" id="refreshButton" title="Обновить" aria-label="Обновить">↻</button>
     <button class="icon-button" id="themeButton" title="Тема" aria-label="Переключить тему">◐</button>
     <button class="connection" id="connectionButton" aria-label="Состояние Core">
@@ -35,8 +55,8 @@
 
   <div class="workspace">
     <div class="shadow-strip" id="shadowStrip">
-      <span><strong>LC Band 2.0</strong> · shadow-writer создаёт черновики · отправка только вручную · автоответы HOLD</span>
-      <span class="pill hold">SEND HOLD</span>
+      <span id="shadowStripText"><strong>LC Band 2.0</strong> · shadow-writer создаёт черновики · отправка только вручную · автоответы HOLD</span>
+      <span class="pill hold" id="shadowStripPill">SEND HOLD</span>
     </div>
 
     <main>
