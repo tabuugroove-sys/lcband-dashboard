@@ -104,7 +104,7 @@
           <div class="event-tags" id="eventTags"></div>
 
           <section class="band-section">
-            <div class="section-head"><h2>Чек-лист события</h2><span id="eventChecklistScore">0/7</span></div>
+            <div class="section-head"><h2>Чек-лист события</h2><span id="eventChecklistScore">0/9</span></div>
             <div class="checklist" id="eventChecklist"></div>
           </section>
 
@@ -116,6 +116,8 @@
           <div class="event-columns">
             <section class="band-section"><div class="section-head"><h2>Состав</h2></div><div id="eventLineup"></div></section>
             <section class="band-section"><div class="section-head"><h2>Договор и программа</h2></div><div id="eventDocuments"></div></section>
+            <section class="band-section"><div class="section-head"><h2>Съёмка и запись звука</h2></div><div id="eventMedia"></div></section>
+            <section class="band-section"><div class="section-head"><h2>Выплаты составу</h2><span>Только проводки Core</span></div><div id="eventPayouts"></div></section>
           </div>
         </article>
       </section>
@@ -175,6 +177,11 @@
                   <div class="role-menu" id="conversationRoleMenu" role="listbox" hidden></div>
                 </div>
               </header>
+              <details class="initial-request" id="initialRequestPanel" hidden>
+                <summary>Изначальный запрос</summary>
+                <div id="initialRequestText"></div>
+                <small id="initialRequestMeta"></small>
+              </details>
               <div class="message-list" id="messageList"></div>
               <form class="composer-hold" id="manualSendForm">
                 <label aria-label="Сообщение">

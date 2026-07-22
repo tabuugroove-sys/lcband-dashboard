@@ -326,7 +326,7 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .check-row.wait .check-dot { background: var(--warn-soft); color: var(--warn); }
 .check-row strong, .check-row small { display: block; }
 .check-row small { margin-top: 2px; color: var(--muted); }
-.finance-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 10px; }
+.finance-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(3, minmax(130px, 1fr)); gap: 10px; }
 .finance-cell { min-height: 82px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); }
 .finance-cell span { display: block; color: var(--muted); font-size: 12px; }
 .finance-cell strong { display: block; margin-top: 6px; font-size: 22px; font-variant-numeric: tabular-nums; }
@@ -385,11 +385,15 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .conversation-empty { max-width: 340px; margin: auto; padding: 24px; color: var(--muted); text-align: center; }
 .conversation-empty strong { display: block; margin-top: 10px; color: var(--ink); }
 .conversation-empty p, .empty-icon { display: none; }
-.conversation-content { width: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.conversation-content { width: 100%; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; }
 .conversation-head { min-height: 66px; padding: 10px 15px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); }
 .conversation-head h2 { margin: 0; font-size: 16px; }
 .conversation-head p { margin: 1px 0 0; color: var(--muted); font-size: 11px; }
 .conversation-head .pill { margin-left: 0; }
+.initial-request { padding: 0 15px; border-bottom: 1px solid var(--line); background: var(--card); }
+.initial-request summary { min-height: 38px; display: flex; align-items: center; color: var(--pine); font-size: 12px; font-weight: 700; cursor: pointer; }
+.initial-request > div { max-height: 180px; padding: 0 0 8px; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); line-height: 1.45; }
+.initial-request > small { display: block; padding: 0 0 10px; color: var(--muted); }
 .mobile-back { display: none; border: 0; background: transparent; color: var(--pine); font-size: 26px; cursor: pointer; }
 .message-list { min-height: 0; padding: 10px 16px; overflow-y: auto; background: var(--paper); }
 .message-day { width: fit-content; margin: 9px auto; padding: 3px 9px; border-radius: 999px; background: var(--frame); color: var(--muted); font-size: 10px; }
