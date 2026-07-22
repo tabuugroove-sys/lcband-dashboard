@@ -581,6 +581,8 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   .role-picker { margin-left: auto; }
   .role-pill { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
   .message { max-width: 88%; }
+  .composer-hold { grid-template-columns: 1fr; }
+  .composer-actions { grid-column: 1; flex-wrap: wrap; justify-content: flex-end; }
   .composer-hold small { font-size: 9px; }
   .broadcast-band { align-items: flex-start; }
   .fees-notice { align-items: flex-start; }
