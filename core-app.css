@@ -402,7 +402,7 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .message-meta { margin-top: 4px; color: var(--muted); font-size: 9px; text-align: right; }
 .composer-hold { min-height: 84px; padding: 10px 13px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; border-top: 1px solid var(--line); background: var(--card); }
 .composer-hold label { display: block; }
-.composer-hold textarea { width: 100%; min-height: 42px; max-height: 90px; padding: 10px 12px; resize: none; border: 1px solid #d9aaa6; border-radius: 8px; background: var(--danger-soft); color: var(--muted); }
+.composer-hold textarea { width: 100%; height: 42px; min-height: 42px; padding: 10px 12px; overflow-y: hidden; resize: none; border: 1px solid #d9aaa6; border-radius: 8px; background: var(--danger-soft); color: var(--muted); }
 .composer-actions { display: flex; align-items: flex-start; gap: 8px; }
 .composer-actions button { min-height: 42px; padding: 0 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--frame); color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; cursor: not-allowed; }
 .composer-actions button[hidden] { display: none; }
@@ -410,6 +410,7 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .composer-hold.is-enabled textarea { background: var(--card); border-color: var(--accent); color: var(--ink); }
 .composer-hold.is-enabled .composer-actions button:not(:disabled) { background: var(--pine); border-color: var(--pine); color: white; cursor: pointer; }
 .composer-hold.is-enabled #saveCanonButton:not(:disabled) { background: var(--card); border-color: var(--pine); color: var(--pine); }
+.composer-hold.is-enabled #rewriteDraftButton:not(:disabled) { background: var(--brass-soft); border-color: var(--brass); color: var(--brass); }
 .composer-hold.is-enabled small { color: var(--muted); }
 .draft-message { align-self: flex-end; width: min(620px, 82%); margin: 10px 14px 16px auto; padding: 13px 14px; border: 1px solid #c9a65f; border-left: 4px solid #a87820; border-radius: 8px; background: #fff8e8; color: var(--ink); }
 .draft-message.is-stale { border-color: #c8c8c8; border-left-color: #999; background: var(--frame); color: var(--muted); }

@@ -10,6 +10,7 @@ const API = Object.freeze({
   coordinationCases: "/api/core/coordination-cases",
   send: "/api/core/send",
   dismissDraft: "/api/core/drafts/dismiss",
+  rewriteDraft: "/api/core/drafts/rewrite",
   saveCanon: "/api/core/style-examples",
   assignRole: "/api/core/roles/assign",
   work: "/api/core/work",
@@ -53,6 +54,7 @@ const state = {
   calendarLoading: false,
   calendarRefreshedAt: 0,
   sending: false,
+  rewritingDraft: false,
   savingCanon: false,
   dismissingDraft: false,
   assigningRole: false,
@@ -744,7 +746,7 @@ function clearSelectedConversation() {
   state.selectedDraftId = "";
   state.savedCanonText = "";
   state.threadReady = false;
-  byId("manualSendText").value = "";
+  setManualSendText("");
   byId("conversationContent").hidden = true;
   byId("conversationEmpty").hidden = false;
   byId("conversation").classList.remove("is-open");
@@ -795,7 +797,7 @@ async function openThread(threadId, updateHash = true) {
   state.savedCanonText = "";
   state.selectedThread = null;
   state.threadReady = false;
-  byId("manualSendText").value = "";
+  setManualSendText("");
   byId("initialRequestPanel").hidden = true;
   byId("initialRequestPanel").open = false;
   byId("initialRequestText").textContent = "";
@@ -866,7 +868,7 @@ async function openThread(threadId, updateHash = true) {
         if (!selected?.text || selected.is_stale) return;
         state.selectedDraftId = selected.draft_id;
         state.savedCanonText = "";
-        byId("manualSendText").value = selected.text;
+        setManualSendText(selected.text);
         renderManualSendState();
         byId("manualSendText").focus();
       });
@@ -883,7 +885,7 @@ async function openThread(threadId, updateHash = true) {
           if (state.selectedDraftId === draftId) {
             state.selectedDraftId = "";
             state.savedCanonText = "";
-            byId("manualSendText").value = "";
+            setManualSendText("");
           }
           toast("Черновик удалён.");
           await openThread(threadId, false);
@@ -914,15 +916,23 @@ function renderManualSendState() {
   const form = byId("manualSendForm");
   const text = byId("manualSendText");
   const sendButton = byId("manualSendButton");
+  const rewriteButton = byId("rewriteDraftButton");
   const canonButton = byId("saveCanonButton");
   const currentText = text.value.trim();
   const hasText = Boolean(currentText);
   const hasDraft = Boolean(state.selectedDraftId);
-  const busy = state.sending || state.savingCanon;
+  const busy = state.sending || state.rewritingDraft || state.savingCanon;
   form.classList.toggle("is-enabled", enabled);
   text.disabled = !enabled || busy;
   sendButton.disabled = !enabled || busy || !hasText;
   sendButton.setAttribute("aria-disabled", String(sendButton.disabled));
+  rewriteButton.hidden = !hasDraft;
+  rewriteButton.disabled = !enabled
+    || !state.health?.draft_rewrite_enabled
+    || busy
+    || !hasText;
+  rewriteButton.setAttribute("aria-disabled", String(rewriteButton.disabled));
+  rewriteButton.textContent = state.rewritingDraft ? "Переписываю…" : "Переписать текст";
   canonButton.hidden = !hasDraft;
   canonButton.disabled = !enabled || busy || !hasText || state.savedCanonText === currentText;
   canonButton.setAttribute("aria-disabled", String(canonButton.disabled));
@@ -936,6 +946,19 @@ function renderManualSendState() {
       ? "Выбран черновик V2. Проверь текст: отправка произойдёт только после твоего нажатия."
       : "Ручной текст уйдёт дословно через единственного Telegram-отправщика. Автоответы остаются в HOLD."
     : "Ручная отправка выключена конфигурацией Core. Автоответы остаются в HOLD.";
+}
+
+function resizeManualSendText() {
+  const field = byId("manualSendText");
+  if (!field) return;
+  field.style.height = "auto";
+  field.style.height = `${Math.max(42, field.scrollHeight + 2)}px`;
+}
+
+function setManualSendText(value) {
+  const field = byId("manualSendText");
+  field.value = value;
+  resizeManualSendText();
 }
 
 async function sendManualReply(event) {
@@ -952,7 +975,7 @@ async function sendManualReply(event) {
       text,
       draft_id: state.selectedDraftId || null,
     });
-    field.value = "";
+    setManualSendText("");
     state.selectedDraftId = "";
     state.savedCanonText = "";
     if (result.core_recorded === false) {
@@ -966,6 +989,42 @@ async function sendManualReply(event) {
     toast(error.message);
   } finally {
     state.sending = false;
+    renderManualSendState();
+  }
+}
+
+async function rewriteSelectedDraft() {
+  if (
+    state.rewritingDraft
+    || state.sending
+    || state.savingCanon
+    || !state.health?.draft_rewrite_enabled
+    || !state.threadReady
+    || !state.selectedThreadId
+    || !state.selectedDraftId
+  ) return;
+  const field = byId("manualSendText");
+  const text = field.value.trim();
+  if (!text) return;
+  const threadId = state.selectedThreadId;
+  const draftId = state.selectedDraftId;
+  state.rewritingDraft = true;
+  renderManualSendState();
+  try {
+    const result = await apiPost(API.rewriteDraft, {
+      thread_id: threadId,
+      draft_id: draftId,
+      text,
+    });
+    if (state.selectedThreadId === threadId && state.selectedDraftId === draftId) {
+      setManualSendText(result.text);
+      state.savedCanonText = "";
+    }
+    toast("Текст переписан. Ничего не отправлено.");
+  } catch (error) {
+    toast(`Текст не переписан: ${error.message}`);
+  } finally {
+    state.rewritingDraft = false;
     renderManualSendState();
   }
 }
@@ -1324,7 +1383,11 @@ function bindEvents() {
     location.hash = "chats";
   });
   byId("manualSendForm").addEventListener("submit", sendManualReply);
-  byId("manualSendText").addEventListener("input", renderManualSendState);
+  byId("manualSendText").addEventListener("input", () => {
+    resizeManualSendText();
+    renderManualSendState();
+  });
+  byId("rewriteDraftButton").addEventListener("click", rewriteSelectedDraft);
   byId("saveCanonButton").addEventListener("click", saveSelectedDraftAsCanon);
   byId("conversationRole").addEventListener("click", (event) => {
     event.stopPropagation();
