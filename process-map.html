@@ -666,7 +666,7 @@
         file:'unanswered_inbound_watcher.py', schedule:'каждые 10 мин',
         why:'Ловит hot-лид, где последнее сообщение — входящее (клиент ждёт ответа), чтобы заявка не висела без ответа сутками.',
         input:'orders.db non-archived hot leads + last message_event', action:'last==inbound дольше порога → AI-судья «мяч у нас?» → one-shot notify', output:'notify_bot уведомление / снятие флага',
-        logic:['пороги: оплата/переговоры 2ч, остальной hot 4ч; только 09:00–23:00 MSK','«вопрос или ack» решает AI, не regex','price/final-price/price-confirmation/call request не ждут общего порога: red obligation немедленно','notify_bot (не urgent): обычное «мы должны клиенту»; price/call high-intent идёт в urgent owner-path','повтор не чаще раз в 6ч, max 3, снятие только при содержательном outbound/call agreement, не reaction/read','инцидент @alenkakashparova: оплативший висел ~3.5 суток'],
+        logic:['пороги: оплата/переговоры 2ч, остальной hot 4ч; только 09:00–23:00 MSK','«вопрос или ack» решает AI, не regex','price/final-price/price-confirmation/call request не ждут общего порога: red obligation немедленно','notify_bot (не urgent): обычное «мы должны клиенту», цена и generic call signal; urgent только после context-review активного клиента: срочный созвон или ручное решение вне полномочий агента','повтор не чаще раз в 6ч, max 3, снятие только при содержательном outbound/call agreement, не reaction/read','инцидент @alenkakashparova: оплативший висел ~3.5 суток'],
       },
       {
         group:'funnel', name:'Promise Debt Watcher', label:'com.lcband.promise-debt-watcher',
