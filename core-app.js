@@ -493,22 +493,6 @@ function checkState(done, waiting = false) {
 }
 
 function renderEventDetail(event) {
-  if (event.source_kind === "legacy_mirror") {
-    byId("eventKind").textContent = `${event.business_line === "broker" ? "Broker" : "LCB"} · ${event.record_type === "job" ? "событие" : "заявка"} · зеркало`;
-    byId("eventTitle").textContent = eventTitle(event);
-    byId("eventMeta").textContent = `${formatEventDate(event.event_date)} · ${event.venue_ref || "площадка не указана"}`;
-    byId("eventStatus").textContent = event.status || event.lifecycle || "unknown";
-    byId("eventStatus").className = `pill ${event.cancelled ? "danger" : event.event_date ? "ok" : "hold"}`;
-    byId("eventTags").innerHTML = [funnelStageLabel(event), event.service_format, event.username ? `@${event.username}` : null, "read-only import"]
-      .filter(Boolean).map((tag) => `<span class="pill">${escapeHtml(tag)}</span>`).join("");
-    byId("eventChecklistScore").textContent = "legacy";
-    byId("eventChecklist").innerHTML = `<div class="check-row wait"><span class="check-dot">…</span><div><strong>Детали ещё в текущем пайплайне</strong><small>В Core импортирован календарный факт. Договор, оплата, состав, райдер и репертуар не считаются перенесёнными без отдельных доказательств.</small></div></div>`;
-    byId("eventFinance").innerHTML = [["Источник", event.source_system], ["ID записи", shortId(event.source_record_id, 30)], ["Дата в источнике", event.date_raw || "не указана"], ["Режим", "только чтение"]]
-      .map(([label, value]) => `<div class="finance-cell"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
-    byId("eventLineup").innerHTML = '<div class="calendar-empty-note">Состав не импортируется календарным зеркалом</div>';
-    byId("eventDocuments").innerHTML = '<div class="calendar-empty-note">Договор и программа не импортируются календарным зеркалом</div>';
-    return;
-  }
   byId("eventKind").textContent = event.is_technical ? "Техническая канарейка Core" : "Событие Core";
   byId("eventTitle").textContent = eventTitle(event);
   const time = event.performance_start_at_epoch ? formatDate(event.performance_start_at_epoch) : "время не указано";
@@ -528,6 +512,14 @@ function renderEventDetail(event) {
   const prepaymentMinor = event.finance_prepayment_minor ?? event.prepayment_minor;
   const receivedMinor = Number(event.finance_received_minor || 0);
   const balanceMinor = event.finance_balance_minor ?? (totalMinor === null || totalMinor === undefined ? null : Number(totalMinor) - receivedMinor);
+  const mediaArrangements = event.media_arrangements || [];
+  const video = mediaArrangements.find((item) => item.arrangement_kind === "videographer") || {};
+  const soundRecording = mediaArrangements.find((item) => item.arrangement_kind === "stereo_multitrack") || {};
+  const mediaDetail = (item, fallback) => item.status === "ready"
+    ? `${item.owner_display_name || "ответственный назначен"}${item.recording_format ? ` · ${item.recording_format}` : ""}`
+    : item.status === "declined"
+      ? "Отказ зафиксирован"
+      : fallback;
   const checklist = [
     ["Договор", Number(event.agreement_count || 0) > 0, false, event.agreement_count ? `${event.agreement_count} версия/корень договора в Core` : "Договор ещё не создан в Core"],
     ["Предоплата", receivedMinor > 0, prepaymentMinor !== null && prepaymentMinor !== undefined, receivedMinor > 0 ? `Принято доказательств оплаты: ${formatMoney(receivedMinor, event.currency)}` : prepaymentMinor !== null && prepaymentMinor !== undefined ? `План предоплаты: ${formatMoney(prepaymentMinor, event.currency)}` : "План оплаты не зафиксирован"],
@@ -536,6 +528,8 @@ function renderEventDetail(event) {
     ["Состав", Number(event.lineup_count || 0) > 0, false, event.lineup_count ? `${event.lineup_count} участников в sealed lineup` : "Состав не перенесён в Core"],
     ["Звук / райдер", Number(event.rider_version_count || 0) > 0 && Boolean(event.tech_status), Number(event.rider_version_count || 0) > 0, event.rider_version_count ? `Райдер v${event.rider_version_count}; техника: ${event.tech_status || "ждёт координации"}` : "Райдер не зафиксирован"],
     ["Репертуар", Boolean(event.repertoire_status && event.repertoire_status !== "needs_facts"), event.repertoire_status === "needs_facts", event.repertoire_status ? `Статус: ${event.repertoire_status}` : "Требования к репертуару не записаны"],
+    ["Видеосъёмка", video.status === "ready", video.status === "needs_facts", mediaDetail(video, "Съёмка не организована или не подтверждена")],
+    ["Запись звука", soundRecording.status === "ready", soundRecording.status === "needs_facts", mediaDetail(soundRecording, "Запись звука не организована или не подтверждена")],
   ];
   const doneCount = checklist.filter((item) => item[1]).length;
   byId("eventChecklistScore").textContent = `${doneCount}/${checklist.length}`;
@@ -548,11 +542,18 @@ function renderEventDetail(event) {
     ["Клиент всего", formatMoney(totalMinor, event.currency)],
     ["Получено", formatMoney(receivedMinor, event.currency)],
     ["Остаток", formatMoney(balanceMinor, event.currency)],
-    ["Составу", "—"],
+    ["Составу начислено", formatMoney(event.team_payable_minor, event.currency)],
+    ["Составу переведено", formatMoney(event.team_paid_minor, event.currency)],
+    ["Плановая маржа", formatMoney(event.projected_margin_minor, event.currency)],
   ];
   byId("eventFinance").innerHTML = finances.map(([label, value]) => `<div class="finance-cell"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
   byId("eventLineup").innerHTML = `<div class="fact-list"><div class="fact-row"><span>Участников</span><strong>${formatNumber(event.lineup_count || 0)}</strong></div><div class="fact-row"><span>Источник</span><strong>${event.lineup_count ? "Sealed lineup Core" : "Не заполнен"}</strong></div><div class="fact-row"><span>Booking</span><strong>${escapeHtml(shortId(event.booking_id, 46))}</strong></div></div>`;
   byId("eventDocuments").innerHTML = `<div class="fact-list"><div class="fact-row"><span>Договор</span><strong>${event.agreement_count ? `${event.agreement_count} в Core` : "нет"}</strong></div><div class="fact-row"><span>Репертуар</span><strong>${escapeHtml(event.repertoire_status || "не заполнен")}</strong></div><div class="fact-row"><span>Райдер</span><strong>${event.rider_version_count ? `${event.rider_version_count} версий` : "нет"}</strong></div><div class="fact-row"><span>Техника</span><strong>${escapeHtml(event.tech_status || "не согласована")}</strong></div></div>`;
+  byId("eventMedia").innerHTML = `<div class="fact-list">${mediaArrangements.map((item) => `<div class="fact-row"><span>${escapeHtml(item.label || item.arrangement_kind)}</span><strong>${escapeHtml(mediaDetail(item, "не организовано"))} · ${escapeHtml(item.permission_status || "unknown")} · ${escapeHtml(item.commercial_status || "unknown")}</strong></div>`).join("")}</div>`;
+  const payouts = event.payouts || [];
+  byId("eventPayouts").innerHTML = payouts.length
+    ? `<div class="fact-list">${payouts.map((item) => `<div class="fact-row"><span>${escapeHtml(item.display_name || "Исполнитель")}</span><strong>${escapeHtml(formatMoney(item.settled_minor, item.currency))} из ${escapeHtml(formatMoney(item.amount_minor, item.currency))} · ${escapeHtml(item.settlement_status)}</strong></div>`).join("")}</div>`
+    : '<div class="calendar-empty-note">В Core нет подтверждённых гонораров и выплат. Маржа не рассчитывается.</div>';
 }
 
 function openEvent(occurrenceId, updateHash = true) {
@@ -560,6 +561,15 @@ function openEvent(occurrenceId, updateHash = true) {
   if (!event) {
     if (state.loading) return;
     toast("Событие не найдено в Core");
+    return;
+  }
+  if (event.navigation_target === "thread") {
+    setView("chats");
+    openThread(event.thread_id, true);
+    return;
+  }
+  if (event.navigation_target === "thread_unavailable" || !event.event_card_ready) {
+    toast("Переписка по этой заявке ещё не загружена в Core");
     return;
   }
   state.selectedEventId = occurrenceId;
@@ -780,6 +790,10 @@ async function openThread(threadId, updateHash = true) {
   state.selectedThread = null;
   state.threadReady = false;
   byId("manualSendText").value = "";
+  byId("initialRequestPanel").hidden = true;
+  byId("initialRequestPanel").open = false;
+  byId("initialRequestText").textContent = "";
+  byId("initialRequestMeta").textContent = "";
   markThreadReadLocally(threadId);
   renderThreads();
   const selectedThread = state.threads.find((item) => item.thread_id === threadId) || {};
@@ -807,6 +821,12 @@ async function openThread(threadId, updateHash = true) {
     byId("conversationAvatar").innerHTML = avatarContent(thread, name);
     byId("conversationMeta").textContent = `${thread.handle ? `@${thread.handle}` : thread.peer_external_id || "—"} · ${channelLabel(thread.channel)} · ${thread.current_owner || "владелец не назначен"}`;
     renderConversationRole(thread);
+    const initialRequest = payload.initial_request;
+    if (initialRequest?.text) {
+      byId("initialRequestPanel").hidden = false;
+      byId("initialRequestText").textContent = initialRequest.text;
+      byId("initialRequestMeta").textContent = `Первое входящее · ${formatDate(initialRequest.started_at_epoch)} · сообщений: ${(initialRequest.message_ids || []).length}`;
+    }
     let previousDay = "";
     const historyHtml = (payload.messages || []).map((message) => {
       const day = dateKey(message.sent_at_epoch);
