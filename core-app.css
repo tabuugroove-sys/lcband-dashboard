@@ -604,6 +604,15 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   .connection span:last-child { display: none; }
   .autonomy-button { width: 40px; padding: 0; justify-content: center; }
   .autonomy-button > span:nth-child(2), .autonomy-button > span:last-child { display: none; }
+  .autonomy-menu {
+    position: fixed;
+    top: 58px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-height: calc(100dvh - 76px);
+    overflow-y: auto;
+  }
   .operations-columns { grid-template-columns: 1fr; }
   .operations-metrics { grid-template-columns: repeat(2, minmax(100px, 1fr)); }
   .channel-health-row { grid-template-columns: 12px 90px minmax(0, 1fr); }
