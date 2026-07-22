@@ -2,6 +2,7 @@
 
 const API = Object.freeze({
   health: "/api/core/health",
+  autonomy: "/api/core/autonomy",
   summary: "/api/core/summary",
   fees: "/api/core/fees",
   calendar: "/api/core/calendar",
@@ -19,6 +20,7 @@ const API = Object.freeze({
 
 const state = {
   health: null,
+  autonomy: null,
   summary: null,
   fees: null,
   calendar: { events: [], business_events: 0, technical_events: 0, model_ready: false },
@@ -58,12 +60,31 @@ const state = {
   savingCanon: false,
   dismissingDraft: false,
   assigningRole: false,
+  changingAutonomy: false,
   selectedThread: null,
   selectedDraftId: "",
   savedCanonText: "",
   threadReady: false,
   threadRequestController: null,
 };
+
+const AUTONOMY_MODES = Object.freeze({
+  approval_required: {
+    label: "Спрашивать",
+    icon: "✋",
+    description: "Каждый ответ сначала подтверждает человек",
+  },
+  exception_only: {
+    label: "При отклонении",
+    icon: "◌",
+    description: "Обычные ответы самостоятельно, отклонения и риск — человеку",
+  },
+  autonomous: {
+    label: "Самостоятельно",
+    icon: "◎",
+    description: "Обычная переписка без обращения к человеку",
+  },
+});
 
 const CALENDAR_STAGE_LABELS = Object.freeze({
   performed: "Состоялось",
@@ -278,6 +299,70 @@ function toast(message) {
 function setConnection(kind, label) {
   byId("connectionDot").className = `status-dot ${kind === "ok" ? "is-ok" : kind === "error" ? "is-error" : ""}`;
   byId("connectionLabel").textContent = label;
+}
+
+function closeAutonomyMenu() {
+  byId("autonomyMenu").hidden = true;
+  byId("autonomyButton").setAttribute("aria-expanded", "false");
+}
+
+function renderAutonomy() {
+  const autonomy = state.autonomy || {
+    mode: "approval_required",
+    agent_send_enabled: false,
+    effective_blockers: ["policy_requires_approval"],
+    transport_mode: "hold",
+  };
+  const config = AUTONOMY_MODES[autonomy.mode] || AUTONOMY_MODES.approval_required;
+  byId("autonomyLabel").textContent = config.label;
+  byId("autonomyButton").querySelector(".autonomy-icon").textContent = config.icon;
+  byId("autonomyButton").disabled = state.changingAutonomy;
+  const blocker = (autonomy.effective_blockers || []).join(", ");
+  byId("autonomyButton").title = autonomy.agent_send_enabled
+    ? `${config.description}. Автоответы доступны.`
+    : `${config.description}. Фактическая отправка заблокирована: ${blocker || "HOLD"}.`;
+  document.querySelectorAll("[data-autonomy-mode]").forEach((button) => {
+    const selected = button.dataset.autonomyMode === autonomy.mode;
+    button.classList.toggle("is-selected", selected);
+    button.setAttribute("aria-checked", String(selected));
+    button.disabled = state.changingAutonomy;
+  });
+  if (autonomy.agent_send_enabled) {
+    byId("shadowStripText").innerHTML = `<strong>LC Band 2.0</strong> · ${escapeHtml(config.description)} · строгие бизнес-гейты активны`;
+    byId("shadowStripPill").textContent = "AUTO READY";
+    byId("shadowStripPill").className = "pill ok";
+  } else {
+    byId("shadowStripText").innerHTML = `<strong>LC Band 2.0</strong> · выбран режим «${escapeHtml(config.label)}» · фактическая автоотправка HOLD`;
+    byId("shadowStripPill").textContent = "SEND HOLD";
+    byId("shadowStripPill").className = "pill hold";
+  }
+}
+
+async function setAutonomyMode(mode) {
+  if (state.changingAutonomy || !AUTONOMY_MODES[mode]) return;
+  state.changingAutonomy = true;
+  closeAutonomyMenu();
+  renderAutonomy();
+  const requestId = globalThis.crypto?.randomUUID?.()
+    || `autonomy-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  try {
+    state.autonomy = await apiPost(API.autonomy, { mode, request_id: requestId });
+    state.health = {
+      ...(state.health || {}),
+      chat_autonomy_mode: state.autonomy.mode,
+      chat_autonomy_revision: state.autonomy.revision,
+      agent_send_enabled: state.autonomy.agent_send_enabled,
+      agent_send_blockers: state.autonomy.effective_blockers,
+      telegram_transport_mode: state.autonomy.transport_mode,
+    };
+    renderSystem();
+    toast(`Режим агента: ${AUTONOMY_MODES[state.autonomy.mode].label}.`);
+  } catch (error) {
+    toast(`Режим не изменён: ${error.message}`);
+  } finally {
+    state.changingAutonomy = false;
+    renderAutonomy();
+  }
 }
 
 function setBadge(id, value) {
@@ -1170,12 +1255,16 @@ function renderToday() {
 
 function renderSystem() {
   const health = state.health || {};
+  const autonomy = state.autonomy || {};
+  const autonomyConfig = AUTONOMY_MODES[autonomy.mode] || AUTONOMY_MODES.approval_required;
   const rows = [
     ["Runtime", health.runtime_mode || "unknown"],
     ["Legacy fallback", health.legacy_fallback ? "включён" : "нет"],
     ["Черновики V2", health.draft_write_enabled ? "включены" : "выключены"],
     ["Отправка", health.send_enabled ? "включена" : "выключена"],
     ["Автоотправка", health.agent_send_enabled ? "включена" : "HOLD"],
+    ["Режим общения", autonomyConfig.label],
+    ["Telegram transport", autonomy.transport_mode || health.telegram_transport_mode || "hold"],
   ];
   byId("systemState").innerHTML = rows.map(([label, value]) => `<div class="system-state-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
   const details = [
@@ -1245,6 +1334,7 @@ async function refreshAll() {
   try {
     const results = await Promise.allSettled([
       apiGet(API.health),
+      apiGet(API.autonomy),
       apiGet(API.summary),
       apiGet(API.fees),
       apiGet(`${API.threads}?limit=200`),
@@ -1252,7 +1342,7 @@ async function refreshAll() {
       apiGet(API.work),
       apiGet(API.operations),
     ]);
-    const [healthResult, summaryResult, feesResult, threadsResult, coordinationResult, workResult, operationsResult] = results;
+    const [healthResult, autonomyResult, summaryResult, feesResult, threadsResult, coordinationResult, workResult, operationsResult] = results;
     if (healthResult.status !== "fulfilled" || threadsResult.status !== "fulfilled") {
       const failure = healthResult.status === "rejected" ? healthResult.reason : threadsResult.reason;
       throw failure instanceof Error ? failure : new Error(String(failure || "Core read failed"));
@@ -1260,6 +1350,7 @@ async function refreshAll() {
     const health = healthResult.value;
     const threadsPayload = threadsResult.value;
     state.health = health;
+    if (autonomyResult.status === "fulfilled") state.autonomy = autonomyResult.value;
     if (summaryResult.status === "fulfilled") state.summary = summaryResult.value;
     if (feesResult.status === "fulfilled") state.fees = feesResult.value;
     state.threads = threadsPayload.threads || [];
@@ -1283,9 +1374,10 @@ async function refreshAll() {
     renderSystem();
     renderFees();
     renderBroadcast();
+    renderAutonomy();
     renderManualSendState();
     updateCounts();
-    const partial = results.slice(1).some((result, index) => index !== 2 && result.status === "rejected");
+    const partial = results.some((result, index) => ![0, 4].includes(index) && result.status === "rejected");
     setConnection(
       health.ok ? "ok" : "error",
       health.ok ? (partial ? "Core доступен · часть данных" : "Core доступен") : "Core неполон",
@@ -1406,6 +1498,17 @@ function bindEvents() {
     });
   });
   byId("refreshButton").addEventListener("click", refreshAll);
+  byId("autonomyButton").addEventListener("click", (event) => {
+    event.stopPropagation();
+    const menu = byId("autonomyMenu");
+    menu.hidden = !menu.hidden;
+    byId("autonomyButton").setAttribute("aria-expanded", String(!menu.hidden));
+  });
+  byId("autonomyMenu").addEventListener("click", (event) => event.stopPropagation());
+  document.querySelectorAll("[data-autonomy-mode]").forEach((button) => {
+    button.addEventListener("click", () => setAutonomyMode(button.dataset.autonomyMode));
+  });
+  document.addEventListener("click", closeAutonomyMenu);
   byId("connectionButton").addEventListener("click", () => { location.hash = "system"; });
   byId("themeButton").addEventListener("click", () => {
     const root = document.documentElement;
