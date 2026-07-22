@@ -677,6 +677,7 @@ function renderThreadFolders() {
     Hot: business.filter((thread) => hot.has(thread.thread_id)).length,
     Lcb: business.filter((thread) => thread.business_bucket === "lcb").length,
     Technical: technical.length,
+    Personal: business.filter((thread) => thread.business_bucket === "personal").length,
     Musicians: business.filter((thread) => thread.business_bucket === "musicians").length,
     Broker: business.filter((thread) => thread.business_bucket === "broker").length,
   };
