@@ -401,6 +401,10 @@ function funnelStageLabel(event) {
   return CALENDAR_STAGE_LABELS[eventFunnelStage(event)] || "Этап не определён";
 }
 
+function funnelStageClass(event) {
+  return eventFunnelStage(event).replaceAll("_", "-");
+}
+
 function syncCalendarFilterControls() {
   const mapping = {
     filterLcb: "lcb",
@@ -468,7 +472,7 @@ function renderCalendar() {
     const events = eventsByDate.get(key) || [];
     html += `<div class="calendar-day ${outside ? "outside" : ""}">
       <span class="calendar-day-number ${key === today ? "today" : ""}">${date.getDate()}</span>
-      ${events.slice(0, 3).map((event) => `<button class="event-chip funnel-${escapeHtml(eventFunnelStage(event))} ${event.is_technical ? "technical" : ""} ${escapeHtml(event.business_line || "")} ${escapeHtml(event.record_type || "")}" data-event-id="${escapeHtml(event.calendar_id || event.occurrence_id)}" title="${escapeHtml(`${eventTitle(event)} · ${funnelStageLabel(event)}`)}">${escapeHtml(eventTitle(event))}</button>`).join("")}
+      ${events.slice(0, 3).map((event) => `<button class="event-chip funnel-${escapeHtml(funnelStageClass(event))} ${event.is_technical ? "technical" : ""} ${escapeHtml(event.business_line || "")} ${escapeHtml(event.record_type || "")}" data-event-id="${escapeHtml(event.calendar_id || event.occurrence_id)}" title="${escapeHtml(`${eventTitle(event)} · ${funnelStageLabel(event)}`)}">${escapeHtml(eventTitle(event))}</button>`).join("")}
       ${events.length > 3 ? `<span class="thread-label">+${events.length - 3}</span>` : ""}
     </div>`;
   }
