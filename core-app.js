@@ -10,6 +10,7 @@ const API = Object.freeze({
   coordinationCases: "/api/core/coordination-cases",
   send: "/api/core/send",
   dismissDraft: "/api/core/drafts/dismiss",
+  saveCanon: "/api/core/style-examples",
   assignRole: "/api/core/roles/assign",
   work: "/api/core/work",
   operations: "/api/core/operations",
@@ -52,10 +53,12 @@ const state = {
   calendarLoading: false,
   calendarRefreshedAt: 0,
   sending: false,
+  savingCanon: false,
   dismissingDraft: false,
   assigningRole: false,
   selectedThread: null,
   selectedDraftId: "",
+  savedCanonText: "",
   threadReady: false,
   threadRequestController: null,
 };
@@ -739,6 +742,7 @@ function clearSelectedConversation() {
   state.selectedThreadId = "";
   state.selectedThread = null;
   state.selectedDraftId = "";
+  state.savedCanonText = "";
   state.threadReady = false;
   byId("manualSendText").value = "";
   byId("conversationContent").hidden = true;
@@ -788,6 +792,7 @@ async function openThread(threadId, updateHash = true) {
   state.threadRequestController = controller;
   state.selectedThreadId = threadId;
   state.selectedDraftId = "";
+  state.savedCanonText = "";
   state.selectedThread = null;
   state.threadReady = false;
   byId("manualSendText").value = "";
@@ -860,6 +865,7 @@ async function openThread(threadId, updateHash = true) {
         const selected = (payload.drafts || []).find((item) => item.draft_id === button.dataset.draftUse);
         if (!selected?.text || selected.is_stale) return;
         state.selectedDraftId = selected.draft_id;
+        state.savedCanonText = "";
         byId("manualSendText").value = selected.text;
         renderManualSendState();
         byId("manualSendText").focus();
@@ -876,6 +882,7 @@ async function openThread(threadId, updateHash = true) {
           await apiPost(API.dismissDraft, { draft_id: draftId, thread_id: threadId });
           if (state.selectedDraftId === draftId) {
             state.selectedDraftId = "";
+            state.savedCanonText = "";
             byId("manualSendText").value = "";
           }
           toast("Черновик удалён.");
@@ -906,11 +913,24 @@ function renderManualSendState() {
   const enabled = Boolean(state.health?.manual_send_enabled && state.threadReady && state.selectedThreadId);
   const form = byId("manualSendForm");
   const text = byId("manualSendText");
-  const button = byId("manualSendButton");
+  const sendButton = byId("manualSendButton");
+  const canonButton = byId("saveCanonButton");
+  const currentText = text.value.trim();
+  const hasText = Boolean(currentText);
+  const hasDraft = Boolean(state.selectedDraftId);
+  const busy = state.sending || state.savingCanon;
   form.classList.toggle("is-enabled", enabled);
-  text.disabled = !enabled || state.sending;
-  button.disabled = !enabled || state.sending;
-  button.setAttribute("aria-disabled", String(!enabled || state.sending));
+  text.disabled = !enabled || busy;
+  sendButton.disabled = !enabled || busy || !hasText;
+  sendButton.setAttribute("aria-disabled", String(sendButton.disabled));
+  canonButton.hidden = !hasDraft;
+  canonButton.disabled = !enabled || busy || !hasText || state.savedCanonText === currentText;
+  canonButton.setAttribute("aria-disabled", String(canonButton.disabled));
+  canonButton.textContent = state.savingCanon
+    ? "Сохраняю…"
+    : state.savedCanonText === currentText && hasText
+      ? "Канон сохранён"
+      : "Сохранить как канон";
   byId("manualSendNote").textContent = enabled
     ? state.selectedDraftId
       ? "Выбран черновик V2. Проверь текст: отправка произойдёт только после твоего нажатия."
@@ -934,6 +954,7 @@ async function sendManualReply(event) {
     });
     field.value = "";
     state.selectedDraftId = "";
+    state.savedCanonText = "";
     if (result.core_recorded === false) {
       toast(result.warning || "Telegram доставил, но Core требует сверки receipt.");
     } else {
@@ -945,6 +966,39 @@ async function sendManualReply(event) {
     toast(error.message);
   } finally {
     state.sending = false;
+    renderManualSendState();
+  }
+}
+
+async function saveSelectedDraftAsCanon() {
+  if (
+    state.savingCanon
+    || state.sending
+    || !state.threadReady
+    || !state.selectedThreadId
+    || !state.selectedDraftId
+  ) return;
+  const field = byId("manualSendText");
+  const text = field.value.trim();
+  if (!text) return;
+  const threadId = state.selectedThreadId;
+  const draftId = state.selectedDraftId;
+  state.savingCanon = true;
+  renderManualSendState();
+  try {
+    await apiPost(API.saveCanon, {
+      thread_id: threadId,
+      draft_id: draftId,
+      text,
+    });
+    if (state.selectedThreadId === threadId && state.selectedDraftId === draftId) {
+      state.savedCanonText = text;
+    }
+    toast("Сохранено как канон. Сообщение не отправлено.");
+  } catch (error) {
+    toast(`Канон не сохранён: ${error.message}`);
+  } finally {
+    state.savingCanon = false;
     renderManualSendState();
   }
 }
@@ -1270,6 +1324,8 @@ function bindEvents() {
     location.hash = "chats";
   });
   byId("manualSendForm").addEventListener("submit", sendManualReply);
+  byId("manualSendText").addEventListener("input", renderManualSendState);
+  byId("saveCanonButton").addEventListener("click", saveSelectedDraftAsCanon);
   byId("conversationRole").addEventListener("click", (event) => {
     event.stopPropagation();
     const menu = byId("conversationRoleMenu");

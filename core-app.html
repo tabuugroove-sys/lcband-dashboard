@@ -187,7 +187,10 @@
                 <label aria-label="Сообщение">
                   <textarea id="manualSendText" rows="1" placeholder="Ручной ответ в Telegram" disabled></textarea>
                 </label>
-                <button id="manualSendButton" disabled aria-disabled="true" title="Отправить точный текст">↑</button>
+                <div class="composer-actions">
+                  <button type="submit" id="manualSendButton" disabled aria-disabled="true">Отправить</button>
+                  <button type="button" id="saveCanonButton" disabled aria-disabled="true" hidden>Сохранить как канон</button>
+                </div>
                 <small id="manualSendNote">Автоответы в HOLD. Ручной текст отправляется дословно через единственного Telegram-отправщика.</small>
               </form>
             </div>
