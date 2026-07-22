@@ -408,8 +408,8 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .composer-actions button[hidden] { display: none; }
 .composer-hold small { grid-column: 1 / -1; color: var(--danger); }
 .composer-hold.is-enabled textarea { background: var(--card); border-color: var(--accent); color: var(--ink); }
-.composer-hold.is-enabled .composer-actions button:not(:disabled) { background: var(--accent); border-color: var(--accent); color: white; cursor: pointer; }
-.composer-hold.is-enabled #saveCanonButton:not(:disabled) { background: var(--card); border-color: var(--accent); color: var(--accent); }
+.composer-hold.is-enabled .composer-actions button:not(:disabled) { background: var(--pine); border-color: var(--pine); color: white; cursor: pointer; }
+.composer-hold.is-enabled #saveCanonButton:not(:disabled) { background: var(--card); border-color: var(--pine); color: var(--pine); }
 .composer-hold.is-enabled small { color: var(--muted); }
 .draft-message { align-self: flex-end; width: min(620px, 82%); margin: 10px 14px 16px auto; padding: 13px 14px; border: 1px solid #c9a65f; border-left: 4px solid #a87820; border-radius: 8px; background: #fff8e8; color: var(--ink); }
 .draft-message.is-stale { border-color: #c8c8c8; border-left-color: #999; background: var(--frame); color: var(--muted); }
