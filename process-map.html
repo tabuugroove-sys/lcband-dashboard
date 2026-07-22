@@ -691,6 +691,13 @@
         logic:['не публичный backend','использует session copy для TG','dashboard static pages читают его APIs'],
       },
       {
+        group:'infra', name:'Core Capytime Replica', label:'com.lcband.core-capytime-replica',
+        file:'tools/core_capytime_replica_sync.py', schedule:'каждые 5 мин / RunAtLoad',
+        why:'Держит Capytime на той же подтверждённой версии Core, не создавая второго писателя SQLite.',
+        input:'committed git HEAD + online snapshots CoreV2/core.db и calendar-mirror.db', action:'SHA/integrity/schema checks → atomic remote swap → health probe', output:'C:\\LCBand2 read-only replica; сбой только в critical_ops_bot',
+        logic:['Mac — единственный writable Core; направление только Mac → Capytime','Capytime отклоняет POST/PUT/PATCH/DELETE независимо от UI','release и DB применяются атомарно с rollback на предыдущую копию','успех не шлёт уведомлений; одинаковый сбой дедупится на час','порт 8880 остаётся localhost-only'],
+      },
+      {
         group:'infra', name:'Bot Commander', label:'com.lcband.bot-commander',
         file:'bot_commander.py', schedule:'daemon / KeepAlive',
         why:'Телеграм-бот для approval/alerts и operational notifications.',
