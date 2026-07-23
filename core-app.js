@@ -797,6 +797,7 @@ function renderThreadFolders() {
     New: business.filter((thread) => thread.business_bucket === "new").length,
     Hot: business.filter((thread) => hot.has(thread.thread_id)).length,
     Lcb: business.filter((thread) => thread.business_bucket === "lcb").length,
+    Team: business.filter((thread) => thread.business_bucket === "team").length,
     Technical: technical.length,
     Personal: business.filter((thread) => thread.business_bucket === "personal").length,
     Musicians: business.filter((thread) => thread.business_bucket === "musicians").length,
@@ -959,7 +960,9 @@ async function openThread(threadId, updateHash = true) {
       const error = message.error ? `<div class="scheduled-error">${escapeHtml(message.error)}</div>` : "";
       return `<div class="message outbound scheduled-message ${isWaiting ? "is-waiting" : "is-failed"}">${escapeHtml(message.body)}<div class="scheduled-meta"><span>${escapeHtml(statusLabel)}</span>${sendNow}</div>${error}</div>`;
     }).join("");
-    const draft = (payload.drafts || []).find((item) => !item.is_superseded && !item.is_dismissed);
+  const draft = (payload.drafts || []).find((item) =>
+    !item.is_superseded && !item.is_dismissed && !item.is_resolved_by_outbound
+  );
     let draftHtml = "";
     if (draft) {
       const violations = draft.rewrite_constraints?.style_violations || [];
