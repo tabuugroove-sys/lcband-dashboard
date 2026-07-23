@@ -1045,6 +1045,19 @@ async function openThread(threadId, updateHash = true, options = {}) {
     const fingerprint = threadPayloadFingerprint(payload);
     if (background && fingerprint === state.activeThreadFingerprint) return;
     state.activeThreadFingerprint = fingerprint;
+    if (background && state.selectedDraftId && !savedComposer) {
+      const selectedDraftStillActionable = (payload.drafts || []).some((draft) => (
+        draft.draft_id === state.selectedDraftId
+        && !draft.is_stale
+        && !draft.is_superseded
+        && !draft.is_dismissed
+        && !draft.is_resolved_by_outbound
+      ));
+      if (!selectedDraftStillActionable) {
+        state.selectedDraftId = "";
+        state.savedCanonText = "";
+      }
+    }
     const thread = { ...(state.threads.find((item) => item.thread_id === threadId) || {}), ...(payload.thread || {}) };
     const name = threadTitle(thread);
     byId("conversationEmpty").hidden = true;
