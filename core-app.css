@@ -463,6 +463,13 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .composer-hold.is-enabled #saveCanonButton:not(:disabled) { background: var(--card); border-color: var(--pine); color: var(--pine); }
 .composer-hold.is-enabled #rewriteDraftButton:not(:disabled) { background: var(--brass-soft); border-color: var(--brass); color: var(--brass); }
 .composer-hold.is-enabled small { color: var(--muted); }
+.scheduled-message { border-style: dashed; }
+.scheduled-message.is-failed { border-color: var(--danger); background: var(--danger-soft); }
+.scheduled-meta { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 7px; color: var(--muted); font-size: 11px; }
+.scheduled-send-now { width: 24px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--card); color: var(--ink); font-size: 18px; line-height: 20px; cursor: pointer; }
+.scheduled-send-now:hover { border-color: var(--pine); color: var(--pine); }
+.scheduled-send-now:disabled { opacity: .5; cursor: wait; }
+.scheduled-error { margin-top: 5px; color: var(--danger); font-size: 11px; }
 .draft-message { align-self: flex-end; width: min(620px, 82%); margin: 10px 14px 16px auto; padding: 13px 14px; border: 1px solid #c9a65f; border-left: 4px solid #a87820; border-radius: 8px; background: #fff8e8; color: var(--ink); }
 .draft-message.is-stale { border-color: #c8c8c8; border-left-color: #999; background: var(--frame); color: var(--muted); }
 .draft-message-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
