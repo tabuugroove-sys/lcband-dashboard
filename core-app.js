@@ -271,15 +271,32 @@ async function apiGet(url, options = {}) {
   return payload;
 }
 
-async function apiPost(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-  if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
-  return payload;
+async function apiPost(url, body, options = {}) {
+  const controller = options.timeoutMs ? new AbortController() : null;
+  const timer = controller
+    ? window.setTimeout(() => controller.abort(), options.timeoutMs)
+    : null;
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller?.signal,
+    });
+    const payload = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+    if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+    return payload;
+  } catch (error) {
+    if (controller?.signal.aborted) {
+      throw new Error(options.timeoutMessage || "Core не ответил вовремя. Ничего не отправлено.");
+    }
+    if (error instanceof TypeError) {
+      throw new Error("Нет связи с Core. Исходный текст сохранён; ничего не отправлено.");
+    }
+    throw error;
+  } finally {
+    if (timer !== null) window.clearTimeout(timer);
+  }
 }
 
 function avatarContent(thread, name) {
@@ -1096,11 +1113,21 @@ async function rewriteSelectedDraft() {
   state.rewritingDraft = true;
   renderManualSendState();
   try {
-    const result = await apiPost(API.rewriteDraft, {
-      thread_id: threadId,
-      draft_id: draftId,
-      text,
-    });
+    const result = await apiPost(
+      API.rewriteDraft,
+      {
+        thread_id: threadId,
+        draft_id: draftId,
+        text,
+      },
+      {
+        timeoutMs: 55_000,
+        timeoutMessage: (
+          "Сервис переписывания не ответил вовремя. Исходный текст сохранён; "
+          + "ничего не отправлено."
+        ),
+      },
+    );
     if (state.selectedThreadId === threadId && state.selectedDraftId === draftId) {
       setManualSendText(result.text);
       state.savedCanonText = "";
