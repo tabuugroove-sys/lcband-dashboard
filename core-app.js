@@ -10,6 +10,7 @@ const API = Object.freeze({
   messages: "/api/core/messages",
   coordinationCases: "/api/core/coordination-cases",
   send: "/api/core/send",
+  sendScheduledNow: "/api/core/scheduled/send-now",
   dismissDraft: "/api/core/drafts/dismiss",
   rewriteDraft: "/api/core/drafts/rewrite",
   saveCanon: "/api/core/style-examples",
@@ -56,6 +57,7 @@ const state = {
   calendarLoading: false,
   calendarRefreshedAt: 0,
   sending: false,
+  sendingScheduledNow: false,
   rewritingDraft: false,
   savingCanon: false,
   dismissingDraft: false,
@@ -944,6 +946,19 @@ async function openThread(threadId, updateHash = true) {
       previousDay = day;
       return `${divider}<div class="message ${message.direction === "outbound" ? "outbound" : ""}">${escapeHtml(message.body || "[медиа без текста]")}<div class="message-meta">${escapeHtml(message.direction)} · ${escapeHtml(formatDate(message.sent_at_epoch))}</div></div>`;
     }).join("");
+    const scheduledHtml = (payload.scheduled_messages || []).map((message) => {
+      const isWaiting = message.status === "queued" && !message.released;
+      const statusLabel = isWaiting
+        ? `◷ Отправится в ${new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }).format(new Date(Number(message.send_at_epoch) * 1000))}`
+        : message.status === "claimed"
+          ? "Отправляется"
+          : `Не отправлено · ${message.status}`;
+      const sendNow = isWaiting
+        ? `<button type="button" class="scheduled-send-now" data-scheduled-now="${escapeHtml(message.command_id)}" title="Убрать ожидание и отправить сейчас" aria-label="Убрать ожидание и отправить сейчас">×</button>`
+        : "";
+      const error = message.error ? `<div class="scheduled-error">${escapeHtml(message.error)}</div>` : "";
+      return `<div class="message outbound scheduled-message ${isWaiting ? "is-waiting" : "is-failed"}">${escapeHtml(message.body)}<div class="scheduled-meta"><span>${escapeHtml(statusLabel)}</span>${sendNow}</div>${error}</div>`;
+    }).join("");
     const draft = (payload.drafts || []).find((item) => !item.is_superseded && !item.is_dismissed);
     let draftHtml = "";
     if (draft) {
@@ -961,8 +976,8 @@ async function openThread(threadId, updateHash = true) {
       const scenario = draft.rewrite_constraints?.ai_scenario_type || draft.scenario_type || "other";
       draftHtml = `<section class="draft-message ${draft.is_stale ? "is-stale" : ""}" data-draft-id="${escapeHtml(draft.draft_id)}"><div class="draft-message-head"><strong>Черновик V2</strong><span>${escapeHtml(status)}</span></div><div class="draft-message-text">${escapeHtml(detail)}</div><div class="draft-message-foot"><small>${escapeHtml(scenario)}${violations.length ? ` · замечаний стиля: ${violations.length}` : ""}</small><span>${dismiss}${action}</span></div></section>`;
     }
-    byId("messageList").innerHTML = historyHtml || draftHtml
-      ? `${historyHtml}${draftHtml}`
+    byId("messageList").innerHTML = historyHtml || scheduledHtml || draftHtml
+      ? `${historyHtml}${scheduledHtml}${draftHtml}`
       : '<div class="empty-state"><strong>В треде нет сообщений</strong>Core хранит только сам тред.</div>';
     byId("messageList").querySelectorAll("[data-draft-use]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -995,6 +1010,30 @@ async function openThread(threadId, updateHash = true) {
           toast(`Черновик не удалён: ${error.message}`);
         } finally {
           state.dismissingDraft = false;
+        }
+      });
+    });
+    byId("messageList").querySelectorAll("[data-scheduled-now]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (state.sendingScheduledNow) return;
+        if (!window.confirm("Отправить это сообщение сейчас, не дожидаясь 08:00 МСК?")) return;
+        state.sendingScheduledNow = true;
+        button.disabled = true;
+        try {
+          const result = await apiPost(API.sendScheduledNow, {
+            thread_id: threadId,
+            command_id: button.dataset.scheduledNow,
+          });
+          toast(result.core_recorded === false
+            ? result.warning || "Telegram доставил, Core требует сверки receipt."
+            : "Сообщение отправлено сейчас и записано в Core.");
+          await refreshAll();
+          await openThread(threadId, false);
+        } catch (error) {
+          toast(error.message);
+          button.disabled = false;
+        } finally {
+          state.sendingScheduledNow = false;
         }
       });
     });
@@ -1080,7 +1119,9 @@ async function sendManualReply(event) {
     setManualSendText("");
     state.selectedDraftId = "";
     state.savedCanonText = "";
-    if (result.core_recorded === false) {
+    if (result.scheduled === true) {
+      toast("Сообщение поставлено на отправку в 08:00 МСК.");
+    } else if (result.core_recorded === false) {
       toast(result.warning || "Telegram доставил, но Core требует сверки receipt.");
     } else {
       toast("Сообщение доставлено и записано в Core.");
