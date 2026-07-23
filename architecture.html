@@ -729,7 +729,7 @@
       ['single-use approval','subject/recipient/payload/idempotency envelope нельзя повторно применить к другому logical send'],
       ['channel caps','TG anti-flood/fan-out, VK drain/rate, WA direct только в явном окне'],
       ['visible action','TG provider receipt, VK verified send, WA queue/native Desktop approval; queued не считается delivered'],
-      ['post-send writeback','outbound_recorder/message_events + context refresh + promise extraction'],
+      ['post-send writeback','provider receipt → immediate raw message_events write; durable delivery_postprocess_jobs runs context refresh + promise extraction outside the send latency path'],
       ['event performer links','event_ops_bot recruit send / operator-directed candidate+fee → message_events + eg_event_threads + tg_whitelist → event_field_filler reducer → Состав or Кастинг → event_planning/calendar'],
       ['event ticket passports','document_intake/router: inbound media/text → document_artifacts; passport reducer accepts Состав + Кастинг + recruited candidates as internal scope, while organizer Sheet exports only Состав. event_ops ticket-passport asks pass through reducer may_ask; changed passport after sent manifest → pending_approvals org_cover_send replacement question.'],
       ['loop guard','CLI no-output streak, daily budgets, follow-up state/source_key dedupe'],
