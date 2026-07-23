@@ -1162,7 +1162,7 @@ async function rewriteSelectedDraft() {
         text,
       },
       {
-        timeoutMs: 30_000,
+      timeoutMs: 40_000,
         timeoutMessage: (
           "Сервис переписывания не ответил вовремя. Исходный текст сохранён; "
           + "ничего не отправлено."
