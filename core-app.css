@@ -436,7 +436,7 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .conversation-empty { max-width: 340px; margin: auto; padding: 24px; color: var(--muted); text-align: center; }
 .conversation-empty strong { display: block; margin-top: 10px; color: var(--ink); }
 .conversation-empty p, .empty-icon { display: none; }
-.conversation-content { width: 100%; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.conversation-content { width: 100%; min-height: 0; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
 .conversation-head { min-height: 66px; padding: 10px 15px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); }
 .conversation-head h2 { margin: 0; font-size: 16px; }
 .conversation-head p { margin: 1px 0 0; color: var(--muted); font-size: 11px; }
@@ -445,6 +445,26 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .initial-request summary { min-height: 38px; display: flex; align-items: center; color: var(--pine); font-size: 12px; font-weight: 700; cursor: pointer; }
 .initial-request > div { max-height: 180px; padding: 0 0 8px; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); line-height: 1.45; }
 .initial-request > small { display: block; padding: 0 0 10px; color: var(--muted); }
+.contact-dates { padding: 0 15px; border-bottom: 1px solid var(--line); background: var(--card); }
+.contact-dates summary { min-height: 38px; display: flex; align-items: center; gap: 6px; color: var(--pine); font-size: 12px; font-weight: 700; cursor: pointer; }
+.contact-dates summary span { color: var(--muted); font-weight: 600; }
+.contact-dates-list { max-height: 230px; padding: 0 0 10px; overflow-y: auto; }
+.contact-date-row { min-height: 45px; padding: 7px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); }
+.contact-date-main { min-width: 0; }
+.contact-date-main strong { display: block; color: var(--ink); font-size: 12px; }
+.contact-date-main small { display: block; margin-top: 2px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.contact-date-stage { flex: 0 0 auto; padding: 4px 7px; border-radius: 6px; color: #fff; font-size: 10px; font-weight: 700; }
+.contact-date-stage.funnel-performed { background: #7652a7; }
+.contact-date-stage.funnel-content-pending { background: #a98ac4; }
+.contact-date-stage.funnel-content-received { background: #c5b5d4; color: #3d3347; }
+.contact-date-stage.funnel-prepayment { background: #b42318; }
+.contact-date-stage.funnel-contract { background: #c77722; }
+.contact-date-stage.funnel-confirmed { background: #c39b23; }
+.contact-date-stage.funnel-negotiating,
+.contact-date-stage.funnel-followup-waiting,
+.contact-date-stage.funnel-lead { background: #4f8f68; }
+.contact-date-stage.funnel-followup-cold { background: #a3bda1; color: #24382b; }
+.contact-date-stage.funnel-cancelled { background: #b8bec2; color: #354047; }
 .mobile-back { display: none; border: 0; background: transparent; color: var(--pine); font-size: 26px; cursor: pointer; }
 .message-list { min-height: 0; padding: 10px 16px; overflow-y: auto; background: var(--paper); }
 .message-day { width: fit-content; margin: 9px auto; padding: 3px 9px; border-radius: 999px; background: var(--frame); color: var(--muted); font-size: 10px; }

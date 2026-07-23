@@ -955,6 +955,12 @@ function threadPayloadFingerprint(payload) {
       message.released,
       message.error,
     ]),
+    offeredDates: (payload.offered_dates || []).map((item) => [
+      item.event_id,
+      item.event_date,
+      item.funnel_stage,
+      item.source_status,
+    ]),
   });
 }
 
@@ -1022,6 +1028,10 @@ async function openThread(threadId, updateHash = true, options = {}) {
     byId("initialRequestPanel").open = false;
     byId("initialRequestText").textContent = "";
     byId("initialRequestMeta").textContent = "";
+    byId("contactDatesPanel").hidden = true;
+    byId("contactDatesPanel").open = false;
+    byId("contactDatesCount").textContent = "";
+    byId("contactDatesList").innerHTML = "";
     markThreadReadLocally(threadId);
     renderThreads();
     const selectedThread = state.threads.find((item) => item.thread_id === threadId) || {};
@@ -1071,6 +1081,18 @@ async function openThread(threadId, updateHash = true, options = {}) {
       byId("initialRequestPanel").hidden = false;
       byId("initialRequestText").textContent = initialRequest.text;
       byId("initialRequestMeta").textContent = `Первое входящее · ${formatDate(initialRequest.started_at_epoch)} · сообщений: ${(initialRequest.message_ids || []).length}`;
+    }
+    const offeredDates = payload.offered_dates || [];
+    if (offeredDates.length) {
+      byId("contactDatesPanel").hidden = false;
+      byId("contactDatesCount").textContent = `· ${offeredDates.length}`;
+      byId("contactDatesList").innerHTML = offeredDates.map((item) => {
+        const source = [
+          item.business_line === "broker" ? "Broker" : "LCBand",
+          item.title,
+        ].filter(Boolean).join(" · ");
+        return `<div class="contact-date-row"><div class="contact-date-main"><strong>${escapeHtml(formatEventDate(item.event_date))}</strong><small title="${escapeHtml(source)}">${escapeHtml(source)}</small></div><span class="contact-date-stage funnel-${escapeHtml(item.funnel_stage.replaceAll("_", "-"))}">${escapeHtml(item.funnel_stage_label)}</span></div>`;
+      }).join("");
     }
     let previousDay = "";
     const historyHtml = (payload.messages || []).map((message) => {
