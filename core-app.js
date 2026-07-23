@@ -1085,6 +1085,7 @@ async function openThread(threadId, updateHash = true, options = {}) {
     const offeredDates = payload.offered_dates || [];
     if (offeredDates.length) {
       byId("contactDatesPanel").hidden = false;
+      byId("contactDatesPanel").open = true;
       byId("contactDatesCount").textContent = `· ${offeredDates.length}`;
       byId("contactDatesList").innerHTML = offeredDates.map((item) => {
         const source = [
