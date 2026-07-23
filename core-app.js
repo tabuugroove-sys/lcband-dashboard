@@ -1162,7 +1162,7 @@ async function rewriteSelectedDraft() {
         text,
       },
       {
-        timeoutMs: 55_000,
+        timeoutMs: 30_000,
         timeoutMessage: (
           "Сервис переписывания не ответил вовремя. Исходный текст сохранён; "
           + "ничего не отправлено."
@@ -1173,7 +1173,12 @@ async function rewriteSelectedDraft() {
       setManualSendText(result.text);
       state.savedCanonText = "";
     }
-    toast("Текст переписан. Ничего не отправлено.");
+    const diagnosis = String(result.rewrite_diagnosis || "").trim();
+    toast(
+      diagnosis
+        ? `Контекст исправлен: ${diagnosis}. Ничего не отправлено.`
+        : "Текст переписан. Ничего не отправлено.",
+    );
   } catch (error) {
     toast(`Текст не переписан: ${error.message}`);
   } finally {
