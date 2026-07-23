@@ -984,20 +984,28 @@ async function openThread(threadId, updateHash = true) {
       const day = dateKey(message.sent_at_epoch);
       const divider = day !== previousDay ? `<div class="message-day">${escapeHtml(formatDate(message.sent_at_epoch, { dateOnly: true }))}</div>` : "";
       previousDay = day;
-      return `${divider}<div class="message ${message.direction === "outbound" ? "outbound" : ""}">${escapeHtml(message.body || "[медиа без текста]")}<div class="message-meta">${escapeHtml(message.direction)} · ${escapeHtml(formatDate(message.sent_at_epoch))}</div></div>`;
+      const meta = message.direction === "outbound"
+        ? `<span class="delivery-state is-sent">✓✓ Отправлено</span><span>· ${escapeHtml(formatDate(message.sent_at_epoch))}</span>`
+        : `<span>${escapeHtml(formatDate(message.sent_at_epoch))}</span>`;
+      return `${divider}<div class="message ${message.direction === "outbound" ? "outbound" : ""}">${escapeHtml(message.body || "[медиа без текста]")}<div class="message-meta">${meta}</div></div>`;
     }).join("");
     const scheduledHtml = (payload.scheduled_messages || []).map((message) => {
       const isWaiting = message.status === "queued" && !message.released;
+      const isSending = message.status === "claimed";
+      const isUnknown = message.status === "unknown";
       const statusLabel = isWaiting
-        ? `◷ Отправится в ${new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }).format(new Date(Number(message.send_at_epoch) * 1000))}`
-        : message.status === "claimed"
-          ? "Отправляется"
-          : `Не отправлено · ${message.status}`;
+        ? `В очереди · отправится в ${new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }).format(new Date(Number(message.send_at_epoch) * 1000))}`
+        : isSending
+          ? "Отправляется…"
+          : isUnknown
+            ? "Доставка не подтверждена"
+            : `Не отправлено · ${message.status}`;
       const sendNow = isWaiting
         ? `<button type="button" class="scheduled-send-now" data-scheduled-now="${escapeHtml(message.command_id)}" title="Убрать ожидание и отправить сейчас" aria-label="Убрать ожидание и отправить сейчас">×</button>`
         : "";
       const error = message.error ? `<div class="scheduled-error">${escapeHtml(message.error)}</div>` : "";
-      return `<div class="message outbound scheduled-message ${isWaiting ? "is-waiting" : "is-failed"}">${escapeHtml(message.body)}<div class="scheduled-meta"><span>${escapeHtml(statusLabel)}</span>${sendNow}</div>${error}</div>`;
+      const stateClass = isWaiting ? "is-waiting" : isSending ? "is-sending" : "is-failed";
+      return `<div class="message outbound scheduled-message ${stateClass}">${escapeHtml(message.body)}<div class="scheduled-meta"><span>${escapeHtml(statusLabel)}</span>${sendNow}</div>${error}</div>`;
     }).join("");
   const draft = (payload.drafts || []).find((item) =>
     !item.is_superseded && !item.is_dismissed && !item.is_resolved_by_outbound
@@ -1028,6 +1036,7 @@ async function openThread(threadId, updateHash = true) {
         state.selectedDraftId = selected.draft_id;
         state.savedCanonText = "";
         setManualSendText(selected.text);
+        setManualDeliveryState("draft", "Черновик · не отправлено");
         renderManualSendState();
         byId("manualSendText").focus();
       });
@@ -1124,6 +1133,7 @@ function renderManualSendState() {
     : state.savedCanonText === currentText && hasText
       ? "Канон сохранён"
       : "Сохранить как канон";
+  renderManualDeliveryState();
   byId("manualSendNote").textContent = enabled
     ? state.selectedDraftId
       ? "Выбран черновик V2. Проверь текст: отправка произойдёт только после твоего нажатия."
@@ -1151,6 +1161,7 @@ async function sendManualReply(event) {
   const text = field.value.trim();
   if (!text) return;
   state.sending = true;
+  setManualDeliveryState("sending", "Отправляем…");
   renderManualSendState();
   try {
     const result = await apiPost(API.send, {
@@ -1162,15 +1173,24 @@ async function sendManualReply(event) {
     state.selectedDraftId = "";
     state.savedCanonText = "";
     if (result.scheduled === true) {
+      const sendAt = Number(result.send_at_epoch || 0);
+      const sendAtLabel = sendAt
+        ? new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }).format(new Date(sendAt * 1000))
+        : "08:00";
+      setManualDeliveryState("queued", `В очереди · отправится в ${sendAtLabel}`);
       toast("Сообщение поставлено на отправку в 08:00 МСК.");
     } else if (result.core_recorded === false) {
+      setManualDeliveryState("error", "Отправлено в Telegram · Core сверяет receipt");
       toast(result.warning || "Telegram доставил, но Core требует сверки receipt.");
     } else {
+      setManualDeliveryState("sent", "✓✓ Отправлено");
       toast("Сообщение доставлено и записано в Core.");
     }
     await refreshAll();
     await openThread(state.selectedThreadId, false);
   } catch (error) {
+    const deliveryState = deliveryErrorState(error.message);
+    setManualDeliveryState(deliveryState.kind, deliveryState.text);
     toast(error.message);
   } finally {
     state.sending = false;
@@ -1592,6 +1612,10 @@ function bindEvents() {
   byId("manualSendForm").addEventListener("submit", sendManualReply);
   byId("manualSendText").addEventListener("input", () => {
     resizeManualSendText();
+    setManualDeliveryState(
+      state.selectedDraftId ? "draft" : "idle",
+      state.selectedDraftId ? "Черновик · не отправлено" : "Не отправлено",
+    );
     renderManualSendState();
   });
   byId("rewriteDraftButton").addEventListener("click", rewriteSelectedDraft);
