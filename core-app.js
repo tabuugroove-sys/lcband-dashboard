@@ -66,6 +66,7 @@ const state = {
   selectedThread: null,
   selectedDraftId: "",
   savedCanonText: "",
+  manualDeliveryState: { kind: "idle", text: "Не отправлено" },
   threadReady: false,
   threadRequestController: null,
 };
@@ -313,6 +314,39 @@ function toast(message) {
   element.hidden = false;
   window.clearTimeout(toast.timer);
   toast.timer = window.setTimeout(() => { element.hidden = true; }, 4500);
+}
+
+function setManualDeliveryState(kind, text) {
+  state.manualDeliveryState = {
+    kind: String(kind || "idle"),
+    text: String(text || "Не отправлено"),
+  };
+  renderManualDeliveryState();
+}
+
+function renderManualDeliveryState() {
+  const element = byId("manualSendStatus");
+  const label = byId("manualSendStatusText");
+  if (!element || !label) return;
+  const current = state.manualDeliveryState || { kind: "idle", text: "Не отправлено" };
+  const icons = {
+    idle: "○",
+    draft: "✎",
+    sending: "…",
+    queued: "◷",
+    sent: "✓✓",
+    error: "!",
+  };
+  element.className = `composer-status is-${current.kind}`;
+  element.querySelector(".composer-status-icon").textContent = icons[current.kind] || "○";
+  label.textContent = current.text;
+}
+
+function deliveryErrorState(message) {
+  const value = String(message || "");
+  return /(unknown|claimed|ambiguous|не подтвержд)/i.test(value)
+    ? { kind: "error", text: "Доставка не подтверждена" }
+    : { kind: "error", text: "Не отправлено" };
 }
 
 function setConnection(kind, label) {
@@ -850,6 +884,7 @@ function clearSelectedConversation() {
   state.selectedThread = null;
   state.selectedDraftId = "";
   state.savedCanonText = "";
+  state.manualDeliveryState = { kind: "idle", text: "Не отправлено" };
   state.threadReady = false;
   setManualSendText("");
   byId("conversationContent").hidden = true;
@@ -894,6 +929,7 @@ function dateKey(epoch) {
 
 async function openThread(threadId, updateHash = true) {
   if (updateHash) history.replaceState(null, "", `#chat/${encodeURIComponent(threadId)}`);
+  const switchingThread = state.selectedThreadId !== threadId;
   state.threadRequestController?.abort();
   const controller = new AbortController();
   state.threadRequestController = controller;
@@ -902,6 +938,9 @@ async function openThread(threadId, updateHash = true) {
   state.savedCanonText = "";
   state.selectedThread = null;
   state.threadReady = false;
+  if (switchingThread) {
+    state.manualDeliveryState = { kind: "idle", text: "Не отправлено" };
+  }
   setManualSendText("");
   byId("initialRequestPanel").hidden = true;
   byId("initialRequestPanel").open = false;
