@@ -66,9 +66,12 @@ const state = {
   selectedThread: null,
   selectedDraftId: "",
   savedCanonText: "",
+  composerDirty: false,
   manualDeliveryState: { kind: "idle", text: "Не отправлено" },
   threadReady: false,
   threadRequestController: null,
+  activeThreadFingerprint: "",
+  activeThreadSyncing: false,
 };
 
 const AUTONOMY_MODES = Object.freeze({
@@ -884,8 +887,10 @@ function clearSelectedConversation() {
   state.selectedThread = null;
   state.selectedDraftId = "";
   state.savedCanonText = "";
+  state.composerDirty = false;
   state.manualDeliveryState = { kind: "idle", text: "Не отправлено" };
   state.threadReady = false;
+  state.activeThreadFingerprint = "";
   setManualSendText("");
   byId("conversationContent").hidden = true;
   byId("conversationEmpty").hidden = false;
@@ -927,44 +932,119 @@ function dateKey(epoch) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
-async function openThread(threadId, updateHash = true) {
+function threadPayloadFingerprint(payload) {
+  return JSON.stringify({
+    messages: (payload.messages || []).map((message) => [
+      message.message_id || message.provider_message_id,
+      message.sent_at_epoch,
+      message.direction,
+      message.body,
+    ]),
+    drafts: (payload.drafts || []).map((draft) => [
+      draft.draft_id,
+      draft.text,
+      draft.missing_dependency,
+      draft.is_stale,
+      draft.is_superseded,
+      draft.is_dismissed,
+      draft.is_resolved_by_outbound,
+    ]),
+    scheduled: (payload.scheduled_messages || []).map((message) => [
+      message.command_id,
+      message.status,
+      message.released,
+      message.error,
+    ]),
+  });
+}
+
+function composerSnapshot() {
+  const field = byId("manualSendText");
+  return {
+    text: field.value,
+    selectedDraftId: state.selectedDraftId,
+    savedCanonText: state.savedCanonText,
+    deliveryState: { ...state.manualDeliveryState },
+    focused: document.activeElement === field,
+  };
+}
+
+function restoreComposerSnapshot(payload, snapshot) {
+  const selectedDraft = (payload.drafts || []).find((draft) => (
+    draft.draft_id === snapshot.selectedDraftId
+    && !draft.is_stale
+    && !draft.is_superseded
+    && !draft.is_dismissed
+    && !draft.is_resolved_by_outbound
+  ));
+  state.selectedDraftId = selectedDraft ? snapshot.selectedDraftId : "";
+  state.savedCanonText = selectedDraft ? snapshot.savedCanonText : "";
+  state.manualDeliveryState = { ...snapshot.deliveryState };
+  state.composerDirty = Boolean(snapshot.text.trim());
+  setManualSendText(snapshot.text);
+  renderManualSendState();
+  if (snapshot.focused) byId("manualSendText").focus({ preventScroll: true });
+}
+
+async function openThread(threadId, updateHash = true, options = {}) {
+  const background = Boolean(options.background);
+  if (background && (
+    state.threadRequestController
+    || state.sending
+    || state.sendingScheduledNow
+    || state.rewritingDraft
+    || state.savingCanon
+    || state.dismissingDraft
+  )) return;
   if (updateHash) history.replaceState(null, "", `#chat/${encodeURIComponent(threadId)}`);
   const switchingThread = state.selectedThreadId !== threadId;
-  state.threadRequestController?.abort();
+  const preserveComposer = background && state.composerDirty;
+  const savedComposer = preserveComposer ? composerSnapshot() : null;
+  const listBefore = byId("messageList");
+  const distanceFromBottom = listBefore.scrollHeight - listBefore.scrollTop;
+  const wasNearBottom = listBefore.scrollHeight - listBefore.scrollTop - listBefore.clientHeight < 80;
+  if (!background) state.threadRequestController?.abort();
   const controller = new AbortController();
   state.threadRequestController = controller;
   state.selectedThreadId = threadId;
-  state.selectedDraftId = "";
-  state.savedCanonText = "";
-  state.selectedThread = null;
-  state.threadReady = false;
-  if (switchingThread) {
-    state.manualDeliveryState = { kind: "idle", text: "Не отправлено" };
+  if (!background) {
+    state.selectedDraftId = "";
+    state.savedCanonText = "";
+    state.composerDirty = false;
+    state.selectedThread = null;
+    state.threadReady = false;
+    state.activeThreadFingerprint = "";
+    if (switchingThread) {
+      state.manualDeliveryState = { kind: "idle", text: "Не отправлено" };
+    }
+    setManualSendText("");
+    byId("initialRequestPanel").hidden = true;
+    byId("initialRequestPanel").open = false;
+    byId("initialRequestText").textContent = "";
+    byId("initialRequestMeta").textContent = "";
+    markThreadReadLocally(threadId);
+    renderThreads();
+    const selectedThread = state.threads.find((item) => item.thread_id === threadId) || {};
+    const selectedName = threadTitle(selectedThread);
+    byId("conversationEmpty").hidden = true;
+    byId("conversationContent").hidden = false;
+    byId("conversationName").textContent = selectedName;
+    byId("conversationAvatar").innerHTML = avatarContent(selectedThread, selectedName);
+    byId("conversationMeta").textContent = `${selectedThread.handle ? `@${selectedThread.handle}` : selectedThread.peer_external_id || "—"} · ${channelLabel(selectedThread.channel)} · загрузка переписки`;
+    renderConversationRole(selectedThread);
+    byId("messageList").innerHTML = '<div class="empty-state"><strong>Загружаю переписку</strong>Предыдущий диалог очищен.</div>';
+    byId("conversation").classList.add("is-open");
+    renderManualSendState();
   }
-  setManualSendText("");
-  byId("initialRequestPanel").hidden = true;
-  byId("initialRequestPanel").open = false;
-  byId("initialRequestText").textContent = "";
-  byId("initialRequestMeta").textContent = "";
-  markThreadReadLocally(threadId);
-  renderThreads();
-  const selectedThread = state.threads.find((item) => item.thread_id === threadId) || {};
-  const selectedName = threadTitle(selectedThread);
-  byId("conversationEmpty").hidden = true;
-  byId("conversationContent").hidden = false;
-  byId("conversationName").textContent = selectedName;
-  byId("conversationAvatar").innerHTML = avatarContent(selectedThread, selectedName);
-  byId("conversationMeta").textContent = `${selectedThread.handle ? `@${selectedThread.handle}` : selectedThread.peer_external_id || "—"} · ${channelLabel(selectedThread.channel)} · загрузка переписки`;
-  renderConversationRole(selectedThread);
-  byId("messageList").innerHTML = '<div class="empty-state"><strong>Загружаю переписку</strong>Предыдущий диалог очищен.</div>';
-  byId("conversation").classList.add("is-open");
-  renderManualSendState();
   try {
     const payload = await apiGet(
       `${API.messages}?thread_id=${encodeURIComponent(threadId)}&limit=200`,
       { signal: controller.signal },
     );
     if (state.selectedThreadId !== threadId) return;
+    const fingerprint = threadPayloadFingerprint(payload);
+    if (background && fingerprint === state.activeThreadFingerprint) return;
+    state.activeThreadFingerprint = fingerprint;
     const thread = { ...(state.threads.find((item) => item.thread_id === threadId) || {}), ...(payload.thread || {}) };
     const name = threadTitle(thread);
     byId("conversationEmpty").hidden = true;
@@ -1035,6 +1115,7 @@ async function openThread(threadId, updateHash = true) {
         if (!selected?.text || selected.is_stale) return;
         state.selectedDraftId = selected.draft_id;
         state.savedCanonText = "";
+        state.composerDirty = true;
         setManualSendText(selected.text);
         setManualDeliveryState("draft", "Черновик · не отправлено");
         renderManualSendState();
@@ -1053,6 +1134,7 @@ async function openThread(threadId, updateHash = true) {
           if (state.selectedDraftId === draftId) {
             state.selectedDraftId = "";
             state.savedCanonText = "";
+            state.composerDirty = false;
             setManualSendText("");
           }
           toast("Черновик удалён.");
@@ -1089,17 +1171,38 @@ async function openThread(threadId, updateHash = true) {
       });
     });
     const list = byId("messageList");
-    list.scrollTop = list.scrollHeight;
+    if (!background || wasNearBottom) {
+      list.scrollTop = list.scrollHeight;
+    } else {
+      list.scrollTop = Math.max(0, list.scrollHeight - distanceFromBottom);
+    }
     byId("conversation").classList.add("is-open");
     state.threadReady = true;
+    if (savedComposer) restoreComposerSnapshot(payload, savedComposer);
     renderManualSendState();
   } catch (error) {
     if (controller.signal.aborted || state.selectedThreadId !== threadId) return;
+    if (background) return;
     byId("messageList").innerHTML = '<div class="empty-state"><strong>Переписка не загрузилась</strong><button type="button" data-thread-retry>Повторить</button></div>';
     byId("messageList").querySelector("[data-thread-retry]")?.addEventListener("click", () => openThread(threadId, false));
     toast(`Тред не открыт: ${error.message}`);
   } finally {
     if (state.threadRequestController === controller) state.threadRequestController = null;
+  }
+}
+
+async function syncActiveThread() {
+  if (
+    document.hidden
+    || state.activeView !== "chats"
+    || !state.selectedThreadId
+    || state.activeThreadSyncing
+  ) return;
+  state.activeThreadSyncing = true;
+  try {
+    await openThread(state.selectedThreadId, false, { background: true });
+  } finally {
+    state.activeThreadSyncing = false;
   }
 }
 
@@ -1172,6 +1275,7 @@ async function sendManualReply(event) {
     setManualSendText("");
     state.selectedDraftId = "";
     state.savedCanonText = "";
+    state.composerDirty = false;
     if (result.scheduled === true) {
       const sendAt = Number(result.send_at_epoch || 0);
       const sendAtLabel = sendAt
@@ -1611,6 +1715,7 @@ function bindEvents() {
   });
   byId("manualSendForm").addEventListener("submit", sendManualReply);
   byId("manualSendText").addEventListener("input", () => {
+    state.composerDirty = Boolean(byId("manualSendText").value.trim());
     resizeManualSendText();
     setManualDeliveryState(
       state.selectedDraftId ? "draft" : "idle",
@@ -1664,6 +1769,10 @@ function bindEvents() {
       if (state.activeView === "chats") renderThreads();
     }, 180);
   });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) syncActiveThread();
+  });
+  window.addEventListener("focus", syncActiveThread);
   window.addEventListener("hashchange", route);
 }
 
@@ -1673,3 +1782,4 @@ bindEvents();
 route();
 refreshAll();
 window.setInterval(refreshAll, 30000);
+window.setInterval(syncActiveThread, 5000);
