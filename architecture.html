@@ -627,6 +627,14 @@
     {id:'ctxclean', g:'infra', n:'Context Cleanup', f:'context_cleanup', s:'daily 02:30', src:['SCH'], r:['MEV'], wr:['MEV'], why:'One-off чистка дублей outbound-строк.'},
   ];
 
+  const coreAppNode = N.find((node) => node.id === 'coreapp');
+  if (coreAppNode) {
+    coreAppNode.why = coreAppNode.why.replace(
+      'Read-only business-context адаптер связывает TG handle только через exact active_event_id, exact event-contact role и exact broker-order history/db_order_id; одинаковая дата не считается связью.',
+      'Read-only business-context адаптер предпочитает exact active_event_id. Если его нет, explicit date из последнего inbound может выбрать только один exact contact-linked event через eg_event_contacts; одинаковая дата сама по себе связью не считается. Для вопроса подрядчика о конкретной дате tg_group_lineup_cache подтверждает фактический состав, а event_planning уточняет роль: specific role сильнее generic Музыкант. Если контакт отсутствует, а тот же specific slot занимает другой участник группы, создаётся bounded factual draft без AI. Несколько связанных событий, конфликт ролей или неполные источники fail-closed.'
+    );
+  }
+
   // ── Scenarios for the tracer ──
   const SCENARIOS = [
     {id:'tgdm', ic:'💬', title:'Входящий TG DM от клиента', steps:[
