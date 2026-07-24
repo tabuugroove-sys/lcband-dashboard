@@ -52,6 +52,57 @@ const RAIL_ITEMS = [
   { key: "broker", dir: "broker", folder: "all", icon: "🤝", label: "Брокер" },
 ];
 
+/* ── папки воронки V2: раскладку делает НОВОЕ ядро (Core) ────────────────
+   Источник LCB-тредов — /api/v2/funnel_threads: сервер ставит каждому треду
+   stage (ключ стадии воронки, head-ревизия opportunity в Core DB) и
+   stage_source: v2 (ядро) | v1 (fallback от legacy CRM-статуса, пока Core
+   не покрывает лида). Папки = эти стадии; тред «переезжает» между папками
+   только когда меняется стадия в данных — ручного drag нет. Список папок
+   приходит из ответа (folders); константы ниже — иконки и fallback-лейблы.
+   Деградация: ручка недоступна (старый бэкенд / LCB_APP_API_ENABLED=0) →
+   S.flags.noFunnel и прежние legacy-папки hot/new/followup/paid. */
+const FUNNEL_PATH = "/api/v2/funnel_threads";
+const FUNNEL_ICONS = {
+  new: "✨", qualified: "🎯", contacted: "✉️", engaged: "💬", negotiating: "🔥",
+  contract_drafting: "📝", awaiting_signature: "✍️", awaiting_prepayment: "💳",
+  won: "💰", paused: "⏸", lost: "🚫", disqualified: "⛔", other: "📁", all: "👥",
+};
+const FUNNEL_LABELS = {
+  new: "Новые", qualified: "Целевые", contacted: "Написали", engaged: "Интерес",
+  negotiating: "Переговоры", contract_drafting: "Договор", awaiting_signature: "Подпись",
+  awaiting_prepayment: "Предоплата", won: "Оплатили", paused: "Пауза",
+  lost: "Отказы", disqualified: "Не клиенты", other: "Прочее",
+};
+function funnelActive() { return S.brain !== "core2" && !S.flags.noFunnel; }
+/* путь LCB-тредов текущего режима; кэш-ключи и инвалидации обязаны ходить сюда же */
+function threadsPath(dir) {
+  if (dir === "lcb" && funnelActive()) return FUNNEL_PATH;
+  return brainPath("/api/threads?dir=" + dir);
+}
+/* папки LCB текущего режима: воронка V2 (пустые скрыты, выбранная и «Все»
+   всегда есть) или legacy-пятёрка STAGE_FOLDERS */
+function lcbFolderDefs(rows) {
+  if (!funnelActive()) {
+    return STAGE_FOLDERS.map((x) => {
+      const r = RAIL_ITEMS.find((it) => it.dir === "lcb" && it.folder === x.key);
+      return { key: x.key, label: x.label, icon: (r && r.icon) || "📁" };
+    });
+  }
+  const counts = {};
+  for (const t of rows || S.lastLcbRows || []) {
+    const st = t.__stage || "other";
+    counts[st] = (counts[st] || 0) + 1;
+  }
+  const src = S.funnelFolders ||
+    Object.keys(FUNNEL_LABELS).map((k) => ({ key: k, label: FUNNEL_LABELS[k] }));
+  const out = src
+    .filter((f) => (counts[f.key] || 0) > 0 || S.folder === f.key)
+    .map((f) => ({ key: f.key, label: f.label || FUNNEL_LABELS[f.key] || f.key,
+                   icon: FUNNEL_ICONS[f.key] || "📁" }));
+  out.push({ key: "all", label: "Все", icon: FUNNEL_ICONS.all });
+  return out;
+}
+
 /* серверное поле stage; клиентский fallback только как деградация при старом бэкенде */
 function stageOf(t) {
   if (t.stage) return t.stage;
@@ -186,7 +237,7 @@ function toggleSentBreak() {
 }
 
 /* ── экран «Чаты»: mobile-стек или desktop split-view ───────────────────── */
-function chatsPollTick() { delete S.cache[brainPath("/api/threads?dir=" + S.dir)]; drawThreads(); }
+function chatsPollTick() { delete S.cache[threadsPath(S.dir)]; drawThreads(); }
 function splitEmptyHtml() { return `<div class="sempty">Выбери диалог слева</div>`; }
 
 async function renderChats() {
@@ -226,18 +277,26 @@ async function renderChats() {
   await drawThreads();
 }
 
-/* рейл папок (desktop) */
+/* рейл папок (desktop): LCB-часть динамическая (папки воронки V2 или
+   legacy-пятёрка — lcbFolderDefs), музыканты/брокер прежние */
+function railItems() {
+  const lcb = lcbFolderDefs().map((f) => ({
+    key: f.key, dir: "lcb", folder: f.key, icon: f.icon,
+    label: f.key === "all" ? "Все LCB" : f.label,
+  }));
+  return lcb.concat(RAIL_ITEMS.filter((x) => x.dir !== "lcb"));
+}
 function drawRail() {
   const r = $("#chatRail");
   if (!r) return;
-  r.innerHTML = RAIL_ITEMS.map((it) => {
+  r.innerHTML = railItems().map((it) => {
     const on = S.dir === it.dir && (it.dir !== "lcb" || S.folder === it.folder);
     return `<button class="ritem ${on ? "on" : ""}" data-k="${it.key}">
       <span class="ricon">${it.icon}<span class="rbadge" data-b="${it.key}" hidden></span><span class="rbadge rbadge2" data-p="${it.key}" hidden></span></span>
       <span class="rlabel">${it.label}</span></button>`;
   }).join("");
   r.querySelectorAll(".ritem").forEach((b) => (b.onclick = () => {
-    const it = RAIL_ITEMS.find((x) => x.key === b.dataset.k);
+    const it = railItems().find((x) => x.key === b.dataset.k);
     if (it) railClick(it);
   }));
   updateRailBadges(null);
@@ -268,7 +327,7 @@ async function updateRailBadges(lcbRows) {
   set("broker", by.broker);
   let rows = lcbRows;
   if (!rows) {
-    const hit = S.cache[brainPath("/api/threads?dir=lcb")];
+    const hit = S.cache[threadsPath("lcb")];
     if (hit && hit.data) rows = hit.data.threads || hit.data.rows || [];
   }
   if (rows) {
@@ -280,7 +339,7 @@ async function updateRailBadges(lcbRows) {
       un[st] = (un[st] || 0) + n;
       all += n;
     }
-    set("hot", un.hot); set("new", un.new); set("followup", un.followup); set("paid", un.paid); set("all", all);
+    for (const f of lcbFolderDefs(rows)) set(f.key, f.key === "all" ? all : un[f.key]);
   } else {
     set("all", by.lcb);
   }
@@ -300,7 +359,7 @@ async function updateRailBadges(lcbRows) {
 function pendingCountsByPlace() {
   const out = [];
   const cachedRows = (dir) => {
-    const hit = S.cache[brainPath("/api/threads?dir=" + dir)];
+    const hit = S.cache[threadsPath(dir)];
     return hit && hit.data ? (hit.data.threads || hit.data.rows || []) : null;
   };
   const lcbRows = cachedRows("lcb");
@@ -313,8 +372,10 @@ function pendingCountsByPlace() {
       per[st] = (per[st] || 0) + 1;
       all++;
     }
-    for (const it of RAIL_ITEMS.filter((x) => x.dir === "lcb")) {
-      out.push(Object.assign({}, it, { count: it.key === "all" ? all : (per[it.key] || 0) }));
+    for (const f of lcbFolderDefs(lcbRows)) {
+      out.push({ key: f.key, dir: "lcb", folder: f.key, icon: f.icon,
+                 label: f.key === "all" ? "Все LCB" : f.label,
+                 count: f.key === "all" ? all : (per[f.key] || 0) });
     }
   }
   const byDir = (S.counters && S.counters.pending_by_dir) || null;
@@ -339,11 +400,16 @@ function drawDirs() {
   d.innerHTML = DIRS.map((x) =>
     `<button data-d="${x.key}" class="${S.dir === x.key ? "on" : ""}">${x.label}${unreadBadge(+by[x.key] || 0)}</button>`).join("");
   d.querySelectorAll("button").forEach((b) => (b.onclick = () => {
-    S.dir = b.dataset.d; S.folder = "hot"; renderChats();
+    S.dir = b.dataset.d; S.folder = funnelActive() ? "all" : "hot"; renderChats();
   }));
 }
 function drawFolders(rows) {
-  if (isDesktop()) { updateRailBadges(S.dir === "lcb" ? rows : null); return; }
+  if (isDesktop()) {
+    // набор папок воронки зависит от данных — рейл перерисовывается вместе с ними
+    if (S.dir === "lcb" && funnelActive() && rows) drawRail();
+    updateRailBadges(S.dir === "lcb" ? rows : null);
+    return;
+  }
   const f = $("#chatFolders");
   if (!f) return;
   if (S.dir !== "lcb" || rows === null) { f.innerHTML = ""; return; }
@@ -354,7 +420,7 @@ function drawFolders(rows) {
     un[st] = (un[st] || 0) + n;
     un.all = (un.all || 0) + n;
   }
-  f.innerHTML = STAGE_FOLDERS.map((x) =>
+  f.innerHTML = lcbFolderDefs(rows).map((x) =>
     `<button data-f="${x.key}" class="${S.folder === x.key ? "on" : ""}">${x.label}${unreadBadge(x.key === "all" ? (un.all || 0) : (un[x.key] || 0))}</button>`).join("");
   f.querySelectorAll("button").forEach((b) => (b.onclick = () => { S.folder = b.dataset.f; drawThreads(); }));
 }
@@ -414,10 +480,11 @@ async function drawThreads() {
   const listBox = $("#thrList");
   if (!listBox) return;
   let rows = null, fellBack = false;
-  const thrPath = brainPath("/api/threads?dir=" + S.dir);
+  const thrPath = threadsPath(S.dir);
   try {
     const r = await api(thrPath, { ttl: 60000 });
     rows = r.threads || r.rows || (Array.isArray(r) ? r : []);
+    if (thrPath === FUNNEL_PATH && Array.isArray(r.folders)) S.funnelFolders = r.folders;
   } catch (e) {
     if (e.status === 403) {
       drawFolders(null);
@@ -426,8 +493,18 @@ async function drawThreads() {
       return;
     }
     warnOnce("thr_" + S.brain + "_" + S.dir, "GET " + thrPath + " недоступна (" + (e.status || "сеть") + ")");
+    if (thrPath === FUNNEL_PATH) {
+      // воронка V2 недоступна: 404/503 = старый бэкенд или app-api выключен →
+      // legacy-папки до конца сессии; сетевой сбой — только этот тик без воронки
+      if (e.status === 404 || e.status === 503) S.flags.noFunnel = true;
+      warnOnce("funnel", "GET " + FUNNEL_PATH + " недоступна (" + (e.status || "сеть") + ") — папки по legacy-stage");
+      try {
+        const r1 = await api(brainPath("/api/threads?dir=lcb"), { ttl: 60000 });
+        rows = r1.threads || r1.rows || (Array.isArray(r1) ? r1 : []);
+      } catch (e1) {}
+    }
     // деградация до legacy-источников — только в v1: core2 не подменяем legacy-данными
-    if (S.brain !== "core2" && S.dir === "lcb") {
+    if (rows == null && S.brain !== "core2" && S.dir === "lcb") {
       // деградация до v1-источников: без unread/preview, но без белого экрана
       try {
         const snap = await api("/api/db/snapshot", { ttl: 120000 });
@@ -456,6 +533,11 @@ async function drawThreads() {
     return;
   }
   for (const t of rows) { t.__stage = stageOf(t); t.__epoch = epochOf(t); }
+  if (S.dir === "lcb") {
+    S.lastLcbRows = rows;
+    // папка из другого режима (legacy hot ↔ стадия воронки) → «Все», не пустой экран
+    if (S.folder !== "all" && !lcbFolderDefs(rows).some((f) => f.key === S.folder)) S.folder = "all";
+  }
   S.thrIndex = S.thrIndex || {};
   for (const t of rows) { const nq = threadNavQ(t); if (nq) S.thrIndex[S.dir + ":" + nq] = t; }
   // deep-link на desktop: раскрыть папку, в которой живёт открытый тред
@@ -463,7 +545,8 @@ async function drawThreads() {
     if (isDesktop() && S.dir === "lcb" && S.folder !== "all") {
       const selRow = rows.find((t) => threadNavQ(t) === S.folderRevealQ);
       if (selRow && selRow.__stage !== S.folder) {
-        S.folder = ["hot", "new", "followup", "paid"].includes(selRow.__stage) ? selRow.__stage : "all";
+        const keys = lcbFolderDefs(rows).filter((f) => f.key !== "all").map((f) => f.key);
+        S.folder = keys.includes(selRow.__stage) ? selRow.__stage : "all";
         drawRail();
       }
     }
@@ -525,11 +608,15 @@ function threadRowHtml(t) {
     : (t.status || "");
   // ⚠ только если мяч у нас: последнее сообщение входящее И агент промолчал за 24ч
   const stallFlag = !t.preview_out && uname && S.stallMap && S.stallMap[stallKey(uname)];
+  // бейдж источника стадии воронки: V2 = стадию назначило новое ядро (Core),
+  // V1 = fallback от legacy CRM-статуса; нет поля (musicians/broker/старый бэкенд) — нет бейджа
+  const src = t.stage_source === "v2" || t.stage_source === "v1" ? t.stage_source : null;
   return `<button class="thr trow" data-q="${esc(nq)}">
     ${avatarHtml(t)}
     <span class="tmain">
       <span class="t1"><span class="who">${esc(t.display || t.client || uname || "—")}</span>
         ${uname ? `<span class="uname">@${esc(uname)}</span>` : ""}
+        ${src ? `<span class="ssrc ${src === "v2" ? "s2" : "s1"}" title="${src === "v2" ? "стадию воронки назначило новое ядро (Core V2)" : "стадия из legacy CRM-статуса — Core ещё не ведёт этого лида"}">${src.toUpperCase()}</span>` : ""}
         <span class="when">${esc(when)}</span></span>
       <span class="t2"><span class="prev">${esc(trunc(prev, 120))}</span>
         ${stallFlag ? `<span class="stall-warn" title="агент хотел ответить, но остановился — смотри тред">⚠</span>` : ""}
@@ -886,7 +973,7 @@ function afterDraftConsumed(c) {
   delete S.cache["/api/approvals?full=1"];
   delete S.cache["/api/approvals"];
   delete S.cache[brainPath("/api/app/counters")];
-  delete S.cache[brainPath("/api/threads?dir=" + c.dir)]; // has_pending_approval мог измениться
+  delete S.cache[threadsPath(c.dir)]; // has_pending_approval мог измениться
   fetchCounters();
   c.draft = null;
   drawDraftBar();
@@ -1216,7 +1303,7 @@ async function postThreadRead() {
   }
 }
 function clearUnreadLocal(dir, key) {
-  const hit = S.cache[brainPath("/api/threads?dir=" + dir)];
+  const hit = S.cache[threadsPath(dir)];
   if (!hit || !hit.data) return;
   const arr = hit.data.threads || hit.data.rows || [];
   const k = String(key).toLowerCase();
