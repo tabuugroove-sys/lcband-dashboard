@@ -210,12 +210,20 @@ async function c2Arbitr(b) {
       <div class="mtext" style="margin-top:4px">Твои вердикты — ground truth для переключения на Core: журнал append-only, «оба плохо» можно сразу отправлять на разбор.</div></div>`;
     const cards = q.cards || [];
     if (!cards.length) {
+      // Пустой экран обязан объяснять ПРИЧИНУ живыми числами, а не догадкой про
+      // «планировщик не включён» (25.07: планировщик уже работал каждые 10 минут,
+      // а текст всё ещё винил его). Диагностика приходит с ручкой очереди.
+      const dg = q.diagnostics || {};
+      const why = dg.blockers && Object.keys(dg.blockers).length
+        ? Object.entries(dg.blockers).map(([k, v]) => `${k}: ${v}`).join(" · ")
+        : "причина не определена";
       b.innerHTML = head + `<div class="card"><div class="mtext">
-        Сравнений пока нет: shadow-планировщик не включён (сейчас
-        shadow_comparisons = ${((S.c2summary || {}).counts || {}).shadow_comparisons ?? 0}).
-        Когда rewrite-трек включит тень или прогонит replay истории — здесь
-        появятся карточки «входящее → решение старого · решение Core», и ты
-        судишь кнопками, кто прав.</div></div>`;
+        Сравнений пока нет. Что мешает прямо сейчас: ${escapeHtml(why)}.
+        Сравнение возможно там, где есть И разбор ядра, И записанный результат старого:
+        разобрано ${dg.interpreted ?? "?"} · результат старого есть у ${dg.with_legacy_result ?? "?"} ·
+        пересечение ${dg.ready ?? "?"} из ${dg.inbound ?? "?"} входящих.
+        Как только пересечение появится — здесь будут карточки «входящее → решение
+        старого · решение Core», и ты судишь кнопками, кто прав.</div></div>`;
       return;
     }
     b.innerHTML = head + cards.map(c2ArbCardHtml).join("");
