@@ -769,3 +769,12 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 :root[data-theme="dark"] .chip-paid, .dark .chip-paid { background: #1c2a3d; border-color: #4a6fa3; }
 .chip-arrow { color: var(--muted); }
 .brain-note { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+/* Бюджет выходных токенов */
+.budget-line { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+.budget-track { height: 10px; border-radius: 6px; background: var(--frame); overflow: hidden; margin: 6px 0 10px; }
+.budget-track i { display: block; height: 100%; background: var(--ok); border-radius: 6px; }
+.budget-base { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.budget-base input { width: 130px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
+.mult-item { display: inline-flex; align-items: center; gap: 6px; margin: 6px 12px 6px 0; color: var(--muted); font-size: 13px; }
+.mult-item select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
