@@ -38,7 +38,7 @@ const S = {
 };
 
 /* ── роутинг ────────────────────────────────────────────────────────────── */
-const SCREENS = { cal: "scr-cal", chats: "scr-chats", today: "scr-today", sys: "scr-sys", cast: "scr-cast", core2: "scr-core2", assurance: "scr-assurance", view: "scr-view" };
+const SCREENS = { cal: "scr-cal", chats: "scr-chats", today: "scr-today", sys: "scr-sys", tokens: "scr-tokens", cast: "scr-cast", core2: "scr-core2", assurance: "scr-assurance", view: "scr-view" };
 function nav(hash) { location.hash = hash; }
 function route() {
   stopPollsByPrefix("screen:");
@@ -49,7 +49,7 @@ function route() {
   const rawArg = slash === -1 ? null : h.slice(slash + 1);
   // desktop (≥900px): тред живёт в split-панели экрана «Чаты», не в отдельном view
   const deskChat = name === "chat" && typeof isDesktop === "function" && isDesktop();
-  const tab = ["cal", "today", "chats", "sys", "cast", "core2"].includes(name) ? name
+  const tab = ["cal", "today", "chats", "sys", "tokens", "cast", "core2"].includes(name) ? name
     : name === "assurance" ? "assurance"
     : deskChat ? "chats"
     : (name === "event" || name === "chat" ? "view" : "cal");
@@ -66,6 +66,7 @@ function route() {
   else if (name === "today") renderToday();
   else if (name === "chats") renderChats();
   else if (name === "sys") renderSys();
+  else if (name === "tokens") renderTokens();
   else if (name === "cast") renderCast();
   else if (name === "core2") renderCore2();
   else if (name === "assurance") renderAssurance(rawArg || "sys");
