@@ -750,3 +750,22 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   background: var(--paper); border-radius: 18px 18px 0 0; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; }
 @media (min-width: 820px) { .tok-sheet-wrap { align-items: center; } .tok-sheet { border-radius: 18px; } }
+
+/* Карта мозгов */
+.brain-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--line); }
+.brain-row:first-child { border-top: 0; }
+.brain-label { min-width: 170px; }
+.brain-label small { display: block; color: var(--muted); font-size: 12px; }
+.brain-chain { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.chip { display: inline-flex; flex-direction: column; padding: 7px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--frame); line-height: 1.25; }
+.chip b { font-size: 13px; font-weight: 500; }
+.chip small { color: var(--muted); font-size: 11px; }
+.chip-claude { background: #e8f0fb; border-color: #b9d0ee; }
+.chip-kimi { background: #e6f4ec; border-color: #b4dcc4; }
+.chip-paid { background: #e8f0fb; border-color: #6f9bd1; }
+:root[data-theme="dark"] .chip-claude, .dark .chip-claude { background: #1c2a3d; border-color: #33507a; }
+:root[data-theme="dark"] .chip-kimi, .dark .chip-kimi { background: #16311f; border-color: #2c5c3c; }
+:root[data-theme="dark"] .chip-paid, .dark .chip-paid { background: #1c2a3d; border-color: #4a6fa3; }
+.chip-arrow { color: var(--muted); }
+.brain-note { margin-left: auto; color: var(--muted); font-size: 12px; }

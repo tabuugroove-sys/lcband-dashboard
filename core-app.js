@@ -1637,7 +1637,41 @@ function usdFmt(n) {
   return n > 0 ? "$" + n.toFixed(n < 1 ? 3 : 2) : "—";
 }
 
+function renderBrainMap(map) {
+  const box = byId("brainMap");
+  if (!box) return;
+  const rows = (map && map.rows) || [];
+  if (!rows.length) {
+    box.innerHTML = '<div class="empty-state">Карта недоступна' +
+      (map && map.error ? ": " + escapeHtml(map.error) : "") + "</div>";
+    return;
+  }
+  box.innerHTML = rows.map((row) => {
+    const chips = row.tiers.map((t, i) => {
+      const paid = t.wallet === "paid";
+      const cost = paid
+        ? "≈$" + Number(t.avg_usd_per_call || 0).toFixed(4) + "/зап"
+        : "≈" + tokFmt(t.avg_tokens_per_call || 0) + " ток/зап";
+      const cls = paid ? "chip chip-paid" : t.tier === "kimi" ? "chip chip-kimi"
+        : t.tier === "claude_cli" ? "chip chip-claude" : "chip";
+      return (i ? '<span class="chip-arrow" aria-hidden="true">→</span>' : "")
+        + `<span class="${cls}"><b>${escapeHtml(t.provider)}</b>`
+        + `<small>${escapeHtml(t.model_label)} · ${cost}</small></span>`;
+    }).join("");
+    return `<div class="brain-row">
+      <div class="brain-label"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.sub)}</small></div>
+      <div class="brain-chain">${chips}</div>
+      ${row.note ? `<div class="brain-note">${escapeHtml(row.note)}</div>` : ""}
+    </div>`;
+  }).join("");
+}
+
 async function renderTokens() {
+  try {
+    renderBrainMap(await apiGet("/api/app/brain_map"));
+  } catch (error) {
+    renderBrainMap({ rows: [], error: String(error) });
+  }
   renderTierList();
   try {
     const cfg = await apiGet("/api/app/token_limits");
