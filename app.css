@@ -536,3 +536,23 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
 .c2tile { border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
 .c2tile .num { font-size:22px; font-weight:700; }
 .c2tile.z .num { color:var(--mut); font-weight:500; }
+
+/* Экран «Токены» (Михаил 25.07) */
+.tierlist { display:flex; flex-direction:column; gap:6px; }
+.tieritem { display:flex; align-items:center; gap:10px; padding:10px 12px;
+  background:var(--surface-1,#fff); border:1px solid var(--line); border-radius:10px;
+  cursor:grab; user-select:none; }
+.tieritem:active { cursor:grabbing; }
+.tiernum { display:inline-flex; align-items:center; justify-content:center;
+  width:22px; height:22px; border-radius:50%; background:var(--pine); color:#fff;
+  font-size:12px; font-variant-numeric:tabular-nums; }
+.tieritem .drag { color:var(--text-muted,#999); font-size:16px; }
+.tieritem .spacer, .proc .spacer, .agentrow .spacer { margin-left:auto; }
+.agentrow { padding:8px 0; border-bottom:1px solid var(--line); }
+.agentrow:last-child { border-bottom:none; }
+.tok-sheet-wrap { display:none; position:fixed; inset:0; z-index:50;
+  background:rgba(0,0,0,.4); align-items:flex-end; justify-content:center; }
+.tok-sheet { width:100%; max-width:560px; max-height:82vh; overflow:auto;
+  background:var(--surface-0,#fff); border-radius:16px 16px 0 0; padding:16px; }
+.sheet-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+@media (min-width:900px){ .tok-sheet-wrap{ align-items:center; } .tok-sheet{ border-radius:16px; } }
