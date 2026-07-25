@@ -1063,6 +1063,13 @@ async function openThread(threadId, updateHash = true, options = {}) {
   const wasNearBottom = listBefore.scrollHeight - listBefore.scrollTop - listBefore.clientHeight < 80;
   if (!background) state.threadRequestController?.abort();
   const controller = new AbortController();
+  // Вечный «Загружаю переписку» (скриншот 25.07, @dimylichka): у запроса не было
+  // таймаута — зависший бэкенд оставлял спиннер навсегда, без кнопки «Повторить».
+  let requestTimedOut = false;
+  const requestTimer = setTimeout(() => {
+    requestTimedOut = true;
+    controller.abort();
+  }, 20000);
   state.threadRequestController = controller;
   state.selectedThreadId = threadId;
   if (!background) {
@@ -1274,12 +1281,14 @@ async function openThread(threadId, updateHash = true, options = {}) {
     if (savedComposer) restoreComposerSnapshot(payload, savedComposer);
     renderManualSendState();
   } catch (error) {
-    if (controller.signal.aborted || state.selectedThreadId !== threadId) return;
+    if (state.selectedThreadId !== threadId) return;
+    if (controller.signal.aborted && !requestTimedOut) return;
     if (background) return;
     byId("messageList").innerHTML = '<div class="empty-state"><strong>Переписка не загрузилась</strong><button type="button" data-thread-retry>Повторить</button></div>';
     byId("messageList").querySelector("[data-thread-retry]")?.addEventListener("click", () => openThread(threadId, false));
     toast(`Тред не открыт: ${error.message}`);
   } finally {
+    clearTimeout(requestTimer);
     if (state.threadRequestController === controller) state.threadRequestController = null;
   }
 }
