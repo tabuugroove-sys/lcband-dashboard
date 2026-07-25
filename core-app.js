@@ -444,6 +444,7 @@ function setView(view) {
   if (view === "chats") renderThreads();
   if (view === "today") renderToday();
   if (view === "system") renderSystem();
+  if (view === "tokens") renderTokens();
   if (view === "fees") renderFees();
   if (view === "broadcast") renderBroadcast();
 }
@@ -463,7 +464,7 @@ function route() {
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "today", "system", "fees", "broadcast"].includes(name)
+  const view = ["calendar", "chats", "today", "system", "tokens", "fees", "broadcast"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";
@@ -1619,6 +1620,198 @@ function renderSystem() {
   byId("schemaDetails").innerHTML = details.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
   byId("systemHealthPill").textContent = health.ok ? "Core доступен" : "Core неполон";
   byId("systemHealthPill").className = `pill ${health.ok ? "ok" : "danger"}`;
+}
+
+const TOKENS_TIER_KEY = "lcb_ai_tier_order";
+const TOKENS_DEFAULT_TIERS = ["Claude", "Codex", "Kimi K3"];
+const TOKEN_LIMIT_PROVIDERS = ["codex", "claude", "kimi"];
+
+function tokFmt(n) {
+  n = Number(n) || 0;
+  if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + "k";
+  return String(Math.round(n));
+}
+function usdFmt(n) {
+  n = Number(n) || 0;
+  return n > 0 ? "$" + n.toFixed(n < 1 ? 3 : 2) : "—";
+}
+
+async function renderTokens() {
+  renderTierList();
+  try {
+    const cfg = await apiGet("/api/app/token_limits");
+    state.tokenLimits = cfg.limits || {};
+  } catch { state.tokenLimits = state.tokenLimits || {}; }
+  renderTokenLimits();
+  const providers = byId("tokenProviders");
+  const agents = byId("tokenAgents");
+  providers.innerHTML = '<div class="empty-state">Загрузка…</div>';
+  agents.innerHTML = "";
+  let data;
+  try {
+    data = await apiGet("/api/app/token_spend");
+  } catch (error) {
+    providers.innerHTML = `<div class="empty-state"><strong>Нет данных</strong>${escapeHtml(String(error))}</div>`;
+    byId("tokensSpendPill").textContent = "Ошибка";
+    return;
+  }
+  state.tokenSpend = data;
+  const weekUsd = (data.providers || []).reduce((s, p) => s + (p.week.usd || 0), 0);
+  byId("tokensSpendPill").textContent = "Платно за неделю: " + usdFmt(weekUsd);
+  byId("tokensSpendPill").className = "pill " + (weekUsd > 2 ? "hold" : "ok");
+
+  providers.innerHTML = (data.providers || []).map((p) => {
+    const paid = p.wallet === "paid";
+    const tag = paid
+      ? '<span class="pill hold">платный $</span>'
+      : '<span class="pill ok">подписка</span>';
+    return `<div class="system-state-row"><span>${escapeHtml(p.provider)} ${tag}</span>
+      <strong>${tokFmt(p.day.tokens)} / сут · ${tokFmt(p.week.tokens)} / нед${paid ? " · " + usdFmt(p.week.usd) : ""}</strong></div>`;
+  }).join("") || '<div class="empty-state">Данных пока нет</div>';
+
+  agents.innerHTML = (data.agents || []).map((a, i) => {
+    const short = a.agent.replace("com.lcband.", "");
+    const provs = (a.providers || []).map((p) => `${escapeHtml(p.provider)} ${tokFmt(p.tokens)}`).join(" · ");
+    return `<button class="agent-row" data-agent-idx="${i}">
+      <div class="system-state-row"><span>${escapeHtml(short)}</span>
+        <strong>${tokFmt(a.day.tokens)} / сут · ${tokFmt(a.week.tokens)} / нед · ${a.week.calls} выз.</strong></div>
+      <small>${escapeHtml(provs)}</small></button>`;
+  }).join("") || '<div class="empty-state">Данных пока нет</div>';
+
+  agents.querySelectorAll("[data-agent-idx]").forEach((row) => {
+    row.addEventListener("click", () => openAgentDrilldown(Number(row.dataset.agentIdx)));
+  });
+}
+
+function renderTierList() {
+  const list = byId("tierList");
+  if (!list) return;
+  let order;
+  try { order = JSON.parse(localStorage.getItem(TOKENS_TIER_KEY) || "null"); } catch { order = null; }
+  if (!Array.isArray(order) || !order.length) order = TOKENS_DEFAULT_TIERS.slice();
+  list.innerHTML = order.map((name, i) =>
+    `<div class="tier-item" draggable="true" data-tier="${escapeHtml(name)}">
+      <span class="tier-num">${i + 1}</span><span class="tier-name">${escapeHtml(name)}</span>
+      <span class="tier-role">${i === 0 ? "первый" : "запас"}</span><span class="tier-grip" aria-hidden="true">⠿</span></div>`).join("");
+  let dragEl = null;
+  list.querySelectorAll(".tier-item").forEach((item) => {
+    item.addEventListener("dragstart", () => { dragEl = item; item.classList.add("dragging"); });
+    item.addEventListener("dragend", () => {
+      item.classList.remove("dragging");
+      const names = [...list.querySelectorAll(".tier-item")].map((n) => n.dataset.tier);
+      localStorage.setItem(TOKENS_TIER_KEY, JSON.stringify(names));
+      renderTierList();
+      saveTierOrder(names);
+    });
+    item.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      if (!dragEl || dragEl === item) return;
+      const rect = item.getBoundingClientRect();
+      const after = event.clientY > rect.top + rect.height / 2;
+      list.insertBefore(dragEl, after ? item.nextSibling : item);
+    });
+  });
+}
+
+async function saveTierOrder(names) {
+  const note = byId("tierSaveNote");
+  if (note) note.textContent = "Сохраняю…";
+  try {
+    await apiPost("/api/app/set_tier_order", { order: names });
+    if (note) note.textContent = "Сохранено: " + names.join(" → ");
+  } catch (error) {
+    if (note) note.textContent = "Локально применено; сервер: " + String(error).slice(0, 60);
+  }
+}
+
+function renderTokenLimits() {
+  const box = byId("tokenLimits");
+  if (!box) return;
+  const limits = state.tokenLimits || {};
+  box.innerHTML = TOKEN_LIMIT_PROVIDERS.map((prov) => {
+    const cur = limits[prov] || {};
+    const label = prov === "codex" ? "Codex" : prov === "claude" ? "Claude" : "Kimi K3";
+    return `<div class="limit-row">
+      <span class="limit-name">${label}</span>
+      <label>токенов/запрос<input type="number" min="0" data-limit="${prov}" data-field="max_tokens_per_call" value="${cur.max_tokens_per_call ?? ""}" placeholder="без лимита"></label>
+      <label>вызовов/5ч<input type="number" min="0" data-limit="${prov}" data-field="max_calls_5h" value="${cur.max_calls_5h ?? ""}" placeholder="без лимита"></label>
+    </div>`;
+  }).join("") + `<button class="text-button" id="limitsSaveBtn">Сохранить лимиты</button>`;
+  byId("limitsSaveBtn").addEventListener("click", saveTokenLimits);
+}
+
+async function saveTokenLimits() {
+  const note = byId("limitsSaveNote");
+  const payload = {};
+  document.querySelectorAll("#tokenLimits input[data-limit]").forEach((inp) => {
+    const prov = inp.dataset.limit;
+    const field = inp.dataset.field;
+    const val = inp.value.trim();
+    payload[prov] = payload[prov] || {};
+    payload[prov][field] = val === "" ? 0 : Math.max(0, parseInt(val, 10) || 0);
+  });
+  if (note) note.textContent = "Сохраняю…";
+  try {
+    const res = await apiPost("/api/app/set_token_limits", { limits: payload });
+    state.tokenLimits = res.limits || payload;
+    if (note) note.textContent = "Сохранено. Лимиты применятся к новым вызовам.";
+  } catch (error) {
+    if (note) note.textContent = "Ошибка: " + String(error).slice(0, 80);
+  }
+}
+
+function openAgentDrilldown(idx) {
+  const data = state.tokenSpend || {};
+  const agent = (data.agents || [])[idx];
+  if (!agent) return;
+  const short = agent.agent.replace("com.lcband.", "");
+  const topDay = (data.top_day || []).filter((r) => r.owner === agent.agent).slice(0, 8);
+  const topWeek = (data.top_week || []).filter((r) => r.owner === agent.agent).slice(0, 8);
+  const big = agent.week.tokens >= 500000;
+  const rows = (arr) => arr.map((r) =>
+    `<div class="system-state-row"><span>${escapeHtml(r.purpose)}</span>
+      <strong>${tokFmt(r.tokens)} · ${r.calls} выз.${r.usd > 0 ? " · " + usdFmt(r.usd) : ""}</strong></div>`).join("")
+    || '<div class="empty-state">нет данных</div>';
+  const html = `<div class="sheet-head"><h2>${escapeHtml(short)}</h2><button class="text-button" id="tokSheetClose">✕</button></div>
+    <div class="system-state">
+      <div class="system-state-row"><span>За сутки</span><strong>${tokFmt(agent.day.tokens)}</strong></div>
+      <div class="system-state-row"><span>За неделю</span><strong>${tokFmt(agent.week.tokens)} · ${agent.week.calls} выз.</strong></div>
+      <div class="system-state-row"><span>Платно / нед</span><strong>${usdFmt(agent.week.usd)}</strong></div>
+    </div>
+    <h2 style="margin-top:14px">Самое затратное — сутки</h2>${rows(topDay)}
+    <h2 style="margin-top:14px">Самое затратное — неделя</h2>${rows(topWeek)}
+    <button class="text-button" id="tokReviewBtn" style="margin-top:14px">Отправить на ревью: можно ли сократить расход?</button>
+    ${big ? '<p class="mtext" style="color:var(--danger,#c0392b)">Расход крупный — ревью рекомендуется</p>' : ""}`;
+  openTokSheet(html);
+  byId("tokSheetClose").addEventListener("click", closeTokSheet);
+  byId("tokReviewBtn").addEventListener("click", () => {
+    closeTokSheet();
+    const prompt = `Проанализируй расход токенов агента ${agent.agent} за неделю `
+      + `(${tokFmt(agent.week.tokens)} токенов, ${agent.week.calls} вызовов). Топ дорогих процессов: `
+      + topWeek.map((r) => r.purpose + " " + tokFmt(r.tokens)).join(", ")
+      + `. Можно ли сократить расход без потери качества — что конкретно и на сколько?`;
+    if (typeof sendPrompt === "function") sendPrompt(prompt);
+    else alert("Ревью-запрос:\n\n" + prompt);
+  });
+}
+
+function openTokSheet(html) {
+  let wrap = byId("tokSheetWrap");
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.id = "tokSheetWrap";
+    wrap.className = "tok-sheet-wrap";
+    wrap.innerHTML = '<div class="tok-sheet"></div>';
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", (event) => { if (event.target === wrap) closeTokSheet(); });
+  }
+  wrap.querySelector(".tok-sheet").innerHTML = html;
+  wrap.classList.add("is-open");
+}
+function closeTokSheet() {
+  const wrap = byId("tokSheetWrap");
+  if (wrap) wrap.classList.remove("is-open");
 }
 
 function renderBroadcast() {

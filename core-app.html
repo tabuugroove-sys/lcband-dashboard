@@ -50,6 +50,7 @@
     <button class="tab-button" data-view="today"><span class="tab-icon" aria-hidden="true">☉<span class="tab-badge brass" id="navTodayCount" hidden></span></span>Сегодня</button>
     <button class="tab-button" data-view="system"><span class="tab-icon" aria-hidden="true">◔</span>Система</button>
     <button class="tab-button" data-view="fees"><span class="tab-icon" aria-hidden="true">₽</span>Гонорары</button>
+    <button class="tab-button" data-view="tokens"><span class="tab-icon" aria-hidden="true">◈</span>Токены</button>
     <button class="tab-button" data-view="broadcast"><span class="tab-icon" aria-hidden="true">✈</span>Рассылка</button>
   </nav>
 
@@ -286,6 +287,30 @@
           <section class="band-section"><div class="section-head"><h2>Данные</h2></div><dl class="definition-list" id="schemaDetails"></dl></section>
           <section class="band-section"><div class="section-head"><h2>Предохранители</h2></div><ul class="guard-list"><li><b>×</b><span><strong>Нет read fallback</strong><small>Контакты и сообщения читаются из Core.</small></span></li><li><b>✓</b><span><strong>Черновик не является отправкой</strong><small>Shadow-writer создаёт immutable draft без outbound intent и без messenger SDK.</small></span></li><li><b>✓</b><span><strong>Ручная отправка отделена</strong><small>Только точный текст оператора через единственного delivery-owner и provider receipt.</small></span></li><li><b>×</b><span><strong>Автоответы выключены</strong><small>Агенты остаются в SEND HOLD.</small></span></li></ul></section>
         </div>
+      </section>
+
+      <section class="screen" id="screen-tokens">
+        <div class="page-head"><div><p class="eyebrow">Расход мозгов</p><h1>Токены</h1></div><span class="pill" id="tokensSpendPill">Загрузка…</span></div>
+        <section class="band-section">
+          <div class="section-head"><h2>Порядок мозгов — тяни, чтобы поменять</h2></div>
+          <p class="mtext">Кто первым берёт задачу; упал — идёт к следующему. Тексты клиенту всегда Claude.</p>
+          <div id="tierList" class="tier-list"></div>
+          <p class="mtext" id="tierSaveNote"></p>
+        </section>
+        <section class="band-section">
+          <div class="section-head"><h2>Лимиты токенов на один запрос</h2></div>
+          <p class="mtext">Максимум токенов на вызов и предел вызовов за 5 часов. Пусто = без ограничения.</p>
+          <div id="tokenLimits"></div>
+          <p class="mtext" id="limitsSaveNote"></p>
+        </section>
+        <section class="band-section">
+          <div class="section-head"><h2>Провайдеры — подписка и платный</h2></div>
+          <div id="tokenProviders"></div>
+        </section>
+        <section class="band-section">
+          <div class="section-head"><h2>Агенты — расход за неделю (нажми для деталей)</h2></div>
+          <div id="tokenAgents"></div>
+        </section>
       </section>
 
       <section class="screen" id="screen-fees">
