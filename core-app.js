@@ -772,8 +772,29 @@ function isSentTodayMoscow(thread) {
   return day.format(new Date(Number(outboundEpoch) * 1000)) === day.format(new Date());
 }
 
+function threadFunnelStage(thread) {
+  return String(thread?.funnel_stage || "");
+}
+
+function threadMatchesFolder(thread, folder) {
+  if (!folder || folder === "all") return true;
+  if (folder.startsWith("case:")) {
+    const item = state.coordinationCases.find((entry) => `case:${entry.case_id}` === folder);
+    return Boolean(item && (item.participants || []).some((link) => link.thread_id === thread.thread_id));
+  }
+  if (folder.startsWith("funnel:")) return threadFunnelStage(thread) === folder.slice(7);
+  if (folder === "hot") return hotThreadIds().has(thread.thread_id);
+  if (folder === "new") return !readThreadIds().has(thread.thread_id) && thread.last_direction !== "outbound";
+  if (folder === "technical") return isTechnicalThread(thread);
+  return thread.business_bucket === folder;
+}
+
 function chatStatusSets() {
-  const business = state.threads.filter((thread) => !isTechnicalThread(thread));
+  // Фильтры обязаны считаться ВНУТРИ выбранной папки: иначе счётчики «непрочитано /
+  // ждут подтверждения / отправлено» не бьются с папкой (замечание Михаила 25.07 —
+  // «покликай эти три фильтра, они не соотносятся с воронкой»).
+  const inFolder = state.threads.filter((thread) => threadMatchesFolder(thread, state.chatFolder));
+  const business = inFolder.filter((thread) => !isTechnicalThread(thread));
   const read = readThreadIds();
   return {
     unread: new Set(business.filter((thread) => thread.last_direction !== "outbound" && !read.has(thread.thread_id)).map((thread) => thread.thread_id)),
@@ -813,11 +834,10 @@ function visibleThreads() {
       return false;
     }
     if (state.chatStatus && !statuses[state.chatStatus].has(thread.thread_id)) return false;
-    if (coordination) {
-      if (!coordinationThreadIds.has(thread.thread_id)) return false;
-    } else {
-      if (state.chatFolder === "hot" && !hot.has(thread.thread_id)) return false;
-      if (!["all", "hot", "technical"].includes(state.chatFolder) && thread.business_bucket !== state.chatFolder) return false;
+    // Один предикат папки и для списка, и для счётчиков фильтров: пока их было два,
+    // числа над списком не соответствовали тому, что в списке лежит.
+    if (state.chatFolder !== "technical" && !threadMatchesFolder(thread, state.chatFolder)) {
+      return false;
     }
     if (!query) return true;
     return [threadTitle(thread), thread.peer_external_id, thread.last_body, roleLabel(thread)]
@@ -844,6 +864,38 @@ function renderThreadFolders() {
     const badge = byId(`folder${key}`);
     badge.textContent = formatNumber(value);
     badge.hidden = Number(value) === 0;
+  });
+  // Папки воронки — те, по которым мы реально ходим (статусы CRM), а не идеальная
+  // схема: пустых стадий на экране быть не должно.
+  const funnelSpec = state.funnelFolders && state.funnelFolders.length
+    ? state.funnelFolders
+    : [
+        { key: "interest", label: "Интерес" },
+        { key: "negotiating", label: "Переговоры" },
+        { key: "prepayment", label: "Ждём предоплату" },
+        { key: "won", label: "Оплатили" },
+        { key: "followup", label: "Follow-up" },
+        { key: "aftercare", label: "Отзыв/контент" },
+      ];
+  const funnelCounts = new Map();
+  state.threads.forEach((thread) => {
+    const stage = threadFunnelStage(thread);
+    if (stage) funnelCounts.set(stage, (funnelCounts.get(stage) || 0) + 1);
+  });
+  byId("funnelFolders").innerHTML = funnelSpec
+    .filter((item) => (funnelCounts.get(item.key) || 0) > 0)
+    .map((item) => {
+      const folder = `funnel:${item.key}`;
+      const count = funnelCounts.get(item.key) || 0;
+      return `<button class="funnel-folder ${folder === state.chatFolder ? "is-active" : ""}" data-funnel-folder="${escapeHtml(folder)}"><span class="folder-icon">₽</span><span class="folder-label">${escapeHtml(item.label)}</span><b>${formatNumber(count)}</b></button>`;
+    })
+    .join("");
+  byId("funnelFolders").querySelectorAll("[data-funnel-folder]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.chatFolder = button.dataset.funnelFolder;
+      state.chatStatus = "";
+      renderThreads();
+    });
   });
   if (state.chatFolder.startsWith("case:") && !activeCoordinationCase()) state.chatFolder = "all";
   byId("coordinationFolders").innerHTML = state.coordinationCases.map((item) => {
