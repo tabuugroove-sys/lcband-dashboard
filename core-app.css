@@ -722,3 +722,31 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   opacity: .55; padding: 6px 8px 2px;
 }
 .funnel-folder { display: flex; align-items: center; gap: 8px; width: 100%; }
+
+/* Экран «Токены» (Михаил 25.07) */
+.mtext { color: var(--muted); font-size: 13px; margin: 4px 0 10px; }
+.tier-list { display: flex; flex-direction: column; gap: 8px; }
+.tier-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  background: var(--frame); border: 1px solid var(--line); border-radius: 12px; cursor: grab; }
+.tier-item.dragging { opacity: .4; }
+.tier-num { display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%; background: var(--ok); color: #fff; font-size: 13px; }
+.tier-name { font-weight: 500; }
+.tier-role { margin-left: auto; color: var(--muted); font-size: 13px; }
+.tier-grip { color: var(--muted); font-size: 17px; }
+.limit-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--line); }
+.limit-row:first-child { border-top: 0; }
+.limit-name { min-width: 90px; font-weight: 500; }
+.limit-row label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.limit-row input { width: 110px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
+.agent-row { display: block; width: 100%; text-align: left; padding: 8px 0; border: 0; border-top: 1px solid var(--line);
+  background: none; cursor: pointer; color: inherit; }
+.agent-row:first-child { border-top: 0; }
+.agent-row small { color: var(--muted); font-size: 12px; display: block; padding-left: 2px; }
+.tok-sheet-wrap { display: none; position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.42);
+  align-items: flex-end; justify-content: center; }
+.tok-sheet-wrap.is-open { display: flex; }
+.tok-sheet { width: 100%; max-width: 560px; max-height: 84vh; overflow: auto; padding: 18px;
+  background: var(--paper); border-radius: 18px 18px 0 0; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; }
+@media (min-width: 820px) { .tok-sheet-wrap { align-items: center; } .tok-sheet { border-radius: 18px; } }
