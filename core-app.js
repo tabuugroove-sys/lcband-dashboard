@@ -1666,7 +1666,55 @@ function renderBrainMap(map) {
   }).join("");
 }
 
+function renderOutputBudget(ob) {
+  const bar = byId("budgetBar");
+  const mults = byId("budgetMultipliers");
+  if (!bar || !mults) return;
+  if (!ob || ob.error) {
+    bar.innerHTML = '<div class="empty-state">Бюджет недоступен' +
+      (ob && ob.error ? ": " + escapeHtml(ob.error) : "") + "</div>";
+    return;
+  }
+  const pct = Math.min(100, Math.round(100 * ob.spent_weighted / Math.max(1, ob.base_tokens)));
+  const over = ob.background_blocked;
+  bar.innerHTML = `
+    <div class="budget-line"><span>Потрачено (взвешенно)</span>
+      <strong>${tokFmt(ob.spent_weighted)} из ${tokFmt(ob.base_tokens)} · ${pct}%</strong></div>
+    <div class="budget-track"><i style="width:${pct}%${over ? ";background:var(--danger)" : ""}"></i></div>
+    ${over ? '<p class="mtext" style="color:var(--danger)">База исчерпана: фон остановлен, ответы людям живут в запасе ×' + ob.headroom + "</p>" : ""}
+    <label class="budget-base">База, ток/сутки:
+      <input type="number" id="budgetBase" min="100000" step="100000" value="${ob.base_tokens}"></label>`;
+  const options = [1, 2, 4, 10, 20];
+  mults.innerHTML = Object.entries(ob.multipliers || {}).map(([model, mult]) => {
+    const opts = options.map((o) =>
+      `<option value="${o}" ${Number(mult) === o ? "selected" : ""}>x${o}</option>`).join("");
+    return `<label class="mult-item">${escapeHtml(model)}
+      <select data-mult="${escapeHtml(model)}">${opts}</select></label>`;
+  }).join("") + '<button class="text-button" id="budgetSaveBtn">Сохранить бюджет</button>';
+  byId("budgetSaveBtn").addEventListener("click", async () => {
+    const note = byId("budgetSaveNote");
+    const multipliers = {};
+    document.querySelectorAll("#budgetMultipliers select[data-mult]").forEach((sel) => {
+      multipliers[sel.dataset.mult] = Number(sel.value);
+    });
+    const base = Number(byId("budgetBase").value) || 1000000;
+    if (note) note.textContent = "Сохраняю…";
+    try {
+      const res = await apiPost("/api/app/set_output_budget", { base_tokens: base, multipliers });
+      renderOutputBudget(res);
+      if (note) note.textContent = "Сохранено. Действует сразу.";
+    } catch (error) {
+      if (note) note.textContent = "Ошибка: " + String(error).slice(0, 80);
+    }
+  });
+}
+
 async function renderTokens() {
+  try {
+    renderOutputBudget(await apiGet("/api/app/output_budget"));
+  } catch (error) {
+    renderOutputBudget({ error: String(error) });
+  }
   try {
     renderBrainMap(await apiGet("/api/app/brain_map"));
   } catch (error) {
