@@ -1140,7 +1140,12 @@ async function openThread(threadId, updateHash = true, options = {}) {
         : "";
       const dismiss = `<button type="button" data-draft-dismiss="${escapeHtml(draft.draft_id)}">Удалить</button>`;
       const scenario = draft.rewrite_constraints?.ai_scenario_type || draft.scenario_type || "other";
-      draftHtml = `<section class="draft-message ${draft.is_stale ? "is-stale" : ""}" data-draft-id="${escapeHtml(draft.draft_id)}"><div class="draft-message-head"><strong>Черновик V2</strong><span>${escapeHtml(status)}</span></div><div class="draft-message-text">${escapeHtml(detail)}</div><div class="draft-message-foot"><small>${escapeHtml(scenario)}${violations.length ? ` · замечаний стиля: ${violations.length}` : ""}</small><span>${dismiss}${action}</span></div></section>`;
+      // Пустой текст = ядро решило не отвечать. Показывать это как «черновик» с
+      // кнопкой «Удалить» вводит в заблуждение: в карточке лежит причина решения,
+      // а не предложенный текст (кейс @a_aslanidi 25.07 — причина читалась как
+      // черновик). Заголовок обязан называть решение своим именем.
+      const cardTitle = draft.text ? "Черновик V2" : "Решение V2: не отвечать";
+      draftHtml = `<section class="draft-message ${draft.is_stale ? "is-stale" : ""}" data-draft-id="${escapeHtml(draft.draft_id)}"><div class="draft-message-head"><strong>${escapeHtml(cardTitle)}</strong><span>${escapeHtml(status)}</span></div><div class="draft-message-text">${escapeHtml(detail)}</div><div class="draft-message-foot"><small>${escapeHtml(scenario)}${violations.length ? ` · замечаний стиля: ${violations.length}` : ""}</small><span>${dismiss}${action}</span></div></section>`;
     }
     byId("messageList").innerHTML = historyHtml || scheduledHtml || draftHtml
       ? `${historyHtml}${scheduledHtml}${draftHtml}`
