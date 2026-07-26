@@ -774,9 +774,31 @@ function isSentTodayMoscow(thread) {
 }
 
 function threadFunnelStage(thread) {
+  const uname = String(thread?.username || thread?.display_name || "").replace(/^@/, "").toLowerCase();
+  const fv = state.funnelView || {};
+  if (uname && fv.lcb_stage_by_user && fv.lcb_stage_by_user[uname]) return fv.lcb_stage_by_user[uname];
   return String(thread?.funnel_stage || "");
 }
 
+function threadAttention(thread) {
+  const uname = String(thread?.username || thread?.display_name || "").replace(/^@/, "").toLowerCase();
+  return uname ? ((state.funnelView || {}).attention || {})[uname] : null;
+}
+
+
+function threadAttentionHtml(thread) {
+  const att = threadAttention(thread);
+  if (!att) return "";
+  const bits = [];
+  if (att.silence_days !== null && att.silence_days !== undefined && att.silence_days !== "")
+    bits.push(`<span class="att-chip">тишина ${escapeHtml(String(Math.round(Number(att.silence_days) * 10) / 10))}д</span>`);
+  if (att.next_label)
+    bits.push(`<span class="att-chip ${att.overdue ? "is-overdue" : ""}">след: ${escapeHtml(att.next_label)}</span>`);
+  if (att.ai_action) bits.push(`<span class="att-chip is-ai">${escapeHtml(att.ai_action)}</span>`);
+  const detail = att.why || att.detail;
+  return `<span class="thread-attention">${bits.join("")}</span>`
+    + (detail ? `<span class="thread-att-detail">${escapeHtml(detail)}</span>` : "");
+}
 function threadMatchesFolder(thread, folder) {
   if (!folder || folder === "all") return true;
   if (folder.startsWith("case:")) {
@@ -784,6 +806,10 @@ function threadMatchesFolder(thread, folder) {
     return Boolean(item && (item.participants || []).some((link) => link.thread_id === thread.thread_id));
   }
   if (folder.startsWith("funnel:")) return threadFunnelStage(thread) === folder.slice(7);
+  if (folder.startsWith("broker:")) {
+    const uname = String(thread?.username || thread?.display_name || "").replace(/^@/, "").toLowerCase();
+    return Boolean(uname && ((state.funnelView || {}).broker_stage_by_user || {})[uname] === folder.slice(7));
+  }
   if (folder === "hot") return hotThreadIds().has(thread.thread_id);
   if (folder === "new") return !readThreadIds().has(thread.thread_id) && thread.last_direction !== "outbound";
   if (folder === "technical") return isTechnicalThread(thread);
@@ -868,7 +894,9 @@ function renderThreadFolders() {
   });
   // Папки воронки — те, по которым мы реально ходим (статусы CRM), а не идеальная
   // схема: пустых стадий на экране быть не должно.
-  const funnelSpec = state.funnelFolders && state.funnelFolders.length
+  const funnelSpec = ((state.funnelView || {}).lcb_folders || []).length
+    ? state.funnelView.lcb_folders
+    : (state.funnelFolders && state.funnelFolders.length)
     ? state.funnelFolders
     : [
         { key: "interest", label: "Интерес" },
@@ -884,10 +912,10 @@ function renderThreadFolders() {
     if (stage) funnelCounts.set(stage, (funnelCounts.get(stage) || 0) + 1);
   });
   byId("funnelFolders").innerHTML = funnelSpec
-    .filter((item) => (funnelCounts.get(item.key) || 0) > 0)
+    .filter((item) => (item.count || funnelCounts.get(item.key) || 0) > 0)
     .map((item) => {
       const folder = `funnel:${item.key}`;
-      const count = funnelCounts.get(item.key) || 0;
+      const count = item.count || funnelCounts.get(item.key) || 0;
       return `<button class="funnel-folder ${folder === state.chatFolder ? "is-active" : ""}" data-funnel-folder="${escapeHtml(folder)}"><span class="folder-icon">₽</span><span class="folder-label">${escapeHtml(item.label)}</span><b>${formatNumber(count)}</b></button>`;
     })
     .join("");
@@ -898,6 +926,21 @@ function renderThreadFolders() {
       renderThreads();
     });
   });
+  const brokerBox = byId("brokerFolders");
+  if (brokerBox) {
+    const brokerSpec = ((state.funnelView || {}).broker_folders || []).filter((item) => item.count > 0);
+    brokerBox.innerHTML = brokerSpec.map((item) => {
+      const folder = `broker:${item.key}`;
+      return `<button class="funnel-folder ${folder === state.chatFolder ? "is-active" : ""}" data-broker-folder="${escapeHtml(folder)}"><span class="folder-icon">◆</span><span class="folder-label">${escapeHtml(item.label)}</span><b>${formatNumber(item.count)}</b></button>`;
+    }).join("");
+    brokerBox.querySelectorAll("[data-broker-folder]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.chatFolder = button.dataset.brokerFolder;
+        state.chatStatus = "";
+        renderThreads();
+      });
+    });
+  }
   if (state.chatFolder.startsWith("case:") && !activeCoordinationCase()) state.chatFolder = "all";
   byId("coordinationFolders").innerHTML = state.coordinationCases.map((item) => {
     const folder = `case:${item.case_id}`;
@@ -972,7 +1015,7 @@ function renderThreads() {
     const label = coordination
       ? `${coordination.item.title} · ${coordinationRoleLabel(coordination.participant.participant_role)}`
       : `${channelLabel(thread.channel)} · ${roleLabel(thread)}`;
-    return `<button class="thread-button ${thread.thread_id === state.selectedThreadId ? "is-active" : ""}" data-thread-id="${escapeHtml(thread.thread_id)}"><span class="thread-avatar">${avatarContent(thread, name)}</span><span><span class="thread-top"><span class="thread-name">${escapeHtml(name)}</span><time class="thread-time">${escapeHtml(formatDate(thread.last_message_epoch))}</time></span><span class="thread-label">${escapeHtml(label)}</span><span class="thread-preview">${escapeHtml(thread.last_body || "Нет сообщений")}</span></span></button>`;
+    return `<button class="thread-button ${thread.thread_id === state.selectedThreadId ? "is-active" : ""}" data-thread-id="${escapeHtml(thread.thread_id)}"><span class="thread-avatar">${avatarContent(thread, name)}</span><span><span class="thread-top"><span class="thread-name">${escapeHtml(name)}</span><time class="thread-time">${escapeHtml(formatDate(thread.last_message_epoch))}</time></span><span class="thread-label">${escapeHtml(label)}</span><span class="thread-preview">${escapeHtml(thread.last_body || "Нет сообщений")}</span>${threadAttentionHtml(thread)}</span></button>`;
   }).join("") : '<div class="empty-state"><strong>Здесь пока пусто</strong>Core не записал треды этой категории. Роли не подменяются догадками.</div>';
   byId("threadList").querySelectorAll("[data-thread-id]").forEach((button) => {
     button.addEventListener("click", () => openThread(button.dataset.threadId));
