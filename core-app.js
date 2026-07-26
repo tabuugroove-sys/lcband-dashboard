@@ -997,6 +997,13 @@ function clearSelectedConversation() {
 }
 
 function renderThreads() {
+  if (!state.funnelView || Date.now() - (state.funnelViewAt || 0) > 120000) {
+    apiGet("/api/app/funnel_view").then((fv) => {
+      state.funnelView = fv;
+      state.funnelViewAt = Date.now();
+      renderThreadFolders();
+    }).catch(() => {});
+  }
   renderThreadFolders();
   syncChannelFilter();
   byId("chatSearch").value = state.query;

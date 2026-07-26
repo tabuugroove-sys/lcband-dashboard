@@ -778,3 +778,14 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .budget-base input { width: 130px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
 .mult-item { display: inline-flex; align-items: center; gap: 6px; margin: 6px 12px 6px 0; color: var(--muted); font-size: 13px; }
 .mult-item select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
+
+/* Папки-воронка и бейджи внимания (Михаил 25.07) */
+.folder-group-title { margin: 12px 0 4px; font-size: 11px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted); }
+.thread-attention { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.att-chip { font-size: 11px; padding: 1px 6px; border-radius: 6px;
+  background: var(--frame); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+.att-chip.is-overdue { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+.att-chip.is-ai { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+.thread-att-detail { display: block; margin-top: 2px; font-size: 11px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
