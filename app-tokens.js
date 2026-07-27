@@ -1,9 +1,7 @@
-/* LCB app v2 — экран «Токены»: расход по агентам и провайдерам, порядок тиров
-   drag-and-drop, drilldown на дорогие процессы, кнопка ревью. Михаил 25.07. */
+/* Экран «Токены»: расход по агентам/провайдерам, drag-порядок тиров, drilldown. */
 "use strict";
 
-/* Порядок тиров хранится локально и постится в бэкенд (runtime_config).
-   Провайдеры делятся: подписка (0 ₽) и платный API ($). */
+/* Порядок тиров: localStorage + POST в runtime_config. Кошельки: подписка / платный. */
 const TOKENS_TIER_KEY = "lcb_ai_tier_order";
 const TOKENS_DEFAULT_TIERS = ["Claude", "Codex", "Kimi K3"];
 
@@ -156,7 +154,7 @@ async function openAgentDrilldown(idx) {
   };
 }
 
-/* Лёгкий bottom-sheet, если в app.js его ещё нет. */
+/* Лёгкий bottom-sheet. */
 function openSheet(html) {
   let s = $("#tokSheet");
   if (!s) {
