@@ -345,7 +345,7 @@
         file:'wa_baileys_webhook.py', schedule:'daemon / KeepAlive',
         why:'Принимает WhatsApp события от Baileys и передаёт inbound в общий DM-owner.',
         input:'Baileys webhook payloads', action:'normalize/cache events + materialize active orders + unified_dm_responder trigger', output:'WA cache + orders.db + responder trigger',
-        logic:['локальный Python webhook','ACK только после durable cache','не шлёт через WA Web','skip status@broadcast до cache/responder','inbound → wa_direct_inbound_sync для актуальных заявок','unified trigger получает monotonic message_id для burst/catchup claim','outbound пишет в cache без запуска writer','повтор одного provider message с +phone/phone дедупится по observable-полям','history-подпись обогащает пустую live media-строку append-only записью','изменённый непустой текст с тем же provider ID остаётся conflict/dead-letter','поддерживает разделение receive/send'],
+        logic:['локальный Python webhook','ACK только после durable cache','не шлёт через WA Web','skip status@broadcast до cache/responder','inbound → wa_direct_inbound_sync для актуальных заявок','unified trigger получает monotonic message_id для burst/catchup claim','outbound пишет в cache без запуска writer','history_recovery пишет только в cache и никогда не будит writer/send','повтор одного provider message с +phone/phone дедупится по observable-полям','history-подпись обогащает пустую live media-строку append-only записью','изменённый непустой текст с тем же provider ID остаётся conflict/dead-letter','поддерживает разделение receive/send'],
       },
       {
         group:'dm', name:'WA Responder', label:'com.lcband.wa-responder',
