@@ -1672,8 +1672,6 @@ function renderSystem() {
   byId("systemHealthPill").className = `pill ${health.ok ? "ok" : "danger"}`;
 }
 
-const TOKENS_TIER_KEY = "lcb_ai_tier_order";
-const TOKENS_DEFAULT_TIERS = ["Claude", "Codex", "Kimi K3"];
 const TOKEN_LIMIT_PROVIDERS = ["codex", "claude", "kimi"];
 
 function tokFmt(n) {
@@ -1818,7 +1816,6 @@ async function renderTokens() {
   } catch (error) {
     renderBrainMap({ rows: [], error: String(error) });
   }
-  renderTierList();
   try {
     const cfg = await apiGet("/api/app/token_limits");
     state.tokenLimits = cfg.limits || {};
@@ -1862,47 +1859,6 @@ async function renderTokens() {
   agents.querySelectorAll("[data-agent-idx]").forEach((row) => {
     row.addEventListener("click", () => openAgentDrilldown(Number(row.dataset.agentIdx)));
   });
-}
-
-function renderTierList() {
-  const list = byId("tierList");
-  if (!list) return;
-  let order;
-  try { order = JSON.parse(localStorage.getItem(TOKENS_TIER_KEY) || "null"); } catch { order = null; }
-  if (!Array.isArray(order) || !order.length) order = TOKENS_DEFAULT_TIERS.slice();
-  list.innerHTML = order.map((name, i) =>
-    `<div class="tier-item" draggable="true" data-tier="${escapeHtml(name)}">
-      <span class="tier-num">${i + 1}</span><span class="tier-name">${escapeHtml(name)}</span>
-      <span class="tier-role">${i === 0 ? "первый" : "запас"}</span><span class="tier-grip" aria-hidden="true">⠿</span></div>`).join("");
-  let dragEl = null;
-  list.querySelectorAll(".tier-item").forEach((item) => {
-    item.addEventListener("dragstart", () => { dragEl = item; item.classList.add("dragging"); });
-    item.addEventListener("dragend", () => {
-      item.classList.remove("dragging");
-      const names = [...list.querySelectorAll(".tier-item")].map((n) => n.dataset.tier);
-      localStorage.setItem(TOKENS_TIER_KEY, JSON.stringify(names));
-      renderTierList();
-      saveTierOrder(names);
-    });
-    item.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      if (!dragEl || dragEl === item) return;
-      const rect = item.getBoundingClientRect();
-      const after = event.clientY > rect.top + rect.height / 2;
-      list.insertBefore(dragEl, after ? item.nextSibling : item);
-    });
-  });
-}
-
-async function saveTierOrder(names) {
-  const note = byId("tierSaveNote");
-  if (note) note.textContent = "Сохраняю…";
-  try {
-    await apiPost("/api/app/set_tier_order", { order: names });
-    if (note) note.textContent = "Сохранено: " + names.join(" → ");
-  } catch (error) {
-    if (note) note.textContent = "Локально применено; сервер: " + String(error).slice(0, 60);
-  }
 }
 
 function renderTokenLimits() {
