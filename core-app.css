@@ -789,3 +789,14 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .att-chip.is-ai { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
 .thread-att-detail { display: block; margin-top: 2px; font-size: 11px; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Перетаскивание цепочки мозгов: чип берётся курсором, подсказка о сохранении
+   появляется под строкой. Экран пишет в ai_routing, поэтому показывает не то,
+   что перетащили, а то, что реально записалось. */
+.brain-chain .chip { cursor: grab; user-select: none; }
+.brain-chain .chip:active { cursor: grabbing; }
+.brain-saved {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}

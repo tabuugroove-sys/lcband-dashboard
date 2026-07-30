@@ -1705,15 +1705,63 @@ function renderBrainMap(map) {
       const cls = paid ? "chip chip-paid" : t.tier === "kimi" ? "chip chip-kimi"
         : t.tier === "claude_cli" ? "chip chip-claude" : "chip";
       return (i ? '<span class="chip-arrow" aria-hidden="true">→</span>' : "")
-        + `<span class="${cls}"><b>${escapeHtml(t.provider)}</b>`
+        + `<span class="${cls}" draggable="true" data-tier="${escapeHtml(t.tier)}"`
+        + ` title="Перетащи, чтобы поменять порядок"><b>${escapeHtml(t.provider)}</b>`
         + `<small>${escapeHtml(t.model_label)} · ${cost}</small></span>`;
     }).join("");
-    return `<div class="brain-row">
+    return `<div class="brain-row" data-purpose="${escapeHtml(row.purpose)}">
       <div class="brain-label"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.sub)}</small></div>
       <div class="brain-chain">${chips}</div>
       ${row.note ? `<div class="brain-note">${escapeHtml(row.note)}</div>` : ""}
+      <div class="brain-saved" hidden></div>
     </div>`;
   }).join("");
+  wireBrainDrag(box);
+}
+
+/* Перетаскивание чипов меняет порядок обращения к мозгам.
+   Экран читает цепочку из ai_routing и туда же пишет — иначе он снова начнёт
+   показывать одно, а система делать другое, как было с прошитым списком. */
+function wireBrainDrag(box) {
+  box.querySelectorAll(".brain-row").forEach((row) => {
+    const chain = row.querySelector(".brain-chain");
+    if (!chain) return;
+    let dragged = null;
+    chain.querySelectorAll(".chip").forEach((chip) => {
+      chip.addEventListener("dragstart", () => { dragged = chip; chip.style.opacity = ".4"; });
+      chip.addEventListener("dragend", () => { chip.style.opacity = "1"; saveBrainChain(row); });
+      chip.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        if (!dragged || dragged === chip) return;
+        const rect = chip.getBoundingClientRect();
+        const after = e.clientX > rect.left + rect.width / 2;
+        chain.insertBefore(dragged, after ? chip.nextSibling : chip);
+      });
+    });
+  });
+}
+
+async function saveBrainChain(row) {
+  const purpose = row.dataset.purpose;
+  const chain = [...row.querySelectorAll(".chip")].map((c) => c.dataset.tier);
+  const note = row.querySelector(".brain-saved");
+  if (!purpose || !chain.length) return;
+  try {
+    const res = await apiPost("/api/app/set_brain_chain", { purpose, chain });
+    if (note) {
+      note.hidden = false;
+      // Бэкенд может отрезать платный тир там, где канон его не разрешает —
+      // показываем то, что реально записалось, а не то, что перетащили.
+      note.textContent = res && res.chain
+        ? "Сохранено: " + res.chain.join(" → ")
+        : "Сохранено";
+    }
+  } catch (err) {
+    if (note) { note.hidden = false; note.textContent = "Не сохранилось: " + String(err).slice(0, 80); }
+  }
+  // Перечитываем карту: бэкенд мог поправить цепочку, и экран обязан показать
+  // то, что записалось, а не то, что мы перетащили.
+  renderTokens();
 }
 
 function renderOutputBudget(ob) {
