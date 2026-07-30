@@ -503,11 +503,11 @@
       {
         group:'events', name:'Event Ops Logistics', label:'com.lcband.event-ops-logistics',
         file:'event_ops_logistics_agent.py', schedule:'каждые 10 мин',
-        why:'Закрывает логистические, performer-coordination и production-запись вопросы по оплаченным events без ручного пересказа.',
-        input:'event_ops_log.jsonl + organizer replies + lcb_orders.json event_slice.coordination_requests + tech/sound event_threads',
-        action:'extract logistics delta / send performer check / ask sound recording capability / push master recording fallback',
-        output:'event update + band-chat delta / performer DM with source media / tech DM about master or multitrack recording / group USB prompt',
-        logic:['project .venv + Telethon 1.44 читает canonical tg_session schema 8; /usr/bin Python запрещён для этого job','парсит тайминг/заезд/парковку/contact','lcb_event_context → coordination_requests → performer thread','referral-вокалистам пишет только по явному TG @handle; телефон/имя сохраняет как manual contact для кастинга Михаила','recording request after rider-ready signal','event-day master/stereo follow-up + флешка в event-группу','source media required for performer asks','event_ops_state dedupe','не раскрывает приватные финансы'],
+        why:'Закрывает логистические, performer-coordination, production-запись и обещанные технические райдеры по оплаченным events без ручного пересказа.',
+        input:'event_ops_log.jsonl + organizer replies + canonical TG message_events + open tech_rider_delivery promises + lcb_orders.json event_slice.coordination_requests + tech/sound event_threads',
+        action:'extract exact rider facts with message evidence → canonicalize event → render and seal PDF → create review-only delivery card / extract logistics delta / send performer check / ask sound recording capability / push master recording fallback',
+        output:'sealed rider PDF + event material + operator review card; event update + band-chat delta / performer DM with source media / tech DM about master or multitrack recording / group USB prompt',
+        logic:['project .venv + Telethon 1.44 читает canonical tg_session schema 8; /usr/bin Python запрещён для этого job','tech_rider_autobuilder не отправляет: строит PDF только из evidence-backed даты выступления, саундчека, состава и оборудования; нехватка фактов = typed blocker, ошибка PDF = unhealthy sweep','дата выступления канонизирует ошибочно привязанный к саундчеку event; один organizer peer_id и source message IDs сохраняются в event graph','sealed rider version/fingerprint/PDF sha256 привязаны к review-only approval; новая версия supersede-ит старую pending-карточку','provider receipt exact envelope — единственное закрытие rider promise','парсит тайминг/заезд/парковку/contact','lcb_event_context → coordination_requests → performer thread','referral-вокалистам пишет только по явному TG @handle; телефон/имя сохраняет как manual contact для кастинга Михаила','recording request after rider-ready signal','event-day master/stereo follow-up + флешка в event-группу','source media required for performer asks','event_ops_state dedupe','не раскрывает приватные финансы'],
       },
       {
         group:'events', name:'Event Enrich', label:'com.lcband.event-enrich',
