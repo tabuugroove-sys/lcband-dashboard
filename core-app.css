@@ -800,3 +800,29 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   font-size: 12px;
   color: var(--muted);
 }
+
+/* --- Дожим: задачи, переписка, форма ------------------------------------ */
+.nudge-row{display:grid;gap:8px;padding:14px 16px;border:1px solid var(--line,#e4e0d8);
+  border-radius:12px;margin-bottom:10px;background:var(--card,#fff)}
+.nudge-row.is-live{border-left:3px solid var(--ok,#2e7d52)}
+.nudge-row.is-closed{opacity:.62}
+.nudge-who strong{display:block}
+.nudge-who small{color:var(--muted,#786f62)}
+.nudge-stats{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted,#786f62)}
+.nudge-why{color:var(--ok,#2e7d52)}
+.nudge-problem{font-size:13px;color:var(--danger,#c0392b)}
+.nudge-actions{display:flex;gap:8px}
+.nudge-thread{max-height:420px;overflow-y:auto;display:grid;gap:6px}
+.nudge-msg{display:grid;grid-template-columns:92px 1fr;gap:10px;padding:6px 8px;
+  border-radius:8px;font-size:14px}
+.nudge-msg.in{background:var(--sunk,#f4f1ea)}
+.nudge-msg.out{background:transparent;color:var(--muted,#786f62)}
+.nudge-ts{font-variant-numeric:tabular-nums;font-size:12px;opacity:.7}
+.nudge-text{white-space:pre-wrap;word-break:break-word}
+.nudge-form{display:grid;gap:10px;max-width:620px}
+.nudge-form label{display:grid;gap:4px;font-size:13px;color:var(--muted,#786f62)}
+.nudge-form input,.nudge-form textarea,.nudge-form select{
+  padding:8px 10px;border:1px solid var(--line,#e4e0d8);border-radius:8px;
+  font:inherit;color:inherit;background:var(--card,#fff)}
+.nudge-form textarea{resize:vertical}
+@media (max-width:640px){.nudge-msg{grid-template-columns:1fr}.nudge-ts{opacity:.55}}
