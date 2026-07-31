@@ -52,7 +52,6 @@
     <button class="tab-button" data-view="fees"><span class="tab-icon" aria-hidden="true">₽</span>Гонорары</button>
     <button class="tab-button" data-view="tokens"><span class="tab-icon" aria-hidden="true">◈</span>Токены</button>
     <button class="tab-button" data-view="broadcast"><span class="tab-icon" aria-hidden="true">✈</span>Рассылка</button>
-    <button class="tab-button" data-view="nudge"><span class="tab-icon" aria-hidden="true">◎<span class="tab-badge brass" id="navNudgeCount" hidden></span></span>Дожим</button>
   </nav>
 
   <div class="workspace">
@@ -348,39 +347,6 @@
         <div class="channel-summary" id="broadcastChannels"></div>
       </section>
 
-      <section class="screen" id="screen-nudge">
-        <div class="page-head">
-          <div><p class="eyebrow">Дожим</p><h1>Кого дожимаем</h1></div>
-          <span class="pill" id="nudgePill">—</span>
-        </div>
-        <section class="band-section">
-          <div class="section-head"><h2>Задачи</h2><span>агент пишет сам, пока не получит нужное</span></div>
-          <div id="nudgeList"></div>
-        </section>
-        <section class="band-section" id="nudgeThreadBox" hidden>
-          <div class="section-head"><h2 id="nudgeThreadTitle">Переписка</h2><span>что он писал и что отвечал агент</span></div>
-          <div id="nudgeThread" class="nudge-thread"></div>
-        </section>
-        <section class="band-section">
-          <div class="section-head"><h2>Новая задача</h2></div>
-          <p class="mtext">Что считается сдачей — опиши словами. Судить будет модель, не поиск по буквам.</p>
-          <div class="nudge-form">
-            <label>Кому <input id="nudgeTo" placeholder="79991234567 — номер в WhatsApp"></label>
-            <label>Имя <input id="nudgeLabel" placeholder="Сергей"></label>
-            <label>О чём просим <textarea id="nudgeAsk" rows="3" placeholder="Пришли, пожалуйста, разворот паспорта — нужен для оформления."></textarea></label>
-            <label>Что считается сдачей <textarea id="nudgeDone" rows="2" placeholder="Прислал фото разворота паспорта, видны имя и номер."></textarea></label>
-            <label>Напоминать раз в
-              <select id="nudgeEvery">
-                <option value="3600">час</option>
-                <option value="10800">3 часа</option>
-                <option value="86400" selected>сутки</option>
-              </select>
-            </label>
-            <button class="btn" id="nudgeCreate">Завести</button>
-            <p class="mtext" id="nudgeFormNote"></p>
-          </div>
-        </section>
-      </section>
     </main>
   </div>
 

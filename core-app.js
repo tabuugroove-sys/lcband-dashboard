@@ -447,130 +447,6 @@ function setView(view) {
   if (view === "tokens") renderTokens();
   if (view === "fees") renderFees();
   if (view === "broadcast") renderBroadcast();
-  if (view === "nudge") renderNudge();
-}
-
-/* Агент дожима. Движок крутится на маке, где подключён WhatsApp; отсюда им
-   управляют. Заводить задачу можно без кода: «что считается сдачей» пишется
-   словами, судит модель. */
-async function renderNudge() {
-  const box = byId("nudgeList");
-  if (!box) return;
-  let rows = [];
-  try {
-    rows = (await apiGet("/api/core/nudge/missions")).rows || [];
-  } catch (error) {
-    box.innerHTML = `<div class="empty-state"><strong>Нет данных</strong>${escapeHtml(String(error))}</div>`;
-    return;
-  }
-  const live = rows.filter((r) => r.active).length;
-  byId("nudgePill").textContent = live ? `дожимаем: ${live}` : "тишина";
-  byId("nudgePill").className = "pill " + (live ? "ok" : "");
-  const badge = byId("navNudgeCount");
-  if (badge) { badge.textContent = String(live); badge.hidden = !live; }
-
-  if (!rows.length) {
-    box.innerHTML = '<div class="empty-state">Задач пока нет — заведи ниже.</div>';
-    return;
-  }
-  box.innerHTML = rows.map((r) => {
-    const closed = r.stopped || !r.active;
-    const why = r.stop_reason
-      ? `<span class="nudge-why">${escapeHtml(reasonWord(r.stop_reason))}${r.value ? ": " + escapeHtml(r.value) : ""}</span>`
-      : "";
-    const problems = (r.problems || []).length
-      ? `<div class="nudge-problem">не сходится: ${escapeHtml(r.problems.join("; "))}</div>` : "";
-    return `<div class="nudge-row ${closed ? "is-closed" : "is-live"}" data-name="${escapeHtml(r.name)}">
-      <div class="nudge-who"><strong>${escapeHtml(r.label || r.recipient)}</strong>
-        <small>${escapeHtml(r.goal || "")}</small></div>
-      <div class="nudge-stats">
-        <span title="напоминаний отправлено">${r.sent} напом.</span>
-        <span title="его сообщений">${r.replies} от него</span>
-        <span title="наших ответов">${r.answered} ответов</span>
-        ${why}
-      </div>
-      ${problems}
-      <div class="nudge-actions">
-        <button class="btn ghost" data-act="thread">Переписка</button>
-        <button class="btn ghost" data-act="${r.active ? "stop" : "start"}">${r.active ? "Остановить" : "Включить"}</button>
-      </div>
-    </div>`;
-  }).join("");
-
-  box.querySelectorAll(".nudge-row").forEach((row) => {
-    const name = row.dataset.name;
-    row.querySelectorAll("button[data-act]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const act = btn.dataset.act;
-        if (act === "thread") return showNudgeThread(name);
-        btn.disabled = true;
-        try {
-          await apiPost("/api/core/nudge/active", { name, active: act === "start" });
-          renderNudge();
-        } catch (error) {
-          toast("Не вышло: " + String(error).slice(0, 80));
-          btn.disabled = false;
-        }
-      });
-    });
-  });
-}
-
-function reasonWord(reason) {
-  return {
-    ip_received: "прислал адрес",
-    block_verified: "всё сошлось",
-    ai_verified: "сдал",
-    external_event: "подтверждено со стороны",
-    manual: "остановлено вручную",
-  }[reason] || reason;
-}
-
-async function showNudgeThread(name) {
-  const box = byId("nudgeThread");
-  const wrap = byId("nudgeThreadBox");
-  if (!box || !wrap) return;
-  wrap.hidden = false;
-  box.innerHTML = '<div class="empty-state">Загружаю…</div>';
-  let data;
-  try {
-    data = await apiGet(`/api/core/nudge/thread?name=${encodeURIComponent(name)}`);
-  } catch (error) {
-    box.innerHTML = `<div class="empty-state">${escapeHtml(String(error))}</div>`;
-    return;
-  }
-  byId("nudgeThreadTitle").textContent = "Переписка — " + name;
-  const rows = data.rows || [];
-  box.innerHTML = rows.length
-    ? rows.map((r) => `<div class="nudge-msg ${r.out ? "out" : "in"}">
-        <span class="nudge-ts">${escapeHtml(String(r.ts || "").slice(5, 16).replace("T", " "))}</span>
-        <span class="nudge-text">${escapeHtml(r.text || "[медиа]")}</span></div>`).join("")
-    : '<div class="empty-state">Переписки нет.</div>';
-  box.scrollTop = box.scrollHeight;
-}
-
-async function createNudgeMission() {
-  const note = byId("nudgeFormNote");
-  const body = {
-    name: (byId("nudgeLabel").value || byId("nudgeTo").value || "").trim()
-      .toLowerCase().replace(/[^a-zа-я0-9]+/gi, "_").slice(0, 32),
-    recipient: byId("nudgeTo").value.trim(),
-    label: byId("nudgeLabel").value.trim(),
-    ask_text: byId("nudgeAsk").value.trim(),
-    delivered_when: byId("nudgeDone").value.trim(),
-    nudge_interval_sec: Number(byId("nudgeEvery").value) || 3600,
-  };
-  note.textContent = "Завожу…";
-  try {
-    await apiPost("/api/core/nudge/mission", body);
-    note.textContent = "Готово — агент начнёт в ближайшую минуту.";
-    ["nudgeTo", "nudgeLabel", "nudgeAsk", "nudgeDone"].forEach((id) => {
-      byId(id).value = "";
-    });
-    renderNudge();
-  } catch (error) {
-    note.textContent = String(error).replace("Error: ", "");
-  }
 }
 
 function route() {
@@ -2329,7 +2205,6 @@ function bindEvents() {
   });
   window.addEventListener("focus", syncActiveThread);
   window.addEventListener("hashchange", route);
-  byId("nudgeCreate")?.addEventListener("click", createNudgeMission);
 }
 
 const savedTheme = localStorage.getItem("lcb_core_theme");
