@@ -1619,6 +1619,22 @@ function buildGuardCards() {
           <span class="guard-val" data-fld="val">0</span>
         </div>
         <div class="guard-expiry" data-fld="expiry">окно пустое</div>
+      </div>
+      <div class="guard-row guard-row-tokens" data-win="max_tokens_24h">
+        <div class="guard-row-head">
+          <span class="guard-label">токены 24ч</span>
+          <span class="guard-readout" data-fld="read">— / —</span>
+        </div>
+        <div class="guard-meter"><div class="guard-meter-fill" data-fld="bar" style="width:0%"></div></div>
+        <div class="guard-expiry" data-fld="expiry">упор сюда глушит агентов, даже когда вызовов вагон</div>
+      </div>
+      <div class="guard-row guard-row-tokens" data-win="max_tokens_5h">
+        <div class="guard-row-head">
+          <span class="guard-label">токены 5ч</span>
+          <span class="guard-readout" data-fld="read">— / —</span>
+        </div>
+        <div class="guard-meter"><div class="guard-meter-fill" data-fld="bar" style="width:0%"></div></div>
+        <div class="guard-expiry" data-fld="expiry">фон встаёт раньше клиентских ответов</div>
       </div>`;
     grid.appendChild(div);
   }
@@ -1675,12 +1691,18 @@ function renderGuardCards(status) {
     const windows = [
       { win: 'max_calls_24h', key: '24h', count: Number(counts.calls_24h || 0), warn: Number(limits.warn_calls_24h || 0) },
       { win: 'max_calls_5h',  key: '5h',  count: Number(counts.calls_5h  || 0), warn: Number(limits.warn_calls_5h  || 0) },
+      // 31.07: токенные потолки были невидимы, и экран показывал зелёные 49%
+      // по вызовам, пока писарь стоял намертво упёртый в токены (кейс
+      // @Megabosova: 10 часов молчания). Показываем оба ограничителя.
+      { win: 'max_tokens_24h', key: '24h', count: Number(counts.tokens_24h || 0), warn: 0, tokens: true },
+      { win: 'max_tokens_5h',  key: '5h',  count: Number(counts.tokens_5h  || 0), warn: 0, tokens: true },
     ];
     for (const w of windows) {
       const row = card.querySelector(`.guard-row[data-win="${w.win}"]`);
       if (!row) continue;
-      const slider = row.querySelector('input[type=range]');
       const limit = Number(limits[w.win] || 0);
+      if (w.tokens) { paintGuardRow(row, limit, w.count, Math.round(limit * 0.8)); continue; }
+      const slider = row.querySelector('input[type=range]');
       slider.dataset.count = String(w.count);
       slider.dataset.warn = String(w.warn);
       if (document.activeElement !== slider) {
