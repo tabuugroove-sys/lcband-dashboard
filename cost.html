@@ -1641,7 +1641,14 @@ function buildGuardCards() {
 }
 
 // Recompute one window row (readout + meter + value) from a limit + live count.
-function paintGuardRow(row, limit, count, warn) {
+// Миллионы токенов сырыми цифрами нечитаемы: «4469671 / 4000000» глазом не
+// сравнить. Для токенных строк показываем 4.47М / 4.00М.
+function fmtGuardNum(n, tokens) {
+  if (!tokens) return String(n);
+  return n >= 1e6 ? (n / 1e6).toFixed(2) + 'М' : n >= 1e3 ? Math.round(n / 1e3) + 'К' : String(n);
+}
+
+function paintGuardRow(row, limit, count, warn, tokens) {
   const lim = Math.max(0, Number(limit) || 0);
   const cnt = Math.max(0, Number(count) || 0);
   const pct = lim > 0 ? clampPct(100 * cnt / lim) : 0;
@@ -1650,7 +1657,7 @@ function paintGuardRow(row, limit, count, warn) {
   const bar = row.querySelector('[data-fld="bar"]');
   const val = row.querySelector('[data-fld="val"]');
   if (read) {
-    read.textContent = `${cnt} / ${lim > 0 ? lim : '∞'}` + (lim > 0 ? ` · ${pct.toFixed(0)}%` : '');
+    read.textContent = `${fmtGuardNum(cnt, tokens)} / ${lim > 0 ? fmtGuardNum(lim, tokens) : '∞'}` + (lim > 0 ? ` · ${pct.toFixed(0)}%` : '');
     read.className = 'guard-readout ' + cls;
   }
   if (bar) {
@@ -1701,7 +1708,7 @@ function renderGuardCards(status) {
       const row = card.querySelector(`.guard-row[data-win="${w.win}"]`);
       if (!row) continue;
       const limit = Number(limits[w.win] || 0);
-      if (w.tokens) { paintGuardRow(row, limit, w.count, Math.round(limit * 0.8)); continue; }
+      if (w.tokens) { paintGuardRow(row, limit, w.count, Math.round(limit * 0.8), true); continue; }
       const slider = row.querySelector('input[type=range]');
       slider.dataset.count = String(w.count);
       slider.dataset.warn = String(w.warn);
