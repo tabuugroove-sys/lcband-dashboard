@@ -2111,7 +2111,7 @@ function renderPromo() {
     const readyDrive = (item.drive_links || []).find((link) => link.client_safe);
     const sourceDrive = (item.drive_links || [])[0];
     const drive = readyDrive || sourceDrive;
-    const promoLinks = (item.promo_links || []).slice(0, 3);
+    const promoLinks = (item.promo_links || []).slice(0, 4);
     const mediaCount = Number(item.media?.local_files || 0)
       + Number(item.media?.indexed_media || 0)
       + Number(item.media?.links || 0);
