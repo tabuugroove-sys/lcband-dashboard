@@ -246,8 +246,11 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
   color:var(--ink); border:1px solid var(--line); background:var(--card); }
 .assure-hero::after { content:""; position:absolute; width:190px; height:190px;
   right:-80px; bottom:-120px; border:26px solid var(--pine-soft); border-radius:50%; pointer-events:none; }
-.assure-hero.attention { border-top:4px solid var(--warn); }
-.assure-hero.guarded { border-top:4px solid var(--ok); }
+/* Состояние героя несёт цвет рамки и подложки целиком, а не толстая полоса
+   сверху: полоса спорит со скруглением угла и читается как шаблонная карточка.
+   Сигнал при этом не теряется — он становится тише и точнее. */
+.assure-hero.attention { border-color:var(--warn); background:var(--warn-soft); }
+.assure-hero.guarded { border-color:var(--ok); }
 .assure-kicker { color:var(--mut); font:700 10px/1.2 ui-monospace,"SF Mono",Menlo,monospace;
   letter-spacing:.14em; }
 .assure-hero-grid { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:24px;
@@ -266,8 +269,10 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
 .assure-metrics > div { padding:11px 13px; border:1px solid var(--line); border-radius:11px; background:var(--card); }
 .assure-metrics b { display:block; font-size:19px; color:var(--ink); }
 .assure-metrics span { display:block; color:var(--mut); font-size:10.5px; line-height:1.25; }
-.assure-ledger-warn { margin-top:8px; padding:9px 12px; border-left:3px solid var(--warn);
-  background:var(--warn-soft); color:var(--warn); border-radius:3px 10px 10px 3px; font-size:12.5px; }
+/* Подложка и рамка одного тона вместо цветной полосы сбоку: предупреждение
+   остаётся заметным, но перестаёт выглядеть наклейкой. */
+.assure-ledger-warn { margin-top:8px; padding:9px 12px; border:1px solid var(--warn);
+  background:var(--warn-soft); color:var(--warn); border-radius:10px; font-size:12.5px; }
 .assure-toolbar { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(220px,.7fr); gap:8px;
   align-items:start; margin-top:12px; }
 .assure-toolbar .dirsw { margin:0; }
@@ -277,10 +282,18 @@ main { max-width:1060px; margin:0 auto; padding:14px 14px 90px; }
   border-radius:12px; background:var(--card); }
 .assure-id { color:var(--mut); font-size:11.5px; letter-spacing:.02em; }
 .assure-problem { margin-top:7px; font-size:14.5px; font-weight:600; line-height:1.4; }
-.assure-verdict { margin-top:7px; padding-left:9px; border-left:3px solid var(--line); font-size:12.5px; }
-.assure-verdict.guarded { border-color:var(--ok); color:var(--ok); }
-.assure-verdict.watch { border-color:var(--warn); color:var(--warn); }
-.assure-verdict.open { border-color:var(--dang); color:var(--dang); }
+/* Состояние вердикта показывает точка перед текстом, а не полоса слева.
+   Точка занимает меньше места, читается на телефоне так же однозначно и не
+   превращает каждую строку в карточку с наклейкой. */
+.assure-verdict { margin-top:7px; padding-left:15px; position:relative; font-size:12.5px; }
+.assure-verdict::before { content:""; position:absolute; left:0; top:.45em;
+  width:7px; height:7px; border-radius:50%; background:var(--line); }
+.assure-verdict.guarded { color:var(--ok); }
+.assure-verdict.guarded::before { background:var(--ok); }
+.assure-verdict.watch { color:var(--warn); }
+.assure-verdict.watch::before { background:var(--warn); }
+.assure-verdict.open { color:var(--dang); }
+.assure-verdict.open::before { background:var(--dang); }
 .assure-reason { margin-top:6px; }
 .assure-row details { margin-top:8px; }
 .assure-row summary { color:var(--pine); font-size:12px; cursor:pointer; }

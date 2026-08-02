@@ -38,8 +38,10 @@
     /* ── App shell ── */
     .app { width: 100%; max-width: 480px; margin: 0 auto; padding-bottom: 40px; }
 
-    /* Чуть шире на планшете/десктопе — контент дышит, но mobile не ломаем */
-    .app { transition: max-width .25s ease, margin .25s ease; }
+    /* Ширину и поля не анимируем: браузер на каждом кадре пересчитывает
+       раскладку всей страницы, и на телефоне это видно как рывки. Смена
+       брейкпоинта происходит мгновенно — она и так незаметна. */
+    .app { }
     @media (min-width: 768px) {
       .app { max-width: 720px; }
     }
@@ -381,7 +383,9 @@
     .dot {
       width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
     }
-    .dot-ok   { background: var(--ok);   box-shadow: 0 0 6px var(--ok); }
+    /* Без цветного ореола: свечение нулевого смещения — дежурный приём
+       сгенерированных интерфейсов, а различить статус помогает сам цвет. */
+    .dot-ok   { background: var(--ok); }
     .dot-warn { background: var(--warn); }
     .dot-err  { background: var(--err);  }
     .dot-unk  { background: var(--muted); }
@@ -893,7 +897,8 @@
     .tg-funnel-bar-fill {
       height: 100%; border-radius: 8px; min-width: 44px;
       display: flex; align-items: center; padding-left: 14px;
-      transition: width .35s ease;
+      transform-origin: left center;
+      transition: transform .35s ease;
     }
     .tg-funnel-bar-num { font-size: 20px; font-weight: 800; color: #fff; }
     .tg-earned-row {
@@ -1018,10 +1023,10 @@
       color: var(--ink);
     }
     html[data-theme="light"] body {
-      background:
-        linear-gradient(90deg, rgba(22,24,29,.035) 1px, transparent 1px),
-        linear-gradient(180deg, #fbfbf8 0%, #f2f4ef 100%) !important;
-      background-size: 48px 48px, auto;
+      /* Была подложка из волосяных линий с шагом 48px. Сетка уместна там, где
+         по ней что-то измеряют — на холсте, карте, чертеже. Здесь она просто
+         шумела под текстом. */
+      background: linear-gradient(180deg, #fbfbf8 0%, #f2f4ef 100%) !important;
       color: var(--ink) !important;
     }
     .app { max-width: 1500px; }
