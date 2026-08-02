@@ -273,7 +273,13 @@ async function apiGet(url, options = {}) {
     signal: options.signal,
   });
   const payload = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-  if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+  if (!response.ok) {
+    const failure = new Error(payload.error || `HTTP ${response.status}`);
+    // Код нужен вызывающему: «тред пропал» (404) и «сервер лёг» — разные
+    // состояния, и показывать их одинаково значит скрыть первое.
+    failure.status = response.status;
+    throw failure;
+  }
   return payload;
 }
 
@@ -1334,6 +1340,17 @@ async function openThread(threadId, updateHash = true, options = {}) {
   } catch (error) {
     if (state.selectedThreadId !== threadId) return;
     if (controller.signal.aborted && !requestTimedOut) return;
+    // Тред пропал из набора Core — это не сбой загрузки, а факт, и молчать о
+    // нём нельзя даже при фоновом обновлении. Иначе выбранный когда-то тред
+    // навсегда остаётся на заглушке «Загружаю переписку»: запрос отвечает
+    // честным 404, а экран об этом не узнаёт (скриншот 02.08, «My Dubai»).
+    if (error?.status === 404) {
+      state.threadReady = false;
+      byId("conversationMeta").textContent = "переписки нет в наборе Core";
+      byId("messageList").innerHTML = '<div class="empty-state"><strong>Этой переписки нет в Core</strong>Тред был выбран раньше, но сейчас его нет в наборе. Выберите другой слева.</div>';
+      renderManualSendState();
+      return;
+    }
     if (background) return;
     byId("messageList").innerHTML = '<div class="empty-state"><strong>Переписка не загрузилась</strong><button type="button" data-thread-retry>Повторить</button></div>';
     byId("messageList").querySelector("[data-thread-retry]")?.addEventListener("click", () => openThread(threadId, false));
