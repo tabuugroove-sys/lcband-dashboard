@@ -2361,7 +2361,31 @@ function bindEvents() {
       renderThreads();
     });
   });
-  byId("refreshButton").addEventListener("click", refreshAll);
+  document.querySelectorAll("[data-promo-status]").forEach((button) => {
+    button.addEventListener("click", () => {
+      changePromoFilters({ status: button.dataset.promoStatus });
+    });
+  });
+  byId("promoCategory").addEventListener("change", (event) => {
+    changePromoFilters({ category: event.target.value });
+  });
+  byId("promoCategoryRail").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-promo-category]");
+    if (!button) return;
+    const category = state.promoFilters.category === button.dataset.promoCategory
+      ? "" : button.dataset.promoCategory;
+    changePromoFilters({ category });
+  });
+  byId("promoPrev").addEventListener("click", () => {
+    changePromoFilters({ page: Math.max(1, state.promoFilters.page - 1) });
+  });
+  byId("promoNext").addEventListener("click", () => {
+    changePromoFilters({ page: state.promoFilters.page + 1 });
+  });
+  byId("refreshButton").addEventListener("click", async () => {
+    await refreshAll();
+    if (state.activeView === "promo") await refreshPromo(true);
+  });
   byId("autonomyButton").addEventListener("click", (event) => {
     event.stopPropagation();
     const menu = byId("autonomyMenu");
@@ -2384,7 +2408,12 @@ function bindEvents() {
   byId("globalSearch").addEventListener("input", (event) => {
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => {
-      state.query = event.target.value.trim();
+      const query = event.target.value.trim();
+      if (state.activeView === "promo") {
+        changePromoFilters({ q: query });
+        return;
+      }
+      state.query = query;
       if (state.activeView === "calendar") renderCalendar();
       if (state.activeView === "chats") renderThreads();
     }, 180);
