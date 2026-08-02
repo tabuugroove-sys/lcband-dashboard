@@ -2042,6 +2042,8 @@ function promoLinkLabel(link) {
     vimeo: "Vimeo",
     telegram: "Telegram",
     website: "Сайт",
+    portfolio: "Портфолио",
+    video_link: "Видео",
   })[link.kind] || "Промо-ссылка";
 }
 
@@ -2096,8 +2098,8 @@ function renderPromo() {
 
   byId("promoResultCount").textContent = `${formatNumber(payload.total)} ${promoArtistWord(payload.total)}`;
   byId("promoPageLabel").textContent = `${formatNumber(payload.page)} / ${formatNumber(payload.pages)}`;
-  byId("promoPrev").disabled = payload.page <= 1 || state.promoLoading;
-  byId("promoNext").disabled = payload.page >= payload.pages || state.promoLoading;
+  byId("promoPrev").disabled = payload.page <= 1;
+  byId("promoNext").disabled = payload.page >= payload.pages;
 
   const items = payload.items || [];
   if (!items.length) {
