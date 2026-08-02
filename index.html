@@ -897,8 +897,10 @@
     .tg-funnel-bar-fill {
       height: 100%; border-radius: 8px; min-width: 44px;
       display: flex; align-items: center; padding-left: 14px;
-      transform-origin: left center;
-      transition: transform .35s ease;
+      /* Перехода нет намеренно. Ширину анимировать нельзя — это пересчёт
+         раскладки на каждом кадре; масштабом её тоже не заменить, внутри
+         полосы стоит цифра, и она исказится. Полоса рисуется один раз при
+         загрузке данных, анимация здесь ничего не добавляла. */
     }
     .tg-funnel-bar-num { font-size: 20px; font-weight: 800; color: #fff; }
     .tg-earned-row {
