@@ -414,9 +414,11 @@
     .chip-declined   { background: rgba(239,68,68,.15);   color: #f87171; }
 
     /* ── Overdue order alert ── */
+    /* Просрочку показывает пульсация рамки и подложки, без красного ореола:
+       внимание привлекает изменение, а не свечение. */
     @keyframes pulse-overdue {
-      0%, 100% { border-color: rgba(239,68,68,.55); box-shadow: 0 0 8px rgba(239,68,68,.25); }
-      50% { border-color: rgba(239,68,68,1); box-shadow: 0 0 18px rgba(239,68,68,.55); }
+      0%, 100% { border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.05); }
+      50%      { border-color: rgba(239,68,68,1);   background: rgba(239,68,68,.12); }
     }
     .order-card-overdue {
       animation: pulse-overdue 1.6s ease infinite;
@@ -461,9 +463,11 @@
     .conn-dot {
       width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
     }
-    .conn-dot-ok    { background: var(--ok);   box-shadow: 0 0 8px var(--ok); }
-    .conn-dot-err   { background: var(--err);  box-shadow: 0 0 8px var(--err); animation: pulse-err 1.5s ease infinite; }
-    .conn-dot-deg   { background: #fbbf24;     box-shadow: 0 0 8px #fbbf24; }
+    /* Индикаторы связи без цветных ореолов: статус несут сам цвет и, для
+       обрыва, пульсация. Ореол вокруг точки ничего не добавлял к смыслу. */
+    .conn-dot-ok    { background: var(--ok); }
+    .conn-dot-err   { background: var(--err); animation: pulse-err 1.5s ease infinite; }
+    .conn-dot-deg   { background: #fbbf24; }
     .conn-dot-unk   { background: var(--muted); }
     @keyframes pulse-err {
       0%, 100% { opacity: 1; }
@@ -1157,8 +1161,9 @@
     .conn-dot-ok,
     .dot-ok {
       background: var(--accent-ok);
-      box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-ok) 18%, transparent),
-                  0 0 16px color-mix(in srgb, var(--accent-ok) 34%, transparent);
+      /* Мягкое кольцо остаётся — оно отделяет точку от фона. Размытый ореол
+         поверх него убран: он не добавлял смысла, только свечение. */
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-ok) 18%, transparent);
     }
     .conn-reconnect-btn,
     button.conn-reconnect-btn {

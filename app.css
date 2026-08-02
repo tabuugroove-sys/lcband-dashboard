@@ -62,8 +62,11 @@ a { color:var(--pine); text-decoration:none; }
 #connDrawer { position:fixed; inset:0; z-index:45; background:rgba(0,0,0,0.25); }
 #connDrawer[hidden] { display:none; }
 #connDrawer .dbody { position:absolute; top:calc(54px + env(safe-area-inset-top)); right:10px; left:10px;
-  max-width:420px; margin-left:auto; background:var(--card); border:1px solid var(--line);
-  border-radius:14px; padding:16px; box-shadow:0 10px 34px rgba(0,0,0,0.22); }
+  /* Панель всплывает над содержимым, поэтому её край держит тень, а не рамка.
+     Рамка вместе с широким размытием даёт одновременно и обведённую коробку,
+     и ореол — читается как шаблон, а не как поднятый над экраном слой. */
+  max-width:420px; margin-left:auto; background:var(--card);
+  border-radius:14px; padding:16px; box-shadow:0 8px 24px rgba(0,0,0,0.20); }
 .drow { display:flex; justify-content:space-between; align-items:baseline; gap:10px;
   font-size:13.5px; padding:7px 0; border-bottom:1px solid var(--line); }
 .drow:last-child { border-bottom:none; }
