@@ -5,6 +5,7 @@ const API = Object.freeze({
   autonomy: "/api/core/autonomy",
   summary: "/api/core/summary",
   fees: "/api/core/fees",
+  promo: "/api/core/promo",
   calendar: "/api/core/calendar",
   threads: "/api/core/threads",
   messages: "/api/core/messages",
@@ -24,6 +25,7 @@ const state = {
   autonomy: null,
   summary: null,
   fees: null,
+  promo: null,
   calendar: { events: [], business_events: 0, technical_events: 0, model_ready: false },
   threads: [],
   coordinationCases: [],
@@ -36,6 +38,7 @@ const state = {
   chatFolder: "all",
   chatStatus: "",
   query: "",
+  promoFilters: { q: "", category: "", status: "all", page: 1 },
   calendarFilters: {
     lcb: true,
     broker: true,
@@ -56,6 +59,8 @@ const state = {
   loading: false,
   calendarLoading: false,
   calendarRefreshedAt: 0,
+  promoLoading: false,
+  promoRefreshedAt: 0,
   sending: false,
   sendingScheduledNow: false,
   rewritingDraft: false,
@@ -104,6 +109,35 @@ const CALENDAR_STAGE_LABELS = Object.freeze({
   followup_cold: "Не отвечает",
   lead: "Отвечает / в работе",
   cancelled: "Отмена",
+});
+
+const PROMO_CATEGORY_LABELS = Object.freeze({
+  afro_vocalist: "Афро-вокалисты",
+  animator: "Аниматоры",
+  cover_band_folk: "Фолк-группы",
+  cover_band_jazz: "Джазовые группы",
+  dance_ethnic: "Этнические танцы",
+  dance_show: "Танцевальные шоу",
+  decor: "Декор",
+  dj: "DJ",
+  drum_show: "Барабанные шоу",
+  host: "Ведущие",
+  host_dj_combo: "Ведущий + DJ",
+  host_female: "Ведущие девушки",
+  musician_solo: "Сольные музыканты",
+  photo_video: "Фото и видео",
+  show_ballet: "Шоу-балеты",
+  singer_guitarist: "Вокалисты-гитаристы",
+  singer_pianist: "Вокалисты-пианисты",
+  solo_other: "Другие сольные артисты",
+  sound_rental: "Звук и оборудование",
+});
+
+const PROMO_STATUS = Object.freeze({
+  client_ready: { label: "Готово клиенту", className: "ready" },
+  source_only: { label: "Только исходник", className: "source" },
+  needs_drive: { label: "Нужен Drive", className: "needs" },
+  missing: { label: "Нет промо", className: "missing" },
 });
 
 const ROLE_OPTIONS = Object.freeze([
@@ -442,7 +476,11 @@ function setView(view) {
   document.querySelectorAll(".screen").forEach((screen) => {
     screen.classList.toggle("is-active", screen.id === `screen-${view}`);
   });
-  byId("globalSearchWrap").hidden = !["calendar", "chats"].includes(view);
+  byId("globalSearchWrap").hidden = !["calendar", "chats", "promo"].includes(view);
+  byId("globalSearch").value = view === "promo" ? state.promoFilters.q : state.query;
+  byId("globalSearch").placeholder = view === "promo"
+    ? "Поиск: артист, @username, категория…"
+    : "Поиск: контакт, событие…";
   if (view === "calendar") {
     renderCalendar();
     refreshCalendar();
@@ -452,6 +490,10 @@ function setView(view) {
   if (view === "system") renderSystem();
   if (view === "tokens") renderTokens();
   if (view === "fees") renderFees();
+  if (view === "promo") {
+    renderPromo();
+    refreshPromo();
+  }
   if (view === "broadcast") renderBroadcast();
 }
 
@@ -470,7 +512,7 @@ function route() {
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "today", "system", "tokens", "fees", "broadcast"].includes(name)
+  const view = ["calendar", "chats", "today", "system", "tokens", "fees", "promo", "broadcast"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";
@@ -1986,6 +2028,136 @@ function renderFees() {
   byId("feesHead").innerHTML = `<tr><th>Категория</th>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr>`;
   byId("feesBody").innerHTML = (payload.products || []).map((product) => `<tr><th><strong>${escapeHtml(product.label)}</strong><small>${escapeHtml(product.description)}</small></th>${columns.map((column) => `<td><span class="fee-value ${product.usable_for_auto_quote ? "is-active" : "is-unconfirmed"}">${escapeHtml(formatFeeAmount(product.rates?.[column.id], payload.currency))}</span></td>`).join("")}</tr>`).join("");
   byId("feesHistory").innerHTML = (payload.historical_sources || []).map((source) => `<article class="fee-history"><div><strong>${escapeHtml(source.title)}</strong><span class="pill hold">Историческое · не использовать автоматически</span></div><p>${escapeHtml(source.note)}</p><div class="fee-role-grid">${(source.role_rates || []).map((item) => `<span><b>${escapeHtml(item.role)}</b>${escapeHtml(formatFeeAmount(item.amount_minor, payload.currency))}</span>`).join("")}</div></article>`).join("") || '<div class="empty-state">Источники ставок ещё не добавлены.</div>';
+}
+
+function promoCategoryLabel(value) {
+  return PROMO_CATEGORY_LABELS[value] || String(value || "Без категории").replaceAll("_", " ");
+}
+
+function promoLinkLabel(link) {
+  if (link.is_drive) return link.is_folder ? "Папка Drive" : "Файл Drive";
+  return ({
+    instagram: "Instagram",
+    youtube: "YouTube",
+    vimeo: "Vimeo",
+    telegram: "Telegram",
+    website: "Сайт",
+  })[link.kind] || "Промо-ссылка";
+}
+
+function promoArtistWord(value) {
+  const count = Math.abs(Number(value || 0)) % 100;
+  const unit = count % 10;
+  if (count > 10 && count < 20) return "артистов";
+  if (unit === 1) return "артист";
+  if (unit > 1 && unit < 5) return "артиста";
+  return "артистов";
+}
+
+function promoMetric(label, value, tone = "") {
+  return `<div class="promo-metric ${tone}"><strong>${formatNumber(value)}</strong><span>${escapeHtml(label)}</span></div>`;
+}
+
+function renderPromo() {
+  const payload = state.promo;
+  const grid = byId("promoGrid");
+  if (!payload) {
+    grid.innerHTML = '<div class="promo-loading">Собираем библиотеку промо…</div>';
+    return;
+  }
+
+  const stats = payload.stats || {};
+  byId("promoMetrics").innerHTML = [
+    promoMetric("в каталоге", stats.total),
+    promoMetric("готово клиенту", stats.client_ready, "ready"),
+    promoMetric("есть в Drive", stats.with_drive, "drive"),
+    promoMetric("нужна папка", stats.needs_drive, "needs"),
+  ].join("");
+  byId("promoSourceNote").textContent = payload.generated_at
+    ? `Индекс обновлён ${payload.generated_at.replace("T", " ")} · источник: ${payload.source}`
+    : `Источник: ${payload.source || "индекс промо"}`;
+
+  const rootLink = byId("promoRootLink");
+  rootLink.hidden = !payload.root_folder_url;
+  if (payload.root_folder_url) rootLink.href = payload.root_folder_url;
+
+  const categories = payload.categories || [];
+  const categorySelect = byId("promoCategory");
+  categorySelect.innerHTML = '<option value="">Все категории</option>' + categories.map((item) => (
+    `<option value="${escapeHtml(item.id)}">${escapeHtml(promoCategoryLabel(item.id))} · ${formatNumber(item.total)}</option>`
+  )).join("");
+  categorySelect.value = state.promoFilters.category;
+  byId("promoCategoryRail").innerHTML = categories.slice(0, 12).map((item) => (
+    `<button type="button" data-promo-category="${escapeHtml(item.id)}" class="${state.promoFilters.category === item.id ? "is-active" : ""}"><span>${escapeHtml(promoCategoryLabel(item.id))}</span><b>${formatNumber(item.total)}</b><small>${formatNumber(item.with_drive)} в Drive</small></button>`
+  )).join("");
+  document.querySelectorAll("[data-promo-status]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.promoStatus === state.promoFilters.status);
+  });
+
+  byId("promoResultCount").textContent = `${formatNumber(payload.total)} ${promoArtistWord(payload.total)}`;
+  byId("promoPageLabel").textContent = `${formatNumber(payload.page)} / ${formatNumber(payload.pages)}`;
+  byId("promoPrev").disabled = payload.page <= 1 || state.promoLoading;
+  byId("promoNext").disabled = payload.page >= payload.pages || state.promoLoading;
+
+  const items = payload.items || [];
+  if (!items.length) {
+    grid.innerHTML = '<div class="promo-empty"><span>⌕</span><strong>Ничего не найдено</strong><p>Измени поиск, категорию или фильтр готовности.</p></div>';
+    return;
+  }
+  grid.innerHTML = items.map((item) => {
+    const status = PROMO_STATUS[item.presentation_status] || PROMO_STATUS.missing;
+    const readyDrive = (item.drive_links || []).find((link) => link.client_safe);
+    const sourceDrive = (item.drive_links || [])[0];
+    const drive = readyDrive || sourceDrive;
+    const promoLinks = (item.promo_links || []).slice(0, 3);
+    const mediaCount = Number(item.media?.local_files || 0)
+      + Number(item.media?.indexed_media || 0)
+      + Number(item.media?.links || 0);
+    const actions = [
+      drive ? `<a class="promo-action drive ${readyDrive ? "is-ready" : "is-source"}" href="${escapeHtml(drive.url)}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">↗</span>${readyDrive ? "Презентация Drive" : "Источник Drive"}</a>` : "",
+      ...promoLinks.map((link) => `<a class="promo-action" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">↗</span>${escapeHtml(promoLinkLabel(link))}${link.client_safe ? "" : " · источник"}</a>`),
+    ].filter(Boolean).join("");
+    return `<article class="promo-card">
+      <div class="promo-card-top"><span class="promo-category">${escapeHtml(promoCategoryLabel(item.category))}</span><span class="promo-status ${status.className}"><i></i>${escapeHtml(status.label)}</span></div>
+      <div class="promo-identity"><div class="promo-monogram">${escapeHtml(item.name.slice(0, 1).toUpperCase())}</div><div><h3>${escapeHtml(item.name)}</h3>${item.username ? `<p>@${escapeHtml(item.username)}</p>` : ""}</div></div>
+      ${item.rate_quote ? `<p class="promo-rate">${escapeHtml(item.rate_quote)}</p>` : '<p class="promo-rate is-empty">Гонорар в карточке не указан</p>'}
+      <div class="promo-card-meta"><span>${formatNumber(mediaCount)} медиа / ссылок</span>${item.last_contact ? `<span>контакт ${escapeHtml(item.last_contact)}</span>` : ""}</div>
+      <div class="promo-actions">${actions || '<span class="promo-no-links">Промо-ссылок пока нет</span>'}</div>
+    </article>`;
+  }).join("");
+}
+
+async function refreshPromo(force = false) {
+  const now = Date.now();
+  if (state.promoLoading) return;
+  if (!force && state.promoRefreshedAt && now - state.promoRefreshedAt < 300000) return;
+  state.promoLoading = true;
+  byId("promoGrid").classList.add("is-loading");
+  const params = new URLSearchParams({
+    q: state.promoFilters.q,
+    category: state.promoFilters.category,
+    status: state.promoFilters.status,
+    page: String(state.promoFilters.page),
+    limit: "48",
+  });
+  try {
+    state.promo = await apiGet(`${API.promo}?${params.toString()}`);
+    state.promoFilters.page = state.promo.page;
+    state.promoRefreshedAt = Date.now();
+    renderPromo();
+  } catch (error) {
+    byId("promoGrid").innerHTML = `<div class="promo-empty is-error"><span>!</span><strong>Каталог не загрузился</strong><p>${escapeHtml(error.message)}</p></div>`;
+    if (state.activeView === "promo") toast(`Промо не обновлено: ${error.message}`);
+  } finally {
+    state.promoLoading = false;
+    byId("promoGrid").classList.remove("is-loading");
+  }
+}
+
+function changePromoFilters(changes) {
+  Object.assign(state.promoFilters, changes, { page: changes.page || 1 });
+  state.promoRefreshedAt = 0;
+  refreshPromo(true);
 }
 
 function updateCounts() {

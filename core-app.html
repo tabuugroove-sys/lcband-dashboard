@@ -50,6 +50,7 @@
     <button class="tab-button" data-view="today"><span class="tab-icon" aria-hidden="true">☉<span class="tab-badge brass" id="navTodayCount" hidden></span></span>Сегодня</button>
     <button class="tab-button" data-view="system"><span class="tab-icon" aria-hidden="true">◔</span>Система</button>
     <button class="tab-button" data-view="fees"><span class="tab-icon" aria-hidden="true">₽</span>Гонорары</button>
+    <button class="tab-button" data-view="promo"><span class="tab-icon" aria-hidden="true">▤</span>Промо</button>
     <button class="tab-button" data-view="tokens"><span class="tab-icon" aria-hidden="true">◈</span>Токены</button>
     <button class="tab-button" data-view="broadcast"><span class="tab-icon" aria-hidden="true">✈</span>Рассылка</button>
   </nav>
@@ -336,6 +337,52 @@
           <div class="section-head"><h2>Исторические источники</h2><span>только справка</span></div>
           <div id="feesHistory"></div>
         </section>
+      </section>
+
+      <section class="screen promo-screen" id="screen-promo">
+        <div class="page-head promo-page-head">
+          <div><p class="eyebrow">Библиотека артистов</p><h1>Промо и презентации</h1></div>
+          <a class="promo-root-link" id="promoRootLink" href="#" target="_blank" rel="noopener noreferrer" hidden>
+            <span aria-hidden="true">↗</span> Общая папка Google Drive
+          </a>
+        </div>
+
+        <section class="promo-hero">
+          <div class="promo-hero-copy">
+            <span class="promo-kicker">LCB PROMO INDEX</span>
+            <h2>Все артисты — в одном рабочем каталоге</h2>
+            <p>Сразу видно, где есть готовая клиентская презентация Google Drive, где лежит только исходник и кому ещё нужно собрать папку.</p>
+          </div>
+          <div class="promo-metrics" id="promoMetrics" aria-live="polite"></div>
+          <p class="promo-source-note" id="promoSourceNote">Загрузка актуального индекса…</p>
+        </section>
+
+        <section class="promo-controls" aria-label="Фильтры промо">
+          <label class="promo-select-label" for="promoCategory">
+            <span>Категория</span>
+            <select id="promoCategory"><option value="">Все категории</option></select>
+          </label>
+          <div class="promo-status-filters" role="group" aria-label="Готовность презентации">
+            <button class="is-active" type="button" data-promo-status="all">Все</button>
+            <button type="button" data-promo-status="client_ready">Готово клиенту</button>
+            <button type="button" data-promo-status="drive">Есть в Drive</button>
+            <button type="button" data-promo-status="needs_drive">Нужен Drive</button>
+            <button type="button" data-promo-status="missing">Нет промо</button>
+          </div>
+        </section>
+
+        <div class="promo-category-rail" id="promoCategoryRail" aria-label="Быстрый выбор категории"></div>
+        <div class="promo-results-head">
+          <div><strong id="promoResultCount">0 артистов</strong><span>Ссылки открываются в новой вкладке</span></div>
+          <div class="promo-pagination">
+            <button class="compact-button" id="promoPrev" type="button" aria-label="Предыдущая страница">‹</button>
+            <span id="promoPageLabel">1 / 1</span>
+            <button class="compact-button" id="promoNext" type="button" aria-label="Следующая страница">›</button>
+          </div>
+        </div>
+        <div class="promo-grid" id="promoGrid" aria-live="polite">
+          <div class="promo-loading">Собираем библиотеку промо…</div>
+        </div>
       </section>
 
       <section class="screen" id="screen-broadcast">
