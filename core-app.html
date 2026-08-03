@@ -291,6 +291,51 @@
           <section class="band-section"><div class="section-head"><h2>Данные</h2></div><dl class="definition-list" id="schemaDetails"></dl></section>
           <section class="band-section"><div class="section-head"><h2>Предохранители</h2></div><ul class="guard-list"><li><b>×</b><span><strong>Нет read fallback</strong><small>Контакты и сообщения читаются из Core.</small></span></li><li><b>✓</b><span><strong>Черновик не является отправкой</strong><small>Shadow-writer создаёт immutable draft без outbound intent и без messenger SDK.</small></span></li><li><b>✓</b><span><strong>Ручная отправка отделена</strong><small>Только точный текст оператора через единственного delivery-owner и provider receipt.</small></span></li><li><b>×</b><span><strong>Автоответы выключены</strong><small>Агенты остаются в SEND HOLD.</small></span></li></ul></section>
         </div>
+        <section class="urgent-policy-card" aria-labelledby="urgentPolicyTitle">
+          <header class="urgent-policy-head">
+            <div class="urgent-signal" aria-hidden="true"><span></span><b>!</b></div>
+            <div>
+              <p class="eyebrow">Закрытый маршрут · Critical Ops</p>
+              <h2 id="urgentPolicyTitle">Что отправляется в Urgent Bot</h2>
+              <p>Не всё важное, а только ситуация, где активному клиенту нужен ваш немедленный выбор или обещанная передача файлов подтверждённо сорвалась.</p>
+            </div>
+            <span class="urgent-policy-count">4 причины</span>
+          </header>
+          <div class="urgent-rule-grid">
+            <article class="urgent-rule" data-policy-kind="active_client_call_requires_operator">
+              <span class="urgent-rule-number">01</span>
+              <div><h3>Активный клиент просит созвон</h3><p>Контекст подтверждает высокий или критичный риск потери. Сам технический call-event без клиентского запроса — не urgent.</p></div>
+            </article>
+            <article class="urgent-rule" data-policy-kind="active_client_manual_decision_required">
+              <span class="urgent-rule-number">02</span>
+              <div><h3>Нужно ручное решение</h3><p>Активный клиент ждёт решения, которое агент не имеет права принимать самостоятельно.</p></div>
+            </article>
+            <article class="urgent-rule" data-policy-kind="promised_file_delivery_failed">
+              <span class="urgent-rule-number">03</span>
+              <div><h3>Обещанный файл не доставлен</h3><p>Файл был обещан клиенту, а provider receipt подтверждает, что доставка сорвалась.</p></div>
+            </article>
+            <article class="urgent-rule" data-policy-kind="media_delivery_incomplete">
+              <span class="urgent-rule-number">04</span>
+              <div><h3>Медиапакет доставлен не полностью</h3><p>Неполная отправка доказана данными провайдера, а не предположением или отсутствием файла в интерфейсе.</p></div>
+            </article>
+          </div>
+          <div class="urgent-gates" aria-label="Обязательные условия Urgent Bot">
+            <span><b>P0/P1</b> только высокая срочность</span>
+            <span><b>Δ state</b> только новое состояние</span>
+            <span><b>1×</b> дедуп по fingerprint + revision</span>
+            <span><b>↘</b> fallback: обычный бот + дашборд</span>
+            <span><b>× client</b> клиенту ничего не отправляет</span>
+          </div>
+          <details class="not-urgent-policy">
+            <summary>Что сюда не попадает</summary>
+            <ul>
+              <li><strong>3–4 минуты без ответа</strong><span>Reply SLA идёт в обычный @lcband_notify_bot.</span></li>
+              <li><strong>Технические сбои</strong><span>База, OAuth, sender, sync, queue и pipeline идут в operator bot + dashboard.</span></li>
+              <li><strong>Низкая срочность P2</strong><span>Даже разрешённый бизнес-класс остаётся в обычном контуре.</span></li>
+              <li><strong>Повтор без изменения</strong><span>Одинаковый fingerprint и revision отбрасываются, чтобы не создавать спам.</span></li>
+            </ul>
+          </details>
+        </section>
       </section>
 
       <section class="screen" id="screen-tokens">
