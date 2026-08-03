@@ -38,6 +38,7 @@ const state = {
   chatFolder: "all",
   chatStatus: "",
   channel: "",
+  channelThreads: { channel: "", rows: [] },
   query: "",
   promoFilters: { q: "", category: "", status: "all", page: 1 },
   calendarFilters: {
@@ -902,7 +903,12 @@ function visibleThreads() {
   const query = state.query.toLowerCase();
   const coordination = activeCoordinationCase();
   const coordinationThreadIds = new Set((coordination?.participants || []).map((item) => item.thread_id));
-  return state.threads.filter((thread) => {
+  // Общая выборка ограничена свежими 200 тредами; выбранный канал смотрит
+  // свою серверную выборку, иначе историческим тредам канала некуда попасть.
+  const source = state.channel && state.channelThreads.channel === state.channel
+    ? state.channelThreads.rows
+    : state.threads;
+  return source.filter((thread) => {
     const technical = isTechnicalThread(thread);
     if (state.chatFolder === "technical") {
       if (!technical) return false;
@@ -1011,7 +1017,13 @@ function renderThreadFolders() {
 
 function syncChannelFilter() {
   const select = byId("channelFilter");
-  const channels = [...new Set(state.threads.map((item) => item.channel))].sort();
+  // Каналы — из полного среза Core (summary), не из свежей выборки тредов:
+  // канал с только историческими тредами не должен пропадать из фильтра.
+  const summaryChannels = (state.summary?.channels || []).map((item) => item.channel);
+  const channels = [...new Set([
+    ...summaryChannels,
+    ...state.threads.map((item) => item.channel),
+  ])].filter(Boolean).sort();
   select.innerHTML = '<option value="">Все каналы</option>' + channels.map((channel) => `<option value="${escapeHtml(channel)}">${escapeHtml(channelLabel(channel))}</option>`).join("");
   select.value = channels.includes(state.channel) ? state.channel : "";
 }
@@ -1194,7 +1206,9 @@ async function openThread(threadId, updateHash = true, options = {}) {
     byId("contactDatesList").innerHTML = "";
     markThreadReadLocally(threadId);
     renderThreads();
-    const selectedThread = state.threads.find((item) => item.thread_id === threadId) || {};
+    const selectedThread = state.threads.find((item) => item.thread_id === threadId)
+      || state.channelThreads.rows.find((item) => item.thread_id === threadId)
+      || {};
     const selectedName = threadTitle(selectedThread);
     byId("conversationEmpty").hidden = true;
     byId("conversationContent").hidden = false;
@@ -2268,6 +2282,15 @@ function bindEvents() {
   byId("channelFilter").addEventListener("change", (event) => {
     state.channel = event.target.value;
     renderThreads();
+    if (state.channel && state.channelThreads.channel !== state.channel) {
+      const requested = state.channel;
+      apiGet(`${API.threads}?limit=200&channel=${encodeURIComponent(requested)}`)
+        .then((payload) => {
+          state.channelThreads = { channel: requested, rows: payload.threads || [] };
+          if (state.channel === requested) renderThreads();
+        })
+        .catch(() => {});
+    }
   });
   byId("chatSearch").addEventListener("input", (event) => {
     state.query = event.target.value.trim();
