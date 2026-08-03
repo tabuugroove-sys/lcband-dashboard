@@ -37,6 +37,7 @@ const state = {
   selectedEventId: "",
   chatFolder: "all",
   chatStatus: "",
+  channel: "",
   query: "",
   promoFilters: { q: "", category: "", status: "all", page: 1 },
   calendarFilters: {
@@ -908,6 +909,7 @@ function visibleThreads() {
     } else if (technical) {
       return false;
     }
+    if (state.channel && thread.channel !== state.channel) return false;
     if (state.chatStatus && !statuses[state.chatStatus].has(thread.thread_id)) return false;
     // Один предикат папки и для списка, и для счётчиков фильтров: пока их было два,
     // числа над списком не соответствовали тому, что в списке лежит.
@@ -2262,6 +2264,10 @@ function bindEvents() {
       state.chatFolder = button.dataset.chatFolder;
       renderThreads();
     });
+  });
+  byId("channelFilter").addEventListener("change", (event) => {
+    state.channel = event.target.value;
+    renderThreads();
   });
   byId("chatSearch").addEventListener("input", (event) => {
     state.query = event.target.value.trim();
