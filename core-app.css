@@ -436,7 +436,15 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .conversation-empty { max-width: 340px; margin: auto; padding: 24px; color: var(--muted); text-align: center; }
 .conversation-empty strong { display: block; margin-top: 10px; color: var(--ink); }
 .conversation-empty p, .empty-icon { display: none; }
-.conversation-content { width: 100%; min-width: 0; min-height: 0; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); }
+/* Flex-столбец вместо позиционной сетки: панели («Изначальный запрос»,
+   «Предложенные даты») бывают скрыты, и фиксированные grid-строки съезжали —
+   лента попадала в auto-строку, композер уезжал за экран. */
+.conversation-content { width: 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.conversation-content > .message-list { flex: 1 1 0; }
+.conversation-content > .conversation-head,
+.conversation-content > .initial-request,
+.conversation-content > .contact-dates,
+.conversation-content > .composer-hold { flex: 0 0 auto; }
 .conversation-head { min-height: 66px; padding: 10px 15px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); }
 .conversation-head h2 { margin: 0; font-size: 16px; }
 .conversation-head p { margin: 1px 0 0; color: var(--muted); font-size: 11px; }
