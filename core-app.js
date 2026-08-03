@@ -1434,8 +1434,22 @@ async function syncActiveThread() {
   }
 }
 
+function manualSendChannel() {
+  return String(state.selectedThread?.channel || "");
+}
+
+function manualSendEnabledForThread() {
+  // Отправка канал-зависима: tg идёт через Telegram delivery-owner, wa — через
+  // WA-очередь (Baileys). Остальные каналы честно отключены, а не «включены,
+  // но сервер откажет».
+  const channel = manualSendChannel();
+  if (channel === "wa") return Boolean(state.health?.wa_manual_send_enabled);
+  if (channel === "tg") return Boolean(state.health?.manual_send_enabled);
+  return false;
+}
+
 function renderManualSendState() {
-  const enabled = Boolean(state.health?.manual_send_enabled && state.threadReady && state.selectedThreadId);
+  const enabled = Boolean(manualSendEnabledForThread() && state.threadReady && state.selectedThreadId);
   const form = byId("manualSendForm");
   const text = byId("manualSendText");
   const sendButton = byId("manualSendButton");
@@ -1465,11 +1479,16 @@ function renderManualSendState() {
       ? "Канон сохранён"
       : "Сохранить как канон";
   renderManualDeliveryState();
+  const sendChannel = manualSendChannel();
   byId("manualSendNote").textContent = enabled
     ? state.selectedDraftId
       ? "Выбран черновик V2. Проверь текст: отправка произойдёт только после твоего нажатия."
-      : "Ручной текст уйдёт дословно через единственного Telegram-отправщика. Автоответы остаются в HOLD."
-    : "Ручная отправка выключена конфигурацией Core. Автоответы остаются в HOLD.";
+      : sendChannel === "wa"
+        ? "Ручной текст уйдёт дословно в WhatsApp через Baileys-мост и запишется в Core."
+        : "Ручной текст уйдёт дословно через единственного Telegram-отправщика. Автоответы остаются в HOLD."
+    : sendChannel && sendChannel !== "tg" && sendChannel !== "wa"
+      ? "Ручная отправка для этого канала пока не поддерживается."
+      : "Ручная отправка выключена конфигурацией Core. Автоответы остаются в HOLD.";
 }
 
 function resizeManualSendText() {
@@ -1487,7 +1506,7 @@ function setManualSendText(value) {
 
 async function sendManualReply(event) {
   event.preventDefault();
-  if (state.sending || !state.health?.manual_send_enabled || !state.threadReady || !state.selectedThreadId) return;
+  if (state.sending || !manualSendEnabledForThread() || !state.threadReady || !state.selectedThreadId) return;
   const field = byId("manualSendText");
   const text = field.value.trim();
   if (!text) return;
@@ -1512,11 +1531,11 @@ async function sendManualReply(event) {
       setManualDeliveryState("queued", `В очереди · отправится в ${sendAtLabel}`);
       toast("Сообщение поставлено на отправку в 08:00 МСК.");
     } else if (result.core_recorded === false) {
-      setManualDeliveryState("error", "Отправлено в Telegram · Core сверяет receipt");
-      toast(result.warning || "Telegram доставил, но Core требует сверки receipt.");
+      setManualDeliveryState("error", "Отправлено · Core сверяет receipt");
+      toast(result.warning || "Сообщение доставлено, но Core требует сверки receipt.");
     } else {
       setManualDeliveryState("sent", "✓✓ Отправлено");
-      toast("Сообщение доставлено и записано в Core.");
+      toast(result.warning || "Сообщение доставлено и записано в Core.");
     }
     await refreshAll();
     await openThread(state.selectedThreadId, false);
