@@ -38,7 +38,8 @@ const state = {
   chatFolder: "all",
   chatStatus: "",
   channel: "",
-  channelThreads: { channel: "", rows: [] },
+  channelThreads: {},        // channel → { rows, at }: своя выборка каждого канала
+  channelThreadsPending: {}, // channel → true, пока летит запрос
   query: "",
   promoFilters: { q: "", category: "", status: "all", page: 1 },
   calendarFilters: {
@@ -853,30 +854,38 @@ function threadAttentionHtml(thread) {
 // выборка ограничена свежими 200 тредами (их 6.2к), поэтому историю канала
 // она физически не видит: без своей серверной выборки папка врала бы.
 const CHANNEL_FOLDERS = { wa: "wa" };
+// выборка канала живёт 30s и перезапрашивается: папка-мессенджер не должна
+// замерзать на моменте первого клика
+const CHANNEL_THREADS_TTL_MS = 30000;
 
 function effectiveChannel() {
   return CHANNEL_FOLDERS[state.chatFolder] || state.channel;
 }
 
+function channelRows(channel) {
+  const entry = state.channelThreads[channel];
+  return entry ? entry.rows : null;
+}
+
 function ensureChannelThreads(channel) {
   if (!channel) return;
-  if (state.channelThreads.channel === channel) return;
-  if (state.channelThreadsPending === channel) return;
-  state.channelThreadsPending = channel;
+  const entry = state.channelThreads[channel];
+  if (entry && Date.now() - entry.at < CHANNEL_THREADS_TTL_MS) return;
+  if (state.channelThreadsPending[channel]) return;
+  state.channelThreadsPending[channel] = true;
   apiGet(`${API.threads}?limit=1000&channel=${encodeURIComponent(channel)}`)
     .then((payload) => {
-      state.channelThreads = { channel, rows: payload.threads || [] };
-      state.channelThreadsPending = "";
+      state.channelThreads[channel] = { rows: payload.threads || [], at: Date.now() };
+      delete state.channelThreadsPending[channel];
       if (effectiveChannel() === channel) renderThreads();
+      else renderThreadFolders(); // бейдж папки честный и без захода в неё
     })
-    .catch(() => { state.channelThreadsPending = ""; });
+    .catch(() => { delete state.channelThreadsPending[channel]; });
 }
 
 function threadSource() {
   const channel = effectiveChannel();
-  return channel && state.channelThreads.channel === channel
-    ? state.channelThreads.rows
-    : state.threads;
+  return (channel && channelRows(channel)) || state.threads;
 }
 
 function threadMatchesFolder(thread, folder) {
@@ -972,9 +981,9 @@ function renderThreadFolders() {
     Personal: business.filter((thread) => thread.business_bucket === "personal").length,
     Musicians: business.filter((thread) => thread.business_bucket === "musicians").length,
     Broker: business.filter((thread) => thread.business_bucket === "broker").length,
-    // счёт по своей выборке канала, если она уже загружена: иначе цифра
-    // показывала бы только тех, кто попал в свежие 200 общего списка
-    Wa: (state.channelThreads.channel === "wa" ? state.channelThreads.rows : business)
+    // счёт по своей выборке канала: иначе цифра показывала бы только тех,
+    // кто попал в свежие 200 общего списка (29 вместо 135, кейс 04.08)
+    Wa: (channelRows("wa") || business)
       .filter((thread) => thread.channel === "wa" && !isTechnicalThread(thread)).length,
   };
   Object.entries(counts).forEach(([key, value]) => {
@@ -1102,6 +1111,9 @@ function renderThreads() {
   }
   renderThreadFolders();
   ensureChannelThreads(effectiveChannel());
+  // каналы-папки держим свежими всегда: их бейджи должны быть честными
+  // до первого клика, а список — живым (TTL 30s)
+  Object.values(CHANNEL_FOLDERS).forEach(ensureChannelThreads);
   syncChannelFilter();
   byId("chatSearch").value = state.query;
   renderChatStatusFilters();
@@ -1242,7 +1254,9 @@ async function openThread(threadId, updateHash = true, options = {}) {
     markThreadReadLocally(threadId);
     renderThreads();
     const selectedThread = state.threads.find((item) => item.thread_id === threadId)
-      || state.channelThreads.rows.find((item) => item.thread_id === threadId)
+      || Object.values(state.channelThreads)
+        .flatMap((entry) => entry.rows)
+        .find((item) => item.thread_id === threadId)
       || {};
     const selectedName = threadTitle(selectedThread);
     byId("conversationEmpty").hidden = true;
