@@ -291,7 +291,34 @@ async function assignConversationRole(role) {
 }
 
 function threadTitle(thread) {
-  return thread.display_name || thread.peer_external_id || thread.thread_id || "Core thread";
+  // порядок честности: имя собеседника → его номер → сырой идентификатор.
+  // 15-значный `<lid>@lid` человеку не говорит ничего, номер — говорит.
+  return thread.display_name
+    || formatPhone(thread.handle)
+    || formatPhone(waPhoneFromPeer(thread))
+    || thread.peer_external_id
+    || thread.thread_id
+    || "Core thread";
+}
+
+function waPhoneFromPeer(thread) {
+  if (thread.channel !== "wa") return "";
+  const digits = String(thread.peer_external_id || "").split("@")[0];
+  // телефонный jid — это номер; lid распознаём по длине (12+ цифр)
+  return /^\d{10,12}$/.test(digits) && !String(thread.peer_external_id || "").endsWith("@lid")
+    ? digits
+    : "";
+}
+
+function formatPhone(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 11 && (digits[0] === "7" || digits[0] === "8")) {
+    return `+7 ${digits.slice(1, 4)} ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9)}`;
+  }
+  if (digits.length >= 10 && digits.length <= 15) return `+${digits}`;
+  return raw.startsWith("+") ? raw : "";
 }
 
 function eventTitle(event) {
@@ -346,6 +373,15 @@ async function apiPost(url, body, options = {}) {
   } finally {
     if (timer !== null) window.clearTimeout(timer);
   }
+}
+
+function threadPreview(thread) {
+  // «Нет сообщений» у чата, где сообщения есть, — прямая ложь: в WhatsApp
+  // последним часто идёт фото/голосовое без подписи (кейс 04.08)
+  const body = String(thread.last_body || "").trim();
+  if (body) return body;
+  if (thread.last_media_ref || Number(thread.message_count) > 0) return "[вложение]";
+  return "Нет сообщений";
 }
 
 function avatarContent(thread, name) {
@@ -1131,7 +1167,7 @@ function renderThreads() {
     const label = coordination
       ? `${coordination.item.title} · ${coordinationRoleLabel(coordination.participant.participant_role)}`
       : `${channelLabel(thread.channel)} · ${roleLabel(thread)}`;
-    return `<button class="thread-button ${thread.thread_id === state.selectedThreadId ? "is-active" : ""}" data-thread-id="${escapeHtml(thread.thread_id)}"><span class="thread-avatar">${avatarContent(thread, name)}</span><span><span class="thread-top"><span class="thread-name">${escapeHtml(name)}</span><time class="thread-time">${escapeHtml(formatDate(thread.last_message_epoch))}</time></span><span class="thread-label">${escapeHtml(label)}</span><span class="thread-preview">${escapeHtml(thread.last_body || "Нет сообщений")}</span>${threadAttentionHtml(thread)}</span></button>`;
+    return `<button class="thread-button ${thread.thread_id === state.selectedThreadId ? "is-active" : ""}" data-thread-id="${escapeHtml(thread.thread_id)}"><span class="thread-avatar">${avatarContent(thread, name)}</span><span><span class="thread-top"><span class="thread-name">${escapeHtml(name)}</span><time class="thread-time">${escapeHtml(formatDate(thread.last_message_epoch))}</time></span><span class="thread-label">${escapeHtml(label)}</span><span class="thread-preview">${escapeHtml(threadPreview(thread))}</span>${threadAttentionHtml(thread)}</span></button>`;
   }).join("") : '<div class="empty-state"><strong>Здесь пока пусто</strong>Core не записал треды этой категории. Роли не подменяются догадками.</div>';
   byId("threadList").querySelectorAll("[data-thread-id]").forEach((button) => {
     button.addEventListener("click", () => openThread(button.dataset.threadId));
@@ -1508,6 +1544,10 @@ function renderManualSendState() {
   const hasText = Boolean(currentText);
   const hasDraft = Boolean(state.selectedDraftId);
   const busy = state.sending || state.rewritingDraft || state.savingCanon;
+  // подпись поля обязана называть канал, в который реально уйдёт текст:
+  // в WhatsApp-чате стояло «Ручной ответ в Telegram» (кейс 04.08)
+  const channel = manualSendChannel();
+  text.placeholder = channel ? `Ручной ответ в ${channelLabel(channel)}` : "Ручной ответ";
   form.classList.toggle("is-enabled", enabled);
   text.disabled = !enabled || busy;
   sendButton.disabled = !enabled || busy || !hasText;
