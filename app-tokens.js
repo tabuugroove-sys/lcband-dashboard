@@ -26,6 +26,7 @@ async function renderTokens() {
     <div class="card">
       <div class="cname">Порядок мозгов — тяни, чтобы поменять</div>
       <div class="mtext" style="margin-bottom:8px">Кто первым берёт задачу; упал — идёт к следующему. Тексты клиенту всегда Claude.</div>
+      <div id="providerStrip" style="margin-bottom:10px"></div>
       <div id="tierList" class="tierlist"></div>
       <div class="mtext" id="tierSaveNote" style="margin-top:8px;color:var(--text-muted)"></div>
     </div>
@@ -34,6 +35,7 @@ async function renderTokens() {
     <div class="card"><div class="cname">Агенты — расход за неделю (нажми для деталей)</div><div id="tokAgents"><div class="skel"></div></div></div>`;
 
   renderTierList();
+  renderProviderStrip();
 
   let data;
   try {
@@ -76,6 +78,25 @@ async function renderTokens() {
   box.querySelectorAll("[data-agent-idx]").forEach((row) => {
     row.addEventListener("click", () => openAgentDrilldown(Number(row.dataset.agentIdx)));
   });
+}
+
+/* Строка статуса провайдеров — тот же disabled_tiers, что и в LCB 2.0, чтобы
+   Codex/Antigravity показывали одну и ту же картину в обоих приложениях. */
+async function renderProviderStrip() {
+  const box = $("#providerStrip");
+  if (!box) return;
+  let disabled = [];
+  try {
+    const map = await api("/api/app/brain_map", { ttl: 30000 });
+    disabled = map.disabled_tiers || [];
+  } catch (e) { /* строка молча пропадает, драг-лист всё равно работает */ return; }
+  const set = new Set(disabled);
+  box.innerHTML = Object.entries(TOKENS_PROVIDER_LABELS).map(([tier, label]) => {
+    const off = set.has(tier);
+    const color = off ? "#cf222e" : "#1a7f37";
+    return `<span class="pill" style="margin-right:6px;background:${off ? "#fdeceb" : "#e9f6ee"};color:${color}">`
+      + `${off ? "⊘" : "●"} ${esc(label)}${off ? " — отключён" : ""}</span>`;
+  }).join("");
 }
 
 function renderTierList() {
