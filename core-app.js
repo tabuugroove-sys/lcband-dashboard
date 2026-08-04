@@ -2168,6 +2168,11 @@ function promoLinkLabel(link) {
     website: "Сайт",
     portfolio: "Портфолио",
     video_link: "Видео",
+    drive_folder: "Папка Drive",
+    curated_media: "Материал Drive",
+    presentation_pdf: "PDF-презентация",
+    dubai_press_kit: "Dubai Press Kit",
+    repertoire: "Репертуар",
   })[link.kind] || "Промо-ссылка";
 }
 
@@ -2239,8 +2244,10 @@ function renderPromo() {
     const mediaCount = Number(item.media?.local_files || 0)
       + Number(item.media?.indexed_media || 0)
       + Number(item.media?.links || 0);
+    const extraDriveLinks = (item.drive_links || []).slice(1, 4);
     const actions = [
       drive ? `<a class="promo-action drive ${readyDrive ? "is-ready" : "is-source"}" href="${escapeHtml(drive.url)}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">↗</span>${readyDrive ? "Презентация Drive" : "Источник Drive"}</a>` : "",
+      ...extraDriveLinks.map((link) => `<a class="promo-action" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">↗</span>${escapeHtml(promoLinkLabel(link))}${link.client_safe ? "" : " · внутри пакета"}</a>`),
       ...promoLinks.map((link) => `<a class="promo-action" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">↗</span>${escapeHtml(promoLinkLabel(link))}${link.client_safe ? "" : " · источник"}</a>`),
     ].filter(Boolean).join("");
     return `<article class="promo-card">

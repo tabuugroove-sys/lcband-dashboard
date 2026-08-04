@@ -414,6 +414,15 @@
         logic:['не обещает видео если его нет','reference match против видео клиента','обновляет media pool','если полного репертуара нет, package не падает: грузит медиа и добавляет waiting_repertoire/status doc','используется broker casting'],
       },
       {
+        group:'broker', name:'Vendor Promo Package', label:'com.lcband.broker-promo-package',
+        file:'broker_promo_package_agent.py --process', schedule:'каждые 10 минут',
+        why:'Автоматически превращает присланный подрядчиком сайт/лендинг, YouTube/VK/IG и native media в стандартный Drive-пакет и две аккуратные PDF-презентации.',
+        input:'TG/WA vendor message + exact vendor-provided URLs/media',
+        action:'download exact sources → Claude Design factual brief → render/verify RU presentation + Dubai Press Kit → Drive upload/retry',
+        output:'Фото/Видео + PDF files in vendor Drive root; roster presentation links/status',
+        logic:['не делает name-only web search и не смешивает однофамильцев','контакты подрядчика и гонорар не попадают в client-facing PDF','многостраничный сайт дистиллируется до ключевых фактов','PDF не auto-send: клиентскую отправку по-прежнему решает broker gate','Drive invalid_grant сохраняет локальный результат и повторяется после OAuth'],
+      },
+      {
         group:'broker', name:'Broker Media Curator', label:'broker_media_curator.py',
         file:'broker_media_curator.py --broker-id <id> [--allow-paid-vision] [--allow-codex-vision] [--allow-claude-vision] [--send]', schedule:'on-demand / recovery',
         why:'Проводит кастинг второго/лучшего видео под конкретный broker order, когда у клиента уже есть один хороший ролик, но нужно подобрать ещё один релевантный вариант.',
