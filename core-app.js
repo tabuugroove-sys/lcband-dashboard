@@ -849,8 +849,39 @@ function threadAttentionHtml(thread) {
   return `<span class="thread-attention">${bits.join("")}</span>`
     + (detail ? `<span class="thread-att-detail">${escapeHtml(detail)}</span>` : "");
 }
+// Папка канала = канал целиком, независимо от выпадающего фильтра. Общая
+// выборка ограничена свежими 200 тредами (их 6.2к), поэтому историю канала
+// она физически не видит: без своей серверной выборки папка врала бы.
+const CHANNEL_FOLDERS = { wa: "wa" };
+
+function effectiveChannel() {
+  return CHANNEL_FOLDERS[state.chatFolder] || state.channel;
+}
+
+function ensureChannelThreads(channel) {
+  if (!channel) return;
+  if (state.channelThreads.channel === channel) return;
+  if (state.channelThreadsPending === channel) return;
+  state.channelThreadsPending = channel;
+  apiGet(`${API.threads}?limit=1000&channel=${encodeURIComponent(channel)}`)
+    .then((payload) => {
+      state.channelThreads = { channel, rows: payload.threads || [] };
+      state.channelThreadsPending = "";
+      if (effectiveChannel() === channel) renderThreads();
+    })
+    .catch(() => { state.channelThreadsPending = ""; });
+}
+
+function threadSource() {
+  const channel = effectiveChannel();
+  return channel && state.channelThreads.channel === channel
+    ? state.channelThreads.rows
+    : state.threads;
+}
+
 function threadMatchesFolder(thread, folder) {
   if (!folder || folder === "all") return true;
+  if (CHANNEL_FOLDERS[folder]) return thread.channel === CHANNEL_FOLDERS[folder];
   if (folder.startsWith("case:")) {
     const item = state.coordinationCases.find((entry) => `case:${entry.case_id}` === folder);
     return Boolean(item && (item.participants || []).some((link) => link.thread_id === thread.thread_id));
@@ -870,7 +901,7 @@ function chatStatusSets() {
   // Фильтры обязаны считаться ВНУТРИ выбранной папки: иначе счётчики «непрочитано /
   // ждут подтверждения / отправлено» не бьются с папкой (замечание Михаила 25.07 —
   // «покликай эти три фильтра, они не соотносятся с воронкой»).
-  const inFolder = state.threads.filter((thread) => threadMatchesFolder(thread, state.chatFolder));
+  const inFolder = threadSource().filter((thread) => threadMatchesFolder(thread, state.chatFolder));
   const business = inFolder.filter((thread) => !isTechnicalThread(thread));
   const read = readThreadIds();
   return {
@@ -903,19 +934,18 @@ function visibleThreads() {
   const query = state.query.toLowerCase();
   const coordination = activeCoordinationCase();
   const coordinationThreadIds = new Set((coordination?.participants || []).map((item) => item.thread_id));
-  // Общая выборка ограничена свежими 200 тредами; выбранный канал смотрит
-  // свою серверную выборку, иначе историческим тредам канала некуда попасть.
-  const source = state.channel && state.channelThreads.channel === state.channel
-    ? state.channelThreads.rows
-    : state.threads;
-  return source.filter((thread) => {
+  // Общая выборка ограничена свежими 200 тредами; выбранный канал (папкой или
+  // фильтром) смотрит свою серверную выборку, иначе историческим тредам
+  // канала некуда попасть.
+  const channel = effectiveChannel();
+  return threadSource().filter((thread) => {
     const technical = isTechnicalThread(thread);
     if (state.chatFolder === "technical") {
       if (!technical) return false;
     } else if (technical) {
       return false;
     }
-    if (state.channel && thread.channel !== state.channel) return false;
+    if (channel && thread.channel !== channel) return false;
     if (state.chatStatus && !statuses[state.chatStatus].has(thread.thread_id)) return false;
     // Один предикат папки и для списка, и для счётчиков фильтров: пока их было два,
     // числа над списком не соответствовали тому, что в списке лежит.
@@ -942,6 +972,10 @@ function renderThreadFolders() {
     Personal: business.filter((thread) => thread.business_bucket === "personal").length,
     Musicians: business.filter((thread) => thread.business_bucket === "musicians").length,
     Broker: business.filter((thread) => thread.business_bucket === "broker").length,
+    // счёт по своей выборке канала, если она уже загружена: иначе цифра
+    // показывала бы только тех, кто попал в свежие 200 общего списка
+    Wa: (state.channelThreads.channel === "wa" ? state.channelThreads.rows : business)
+      .filter((thread) => thread.channel === "wa" && !isTechnicalThread(thread)).length,
   };
   Object.entries(counts).forEach(([key, value]) => {
     const badge = byId(`folder${key}`);
@@ -1067,6 +1101,7 @@ function renderThreads() {
     }).catch(() => {});
   }
   renderThreadFolders();
+  ensureChannelThreads(effectiveChannel());
   syncChannelFilter();
   byId("chatSearch").value = state.query;
   renderChatStatusFilters();
@@ -2300,16 +2335,13 @@ function bindEvents() {
   });
   byId("channelFilter").addEventListener("change", (event) => {
     state.channel = event.target.value;
-    renderThreads();
-    if (state.channel && state.channelThreads.channel !== state.channel) {
-      const requested = state.channel;
-      apiGet(`${API.threads}?limit=200&channel=${encodeURIComponent(requested)}`)
-        .then((payload) => {
-          state.channelThreads = { channel: requested, rows: payload.threads || [] };
-          if (state.channel === requested) renderThreads();
-        })
-        .catch(() => {});
+    // выбор другого канала выводит из папки канала — иначе папка и фильтр
+    // спорят друг с другом и список молча пустеет
+    if (CHANNEL_FOLDERS[state.chatFolder]
+        && state.channel !== CHANNEL_FOLDERS[state.chatFolder]) {
+      state.chatFolder = "all";
     }
+    renderThreads();
   });
   byId("chatSearch").addEventListener("input", (event) => {
     state.query = event.target.value.trim();
