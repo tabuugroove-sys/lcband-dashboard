@@ -946,11 +946,28 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .chip-claude { background: #e8f0fb; border-color: #b9d0ee; }
 .chip-kimi { background: #e6f4ec; border-color: #b4dcc4; }
 .chip-paid { background: #e8f0fb; border-color: #6f9bd1; }
+.chip-antigravity { background: #fdf3e3; border-color: #e6c98a; }
 :root[data-theme="dark"] .chip-claude, .dark .chip-claude { background: #1c2a3d; border-color: #33507a; }
 :root[data-theme="dark"] .chip-kimi, .dark .chip-kimi { background: #16311f; border-color: #2c5c3c; }
 :root[data-theme="dark"] .chip-paid, .dark .chip-paid { background: #1c2a3d; border-color: #4a6fa3; }
+:root[data-theme="dark"] .chip-antigravity, .dark .chip-antigravity { background: #3a2c14; border-color: #7a5c28; }
 .chip-arrow { color: var(--muted); }
 .brain-note { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+/* Отключённый тир (kill-switch codex_enabled/antigravity_enabled) — остаётся
+   виден в цепочке, но перечёркнутый кружочек показывает: запросы сюда не идут. */
+.chip-disabled { opacity: .55; filter: grayscale(.6); }
+.chip-disabled b, .chip-disabled small { text-decoration: line-through; }
+.chip-off { font-size: 12px; color: var(--danger); margin-right: 3px; text-decoration: none !important; }
+
+.provider-status-strip { display: flex; flex-wrap: wrap; gap: 10px; padding-bottom: 12px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--line); }
+.provider-status { display: inline-flex; flex-direction: column; font-size: 12px; color: var(--ink); }
+.provider-status small { color: var(--muted); font-size: 10px; }
+.provider-status .provider-dot { margin-right: 4px; }
+.provider-status.is-on .provider-dot { color: var(--ok); }
+.provider-status.is-off { opacity: .55; }
+.provider-status.is-off .provider-dot { color: var(--danger); }
 
 /* Бюджет выходных токенов */
 .budget-line { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }

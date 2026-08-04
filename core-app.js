@@ -1868,6 +1868,19 @@ function usdFmt(n) {
   return n > 0 ? "$" + n.toFixed(n < 1 ? 3 : 2) : "—";
 }
 
+const BRAIN_PROVIDER_LABELS = { claude: "Claude", codex: "Codex", antigravity: "Antigravity", kimi: "Kimi" };
+
+function renderProviderStatusStrip(disabledTiers) {
+  const disabled = new Set(disabledTiers || []);
+  const items = Object.entries(BRAIN_PROVIDER_LABELS).map(([tier, label]) => {
+    const off = disabled.has(tier);
+    return `<span class="provider-status ${off ? "is-off" : "is-on"}">`
+      + `<span class="provider-dot" aria-hidden="true">${off ? "⊘" : "●"}</span>${escapeHtml(label)}`
+      + `<small>${off ? "отключён — запросы не идут" : "активен"}</small></span>`;
+  }).join("");
+  return `<div class="provider-status-strip">${items}</div>`;
+}
+
 function renderBrainMap(map) {
   const box = byId("brainMap");
   if (!box) return;
@@ -1877,17 +1890,24 @@ function renderBrainMap(map) {
       (map && map.error ? ": " + escapeHtml(map.error) : "") + "</div>";
     return;
   }
-  box.innerHTML = rows.map((row) => {
+  const strip = renderProviderStatusStrip(map && map.disabled_tiers);
+  box.innerHTML = strip + rows.map((row) => {
     const chips = row.tiers.map((t, i) => {
       const paid = t.wallet === "paid";
       const cost = paid
         ? "≈$" + Number(t.avg_usd_per_call || 0).toFixed(4) + "/зап"
         : "≈" + tokFmt(t.avg_tokens_per_call || 0) + " ток/зап";
-      const cls = paid ? "chip chip-paid" : t.tier === "kimi" ? "chip chip-kimi"
-        : t.tier === "claude_cli" ? "chip chip-claude" : "chip";
+      const cls = (paid ? "chip chip-paid" : t.tier === "kimi" ? "chip chip-kimi"
+        : t.tier === "claude_cli" ? "chip chip-claude"
+        : t.tier === "antigravity" ? "chip chip-antigravity" : "chip")
+        + (t.disabled ? " chip-disabled" : "");
+      const title = t.disabled
+        ? "Отключён — запросы сюда сейчас не идут. Перетащи, чтобы поменять порядок"
+        : "Перетащи, чтобы поменять порядок";
+      const badge = t.disabled ? '<span class="chip-off" aria-hidden="true">⊘</span>' : "";
       return (i ? '<span class="chip-arrow" aria-hidden="true">→</span>' : "")
         + `<span class="${cls}" draggable="true" data-tier="${escapeHtml(t.tier)}"`
-        + ` title="Перетащи, чтобы поменять порядок"><b>${escapeHtml(t.provider)}</b>`
+        + ` title="${escapeHtml(title)}">${badge}<b>${escapeHtml(t.provider)}</b>`
         + `<small>${escapeHtml(t.model_label)} · ${cost}</small></span>`;
     }).join("");
     return `<div class="brain-row" data-purpose="${escapeHtml(row.purpose)}">
