@@ -106,11 +106,40 @@ const INSTR_LABELS = {sax:'🎷 Саксофон', piano:'🎹 Пиано', guit
 const fmt = n => n == null ? '—' : Number(n).toLocaleString('ru-RU');
 let DATA = null;
 
+/* Резолв API-базы как в app-api.js: same-origin на :8878 → backend_url.json
+   (cloudflare tunnel) → localhost. GitHub Pages — статика, API всегда на Mac. */
+let API_BASE = null;
+async function probe(url) {
+  try {
+    const c = new AbortController();
+    const to = setTimeout(() => c.abort(), 2500);
+    const r = await fetch(url + '/api/health', {signal: c.signal, cache: 'no-store'});
+    clearTimeout(to);
+    const j = await r.json();
+    return j && j.ok === true;
+  } catch { return false; }
+}
+async function apiBase() {
+  if (API_BASE !== null) return API_BASE;
+  if (location.port === '8878') { API_BASE = ''; return API_BASE; }
+  const cands = [];
+  try {
+    const r = await fetch('./backend_url.json', {cache: 'no-store'});
+    const j = await r.json();
+    if (j.url && j.url.startsWith('https://')) cands.push(j.url.replace(/\/$/, ''));
+  } catch {}
+  cands.push('http://127.0.0.1:8878');
+  for (const c of cands) { if (await probe(c)) { API_BASE = c; return c; } }
+  API_BASE = cands[0] || '';
+  return API_BASE;
+}
+
 async function load(relearn) {
   const st = document.getElementById('status');
   st.className = 'status'; st.textContent = relearn ? 'Пересчёт по истории с OCR…' : 'Загрузка…';
-  const url = '/api/musician_rates' + (relearn ? '?relearn=1' : '');
-  const r = await fetch(url);
+  const base = await apiBase();
+  const url = base + '/api/musician_rates' + (relearn ? '?relearn=1' : '');
+  const r = await fetch(url, {cache: 'no-store'});
   const j = await r.json();
   if (!j.ok) { st.className = 'status err'; st.textContent = 'Ошибка: ' + j.error; return; }
   DATA = j;
@@ -196,7 +225,8 @@ document.getElementById('saveAll').onclick = async () => {
   });
   const st = document.getElementById('status');
   st.className = 'status'; st.textContent = 'Сохранение…';
-  const r = await fetch('/api/musician_rates', {
+  const base = await apiBase();
+  const r = await fetch(base + '/api/musician_rates', {
     method: 'POST',
     headers: {'Content-Type': 'application/json', 'X-Admin-Token': adminToken()},
     body: JSON.stringify({instrument_overrides, musician_overrides}),
