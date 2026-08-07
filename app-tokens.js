@@ -6,8 +6,8 @@ const TOKENS_TIER_KEY = "lcb_ai_tier_order";
 /* 04.08.2026: Codex временно убран из ротации, Antigravity занял его место
    (квота восстановилась). См. ai_routing.disabled_tiers() — тот же kill-switch,
    что и в LCB 2.0. Codex не удалён из UI совсем, просто показан отключённым. */
-const TOKENS_DEFAULT_TIERS = ["Antigravity", "Claude", "Kimi K3"];
-const TOKENS_PROVIDER_LABELS = { claude: "Claude", codex: "Codex", antigravity: "Antigravity", kimi: "Kimi" };
+const TOKENS_DEFAULT_TIERS = ["Antigravity", "Claude", "Kimi K3", "MiniMax M3"];
+const TOKENS_PROVIDER_LABELS = { claude: "Claude", codex: "Codex", antigravity: "Antigravity", kimi: "Kimi", minimax: "MiniMax M3" };
 
 function tokFmt(n) {
   n = Number(n) || 0;
