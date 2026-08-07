@@ -177,6 +177,15 @@ function render() {
   });
 }
 
+function adminToken() {
+  let t = localStorage.getItem('lcband_admin_token') || '';
+  if (!t) {
+    t = prompt('Admin token (как на главной странице дашборда):') || '';
+    if (t) localStorage.setItem('lcband_admin_token', t);
+  }
+  return t;
+}
+
 document.getElementById('saveAll').onclick = async () => {
   const instrument_overrides = {}, musician_overrides = {};
   document.querySelectorAll('input[data-instr]').forEach(el => {
@@ -188,10 +197,16 @@ document.getElementById('saveAll').onclick = async () => {
   const st = document.getElementById('status');
   st.className = 'status'; st.textContent = 'Сохранение…';
   const r = await fetch('/api/musician_rates', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Admin-Token': adminToken()},
     body: JSON.stringify({instrument_overrides, musician_overrides}),
   });
-  const j = await r.json();
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 403) {
+    localStorage.removeItem('lcband_admin_token');
+    st.className = 'status err'; st.textContent = '❌ Неверный токен — удалён, попробуйте ещё раз.';
+    return;
+  }
   if (j.ok) { DATA.data = j.data; render(); st.className = 'status ok'; st.textContent = 'Сохранено ✔'; }
   else { st.className = 'status err'; st.textContent = 'Ошибка: ' + (j.error || r.status); }
 };
