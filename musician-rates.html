@@ -183,7 +183,7 @@ function render() {
     return `<tr>
       <td class="rowtoggle" data-i="${i}">▸</td>
       <td><b>${m.display_name || u}</b><br><span style="color:var(--muted)">@${u}</span></td>
-      <td>${INSTR_LABELS[m.instrument] || m.instrument || '—'}</td>
+      <td>${INSTR_LABELS[m.instrument] || m.instrument || '—'}${m.roster_category ? `<br><span class="badge estimate">${m.roster_category}</span>` : ''}</td>
       <td class="num"><b>${fmt(m.learned_buyout)}${m.learned_buyout ? ' ₽' : ''}</b></td>
       <td><span class="badge ${conf}">${conf}</span></td>
       <td class="num">${m.fee_payments || 0}</td>
