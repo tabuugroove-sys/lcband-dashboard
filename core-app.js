@@ -1855,7 +1855,7 @@ function renderSystem() {
   byId("systemHealthPill").className = `pill ${health.ok ? "ok" : "danger"}`;
 }
 
-const TOKEN_LIMIT_PROVIDERS = ["codex", "claude", "kimi"];
+const TOKEN_LIMIT_PROVIDERS = ["codex", "claude", "kimi", "minimax"];
 
 function tokFmt(n) {
   n = Number(n) || 0;
@@ -1868,7 +1868,7 @@ function usdFmt(n) {
   return n > 0 ? "$" + n.toFixed(n < 1 ? 3 : 2) : "—";
 }
 
-const BRAIN_PROVIDER_LABELS = { claude: "Claude", codex: "Codex", antigravity: "Antigravity", kimi: "Kimi" };
+const BRAIN_PROVIDER_LABELS = { claude: "Claude", codex: "Codex", antigravity: "Antigravity", kimi: "Kimi", minimax: "MiniMax M3" };
 
 function renderProviderStatusStrip(disabledTiers) {
   const disabled = new Set(disabledTiers || []);
@@ -2070,7 +2070,7 @@ function renderTokenLimits() {
   const limits = state.tokenLimits || {};
   box.innerHTML = TOKEN_LIMIT_PROVIDERS.map((prov) => {
     const cur = limits[prov] || {};
-    const label = prov === "codex" ? "Codex" : prov === "claude" ? "Claude" : "Kimi K3";
+    const label = prov === "codex" ? "Codex" : prov === "claude" ? "Claude" : prov === "minimax" ? "MiniMax M3" : "Kimi K3";
     return `<div class="limit-row">
       <span class="limit-name">${label}</span>
       <label>токенов/запрос<input type="number" min="0" data-limit="${prov}" data-field="max_tokens_per_call" value="${cur.max_tokens_per_call ?? ""}" placeholder="без лимита"></label>
