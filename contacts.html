@@ -262,29 +262,19 @@ const BROKER_TAG_LABELS = {
 let allContacts = [];
 let activeFlags = new Set();
 
-// Resolve backend URL — same pattern as index.html
-let BACKEND = '';
+// Private backend: same-origin on Tailnet/backend, localhost only on this Mac.
+let BACKEND = null;
 async function resolveBackend() {
-  if (location.protocol === 'file:' ||
-      location.hostname === '127.0.0.1' ||
-      location.hostname === 'localhost') {
-    BACKEND = '';
-    return;
-  }
-  try {
-    const r = await fetch('./backend_url.json', { cache: 'no-store' });
-    if (r.ok) {
-      const j = await r.json();
-      if (j && typeof j.url === 'string' && /^https:\/\//.test(j.url)) BACKEND = j.url;
-    }
-  } catch { /* leave fallback */ }
+  const host = location.hostname.toLowerCase();
+  BACKEND = (location.port === '8878' || host.endsWith('.ts.net'))
+    ? ''
+    : ((location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1')
+      ? 'http://127.0.0.1:8878'
+      : '');
 }
 
 async function loadData() {
-  if (BACKEND === '' && location.protocol !== 'file:' &&
-      location.hostname !== '127.0.0.1' && location.hostname !== 'localhost') {
-    await resolveBackend();
-  }
+  if (BACKEND === null) await resolveBackend();
   let resp;
   try {
     resp = await fetch(BACKEND + '/api/contact_roles', { cache: 'no-store' });

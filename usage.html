@@ -104,24 +104,15 @@
   </p>
 
 <script>
-  // ── backend resolution (как в index.html) ──────────────────────────────
-  let CHAT_BACKEND = (location.port === "8878") ? "" : "http://127.0.0.1:8878";
+  // Private backend: same-origin on Tailnet/backend, localhost only on this Mac.
+  const host = location.hostname.toLowerCase();
+  let CHAT_BACKEND = (location.port === "8878" || host.endsWith(".ts.net"))
+    ? ""
+    : ((location.protocol === "file:" || host === "localhost" || host === "127.0.0.1")
+      ? "http://127.0.0.1:8878"
+      : "");
   async function resolveBackend() {
-    if (CHAT_BACKEND === "") return "";
-    try {
-      const r = await fetch("./backend_url.json", { cache: "no-store" });
-      if (r.ok) {
-        const j = await r.json();
-        if (j && j.url) {
-          // проверим что туннель жив, иначе localhost
-          try {
-            const h = await fetch(`${j.url}/api/health`, { mode: "cors" });
-            if (h.ok) { CHAT_BACKEND = j.url; return CHAT_BACKEND; }
-          } catch (e) {}
-        }
-      }
-    } catch (e) {}
-    return CHAT_BACKEND; // localhost fallback
+    return CHAT_BACKEND;
   }
 
   async function api(path) {

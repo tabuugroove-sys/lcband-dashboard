@@ -58,7 +58,6 @@
     Вопросы: luxurycoverband@gmail.com</div>
 </div>
 <script>
-const LOCAL_BACKEND = 'http://127.0.0.1:8878';
 const $app = document.getElementById('app');
 const token = new URLSearchParams(location.search).get('t') || '';
 
@@ -68,12 +67,12 @@ function esc(s) {
 }
 
 async function backendBase() {
-  try {
-    const r = await fetch('./backend_url.json?_=' + Date.now(), { cache: 'no-store' });
-    const d = await r.json();
-    if (d && d.url) return String(d.url).replace(/\/$/, '');
-  } catch (e) { /* fall through to localhost */ }
-  return LOCAL_BACKEND;
+  const host = location.hostname.toLowerCase();
+  if (location.port === '8878' || host.endsWith('.ts.net')) return '';
+  if (location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1') {
+    return 'http://127.0.0.1:8878';
+  }
+  return '';
 }
 
 function showStatus(emoji, title, sub) {

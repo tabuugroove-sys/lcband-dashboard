@@ -222,9 +222,12 @@
 // audit v2 #7: escape dynamic data before innerHTML to prevent stored XSS.
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 const BACKEND_URL = (() => {
-  try {
-    return window._backendUrl || 'http://127.0.0.1:8878';
-  } catch(e) { return 'http://127.0.0.1:8878'; }
+  const host = location.hostname.toLowerCase();
+  if (location.port === '8878' || host.endsWith('.ts.net')) return '';
+  if (location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1') {
+    return 'http://127.0.0.1:8878';
+  }
+  return '';
 })();
 
 let allContacts = [];
@@ -399,8 +402,7 @@ function updateStats(contacts) {
 
 async function load() {
   try {
-    const backendUrl = await fetch('backend_url.json').then(r => r.json()).then(d => d.url).catch(() => 'http://127.0.0.1:8878');
-    const data = await fetch(`${backendUrl}/api/contact_roles`).then(r => r.json());
+    const data = await fetch(`${BACKEND_URL}/api/contact_roles`).then(r => r.json());
 
     allContacts = Object.entries(data.contacts || {});
     updateStats(allContacts);
