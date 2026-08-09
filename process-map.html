@@ -728,13 +728,6 @@
         logic:['проверяет daemon/stale SLA','перезапускает repeated last_exit!=0 / dashboard FAIL через bounded kickstart','Python startup-hook восстанавливает interpreter purelib до установки CLI/TG guards; vendor site-packages не теряются из-за repo sitecustomize','ловит повторяющиеся AI-вызовы одного purpose/input','ставит общий LLM circuit breaker через llm_budget_guard','codex_loop_guard тоже пишет этот shared runtime block, чтобы fallback не обходил блок','не заменяет самих агентов','защищает unattended mode'],
       },
       {
-        group:'infra', name:'Tunnel Watcher', label:'com.lcband.tunnel-watcher',
-        file:'tunnel_watcher.py', schedule:'daemon / KeepAlive',
-        why:'Frontend остаётся на GitHub Pages. Этот daemon держит только backend quick-tunnel/DNS для API access; custom domain / named tunnel сейчас не планируем.',
-        input:'cloudflared/tunnel state', action:'watch/refresh tunnel URL', output:'current tunnel state',
-        logic:['continuous watcher','restart by launchd','quick tunnel has no uptime guarantee','GitHub Pages domain is canonical frontend','localhost fallback for same-Mac work','не содержит бизнес-логики'],
-      },
-      {
         group:'infra', name:'TG Health Check', label:'com.lcband.tg-health-check',
         file:'tg_health_check_v2.py', schedule:'hourly minute 7',
         why:'Проверяет Telegram session/аккаунт, чтобы заранее заметить auth/flood/session issues.',
@@ -1180,17 +1173,14 @@
     // nothing — instead we map the hash to the matching filter chip (unknown/empty hash → "Все").
     window.addEventListener('hashchange', () => { setFilter(location.hash.slice(1)); window.scrollTo(0, 0); });
 
-    // GitHub Pages has no same-origin backend → resolve the live API: tunnel
-    // (backend_url.json, same file index.html uses) → localhost → same-origin.
-    // First reachable wins; '' (same-origin) covers the case where the page is
-    // served from the backend itself (127.0.0.1:8878).
+    // Live API is available only from the local backend or private tailnet.
+    // A public/static host must not discover or probe a private backend.
     async function resolveApiBase() {
-      let tunnel = '';
-      try {
-        const r = await fetch('./backend_url.json', { cache:'no-store' });
-        if (r.ok) { const j = await r.json(); tunnel = (j && j.url) || ''; }
-      } catch (e) {}
-      const cands = [...new Set([apiBase, '', tunnel, 'http://127.0.0.1:8878'])];
+      const isLocal = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+      const isTailnet = location.hostname.endsWith('.ts.net');
+      const cands = isTailnet || location.port === '8878'
+        ? ['']
+        : (isLocal || location.protocol === 'file:' ? [apiBase, 'http://127.0.0.1:8878'] : []);
       for (const base of cands) {
         try {
           const r = await fetch(`${base}/api/agent_efficiency?hours=1`, { cache:'no-store' });

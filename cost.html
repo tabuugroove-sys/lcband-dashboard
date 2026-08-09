@@ -930,15 +930,18 @@ a:hover { text-decoration: underline; }
 </div>
 
 <script>
-const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
+const backendUrl = (() => {
+  if (typeof CHAT_BACKEND !== 'undefined') return CHAT_BACKEND;
+  const host = location.hostname.toLowerCase();
+  if (location.port === '8878' || host.endsWith('.ts.net')) return '';
+  if (location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1') {
+    return 'http://127.0.0.1:8878';
+  }
+  return null;
+})();
 
 async function loadBackend() {
-  if (backendUrl) return backendUrl;
-  try {
-    const r = await fetch('backend_url.json', { cache: 'no-store' });
-    const j = await r.json();
-    return j.url || '';
-  } catch { return ''; }
+  return backendUrl;
 }
 
 function esc(s) {
@@ -2636,7 +2639,7 @@ async function approveHeavyThread(id, approved) {
 
 async function loadBurn() {
   const bu = await loadBackend();
-  if (!bu) return;
+  if (bu === null) return;
   try {
     const r = await fetch(bu + '/api/realtime_burn', {cache:'no-store'});
     renderBurn(await r.json());
@@ -2733,7 +2736,7 @@ function renderAiPoolsTop(pools) {
 
 async function loadAiPools() {
   const bu = await loadBackend();
-  if (!bu) return;
+  if (bu === null) return;
   try {
     const r = await fetch(bu + '/api/ai_call_pools?hours=6&gap_sec=90&limit=40', {cache:'no-store'});
     renderAiPools(await r.json());
@@ -2750,7 +2753,7 @@ setInterval(loadAiPools, 10000);
 // выводим. Обычно это №1 по токенам.
 async function loadHiddenSpend() {
   const bu = await loadBackend();
-  if (!bu) return;
+  if (bu === null) return;
   try {
     const r = await fetch(bu + '/api/spend_efficiency', {cache:'no-store'});
     const d = await r.json();
@@ -2847,7 +2850,7 @@ let _expMap = {};
 // enriches the unified live-table rows for expensive calls, + update the summary.
 async function loadExpensiveCalls() {
   const bu = await loadBackend();
-  if (!bu) return;
+  if (bu === null) return;
   try {
     const r = await fetch(bu + '/api/expensive_ai_calls?hours=6&min_tokens=' + EXPENSIVE_TOKEN_THRESHOLD + '&limit=100', {cache:'no-store'});
     const d = await r.json();
@@ -2882,7 +2885,7 @@ let _routingModeState = null;
 
 async function loadRoutingMode() {
   const bu = await loadBackend();
-  if (!bu) return;
+  if (bu === null) return;
   try {
     const r = await fetch(bu + '/api/runtime_config/routing_mode', {cache:'no-store'});
     const d = await r.json();
@@ -3054,7 +3057,7 @@ function ageLabel(sec) {
 }
 async function loadRemoteSources() {
   const bu = await loadBackend();
-  if (!bu) return;
+  if (bu === null) return;
   try {
     const r = await fetch(bu + '/api/claude_remote_sources', {cache:'no-store'});
     const d = await r.json();
@@ -3208,7 +3211,7 @@ async function loadLive() {
     return;
   }
   const bu = await loadBackend();
-  if (!bu) return;
+  if (bu === null) return;
   _liveLoading = true;
   try {
     const includeKinds = 'ai_call,api_call,api_error,codex_cli_fail,codex_cli_cooldown,llm_budget_guard';
