@@ -71,14 +71,13 @@ async function renderToday() {
 
   // подключения (пилюлей соединения владеет глобальный индикатор §3.8)
   try {
-    const [h, t, rh] = await Promise.all([
+    const [h, rh] = await Promise.all([
       api("/api/health", { ttl: 30000 }),
-      api("/api/cloudflare_tunnel_status", { ttl: 60000 }).catch(() => null),
       api("/api/runtime_health", { ttl: 60000 }).catch(() => null),
     ]);
     const pills = [];
     pills.push(h.banned ? `<span class="pill p-dang">TG: бан — ${esc(h.ban_reason)}</span>` : `<span class="pill p-ok">TG отправка · квота ${h.send_quota_remaining}</span>`);
-    if (t) pills.push(t.stale ? `<span class="pill p-warn">Туннель устарел ${Math.round((t.age_seconds || 0) / 60)} мин</span>` : `<span class="pill p-ok">Туннель</span>`);
+    pills.push(`<span class="pill p-ok">${location.hostname.endsWith(".ts.net") ? "Tailnet" : "Локально"}</span>`);
     if (rh) pills.push(`<span class="pill ${rh.level === "ok" ? "p-ok" : rh.level === "warn" ? "p-warn" : "p-dang"}">Здоровье: ${esc(rh.level)}</span>`);
     $("#connRow").innerHTML = pills.join(" ");
   } catch { $("#connRow").innerHTML = `<span class="pill p-dang">Бэкенд недоступен</span>`; }

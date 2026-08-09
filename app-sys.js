@@ -10,11 +10,10 @@ async function renderSys() {
     <div class="card"><div class="cname">Здоровье рантайма</div><div id="rhBox"><div class="skel"></div></div></div>`;
   bindAssuranceEntry("sysAssurance", "sys");
   try {
-    const [act, usage, rh, tun] = await Promise.all([
+    const [act, usage, rh] = await Promise.all([
       api("/api/process_activity_24h", { ttl: 120000 }),
       api("/api/ai_usage_breakdown", { ttl: 120000 }),
       api("/api/runtime_health", { ttl: 60000 }),
-      api("/api/cloudflare_tunnel_status", { ttl: 60000 }).catch(() => null),
     ]);
     const procs = Object.entries(act).filter(([k]) => k.startsWith("proc_"));
     const aiCalls = (act._ai_calls_24h || {}).count || 0;
@@ -22,7 +21,7 @@ async function renderSys() {
       <div class="stat"><div class="l">AI-вызовов за 24ч</div><div class="v num">${RUB.format(aiCalls)}</div></div>
       <div class="stat"><div class="l">Процессов активно</div><div class="v num">${procs.filter(([, v]) => (v.count || 0) > 0).length}/${procs.length}</div></div>
       <div class="stat"><div class="l">Здоровье</div><div class="v" style="color:${rh.level === "ok" ? "var(--ok)" : rh.level === "warn" ? "var(--warn)" : "var(--dang)"}">${esc(rh.level)}</div></div>
-      <div class="stat"><div class="l">Туннель</div><div class="v">${tun ? (tun.stale ? "устарел" : "жив") : "—"}</div></div>`;
+      <div class="stat"><div class="l">Удалённый доступ</div><div class="v">${location.hostname.endsWith(".ts.net") ? "Tailnet" : "локально"}</div></div>`;
     $("#procBox").innerHTML = procs.map(([k, v]) => `
       <div class="proc"><span class="lamp ${(v.count || 0) > 0 ? "" : "wr"}"></span>
         <span>${esc(k.replace("proc_", ""))}</span>

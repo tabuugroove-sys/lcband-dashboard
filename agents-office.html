@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     quality: ['broker_quality_scorer', 'quality'],
     payment: ['payment_event_handler', 'payment-event-handler'],
     commander: ['bot_commander', 'bot-commander'],
-    backend: ['dashboard_backend', 'dashboard-backend', 'tunnel-watcher'],
+    backend: ['dashboard_backend', 'dashboard-backend'],
     mariakon: ['mariakon_dance_collect', 'mariakon'],
     unclear: ['vk_unclear_recheck', 'unclear']
   };
@@ -208,15 +208,11 @@ document.addEventListener('DOMContentLoaded', async function() {
 
   async function discoverBackend() {
     if (backendUrl !== null) return backendUrl;
-    var candidates = [''];
-    try {
-      var r = await fetch('backend_url.json?ts=' + Date.now(), { cache: 'no-store' });
-      if (r.ok) {
-        var j = await r.json();
-        if (j && j.url) candidates.push(String(j.url).replace(/\/$/, ''));
-      }
-    } catch (_) {}
-    candidates.push('http://127.0.0.1:8878');
+    var isLocal = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+    var isTailnet = location.hostname.endsWith('.ts.net');
+    var candidates = isTailnet || location.port === '8878'
+      ? ['']
+      : (isLocal || location.protocol === 'file:' ? ['', 'http://127.0.0.1:8878'] : []);
     for (var i = 0; i < candidates.length; i++) {
       var base = candidates[i];
       try {
