@@ -642,20 +642,31 @@
   let BACKEND_URL_CACHE = null;
 
   async function getBackendUrl() {
-    if (BACKEND_URL_CACHE !== null) return BACKEND_URL_CACHE;
-    const host = location.hostname.toLowerCase();
-    BACKEND_URL_CACHE = (location.port === '8878' || host.endsWith('.ts.net'))
-      ? ''
-      : ((location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1')
-        ? 'http://127.0.0.1:8878'
-        : '');
+    if (BACKEND_URL_CACHE) return BACKEND_URL_CACHE;
+    try {
+      const r = await fetch('./backend_url.json?_=' + Date.now());
+      if (r.ok) {
+        const j = await r.json();
+        if (j && j.url) {
+          BACKEND_URL_CACHE = j.url.replace(/\/$/, '');
+          return BACKEND_URL_CACHE;
+        }
+      }
+    } catch (_) {}
+    BACKEND_URL_CACHE = 'http://127.0.0.1:8878';
     return BACKEND_URL_CACHE;
+  }
+
+  function localBackendFallback(base) {
+    return String(base || '').startsWith('http://127.0.0.1:')
+      ? []
+      : ['http://127.0.0.1:8878'];
   }
 
   async function api(path, opts = {}) {
     const { timeoutMs = 0, ...fetchOpts } = opts || {};
     const base = await getBackendUrl();
-    const bases = [base];
+    const bases = [base, ...localBackendFallback(base)];
     let lastError = null;
     for (const candidate of bases) {
       const reqOpts = {...fetchOpts};

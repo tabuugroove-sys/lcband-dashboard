@@ -11,7 +11,6 @@
     { href: 'index.html',           emoji: '🏠', label: 'Дашборд',     color: 'home' },
     { href: 'events.html',          emoji: '📋', label: 'Events',     color: 'events' },
     { href: 'pricing.html',         emoji: '💰', label: 'Pricing',    color: 'pricing' },
-    { href: 'musician-rates.html',  emoji: '🎷', label: 'Закупы v2',  color: 'pricing' },
     { href: 'broker.html',          emoji: '🤝', label: 'Broker',     color: 'broker' },
     { href: 'cost.html',            emoji: '💸', label: 'Расход',     color: 'cost' },
     { href: 'context_cards.html',   emoji: '🗂', label: 'Картотека',  color: 'cards' },

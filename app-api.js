@@ -69,11 +69,13 @@ function msgEpoch(m) {
   return isNaN(t) ? 0 : Math.round(t / 1000);
 }
 
-/* ── резолв base (§5.2): local or private tailnet same-origin only ──────── */
+/* ── резолв base (§5.2): same-origin → TS → backend_url.json → localhost ── */
+const TS_BASE = null; // задать при настройке Tailscale (Карточка 3), напр. "https://mac.tailnet.ts.net"; null = пропускать
 
 function baseKind(url) {
-  const host = url ? new URL(url, location.href).hostname : location.hostname;
-  if (host.endsWith(".ts.net")) return "TS";
+  if (!url) return "MAC";
+  if (url.includes(".ts.net")) return "TS";
+  if (url.includes("trycloudflare.com")) return "CF";
   return "MAC";
 }
 
@@ -96,15 +98,19 @@ async function resolveBase(force) {
   return RESOLVING;
 }
 async function _resolveBase() {
-  const isLocal = location.hostname === "127.0.0.1" || location.hostname === "localhost";
-  const isTailnet = location.hostname.endsWith(".ts.net");
-  if (location.port === "8878" || isTailnet) {
+  if (location.port === "8878") {
     S.base = "";
-    if (await probe("")) connOk(baseKind("")); else _resolveFail();
+    if (await probe("")) connOk("MAC"); else _resolveFail();
     return S.base;
   }
-  // A public/static host must never discover or probe a private backend.
-  const cands = (isLocal || location.protocol === "file:") ? ["http://127.0.0.1:8878"] : [];
+  const cands = [];
+  if (TS_BASE) cands.push(String(TS_BASE).replace(/\/$/, ""));
+  try {
+    const r = await fetch("./backend_url.json", { cache: "no-store" });
+    const j = await r.json();
+    if (j.url && j.url.startsWith("https://")) cands.push(j.url.replace(/\/$/, ""));
+  } catch {}
+  cands.push("http://127.0.0.1:8878");
   for (const c of cands) {
     if (await probe(c)) { S.base = c; connOk(baseKind(c)); return S.base; }
   }
@@ -123,6 +129,7 @@ function connLabel(st) {
   if (st === "INIT") return "Подключение…";
   if (st === "MAC") return "Mac";
   if (st === "TS") return "TS";
+  if (st === "CF") return "Туннель";
   if (st === "RECONNECT") return "Переподключение…";
   const t = S.offlineAt || S.conn.lastOkAt;
   return "Офлайн" + (t ? " · снимок " + mskHM(new Date(t)) : "");
@@ -195,7 +202,7 @@ async function api(path, { ttl = 0, method = "GET", body = null, timeout = 0 } =
     r = await doFetch();
   } catch (e) {
     if (S.conn.state !== "OFFLINE") setConnState("RECONNECT");
-    await resolveBase(true); // один ре-резолв и один ретрай
+    await resolveBase(true); // туннель мог смениться — один ре-резолв и один ретрай
     try {
       r = await doFetch();
     } catch (e2) {
@@ -270,13 +277,13 @@ function renderDrawer() {
     <div class="drow"><span class="k">Состояние</span><span>${esc(connLabel(S.conn.state))}</span></div>
     <div class="drow"><span class="k">Бэкенд</span><span class="num" style="font-size:12px;word-break:break-all">${esc(baseShown)}</span></div>
     <div class="drow"><span class="k">Последний успех</span><span>${esc(lastOk)}</span></div>
-    <div class="drow"><span class="k">Удалённый доступ</span><span>${location.hostname.endsWith(".ts.net") ? "Tailnet" : "локально"}</span></div>
+    <div class="drow"><span class="k">Туннель</span><span id="drawerTun">…</span></div>
     <div class="drow"><span class="k">Версия</span><span class="num">${esc(typeof APP_VERSION !== "undefined" ? APP_VERSION : "?")}</span></div>
     ${S.needAuth ? `<div class="drow"><span class="k" style="color:var(--brass)">Нужен ключ</span><span class="mtext">закрытые разделы ждут кода доступа</span></div>` : ""}
     <div style="margin-top:10px">${S.token
       ? `<div class="drow" style="border:none"><span class="k">Ключ доступа</span><span>введён ••••</span></div>
          <button class="btn" id="tokForget" style="width:100%;margin-top:6px">Забыть ключ</button>`
-      : `<input id="tokInput" class="dinput" type="password" placeholder="Код доступа (для iPhone/tailnet)" autocomplete="off">
+      : `<input id="tokInput" class="dinput" type="password" placeholder="Код доступа (для iPhone/туннеля)" autocomplete="off">
          <button class="btn go" id="tokSave" style="width:100%;margin-top:8px">Сохранить ключ</button>`}</div>
     <button class="btn" id="connCheck" style="width:100%;margin-top:8px">Проверить соединение</button>
     <div class="mtext" style="margin-top:10px">Точка «непрочитано» = не смотрел в приложении (TG-статусы не трогаются). «Отправлено сегодня» — агентские отправки за день по МСК; ручные из родного Telegram не считаются.</div>`;
@@ -307,4 +314,9 @@ function renderDrawer() {
     renderDrawer();
     toast(S.conn.state === "OFFLINE" ? "Бэкенд недоступен" : "Соединение: " + connLabel(S.conn.state), S.conn.state === "OFFLINE");
   };
+  api("/api/cloudflare_tunnel_status", { ttl: 60000 }).then((t) => {
+    const n = $("#drawerTun");
+    if (n) n.textContent = t.available === false ? "недоступен"
+      : (t.status || "—") + (t.age_seconds != null ? ` · ${Math.round(t.age_seconds / 60)} мин назад` : "");
+  }).catch(() => { const n = $("#drawerTun"); if (n) n.textContent = "—"; });
 }

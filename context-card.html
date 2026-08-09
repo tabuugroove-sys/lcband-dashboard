@@ -66,12 +66,14 @@ function esc(s) {
 }
 function pretty(v) { return JSON.stringify(v || {}, null, 2); }
 async function backendUrl() {
-  const host = location.hostname.toLowerCase();
-  if (location.port === '8878' || host.endsWith('.ts.net')) return '';
-  if (location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1') {
-    return 'http://127.0.0.1:8878';
-  }
-  return '';
+  try {
+    const r = await fetch('./backend_url.json?_=' + Date.now());
+    if (r.ok) {
+      const j = await r.json();
+      if (j && j.url) return j.url.replace(/\/$/, '');
+    }
+  } catch (_) {}
+  return 'http://127.0.0.1:8878';
 }
 function pill(text, cls='') { return text ? `<span class="pill ${cls}">${esc(text)}</span>` : ''; }
 function renderThreads(title, items, kind) {

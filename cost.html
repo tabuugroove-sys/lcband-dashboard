@@ -930,18 +930,15 @@ a:hover { text-decoration: underline; }
 </div>
 
 <script>
-const backendUrl = (() => {
-  if (typeof CHAT_BACKEND !== 'undefined') return CHAT_BACKEND;
-  const host = location.hostname.toLowerCase();
-  if (location.port === '8878' || host.endsWith('.ts.net')) return '';
-  if (location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1') {
-    return 'http://127.0.0.1:8878';
-  }
-  return '';
-})();
+const backendUrl = (typeof CHAT_BACKEND !== 'undefined') ? CHAT_BACKEND : '';
 
 async function loadBackend() {
-  return backendUrl;
+  if (backendUrl) return backendUrl;
+  try {
+    const r = await fetch('backend_url.json', { cache: 'no-store' });
+    const j = await r.json();
+    return j.url || '';
+  } catch { return ''; }
 }
 
 function esc(s) {
