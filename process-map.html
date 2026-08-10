@@ -654,7 +654,7 @@
         file:'morning_reconciliation.py 24', schedule:'daily 02:03 local',
         why:'Суточный аудит post-by-post: доказывает, что monitor/walk не пропустили валидный лид.',
         input:'event chats + orders.db + session_actions', action:'compare monitor vs walk', output:'morning_reconciliation_result.json + alert',
-        logic:['обходит 24 часа','классифицирует missed candidates','alert если missed >= 1'],
+        logic:['обходит 24 часа','каждый chat scan и client.start имеют bounded timeout; один Telegram socket не удерживает session lock бесконечно','классифицирует missed candidates','alert если missed >= 1'],
       },
       {
         group:'funnel', name:'Dashboard Sync', label:'com.lcband.dashboard-sync',
@@ -700,13 +700,6 @@
         logic:['не публичный backend','использует session copy для TG','dashboard static pages читают его APIs'],
       },
       {
-        group:'infra', name:'Core Capytime Replica', label:'com.lcband.core-capytime-replica',
-        file:'tools/core_capytime_replica_sync.py', schedule:'каждые 5 мин / RunAtLoad',
-        why:'Держит Capytime на той же подтверждённой версии Core, не создавая второго писателя SQLite.',
-        input:'committed git HEAD + online snapshots CoreV2/core.db и calendar-mirror.db', action:'SHA/integrity/schema checks → atomic remote swap → health probe', output:'C:\\LCBand2 read-only replica; технический сбой в обычный operator bot',
-        logic:['Mac — единственный writable Core; направление только Mac → Capytime','Capytime отклоняет POST/PUT/PATCH/DELETE независимо от UI','release и DB применяются атомарно с rollback на предыдущую копию','успех не шлёт уведомлений; одинаковый сбой дедупится на час','порт 8880 остаётся localhost-only'],
-      },
-      {
         group:'infra', name:'Bot Commander', label:'com.lcband.bot-commander',
         file:'bot_commander.py', schedule:'daemon / KeepAlive',
         why:'Телеграм-бот для approval/alerts и operational notifications.',
@@ -725,7 +718,7 @@
         file:'agent_watchdog.py', schedule:'каждые 30 мин',
         why:'Следит, что launchd-агенты живы, и поднимает тревогу/рестартит упавшие или зацикленные.',
         input:'launchctl status + heartbeat files + ai_timeline.jsonl', action:'detect stale/down/AI-loop agents', output:'restart/alert/log + temporary LLM purpose block',
-        logic:['проверяет daemon/stale SLA','перезапускает repeated last_exit!=0 / dashboard FAIL через bounded kickstart','Python startup-hook восстанавливает interpreter purelib до установки CLI/TG guards; vendor site-packages не теряются из-за repo sitecustomize','ловит повторяющиеся AI-вызовы одного purpose/input','ставит общий LLM circuit breaker через llm_budget_guard','codex_loop_guard тоже пишет этот shared runtime block, чтобы fallback не обходил блок','не заменяет самих агентов','защищает unattended mode'],
+        logic:['проверяет daemon/stale SLA','после macOS sleep даёт 15 минут grace: wall-clock сна не считается доказательством hang/stale','забывает удалённые discovered-labels после bounded числа проверок; retired labels не воскрешает и не алертит бесконечно','перезапускает repeated last_exit!=0 / dashboard FAIL через bounded kickstart','Python startup-hook восстанавливает interpreter purelib до установки CLI/TG guards; vendor site-packages не теряются из-за repo sitecustomize','ловит повторяющиеся AI-вызовы одного purpose/input','ставит общий LLM circuit breaker через llm_budget_guard','codex_loop_guard тоже пишет этот shared runtime block, чтобы fallback не обходил блок','не заменяет самих агентов','защищает unattended mode'],
       },
       {
         group:'infra', name:'TG Health Check', label:'com.lcband.tg-health-check',
@@ -781,7 +774,7 @@
         file:'mariakon_dance_collect.py', schedule:'каждый час',
         why:'Узкий collector для Mariakon/dance контента, вынесенный из общего контура.',
         input:'dance-related source', action:'collect/update', output:'mariakon_dance_collect.log/state',
-        logic:['специализированный collector','не влияет на core LCB funnel','периодический maintenance'],
+        logic:['специализированный collector','invalid/empty AI extract сохраняет последнюю хорошую quote и завершает цикл без crash-loop','не влияет на core LCB funnel','периодический maintenance'],
       },
       {
         group:'infra', name:'VK Unclear Recheck', label:'com.lcband.vk-unclear-recheck',
