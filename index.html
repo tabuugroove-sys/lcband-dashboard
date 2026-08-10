@@ -9,6 +9,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="LCB" />
+  <script>
+    // GitHub Pages is a public static surface, not the live private dashboard.
+    // Route the familiar public bookmark to an explicit safe access chooser.
+    if (location.hostname === "tabuugroove-sys.github.io") {
+      location.replace(new URL("./access.html", location.href));
+    }
+  </script>
   <style>
     :root {
       --bg:       #0a0a12;
