@@ -64,19 +64,21 @@
       const status = await jsonRequest(`${base}/api/vk_relink_status`, {headers});
       let tokenOrUrl = "";
       if (status.reauth_required) {
-        const authStarted = sessionStorage.getItem("lcband_vk_oauth_pending") === "1";
+        if (!status.oauth_url) throw new Error("VK OAuth app is not configured");
+        const authKey = `lcband_vk_oauth_pending:${status.oauth_client_id || "current"}`;
+        const authStarted = sessionStorage.getItem(authKey) === "1";
         if (!authStarted) {
-          sessionStorage.setItem("lcband_vk_oauth_pending", "1");
+          sessionStorage.setItem(authKey, "1");
           const popup = window.open(status.oauth_url, "_blank", "noopener");
           show(
             button,
-            popup ? "разреши VK, скопируй финальный URL и нажми Reconnect" : "разреши popup и нажми Reconnect",
+            popup ? "разреши доступ приложению LCBand, затем снова нажми Reconnect" : "разреши popup и нажми Reconnect",
             false,
           );
           return;
         }
         tokenOrUrl = (window.prompt(
-          "Вставь ВЕСЬ финальный URL после разрешения VK (oauth.vk.com/blank.html#access_token=…). Токен проверится и сохранится локально."
+          "Вставь ВЕСЬ финальный URL после разрешения нашего VK-приложения (…blank.html#access_token=…). Токен проверится и сохранится локально."
         ) || "").trim();
         if (!tokenOrUrl) {
           window.open(status.oauth_url, "_blank", "noopener");
@@ -91,7 +93,7 @@
         headers: {"Content-Type": "application/json", "X-Admin-Token": token},
         body: JSON.stringify(tokenOrUrl ? {token_or_url: tokenOrUrl} : {}),
       });
-      sessionStorage.removeItem("lcband_vk_oauth_pending");
+      sessionStorage.removeItem(`lcband_vk_oauth_pending:${status.oauth_client_id || "current"}`);
       show(button, payload.user?.name ? `connected: ${payload.user.name}` : "connected", false);
       scheduleRefresh();
     } catch (error) {
