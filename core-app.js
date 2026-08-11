@@ -533,6 +533,7 @@ function setView(view) {
     renderPromo();
     refreshPromo();
   }
+  if (view === "operations") window.CoreParity?.activate("overview");
   if (view === "broadcast") renderBroadcast();
 }
 
@@ -551,7 +552,7 @@ function route() {
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "today", "system", "tokens", "fees", "promo", "broadcast"].includes(name)
+  const view = ["calendar", "chats", "today", "system", "tokens", "fees", "promo", "operations", "broadcast"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";
@@ -2154,8 +2155,7 @@ function closeTokSheet() {
 }
 
 function renderBroadcast() {
-  const channels = state.summary?.channels || [];
-  byId("broadcastChannels").innerHTML = channels.length ? channels.map((item) => `<div class="channel-cell"><strong>${escapeHtml(channelLabel(item.channel))}</strong><span>${formatNumber(item.threads)} тредов в Core · отправка выключена</span></div>`).join("") : '<div class="empty-state"><strong>Каналов нет</strong>Core пока не записал каналы.</div>';
+  window.CoreParity?.activate("broadcast");
 }
 
 function formatFeeAmount(amountMinor, currency = "RUB") {
@@ -2548,6 +2548,7 @@ function bindEvents() {
   byId("refreshButton").addEventListener("click", async () => {
     await refreshAll();
     if (state.activeView === "promo") await refreshPromo(true);
+    if (["operations", "broadcast"].includes(state.activeView)) await window.CoreParity?.refresh();
   });
   byId("autonomyButton").addEventListener("click", (event) => {
     event.stopPropagation();

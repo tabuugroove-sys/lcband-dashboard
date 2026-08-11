@@ -896,6 +896,119 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   *, *::before, *::after { scroll-behavior: auto !important; }
 }
 
+/* Core v2 operational parity workspace.  Dense enough for live operations,
+   restrained enough to keep state and consequences legible. */
+.parity-page-head { border-bottom: 1px solid var(--line); }
+.operator-session-state { display: flex; align-items: center; gap: 8px; }
+.parity-hero {
+  margin: 17px 0 14px;
+  padding: 24px 26px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr);
+  gap: 22px;
+  border: 1px solid #244a3f;
+  border-radius: 14px;
+  background: linear-gradient(118deg, #102c25 0%, #173f34 64%, #234838 100%);
+  color: #f3f7f5;
+  box-shadow: 0 18px 42px rgba(14, 49, 39, .14);
+}
+.parity-kicker { color: #d8b36a; font-size: 10px; font-weight: 800; letter-spacing: .14em; }
+.parity-hero h2 { max-width: 720px; margin: 8px 0 5px; font: 600 25px/1.18 Georgia, serif; letter-spacing: -.015em; }
+.parity-hero p { max-width: 820px; margin: 0; color: #b9ccc5; font-size: 12px; }
+.parity-hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); align-content: end; gap: 1px; overflow: hidden; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; }
+.parity-hero-stats span { min-height: 76px; padding: 13px 10px; display: flex; flex-direction: column; justify-content: flex-end; background: rgba(255,255,255,.045); color: #a9bdb6; font-size: 9px; text-transform: uppercase; }
+.parity-hero-stats b { display: block; color: #fff; font: 600 22px/1.1 Georgia, serif; text-transform: none; }
+.parity-shell { display: grid; grid-template-columns: 176px minmax(0, 1fr); gap: 13px; align-items: start; }
+.parity-rail { position: sticky; top: 82px; padding: 7px; display: flex; flex-direction: column; gap: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.parity-rail button { min-height: 40px; padding: 7px 9px; display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; gap: 7px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); text-align: left; font-size: 11px; cursor: pointer; }
+.parity-rail button span { color: var(--brass); text-align: center; font-size: 14px; }
+.parity-rail button:hover { background: var(--paper); color: var(--ink); }
+.parity-rail button.is-active { background: var(--pine-soft); color: var(--pine); font-weight: 700; }
+.parity-content { min-width: 0; }
+.parity-loading { min-height: 280px; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); }
+.parity-loading span { width: 28px; height: 28px; border: 2px solid var(--line); border-top-color: var(--pine); border-radius: 50%; animation: parity-spin .9s linear infinite; }
+@keyframes parity-spin { to { transform: rotate(360deg); } }
+.parity-section-head { min-height: 54px; display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.parity-section-head h2 { margin: 0; font-size: 19px; }
+.parity-section-head p { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
+.parity-toolbar { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.parity-grid { margin-top: 10px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.parity-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.parity-card { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.parity-card.is-wide { grid-column: 1 / -1; }
+.parity-card.accent { border-color: var(--pine-line); background: linear-gradient(135deg, var(--card), var(--pine-soft)); }
+.parity-card.warn { border-color: #dfbd73; background: var(--warn-soft); }
+.parity-card h3 { margin: 0 0 8px; font-size: 13px; }
+.parity-card h3 small { margin-left: 5px; color: var(--muted); font-weight: 500; }
+.parity-card p { margin: 4px 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.parity-metric { display: flex; flex-direction: column; justify-content: flex-end; min-height: 92px; }
+.parity-metric strong { font: 600 28px/1 Georgia, serif; }
+.parity-metric span { margin-top: 8px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.parity-list { display: flex; flex-direction: column; gap: 6px; }
+.parity-row { padding: 9px 10px; display: grid; grid-template-columns: minmax(120px, .75fr) minmax(0, 1.45fr) auto; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.parity-row > div { min-width: 0; }
+.parity-row strong, .parity-row small { display: block; overflow: hidden; text-overflow: ellipsis; }
+.parity-row strong { font-size: 11px; }
+.parity-row small { color: var(--muted); font-size: 9px; }
+.parity-row p { margin: 0; color: var(--muted); font-size: 10px; white-space: normal; }
+.parity-actions { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
+.parity-primary, .parity-action { min-height: 34px; padding: 0 11px; border: 1px solid var(--pine); border-radius: 7px; background: var(--pine); color: white; font-weight: 700; font-size: 10px; cursor: pointer; }
+.parity-action { border-color: var(--line); background: var(--card); color: var(--pine); }
+.parity-action:hover { border-color: var(--pine); }
+.parity-action.danger { border-color: #d8aaa5; color: var(--danger); }
+.parity-action.brass { border-color: #d6bb84; color: var(--brass); }
+.parity-action:disabled, .parity-primary:disabled { opacity: .45; cursor: not-allowed; }
+.parity-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
+.parity-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+.parity-table th, .parity-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.parity-table th { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .04em; }
+.parity-table tr:last-child td { border-bottom: 0; }
+.parity-table code { white-space: nowrap; }
+.parity-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.parity-form label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.parity-form label.wide { grid-column: 1 / -1; }
+.parity-form input, .parity-form select, .parity-form textarea { width: 100%; min-height: 36px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); color: var(--ink); text-transform: none; }
+.parity-form textarea { min-height: 88px; resize: vertical; }
+.parity-note { margin: 9px 0 0; padding: 8px 10px; border-left: 3px solid var(--brass); background: var(--brass-soft); color: var(--brass); font-size: 10px; }
+.parity-error { min-height: 170px; padding: 24px; display: grid; place-content: center; text-align: center; border: 1px dashed #d5aaa5; border-radius: 10px; color: var(--danger); }
+.parity-error strong { font-size: 14px; }
+.parity-error p { max-width: 560px; margin: 5px auto 12px; color: var(--muted); font-size: 11px; }
+.parity-json { max-height: 420px; margin: 0; padding: 12px; overflow: auto; border-radius: 8px; background: #12231e; color: #d6e5df; font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+.broadcast-parity { margin-top: 12px; }
+.operator-dialog { width: min(430px, calc(100vw - 28px)); padding: 0; border: 1px solid var(--line); border-radius: 13px; background: var(--card); color: var(--ink); box-shadow: 0 26px 90px rgba(0,0,0,.28); }
+.operator-dialog::backdrop { background: rgba(10, 22, 18, .58); backdrop-filter: blur(4px); }
+.operator-dialog form { padding: 24px; }
+.operator-dialog-mark { width: 42px; height: 42px; margin-bottom: 12px; display: grid; place-items: center; border-radius: 50%; background: var(--pine-soft); color: var(--pine); font-size: 19px; }
+.operator-dialog h2 { margin: 3px 0 7px; }
+.operator-dialog p { color: var(--muted); font-size: 11px; }
+.operator-dialog label { margin-top: 15px; display: flex; flex-direction: column; gap: 5px; color: var(--muted); font-size: 10px; }
+.operator-dialog input { min-height: 42px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
+.operator-dialog-actions { margin-top: 16px; display: flex; justify-content: flex-end; gap: 7px; }
+.operator-dialog small { display: block; min-height: 16px; margin-top: 8px; color: var(--danger); }
+
+@media (max-width: 1120px) {
+  .parity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .parity-hero { grid-template-columns: 1fr; }
+}
+@media (max-width: 820px) {
+  .parity-page-head { align-items: flex-start; flex-direction: column; padding-bottom: 10px; }
+  .operator-session-state { width: 100%; justify-content: space-between; }
+  .parity-hero { margin-top: 10px; padding: 19px 17px; }
+  .parity-hero h2 { font-size: 21px; }
+  .parity-shell { grid-template-columns: 1fr; }
+  .parity-rail { position: static; padding: 5px; flex-direction: row; overflow-x: auto; scrollbar-width: none; }
+  .parity-rail button { min-width: 94px; grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .parity-row { grid-template-columns: minmax(100px, .8fr) minmax(0, 1.2fr); }
+  .parity-row .parity-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
+@media (max-width: 560px) {
+  .parity-grid, .parity-grid.two { grid-template-columns: 1fr; }
+  .parity-form { grid-template-columns: 1fr; }
+  .parity-form label.wide { grid-column: auto; }
+  .parity-hero-stats span { min-height: 64px; padding: 9px 7px; font-size: 8px; }
+  .parity-hero-stats b { font-size: 18px; }
+}
+
 /* Папки воронки продаж: те стадии, по которым реально ходим (статусы CRM). */
 .funnel-folders { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
 .funnel-folders:not(:empty)::before {

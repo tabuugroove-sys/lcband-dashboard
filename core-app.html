@@ -49,6 +49,7 @@
     <button class="tab-button" data-view="chats"><span class="tab-icon" aria-hidden="true">✉<span class="tab-badge" id="navChatsCount" hidden></span></span>Чаты</button>
     <button class="tab-button" data-view="today"><span class="tab-icon" aria-hidden="true">☉<span class="tab-badge brass" id="navTodayCount" hidden></span></span>Сегодня</button>
     <button class="tab-button" data-view="promo"><span class="tab-icon" aria-hidden="true">▤</span>Промо</button>
+    <button class="tab-button" data-view="operations"><span class="tab-icon" aria-hidden="true">⌘</span>Операции</button>
     <button class="tab-button" data-view="system"><span class="tab-icon" aria-hidden="true">◔</span>Система</button>
     <button class="tab-button" data-view="fees"><span class="tab-icon" aria-hidden="true">₽</span>Гонорары</button>
     <button class="tab-button" data-view="tokens"><span class="tab-icon" aria-hidden="true">◈</span>Токены</button>
@@ -431,19 +432,72 @@
         </div>
       </section>
 
+      <section class="screen parity-screen" id="screen-operations">
+        <div class="page-head parity-page-head">
+          <div><p class="eyebrow">Legacy parity · controlled bridge</p><h1>Операционный центр</h1></div>
+          <div class="operator-session-state">
+            <span class="pill" id="operatorSessionPill">Только чтение</span>
+            <button class="text-button" id="operatorLoginButton" type="button">Разблокировать действия</button>
+          </div>
+        </div>
+        <section class="parity-hero">
+          <div>
+            <span class="parity-kicker">CORE V2 / LIVE OPERATIONS</span>
+            <h2>Одна рабочая поверхность вместо набора legacy-страниц</h2>
+            <p>Данные читаются из действующего production backend через явный allowlist. Любая отправка, отмена, перезапуск или изменение требует operator-login, точного подтверждения и одноразового challenge.</p>
+          </div>
+          <div class="parity-hero-stats" id="parityHeroStats">
+            <span><b>—</b>контуров</span><span><b>—</b>действий</span><span><b>0</b>catch-all</span>
+          </div>
+        </section>
+        <div class="parity-shell">
+          <aside class="parity-rail" aria-label="Операционные контуры">
+            <button class="is-active" type="button" data-parity-area="overview"><span>◎</span>Обзор</button>
+            <button type="button" data-parity-area="broker"><span>♢</span>Broker</button>
+            <button type="button" data-parity-area="pricing"><span>₽</span>Цены</button>
+            <button type="button" data-parity-area="contacts"><span>◉</span>Контакты</button>
+            <button type="button" data-parity-area="leads"><span>↗</span>Лиды</button>
+            <button type="button" data-parity-area="approvals"><span>✓</span>Согласования</button>
+            <button type="button" data-parity-area="events"><span>▦</span>События</button>
+            <button type="button" data-parity-area="runtime"><span>◔</span>Процессы</button>
+            <button type="button" data-parity-area="cost"><span>◈</span>Расход</button>
+            <button type="button" data-parity-area="outreach"><span>⌁</span>Outreach / A·B</button>
+            <button type="button" data-parity-area="tools"><span>⌘</span>Инструменты</button>
+          </aside>
+          <div class="parity-content" id="parityContent" aria-live="polite">
+            <div class="parity-loading"><span></span><strong>Подключаем live-контуры…</strong></div>
+          </div>
+        </div>
+      </section>
+
       <section class="screen" id="screen-broadcast">
-        <div class="page-head"><div><p class="eyebrow">Кампании</p><h1>Рассылка</h1></div><span class="pill hold">SEND HOLD</span></div>
+        <div class="page-head parity-page-head">
+          <div><p class="eyebrow">Кампании · approval-gated</p><h1>Рассылка</h1></div>
+          <div class="operator-session-state"><span class="pill hold">Draft first</span><button class="text-button" id="broadcastLoginButton" type="button">Operator login</button></div>
+        </div>
         <section class="broadcast-band">
           <div class="broadcast-symbol" aria-hidden="true">✈</div>
-          <div><h2>Рассылка ещё не подключена к Core</h2><p>Интерфейс сохранён на привычном месте, но запуск кампании будет доступен только после отдельной typed-команды, approval и delivery receipt. Legacy-рассылку это приложение не вызывает.</p></div>
+          <div><h2>Кампании доступны в Core v2</h2><p>Создание всегда начинается с draft. Активация — отдельное подтверждённое действие; существующие исключения, дневные лимиты и delivery-owner остаются в production-контуре.</p></div>
         </section>
-        <div class="channel-summary" id="broadcastChannels"></div>
+        <div class="parity-content broadcast-parity" id="broadcastParity" aria-live="polite"></div>
       </section>
 
     </main>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <dialog class="operator-dialog" id="operatorDialog">
+    <form method="dialog" id="operatorLoginForm">
+      <div class="operator-dialog-mark" aria-hidden="true">⌘</div>
+      <p class="eyebrow">Чувствительные действия</p>
+      <h2>Operator login</h2>
+      <p>Введите существующий <code>DASHBOARD_ADMIN_TOKEN</code>. Он проверяется только локально, не сохраняется в браузере и заменяется 30-минутной HttpOnly-сессией.</p>
+      <label><span>Operator token</span><input id="operatorToken" type="password" autocomplete="current-password" required></label>
+      <div class="operator-dialog-actions"><button class="text-button" value="cancel" type="button" id="operatorLoginCancel">Отмена</button><button class="parity-primary" type="submit">Войти</button></div>
+      <small id="operatorLoginError"></small>
+    </form>
+  </dialog>
+  <script src="core-parity.js"></script>
   <script src="core-app.js"></script>
 </body>
 </html>
