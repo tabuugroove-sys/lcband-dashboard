@@ -217,7 +217,7 @@
       </div>
       <div class="parity-grid two">
         <article class="parity-card"><h3>Компактные форматы</h3><p><strong>${money(data.compact?.standard_rub)}</strong> — стандарт</p><p><strong>${money(data.compact?.low_budget_floor_rub)}</strong> — только при явно названном бюджете клиента</p></article>
-        <article class="parity-card"><h3>31.12 · Новый год</h3><p><strong>${money(data.new_year_eve?.moscow_cash_rub)}</strong> — Москва, нал</p><p><strong>${money(data.new_year_eve?.travel_cash_rub)}</strong> — любой выезд, нал</p><p>БН: ${money(data.new_year_eve?.moscow_cashless_rub)} / ${money(data.new_year_eve?.travel_cashless_rub)} · бэклайн и логистика отдельно</p></article>
+        <article class="parity-card"><h3>31.12 · Новый год</h3>${(data.new_year_eve?.lineups || []).map((item) => `<p><strong>${money(item.client_price_rub)}</strong> — ${esc(item.label)}</p>`).join("")}<p>БН и трансфер включены · бэклайн отдельно</p></article>
         <article class="parity-card"><h3>Короткие слоты</h3><p>Solo: ${(data.short_slots?.solo_rub || []).map(money).join(" · ")}</p><p>Duet: ${(data.short_slots?.duet_rub || []).map(money).join(" · ")}</p></article>
         <article class="parity-card"><h3>Оборудование</h3><p>Малое: ${money(data.equipment?.small_rub)}</p><p>Стандартный backline: ${(data.equipment?.standard_backline_rub || []).map(money).join(" · ")}</p><p>Большой: ${(data.equipment?.large_backline_rub || []).map(money).join(" · ")}</p></article>
         <article class="parity-card"><h3>Коэффициенты</h3><p>СПб ×${esc(data.rules?.spb_travel_multiplier)} · регионы ×${esc(data.rules?.region_travel_multiplier)} · второй день ×${esc(data.rules?.second_day_multiplier)}</p><p>Безнал: ${esc(data.rules?.cashless_formula)}</p></article>
