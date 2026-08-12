@@ -62,6 +62,8 @@ async function renderEvent(eid) {
     const ev = await api("/api/events/" + encodeURIComponent(eid), { ttl: 60000 });
     const fin = ev.finance || {};
     const ck = ev.ops_checklist || [];
+    const completeness = ev.operational_completeness || {};
+    const completenessMissing = completeness.missing || [];
     const done = ck.filter((c) => c.status === "done").length;
     const docsSec = (ev.sections || []).filter((s) => /Договор|Паспорта|Тайминг/i.test(s.name));
     $("#evBox").innerHTML = `
@@ -71,6 +73,16 @@ async function renderEvent(eid) {
 
       ${membersTableHtml(fin)}
       ${accountingHtml(fin)}
+
+      <div class="card"><div class="chead"><span class="cname">Операционная полнота</span>
+        <span class="spacer pill ${+completeness.percent === 100 ? "p-ok" : "p-brass"}">${esc(String(completeness.percent == null ? 0 : completeness.percent))}% · ${esc(completeness.status || "gathering")}</span></div>
+        <div class="mtext">Подтверждено ${esc(String(completeness.confirmed || 0))} из ${esc(String(completeness.required || 0))} обязательных применимых полей · режим ${esc(completeness.mode || "shadow")}</div>
+        ${completenessMissing.slice(0, 12).map((f) => `<div class="ck"><div class="ckdot gap">!</div><div>
+          <div class="t">${esc(f.label || f.field_id)}</div>
+          <div class="why">${esc(f.status || "unknown")} · ответственный: ${esc(f.owner || "—")}${f.next_action ? " · " + esc(f.next_action) : ""}</div>
+          ${f.updated_at ? `<div class="why">Обновлено: ${esc(String(f.updated_at).slice(0, 19))}</div>` : ""}
+        </div></div>`).join("") || `<div class="empty">Все обязательные операционные поля подтверждены</div>`}
+      </div>
 
       <div class="card"><div class="cname">Чек-лист · ${done} из ${ck.length}</div>
         ${ck.map((c) => `
