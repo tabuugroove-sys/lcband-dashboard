@@ -723,10 +723,6 @@ function renderCalendar() {
   });
 }
 
-function checkState(done, waiting = false) {
-  return done ? "done" : waiting ? "wait" : "gap";
-}
-
 function renderEventDetail(event) {
   byId("eventKind").textContent = event.is_technical ? "Техническая канарейка Core" : "Событие Core";
   byId("eventTitle").textContent = eventTitle(event);
@@ -756,22 +752,13 @@ function renderEventDetail(event) {
       ? "Отказ зафиксирован"
       : fallback;
   const mediaStatusLabel = (value) => value && value !== "unknown" ? value : "не указано";
-  const checklist = [
-    ["Договор", Number(event.agreement_count || 0) > 0, false, event.agreement_count ? `${event.agreement_count} версия/корень договора в Core` : "Договор ещё не создан в Core"],
-    ["Предоплата", receivedMinor > 0, prepaymentMinor !== null && prepaymentMinor !== undefined, receivedMinor > 0 ? `Принято доказательств оплаты: ${formatMoney(receivedMinor, event.currency)}` : prepaymentMinor !== null && prepaymentMinor !== undefined ? `План предоплаты: ${formatMoney(prepaymentMinor, event.currency)}` : "План оплаты не зафиксирован"],
-    ["Адрес и тайминг", Boolean(event.date_firm && event.venue_ref && event.performance_start_at_epoch), Boolean(event.event_date), event.venue_ref ? `${event.venue_ref}; ${time}` : "Нет точной площадки и времени"],
-    ["Пропуск / паспорт / авто", Number(event.checklist_requirement_count || 0) > 0 && Number(event.checklist_unresolved_count || 0) === 0, Number(event.checklist_requirement_count || 0) > 0, event.checklist_requirement_count ? `Readiness-checklist: ${event.checklist_unresolved_count ?? "—"} незакрытых` : "Readiness-checklist ещё не открыт"],
-    ["Состав", Number(event.lineup_count || 0) > 0, false, event.lineup_count ? `${event.lineup_count} участников в sealed lineup` : "Состав не перенесён в Core"],
-    ["Звук / райдер", Number(event.rider_version_count || 0) > 0 && Boolean(event.tech_status), Number(event.rider_version_count || 0) > 0, event.rider_version_count ? `Райдер v${event.rider_version_count}; техника: ${event.tech_status || "ждёт координации"}` : "Райдер не зафиксирован"],
-    ["Репертуар", Boolean(event.repertoire_status && event.repertoire_status !== "needs_facts"), event.repertoire_status === "needs_facts", event.repertoire_status ? `Статус: ${event.repertoire_status}` : "Требования к репертуару не записаны"],
-    ["Видеосъёмка", video.status === "ready", video.status === "needs_facts", mediaDetail(video, "Съёмка не организована или не подтверждена")],
-    ["Запись звука", soundRecording.status === "ready", soundRecording.status === "needs_facts", mediaDetail(soundRecording, "Запись звука не организована или не подтверждена")],
-  ];
-  const doneCount = checklist.filter((item) => item[1]).length;
-  byId("eventChecklistScore").textContent = `${doneCount}/${checklist.length}`;
-  byId("eventChecklist").innerHTML = checklist.map(([title, done, waiting, detail]) => {
-    const status = checkState(done, waiting);
-    return `<div class="check-row ${status}"><span class="check-dot">${done ? "✓" : waiting ? "…" : "!"}</span><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></div></div>`;
+  const checklistProjection = event.event_checklist || { items: [], done_count: 0, total_count: 0 };
+  const checklist = checklistProjection.items || [];
+  byId("eventChecklistScore").textContent = `${checklistProjection.done_count || 0}/${checklistProjection.total_count || checklist.length}`;
+  byId("eventChecklist").innerHTML = checklist.map((item) => {
+    const status = item.status === "done" ? "done" : item.status === "waiting" ? "wait" : "gap";
+    const marker = status === "done" ? "✓" : status === "wait" ? "…" : "!";
+    return `<div class="check-row ${status}"><span class="check-dot">${marker}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.detail)}</small></div></div>`;
   }).join("");
 
   const finances = [
