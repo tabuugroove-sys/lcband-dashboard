@@ -607,10 +607,10 @@
       },
       {
         group:'funnel', name:'Funnel Folder Sync', label:'com.lcband.funnel-folder-sync',
-        file:'funnel_folder_sync.py', schedule:'каждые 30 мин',
-        why:'Синхронизирует TG folder semantics с CRM-воронкой и держит отдельный live broker-client overlay.',
-        input:'TG folders + orders.db + broker_orders.json', action:'map folders to stages + sync live broker clients', output:'status/folder alignment + БрокКлиент',
-        logic:['orders.db status = единственный owner TG funnel-папки','broker_orders active client_username → TG БрокКлиент overlay','closed broker/client rows удаляются из broker-client overlay','archived=1 → TG Отмены, включая AI-skip/legacy skip statuses','Отзыв/контент снимает TG ОПЛАТИЛА и ставит Отзыв/фото','protected folders + lcb_roster.INTERNAL_TEAM не трогаются как папки','активный лид может иметь funnel-папку плюс protected role','TG-only legacy контакты очищаются из active folders','ОПЛАТИЛА остаётся для paid upcoming/unknown date','пишет logs/funnel_folder_sync.log'],
+        file:'funnel_folder_sync.py + rewrite/app/core_direct_lead_projection.py', schedule:'каждые 5 мин',
+        why:'Проецирует подтверждённых прямых клиентов Core в CRM read-model, синхронизирует TG folder semantics с этапом и держит отдельный live broker-client overlay.',
+        input:'Core verified role/identity + TG folders + orders.db + broker_orders.json', action:'project direct source + map stages to folders + sync live broker clients', output:'direct-source/stage separation + status/folder alignment + БрокКлиент',
+        logic:['только trusted client-role Core допускает direct projection; vendor/musician/personal fail-closed','TG_DIRECT_CORE = неизменный источник «Прямой лид» для Dashboard','orders.db status = отдельный единственный owner TG funnel-папки','проекция идемпотентна по tg_user_id и выполняется до Telegram session lock','broker_orders active client_username → TG БрокКлиент overlay','closed broker/client rows удаляются из broker-client overlay','archived=1 → TG Отмены, включая AI-skip/legacy skip statuses','Отзыв/контент снимает TG ОПЛАТИЛА и ставит Отзыв/фото','protected folders + lcb_roster.INTERNAL_TEAM не трогаются как папки','активный лид может иметь funnel-папку плюс protected role','TG-only legacy контакты очищаются из active folders','ОПЛАТИЛА остаётся для paid upcoming/unknown date','пишет logs/funnel_folder_sync.log'],
       },
       {
         group:'funnel', name:'Funnel Maintenance', label:'com.lcband.funnel-maintenance',

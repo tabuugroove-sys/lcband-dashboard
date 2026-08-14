@@ -1162,9 +1162,12 @@ function renderThreads() {
   byId("threadList").innerHTML = threads.length ? threads.map((thread) => {
     const name = threadTitle(thread);
     const coordination = coordinationContextForThread(thread.thread_id);
+    const sourceLabel = String(thread.lead_source_label || "").trim();
     const label = coordination
       ? `${coordination.item.title} · ${coordinationRoleLabel(coordination.participant.participant_role)}`
-      : `${channelLabel(thread.channel)} · ${roleLabel(thread)}`;
+      : [sourceLabel, channelLabel(thread.channel), roleLabel(thread)]
+          .filter(Boolean)
+          .join(" · ");
     return `<button class="thread-button ${thread.thread_id === state.selectedThreadId ? "is-active" : ""}" data-thread-id="${escapeHtml(thread.thread_id)}"><span class="thread-avatar">${avatarContent(thread, name)}</span><span><span class="thread-top"><span class="thread-name">${escapeHtml(name)}</span><time class="thread-time">${escapeHtml(formatDate(thread.last_message_epoch))}</time></span><span class="thread-label">${escapeHtml(label)}</span><span class="thread-preview">${escapeHtml(threadPreview(thread))}</span>${threadAttentionHtml(thread)}</span></button>`;
   }).join("") : '<div class="empty-state"><strong>Здесь пока пусто</strong>Core не записал треды этой категории. Роли не подменяются догадками.</div>';
   byId("threadList").querySelectorAll("[data-thread-id]").forEach((button) => {

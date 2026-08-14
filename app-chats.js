@@ -131,12 +131,16 @@ function initialsOf(display, username) {
   const u = String(username || "").replace(/^@/, "");
   return u.slice(0, 2).toUpperCase() || "?";
 }
+function isTelegramDirectChannel(channel) {
+  const normalized = String(channel || "").toUpperCase();
+  return normalized === "TG" || normalized === "TG_DIRECT";
+}
 function avatarHtml(t) {
   t = t || {};
   const uname = String(t.username || "").replace(/^@/, "");
   const key = uname || t.display || "?";
   const init = esc(initialsOf(t.display || t.client, uname));
-  const avaPath = t.avatar || (uname && String(t.channel || "TG").toUpperCase() === "TG" ? "/api/avatar/tg/" + encodeURIComponent(uname) : null);
+  const avaPath = t.avatar || (uname && isTelegramDirectChannel(t.channel || "TG") ? "/api/avatar/tg/" + encodeURIComponent(uname) : null);
   const img = avaPath ? `<img src="${esc((S.base || "") + avaPath)}" alt="" loading="lazy" onerror="this.remove()">` : "";
   return `<span class="ava" style="background:${avaColor(key)}">${init}${img}</span>`;
 }
@@ -678,7 +682,7 @@ function threadShellHtml(row, q, channel, withBack) {
   const title = row ? (row.display || row.client || q) : q.replace(/^@/, "");
   return `${withBack ? `<div class="backrow"><button class="btn" id="thrBack">‹ Назад</button></div>` : ""}
     <div class="thead">
-      ${avatarHtml(row || { username: channel === "TG" ? q : "", channel })}
+      ${avatarHtml(row || { username: isTelegramDirectChannel(channel) ? q : "", channel })}
       <div class="tt"><div class="cname">${esc(title)}</div>
         <div class="mtext" id="thrSub">${esc(channel)}</div></div>
       <span class="spacer"></span><span id="tgOpen"></span>
@@ -831,7 +835,7 @@ async function pollThread() {
 function threadUsername(c) {
   // core2: q = thread_id Core, а не username — фолбэк на q только в v1
   const u = (c.meta && c.meta.username) || (c.row && c.row.username) ||
-    (S.brain !== "core2" && c.channel === "TG" && !/^(id:|vk:|wa:|-?\d)/.test(c.q) ? c.q : "");
+    (S.brain !== "core2" && isTelegramDirectChannel(c.channel) && !/^(id:|vk:|wa:|-?\d)/.test(c.q) ? c.q : "");
   return String(u || "").replace(/^@/, "");
 }
 function drawThreadSub() {
@@ -853,7 +857,7 @@ function drawTgOpen() {
   if (c.channel === "VK") {
     const vid = uid || (c.q.startsWith("vk:") ? c.q.slice(3) : "");
     if (vid) { href = "https://vk.com/im?sel=" + encodeURIComponent(vid); label = "Открыть в VK"; }
-  } else if (c.channel === "TG") {
+  } else if (isTelegramDirectChannel(c.channel)) {
     if (uname) href = "https://t.me/" + encodeURIComponent(uname);
     else if (uid) { href = "tg://user?id=" + encodeURIComponent(uid); note = "может не открыться, если диалога ещё нет"; }
   }
@@ -867,7 +871,7 @@ function drawTgOpen() {
 function composerMode(c) {
   if (S.brain === "core2") return "noteCore2"; // ручных send/approve в core2-мозге нет
   if (c.channel === "VK") return "noteVK";
-  if (c.channel !== "TG") return "note";
+  if (!isTelegramDirectChannel(c.channel)) return "note";
   const key = threadReadKey(c);
   // группы (голый chat_id) и треды без канонического peer — без поля ввода
   if (key && !/^-?\d+$/.test(key)) return "composer";
