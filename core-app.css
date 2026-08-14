@@ -1112,3 +1112,63 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   font-size: 12px;
   color: var(--muted);
 }
+
+/* Общий реестр костюмов музыкантов. */
+.costume-screen { max-width: 1280px; margin: 0 auto; }
+.costume-summary { margin: 14px 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.costume-summary > div { min-height: 82px; padding: 13px 15px; display: flex; flex-direction: column; justify-content: flex-end; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.costume-summary strong { font: 600 28px/1 Georgia, serif; }
+.costume-summary span { margin-top: 7px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+.costume-intro { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.costume-intro h2 { margin: 0 0 4px; font-size: 15px; }
+.costume-intro p { max-width: 760px; margin: 0; color: var(--muted); font-size: 11px; }
+.costume-legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.costume-legend span, .costume-status { min-height: 23px; padding: 3px 8px; display: inline-flex; align-items: center; border-radius: 999px; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.costume-legend .yes, .costume-status.yes { background: var(--ok-soft); color: var(--ok); }
+.costume-legend .no, .costume-status.no { background: var(--danger-soft); color: var(--danger); }
+.costume-legend .unknown, .costume-status.unknown { background: var(--frame); color: var(--muted); }
+.costume-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.costume-card { min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 5px 18px rgba(28, 42, 35, .04); }
+.costume-card.complete { border-color: var(--pine-line); }
+.costume-card > header { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.costume-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: var(--frame); }
+.costume-avatar.placeholder { display: grid; place-items: center; color: var(--pine); font: 600 18px/1 Georgia, serif; }
+.costume-card h2 { margin: 0; font-size: 14px; }
+.costume-card header p { margin: 2px 0 0; color: var(--muted); font-size: 10px; }
+.costume-size { min-height: 28px; padding: 5px 9px; border-radius: 7px; background: var(--frame); color: var(--muted); font-size: 10px; font-weight: 700; white-space: nowrap; }
+.costume-size.known { background: var(--pine-soft); color: var(--pine); }
+.costume-card-metrics { margin: 12px 0 9px; padding: 8px 10px; display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+.costume-card-metrics span { color: var(--muted); font-size: 9px; text-align: center; }
+.costume-card-metrics span + span { border-left: 1px solid var(--line); }
+.costume-card-metrics b { margin-right: 3px; color: var(--ink); font-size: 12px; }
+.costume-looks { display: flex; flex-direction: column; gap: 7px; }
+.costume-look { min-width: 0; padding: 7px; display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 9px; border: 1px solid var(--line); border-radius: 9px; }
+.costume-look.yes { border-left: 3px solid var(--ok); }
+.costume-look.no { border-left: 3px solid var(--danger); opacity: .75; }
+.costume-look img, .costume-look-placeholder { width: 64px; height: 74px; border-radius: 6px; object-fit: cover; background: var(--frame); }
+.costume-look-placeholder { display: grid; place-items: center; color: var(--muted); font-size: 20px; }
+.costume-look-copy { min-width: 0; }
+.costume-look-copy > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 7px; }
+.costume-look-copy strong { font-size: 11px; }
+.costume-look-copy p { margin: 3px 0; color: var(--muted); font-size: 9px; line-height: 1.35; }
+.costume-look-copy small { display: block; color: var(--muted); font-size: 8px; overflow-wrap: anywhere; }
+.costume-look-copy .costume-variants { margin-top: 3px; color: var(--brass); }
+.costume-unconfirmed { min-height: 80px; padding: 13px; display: flex; align-items: center; gap: 11px; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); }
+.costume-unconfirmed > span { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--frame); font-weight: 800; }
+.costume-unconfirmed strong { display: block; color: var(--ink); font-size: 11px; }
+.costume-unconfirmed p { margin: 2px 0 0; font-size: 9px; }
+.costume-card > footer { margin-top: 9px; color: var(--muted); font-size: 8px; text-align: right; }
+.costume-empty { grid-column: 1 / -1; min-height: 180px; padding: 30px; display: grid; place-content: center; text-align: center; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); }
+.costume-empty strong { color: var(--ink); }
+.costume-empty p { margin: 4px 0 0; }
+.costume-empty.is-error { color: var(--danger); }
+@media (max-width: 960px) {
+  .costume-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .costume-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .costume-intro { align-items: flex-start; flex-direction: column; }
+  .costume-legend { justify-content: flex-start; }
+  .costume-card > header { grid-template-columns: 42px minmax(0, 1fr); }
+  .costume-size { grid-column: 1 / -1; text-align: center; }
+}

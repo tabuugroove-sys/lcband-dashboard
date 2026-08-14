@@ -49,6 +49,7 @@
     <button class="tab-button" data-view="chats"><span class="tab-icon" aria-hidden="true">✉<span class="tab-badge" id="navChatsCount" hidden></span></span>Чаты</button>
     <button class="tab-button" data-view="today"><span class="tab-icon" aria-hidden="true">☉<span class="tab-badge brass" id="navTodayCount" hidden></span></span>Сегодня</button>
     <button class="tab-button" data-view="promo"><span class="tab-icon" aria-hidden="true">▤</span>Промо</button>
+    <button class="tab-button" data-view="costumes"><span class="tab-icon" aria-hidden="true">♢</span>Костюмы</button>
     <button class="tab-button" data-view="operations"><span class="tab-icon" aria-hidden="true">⌘</span>Операции</button>
     <button class="tab-button" data-view="system"><span class="tab-icon" aria-hidden="true">◔</span>Система</button>
     <button class="tab-button" data-view="fees"><span class="tab-icon" aria-hidden="true">₽</span>Гонорары</button>
@@ -386,6 +387,29 @@
         </section>
       </section>
 
+      <section class="screen costume-screen" id="screen-costumes">
+        <div class="page-head">
+          <div><p class="eyebrow">Гардероб музыкантов</p><h1>Костюмы</h1></div>
+          <span class="pill" id="costumeUpdatedAt">Нет подтверждений</span>
+        </div>
+        <section class="costume-summary" id="costumeSummary" aria-live="polite">
+          <div><strong>0</strong><span>музыкантов</span></div>
+          <div><strong>0</strong><span>с размером</span></div>
+          <div><strong>0</strong><span>с костюмами</span></div>
+          <div><strong>0</strong><span>нужно уточнить</span></div>
+        </section>
+        <section class="band-section costume-intro">
+          <div>
+            <h2>Общий трекер</h2>
+            <p>Размер, подтверждённые образы, количество комплектов и источник подтверждения. Знак вопроса означает, что факта ещё нет — агент не ставит галочку по догадке.</p>
+          </div>
+          <div class="costume-legend"><span class="yes">✓ есть</span><span class="no">✗ нет</span><span class="unknown">? не проверено</span></div>
+        </section>
+        <div class="costume-grid" id="costumeGrid" aria-live="polite">
+          <div class="costume-empty">Загружаем список музыкантов…</div>
+        </div>
+      </section>
+
       <section class="screen promo-screen" id="screen-promo">
         <div class="page-head promo-page-head">
           <div><p class="eyebrow">Библиотека артистов</p><h1>Промо и презентации</h1></div>
@@ -498,6 +522,6 @@
     </form>
   </dialog>
   <script src="core-parity.js"></script>
-  <script src="core-app.js?v=20260812-009"></script>
+  <script src="core-app.js?v=20260814-001"></script>
 </body>
 </html>

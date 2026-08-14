@@ -6,6 +6,7 @@ const API = Object.freeze({
   summary: "/api/core/summary",
   fees: "/api/core/fees",
   promo: "/api/core/promo",
+  costumes: "/api/core/costumes",
   calendar: "/api/core/calendar",
   threads: "/api/core/threads",
   messages: "/api/core/messages",
@@ -26,6 +27,7 @@ const state = {
   summary: null,
   fees: null,
   promo: null,
+  costumes: { musicians: [], stats: { total: 0, with_size: 0, with_costumes: 0, needs_confirmation: 0 } },
   calendar: { events: [], business_events: 0, technical_events: 0, model_ready: false },
   threads: [],
   coordinationCases: [],
@@ -64,6 +66,8 @@ const state = {
   calendarRefreshedAt: 0,
   promoLoading: false,
   promoRefreshedAt: 0,
+  costumesLoading: false,
+  costumesRefreshedAt: 0,
   sending: false,
   sendingScheduledNow: false,
   rewritingDraft: false,
@@ -515,11 +519,13 @@ function setView(view) {
   document.querySelectorAll(".screen").forEach((screen) => {
     screen.classList.toggle("is-active", screen.id === `screen-${view}`);
   });
-  byId("globalSearchWrap").hidden = !["calendar", "chats", "promo"].includes(view);
+  byId("globalSearchWrap").hidden = !["calendar", "chats", "promo", "costumes"].includes(view);
   byId("globalSearch").value = view === "promo" ? state.promoFilters.q : state.query;
   byId("globalSearch").placeholder = view === "promo"
     ? "Поиск: артист, @username, категория…"
-    : "Поиск: контакт, событие…";
+    : view === "costumes"
+      ? "Поиск: музыкант, размер, тип костюма…"
+      : "Поиск: контакт, событие…";
   if (view === "calendar") {
     renderCalendar();
     refreshCalendar();
@@ -529,6 +535,10 @@ function setView(view) {
   if (view === "system") renderSystem();
   if (view === "tokens") renderTokens();
   if (view === "fees") renderFees();
+  if (view === "costumes") {
+    renderCostumes();
+    refreshCostumes();
+  }
   if (view === "promo") {
     renderPromo();
     refreshPromo();
@@ -552,7 +562,7 @@ function route() {
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "today", "system", "tokens", "fees", "promo", "operations", "broadcast"].includes(name)
+  const view = ["calendar", "chats", "today", "system", "tokens", "fees", "promo", "costumes", "operations", "broadcast"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";
@@ -2161,6 +2171,91 @@ function renderFees() {
   byId("feesHistory").innerHTML = (payload.historical_sources || []).map((source) => `<article class="fee-history"><div><strong>${escapeHtml(source.title)}</strong><span class="pill hold">Историческое · не использовать автоматически</span></div><p>${escapeHtml(source.note)}</p><div class="fee-role-grid">${(source.role_rates || []).map((item) => `<span><b>${escapeHtml(item.role)}</b>${escapeHtml(formatFeeAmount(item.amount_minor, payload.currency))}</span>`).join("")}</div></article>`).join("") || '<div class="empty-state">Источники ставок ещё не добавлены.</div>';
 }
 
+function costumeStatusLabel(status) {
+  if (status === "yes") return '<span class="costume-status yes">✓ есть</span>';
+  if (status === "no") return '<span class="costume-status no">✗ нет</span>';
+  return '<span class="costume-status unknown">? не проверено</span>';
+}
+
+function renderCostumes() {
+  const payload = state.costumes || {};
+  const stats = payload.stats || {};
+  byId("costumeSummary").innerHTML = [
+    [stats.total || 0, "музыкантов"],
+    [stats.with_size || 0, "с размером"],
+    [stats.with_costumes || 0, "с костюмами"],
+    [stats.needs_confirmation || 0, "нужно уточнить"],
+  ].map(([value, label]) => `<div><strong>${formatNumber(value)}</strong><span>${escapeHtml(label)}</span></div>`).join("");
+  byId("costumeUpdatedAt").textContent = payload.updated_at
+    ? `Обновлено ${String(payload.updated_at).replace("T", " ").slice(0, 16)}`
+    : "Нет подтверждений";
+
+  const query = state.query.trim().toLowerCase();
+  const rows = (payload.musicians || []).filter((musician) => (
+    !query || JSON.stringify(musician).toLowerCase().includes(query)
+  ));
+  const grid = byId("costumeGrid");
+  if (!rows.length) {
+    grid.innerHTML = `<div class="costume-empty"><strong>${query ? "Ничего не найдено" : "Список пока пуст"}</strong><p>${query ? "Измени запрос." : "Музыканты появятся из папки «Музыканты», а размеры и костюмы — после подтверждений."}</p></div>`;
+    return;
+  }
+  grid.innerHTML = rows.map((musician) => {
+    const size = musician.size || {};
+    const costumes = musician.costumes || [];
+    const initials = String(musician.display_name || musician.username || "?").trim().slice(0, 1).toUpperCase();
+    const identity = musician.username ? `@${musician.username}` : `ID ${musician.user_id || "—"}`;
+    const costumeRows = costumes.length ? costumes.map((costume) => {
+      const variantCount = Number(costume.variant_count || 0);
+      const variantDetails = (costume.variant_details || []).map((item) => escapeHtml(item)).join(" · ");
+      const meta = [
+        costume.garment_type,
+        variantCount ? `${variantCount} ${variantCount === 1 ? "вариант" : "варианта"}` : "",
+        costume.source_event_id ? `событие ${costume.source_event_id}` : "",
+      ].filter(Boolean).join(" · ");
+      return `<article class="costume-look ${escapeHtml(costume.availability || "unknown")}">
+        ${costume.reference_url ? `<img src="${escapeHtml(costume.reference_url)}" alt="${escapeHtml(costume.title || "Референс костюма")}" loading="lazy">` : '<div class="costume-look-placeholder" aria-hidden="true">♢</div>'}
+        <div class="costume-look-copy">
+          <div><strong>${escapeHtml(costume.title || "Образ без названия")}</strong>${costumeStatusLabel(costume.availability)}</div>
+          <p>${escapeHtml(costume.description || "Описание не сохранено")}</p>
+          <small>${escapeHtml(meta || "детали не указаны")}</small>
+          ${variantDetails ? `<small class="costume-variants">Варианты: ${variantDetails}</small>` : ""}
+        </div>
+      </article>`;
+    }).join("") : '<div class="costume-unconfirmed"><span>?</span><div><strong>Костюмы не подтверждены</strong><p>Агент ещё не получил ответ с доказательством.</p></div></div>';
+    return `<section class="costume-card ${escapeHtml(musician.profile_status || "empty")}">
+      <header>
+        ${musician.avatar_url ? `<img class="costume-avatar" src="${escapeHtml(musician.avatar_url)}" alt="">` : `<div class="costume-avatar placeholder">${escapeHtml(initials)}</div>`}
+        <div><h2>${escapeHtml(musician.display_name || musician.username || musician.identity)}</h2><p>${escapeHtml(identity)}${musician.instrument ? ` · ${escapeHtml(musician.instrument)}` : ""}</p></div>
+        <span class="costume-size ${size.value ? "known" : "unknown"}">${size.value ? `Размер ${escapeHtml(size.value)}` : "Размер ?"}</span>
+      </header>
+      <div class="costume-card-metrics">
+        <span><b>${formatNumber(musician.owned_costume_count || 0)}</b> есть</span>
+        <span><b>${formatNumber(musician.unavailable_costume_count || 0)}</b> нет</span>
+        <span><b>${formatNumber(musician.variant_count || 0)}</b> вариантов</span>
+      </div>
+      <div class="costume-looks">${costumeRows}</div>
+      <footer>${musician.last_confirmed_at ? `Последнее подтверждение: ${escapeHtml(String(musician.last_confirmed_at).replace("T", " ").slice(0, 16))}` : "Подтверждений пока нет"}</footer>
+    </section>`;
+  }).join("");
+}
+
+async function refreshCostumes(force = false) {
+  const now = Date.now();
+  if (state.costumesLoading) return;
+  if (!force && state.costumesRefreshedAt && now - state.costumesRefreshedAt < 300000) return;
+  state.costumesLoading = true;
+  try {
+    state.costumes = await apiGet(API.costumes);
+    state.costumesRefreshedAt = Date.now();
+    renderCostumes();
+  } catch (error) {
+    byId("costumeGrid").innerHTML = `<div class="costume-empty is-error"><strong>Трекер не загрузился</strong><p>${escapeHtml(error.message)}</p></div>`;
+    if (state.activeView === "costumes") toast(`Костюмы не обновлены: ${error.message}`);
+  } finally {
+    state.costumesLoading = false;
+  }
+}
+
 function promoCategoryLabel(value) {
   return PROMO_CATEGORY_LABELS[value] || String(value || "Без категории").replaceAll("_", " ");
 }
@@ -2336,12 +2431,13 @@ async function refreshAll() {
       apiGet(API.autonomy),
       apiGet(API.summary),
       apiGet(API.fees),
+      apiGet(API.costumes),
       apiGet(`${API.threads}?limit=200`),
       apiGet(API.coordinationCases),
       apiGet(API.work),
       apiGet(API.operations),
     ]);
-    const [healthResult, autonomyResult, summaryResult, feesResult, threadsResult, coordinationResult, workResult, operationsResult] = results;
+    const [healthResult, autonomyResult, summaryResult, feesResult, costumesResult, threadsResult, coordinationResult, workResult, operationsResult] = results;
     if (healthResult.status !== "fulfilled" || threadsResult.status !== "fulfilled") {
       const failure = healthResult.status === "rejected" ? healthResult.reason : threadsResult.reason;
       throw failure instanceof Error ? failure : new Error(String(failure || "Core read failed"));
@@ -2352,6 +2448,10 @@ async function refreshAll() {
     if (autonomyResult.status === "fulfilled") state.autonomy = autonomyResult.value;
     if (summaryResult.status === "fulfilled") state.summary = summaryResult.value;
     if (feesResult.status === "fulfilled") state.fees = feesResult.value;
+    if (costumesResult.status === "fulfilled") {
+      state.costumes = costumesResult.value;
+      state.costumesRefreshedAt = Date.now();
+    }
     state.threads = threadsPayload.threads || [];
     if (state.selectedThreadId) {
       const refreshedThread = state.threads.find(
@@ -2372,11 +2472,12 @@ async function refreshAll() {
     renderToday();
     renderSystem();
     renderFees();
+    renderCostumes();
     renderBroadcast();
     renderAutonomy();
     renderManualSendState();
     updateCounts();
-    const partial = results.some((result, index) => ![0, 4].includes(index) && result.status === "rejected");
+    const partial = results.some((result, index) => ![0, 5].includes(index) && result.status === "rejected");
     setConnection(
       health.ok ? "ok" : "error",
       health.ok ? (partial ? "Core доступен · часть данных" : "Core доступен") : "Core неполон",
@@ -2535,6 +2636,7 @@ function bindEvents() {
   byId("refreshButton").addEventListener("click", async () => {
     await refreshAll();
     if (state.activeView === "promo") await refreshPromo(true);
+    if (state.activeView === "costumes") await refreshCostumes(true);
     if (["operations", "broadcast"].includes(state.activeView)) await window.CoreParity?.refresh();
   });
   byId("autonomyButton").addEventListener("click", (event) => {
@@ -2567,6 +2669,7 @@ function bindEvents() {
       state.query = query;
       if (state.activeView === "calendar") renderCalendar();
       if (state.activeView === "chats") renderThreads();
+      if (state.activeView === "costumes") renderCostumes();
     }, 180);
   });
   document.addEventListener("visibilitychange", () => {
