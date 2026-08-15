@@ -1975,6 +1975,10 @@ function renderBrainMap(map) {
 let brainDrag = null; // {tier, from: purpose|null, chipEl|null, moved}
 
 function wireBrainDrag(box) {
+  // Ре-рендер посреди перетаскивания (например, после ×-удаления в другом ряду)
+  // не должен оставить в brainDrag отвязанный от DOM чип: dragend по нему уже
+  // не придёт, а dragover вставил бы его в свежую цепочку дублем.
+  brainDrag = null;
   box.querySelectorAll(".brain-cube").forEach((cube) => {
     cube.addEventListener("dragstart", (e) => {
       brainDrag = { tier: cube.dataset.tier, from: null, chipEl: null };
@@ -2003,13 +2007,22 @@ function wireBrainDrag(box) {
     const chain = row.querySelector(".brain-chain");
     if (!chain) return;
     chain.querySelectorAll(".chip").forEach((chip) => {
-      chip.addEventListener("dragstart", () => {
+      chip.addEventListener("dragstart", (e) => {
         brainDrag = { tier: chip.dataset.tier, from: row.dataset.purpose, chipEl: chip };
         chip.style.opacity = ".4";
+        // Без setData Firefox/Safari вообще не начинают drag.
+        try { e.dataTransfer.setData("text/plain", chip.dataset.tier); } catch { /* не критично */ }
       });
-      chip.addEventListener("dragend", () => {
+      chip.addEventListener("dragend", (e) => {
         chip.style.opacity = "1";
-        if (brainDrag && brainDrag.moved && brainDrag.chipEl === chip) saveBrainChain(row);
+        if (brainDrag && brainDrag.moved && brainDrag.chipEl === chip) {
+          // Escape / отпускание вне валидной цели = отмена: dropEffect остаётся
+          // "none" (мы явно ставим "move" в dragover). Превью откатываем
+          // ре-рендером, в конфиг ничего не пишем.
+          const cancelled = e.dataTransfer && e.dataTransfer.dropEffect === "none";
+          if (cancelled) renderTokens();
+          else saveBrainChain(row);
+        }
         brainDrag = null;
       });
       const rm = chip.querySelector(".chip-remove");
@@ -2023,6 +2036,8 @@ function wireBrainDrag(box) {
       e.preventDefault();
       if (brainDrag.chipEl && brainDrag.from === row.dataset.purpose) {
         // локальная перестановка — живой предпросмотр
+        if (!brainDrag.chipEl.isConnected) return; // ре-рендер съел исходный чип
+        try { e.dataTransfer.dropEffect = "move"; } catch { /* не критично */ }
         const target = e.target.closest ? e.target.closest(".chip") : null;
         if (target && target !== brainDrag.chipEl) {
           const rect = target.getBoundingClientRect();
@@ -2153,21 +2168,35 @@ function renderOutputBudget(ob) {
   });
 }
 
+/* Быстрые последовательные вызовы (два сохранения подряд) не должны давать
+   устаревшему ответу закрасить свежий: рисует только последний вызов. */
+let tokensRenderSeq = 0;
+
 async function renderTokens() {
+  const seq = ++tokensRenderSeq;
+  const stale = () => seq !== tokensRenderSeq;
   try {
-    renderOutputBudget(await apiGet("/api/app/output_budget"));
+    const ob = await apiGet("/api/app/output_budget");
+    if (stale()) return;
+    renderOutputBudget(ob);
   } catch (error) {
+    if (stale()) return;
     renderOutputBudget({ error: String(error) });
   }
   try {
-    renderBrainMap(await apiGet("/api/app/brain_map"));
+    const map = await apiGet("/api/app/brain_map");
+    if (stale()) return;
+    renderBrainMap(map);
   } catch (error) {
+    if (stale()) return;
     renderBrainMap({ rows: [], error: String(error) });
   }
   try {
     const cfg = await apiGet("/api/app/token_limits");
+    if (stale()) return;
     state.tokenLimits = cfg.limits || {};
   } catch { state.tokenLimits = state.tokenLimits || {}; }
+  if (stale()) return;
   renderTokenLimits();
   const providers = byId("tokenProviders");
   const agents = byId("tokenAgents");
@@ -2177,10 +2206,12 @@ async function renderTokens() {
   try {
     data = await apiGet("/api/app/token_spend");
   } catch (error) {
+    if (stale()) return;
     providers.innerHTML = `<div class="empty-state"><strong>Нет данных</strong>${escapeHtml(String(error))}</div>`;
     byId("tokensSpendPill").textContent = "Ошибка";
     return;
   }
+  if (stale()) return;
   state.tokenSpend = data;
   const weekUsd = (data.providers || []).reduce((s, p) => s + (p.week.usd || 0), 0);
   byId("tokensSpendPill").textContent = "Платно за неделю: " + usdFmt(weekUsd);
@@ -2243,6 +2274,9 @@ async function saveTokenLimits() {
     const res = await apiPost("/api/app/set_token_limits", { limits: payload });
     state.tokenLimits = res.limits || payload;
     if (note) note.textContent = "Сохранено. Лимиты применятся к новым вызовам.";
+    // Недельный лимит рисуется на кубиках карты мозгов — без перечитывания
+    // кубик так и говорил бы «лимит не задан», как будто сохранение не прошло.
+    renderTokens();
   } catch (error) {
     if (note) note.textContent = "Ошибка: " + String(error).slice(0, 80);
   }
