@@ -546,6 +546,7 @@ function setView(view) {
   if (view === "operations") window.CoreParity?.activate("overview");
   if (view === "broadcast") renderBroadcast();
   if (view === "sessions") refreshSessions();
+  if (view === "arbitr") renderArbitr();
 }
 
 function route() {
@@ -563,7 +564,7 @@ function route() {
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "today", "system", "tokens", "fees", "promo", "costumes", "operations", "broadcast"].includes(name)
+  const view = ["calendar", "chats", "today", "system", "tokens", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "arbitr"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";
@@ -2914,3 +2915,134 @@ route();
 refreshAll();
 window.setInterval(refreshAll, 30000);
 window.setInterval(syncActiveThread, 5000);
+
+/* ── Арбитраж «старый vs Core» ──────────────────────────────────────────────
+   Судейство shadow-сравнений живёт в этом приложении; данные и append-only
+   журнал вердиктов остаются у legacy-владельца — бэкенд проксирует
+   /api/arbitr/* на 8878 (тот же паттерн, что «Токены»). */
+
+const ARBITR_DECISION_RU = {
+  blocked: "заблокировано",
+  no_business_intent: "не бизнес-запрос",
+  already_materialized: "уже материализовано",
+  propose_create_opportunity: "создать сделку",
+  propose_draft: "черновик ответа",
+  hold: "пауза",
+  noop: "без действия",
+};
+const ARBITR_AXES_RU = {
+  relationship: "отношения", intent: "намерение", action: "действие",
+  subject: "субъект", money_contract: "деньги", external_effect: "внеш. эффект",
+};
+const ARBITR_VERDICTS = [
+  ["old", "Старый прав"],
+  ["core", "Core прав"],
+  ["both_ok", "Оба ок"],
+  ["both_bad", "Оба плохо"],
+];
+
+function arbitrWhen(epoch) {
+  if (!epoch) return "—";
+  try {
+    return new Date(epoch * 1000).toLocaleString("ru-RU", {
+      timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit",
+      hour: "2-digit", minute: "2-digit",
+    });
+  } catch { return "—"; }
+}
+
+function arbitrEngineHtml(decision, label, pillClass) {
+  const d = decision || {};
+  const meta = [d.intent_kind, d.relationship].filter(Boolean).join(" · ");
+  return `<div class="arbitr-engine">
+    <div class="arbitr-engine-head"><span class="pill ${pillClass}">${escapeHtml(label)}</span>
+      <strong>${escapeHtml(ARBITR_DECISION_RU[d.decision] || d.decision || "—")}</strong></div>
+    ${meta ? `<div class="mtext">${escapeHtml(meta)}</div>` : ""}
+    ${d.blocker ? `<div class="arbitr-blocker"><span class="pill danger">${escapeHtml(String(d.blocker).slice(0, 60))}</span></div>` : ""}
+  </div>`;
+}
+
+function arbitrCardHtml(card) {
+  const classPill = card.classification === "blocker" ? "danger"
+    : card.classification === "mismatch" ? "hold" : "ok";
+  const body = String((card.message || {}).body || "").replace(/\s+/g, " ").trim();
+  const axes = Object.entries(card.axes || {}).map(([axis, ok]) =>
+    `<span class="pill ${ok ? "ok" : "danger"}">${ok ? "✓" : "✗"} ${escapeHtml(ARBITR_AXES_RU[axis] || axis)}</span>`).join(" ");
+  const actions = card.verdict
+    ? `<p class="mtext">Вердикт: ${escapeHtml(card.verdict)}</p>`
+    : `<div class="arbitr-actions">${ARBITR_VERDICTS.map(([value, label]) =>
+        `<button class="text-button" type="button" data-verdict="${value}">${label}</button>`).join("")}</div>`;
+  return `<section class="band-section arbitr-card" data-comparison="${escapeHtml(card.comparison_id)}">
+    <div class="section-head"><span class="pill ${classPill}">${escapeHtml(card.classification || "?")}</span>
+      <span class="arbitr-when">${arbitrWhen(card.compared_at_epoch)}</span></div>
+    <p class="arbitr-msg">${escapeHtml(body.slice(0, 240) || "входящее без текста")}</p>
+    <div class="arbitr-engines">
+      ${arbitrEngineHtml(card.legacy, "старый", "technical")}
+      ${arbitrEngineHtml(card.core, "Core", "ok")}
+    </div>
+    <div class="arbitr-axes">${axes}</div>
+    ${actions}
+  </section>`;
+}
+
+async function renderArbitr() {
+  const pill = byId("arbitrPill");
+  const stats = byId("arbitrStats");
+  const cardsBox = byId("arbitrCards");
+  try {
+    const st = await apiGet("/api/arbitr/stats");
+    const byVerdict = st.by_verdict || {};
+    pill.textContent = `Рассужено ${st.judged || 0} из ${st.comparisons_total || 0}`;
+    pill.className = "pill " + ((st.judged || 0) > 0 ? "ok" : "hold");
+    stats.innerHTML = `
+      <span class="pill ok">Core прав: ${byVerdict.core || 0}</span>
+      <span class="pill technical">старый прав: ${byVerdict.old || 0}</span>
+      <span class="pill ok">оба ок: ${byVerdict.both_ok || 0}</span>
+      <span class="pill danger">оба плохо: ${byVerdict.both_bad || 0}</span>`;
+  } catch (error) {
+    pill.textContent = "Нет данных";
+    pill.className = "pill hold";
+    stats.innerHTML = `<span class="mtext">${escapeHtml(String(error.message || error))}</span>`;
+  }
+  cardsBox.innerHTML = '<div class="empty-state">Загрузка…</div>';
+  let queue;
+  try {
+    queue = await apiGet("/api/arbitr/queue?limit=20");
+  } catch (error) {
+    cardsBox.innerHTML = `<div class="empty-state"><strong>Очередь недоступна</strong>${escapeHtml(String(error.message || error))}</div>`;
+    return;
+  }
+  const cards = queue.cards || [];
+  if (!cards.length) {
+    // Пустой экран обязан объяснять причину живыми числами из диагностики,
+    // а не догадкой (прецедент 25.07 в первой версии экрана).
+    const dg = queue.diagnostics || {};
+    const why = dg.blockers && Object.keys(dg.blockers).length
+      ? Object.entries(dg.blockers).map(([reason, count]) => `${reason}: ${count}`).join(" · ")
+      : "причина не определена";
+    cardsBox.innerHTML = `<div class="empty-state"><strong>Сравнений в очереди нет</strong>
+      Что мешает сейчас: ${escapeHtml(why)}.<br>
+      Разобрано ядром ${dg.interpreted ?? "?"} · результат старого есть у ${dg.with_legacy_result ?? "?"} ·
+      пересечение ${dg.ready ?? "?"} из ${dg.inbound ?? "?"} входящих.</div>`;
+    return;
+  }
+  cardsBox.innerHTML = cards.map(arbitrCardHtml).join("");
+  cardsBox.querySelectorAll("[data-comparison]").forEach((card) => {
+    card.querySelectorAll("button[data-verdict]").forEach((button) => {
+      button.addEventListener("click", () =>
+        submitArbitrVerdict(card, card.dataset.comparison, button.dataset.verdict));
+    });
+  });
+}
+
+async function submitArbitrVerdict(card, comparisonId, verdict) {
+  card.querySelectorAll("button[data-verdict]").forEach((b) => { b.disabled = true; });
+  try {
+    await apiPost("/api/arbitr/verdict", { comparison_id: comparisonId, verdict });
+    toast("Вердикт записан");
+    renderArbitr();
+  } catch (error) {
+    toast(`Вердикт не записан: ${error.message}`);
+    card.querySelectorAll("button[data-verdict]").forEach((b) => { b.disabled = false; });
+  }
+}

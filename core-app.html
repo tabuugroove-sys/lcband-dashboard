@@ -51,6 +51,7 @@
     <button class="tab-button" data-view="promo"><span class="tab-icon" aria-hidden="true">▤</span>Промо</button>
     <button class="tab-button" data-view="costumes"><span class="tab-icon" aria-hidden="true">♢</span>Костюмы</button>
     <button class="tab-button" data-view="operations"><span class="tab-icon" aria-hidden="true">⌘</span>Операции</button>
+    <button class="tab-button" data-view="arbitr"><span class="tab-icon" aria-hidden="true">⚖</span>Арбитраж</button>
     <button class="tab-button" data-view="system"><span class="tab-icon" aria-hidden="true">◔</span>Система</button>
     <button class="tab-button" data-view="fees"><span class="tab-icon" aria-hidden="true">₽</span>Гонорары</button>
     <button class="tab-button" data-view="tokens"><span class="tab-icon" aria-hidden="true">◈</span>Токены</button>
@@ -377,6 +378,16 @@
         </section>
       </section>
 
+      <section class="screen" id="screen-arbitr">
+        <div class="page-head"><div><p class="eyebrow">Старый против Core</p><h1>Арбитраж</h1></div><span class="pill" id="arbitrPill">Загрузка…</span></div>
+        <section class="band-section">
+          <div class="section-head"><h2>Счёт судейства</h2></div>
+          <div class="arbitr-stats" id="arbitrStats"></div>
+          <p class="mtext">Каждая карточка — одно входящее и решения обоих движков рядом. Твои вердикты — ground truth для перехода на Core; журнал append-only, «оба плохо» уходит на разбор.</p>
+        </section>
+        <div id="arbitrCards"></div>
+      </section>
+
       <section class="screen" id="screen-fees">
         <div class="page-head"><div><p class="eyebrow">Внутренний каталог</p><h1>Гонорары музыкантов</h1></div><span class="pill hold" id="feesStatusPill">Требует подтверждения</span></div>
         <section class="fees-notice">
@@ -545,6 +556,6 @@
     </form>
   </dialog>
   <script src="core-parity.js"></script>
-  <script src="core-app.js?v=20260815-002"></script>
+  <script src="core-app.js?v=20260815-003"></script>
 </body>
 </html>

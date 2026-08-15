@@ -1219,3 +1219,16 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .arch-map-note { margin: 10px 0 12px; color: var(--muted); }
 .arch-map-link { display: inline-block; font-weight: 650; color: var(--accent); text-decoration: none; }
 .arch-map-link:hover { text-decoration: underline; }
+
+/* ── Арбитраж «старый vs Core» ─────────────────────────────────────────── */
+.arbitr-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.arbitr-card .section-head { justify-content: flex-start; gap: 10px; }
+.arbitr-when { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.arbitr-msg { margin: 8px 0 0; color: var(--muted); }
+.arbitr-engines { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+.arbitr-engine { flex: 1; min-width: 220px; }
+.arbitr-engine-head { display: flex; align-items: center; gap: 8px; }
+.arbitr-blocker { margin-top: 4px; }
+.arbitr-axes { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+.arbitr-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+.arbitr-actions .text-button { border: 1px solid var(--line); }
