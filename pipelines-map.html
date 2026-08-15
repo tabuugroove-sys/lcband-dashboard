@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Карта двух пайплайнов — LC Band</title>
+<link rel="stylesheet" href="/pipelines-map.css">
+</head>
+<body>
+<div class="wrap">
+<header>
+  <a class="back-link" href="/core-app.html">← в приложение</a>
+  <div class="eyebrow">LC Band Automation · срез 14.08.2026, вечер</div>
+  <h1>Карта двух пайплайнов</h1>
+  <p class="lede">Как устроен легаси-конвейер (V1), что уже реально делает новое ядро (Core V2), по каким мостам они связаны — и как именно принимается решение, какая архитектура лучше на каждом участке.</p>
+
+  <div class="facts">
+    <div class="fact">
+      <div class="fact-label">V1 · legacy</div>
+      <div class="fact-value">Единственный, кто <strong>отправляет</strong> и ведёт воронку. ~80 launchd-агентов вокруг <code>orders.db</code>.</div>
+    </div>
+    <div class="fact">
+      <div class="fact-label">V2 · Core</div>
+      <div class="fact-value">Схема <strong>v73</strong>, 496 МБ, 6 244 треда, 97 681 сообщение. Режим <code>shadow_draft_only</code>: видит всё, пишет черновики, <strong>не отправляет</strong>.</div>
+    </div>
+    <div class="fact">
+      <div class="fact-label">Сравнение</div>
+      <div class="fact-value">175 сравнений решений, <strong>0 судейств</strong>, 0 совпадений (154 blocker / 21 mismatch). Стоит с 12.08.</div>
+    </div>
+    <div class="fact crit">
+      <div class="fact-label">Сломано на момент среза</div>
+      <div class="fact-value">3 V2-агента убиты битым venv; <strong>telegram-delivery в crash-loop</strong> — исходящие TG обеих систем стоят.</div>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head"><span class="num">01</span><h2>Как работает V1 — живой конвейер</h2></div>
+
+  <p>V1 — это тот стек, который прямо сейчас зарабатывает деньги. Один Mac, ~80 launchd-агентов, единый SQLite <code>orders.db</code> как источник правды по CRM плюс семейство JSON-сторов (<code>lcb_orders.json</code>, <code>broker_orders.json</code>, <code>pending_approvals.json</code> и десятки других). Путь сообщения:</p>
+
+  <div class="flow">Уши        realtime-gateway: TG (Telethon, 3 сессии) · VK longpoll · WA Baileys · IG
+Классифи-  smart_funnel.classify_unified — один Opus-вызов решает «кто это,
+кация      что хочет, какой шаг воронки» (fallback на словарь при отказе AI)
+Состояние  orders.db (CRM) + lcb_orders.json (событие) + broker_orders.json + event graph
+Писари     unified_dm_responder (владелец клиентских DM) · followup_orchestrator ·
+           broker pipeline · event-ops · band_member_reply — черновик всегда через Opus
+Контроль   presend AI-review (fail-safe → skip) · tg_outbound_guard (режим live_direct) ·
+           approval-бот — только деньги/договор
+Отправка   telegram_delivery_service — единственный процесс с правом писать
+           в TG-аккаунт · wa_auto_sender · VK API — анти-бан лимиты, jitter
+Аудит      morning-reconciliation · watchdogs · SLA-надзор · daily report</div>
+
+  <p><strong>Сильная сторона:</strong> полное покрытие бизнеса. Два года инцидентов превращены в правила: анти-бан, запрет писать музыкантам, hard-block на финансы, refusal-политика, brand-guard, каноны цен. Всё это живёт в V1 и нигде больше.</p>
+
+  <p><strong>Структурная болезнь</strong> (полный разбор 11.07, 51 агент-картограф): из 25 подтверждённых конфликтов 17 — один и тот же класс дефекта: <em>общий JSON-файл, куда пишут несколько процессов без единого владельца и без общей блокировки</em>. Отсюда реально случавшиеся double-send через <code>pending_approvals.json</code> (~12 писателей, 4 режима блокировок), гонки WA-очереди (6 писателей), dead-letter-очередь, терявшая ответы клиентам, риск повторного питча из-за <code>sent_proposals</code> без lock. Плюс: ~350 env-флагов без приоритетов, логика воронки размазана по 4 местам, нет канонического времени, нет correlation-id. Лечится это не заплатками, а принципом «у каждой единицы состояния один сервис-владелец» — что и есть V2.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">02</span><h2>Как работает V2 — Core</h2></div>
+
+  <p>Core V2 — транзакционное ядро в <code>rewrite/</code>, построенное по нормативным документам (<code>MASTER_PLAN.md</code> v5.5, <code>DOMAIN_MODEL.md</code>). Четыре принципа, каждый из которых закрывает класс болезней V1:</p>
+  <ul>
+    <li><strong>Один писатель БД.</strong> Только ядро открывает <code>core.db</code> на запись; все изменения — типизированные команды через CommandBus, история append-only, ревизии неизменяемы. Гонка «12 писателей в один JSON» структурно невозможна.</li>
+    <li><strong>Durable inbox/outbox.</strong> Входящее подтверждается провайдеру только после записи в ядро; исходящее — это intent → attempt → receipt, «поставлено в очередь» ≠ «отправлено».</li>
+    <li><strong>Shadow запрещает все внешние эффекты</strong>, не только отправку: календарь, папки, контакты, файлы. Обойти executor из shadow-кода нельзя по построению.</li>
+    <li><strong>AI не пишет состояние.</strong> Модель выдаёт типизированный intent; проверка, мутация и эффект принадлежат ядру.</li>
+  </ul>
+
+  <h3>Физика на момент среза</h3>
+  <div class="table-wrap"><table>
+    <tr><th>Показатель</th><th>Значение</th><th>Что это значит</th></tr>
+    <tr><td>Схема</td><td class="n">v73 (73 миграции)</td><td>Код и живая БД совпадают; «v49→v54» из июльских записей — давно пройденный этап</td></tr>
+    <tr><td>База</td><td class="n">496 МБ + зеркало календаря 2,4 ГБ</td><td><code>~/Library/Application Support/LCBand/CoreV2/core.db</code></td></tr>
+    <tr><td>Треды / сообщения</td><td class="n">6 244 / 97 681</td><td>TG 2 886 · VK 2 976 · IG 238 · WA 139; свежие сообщения идут постоянно</td></tr>
+    <tr><td>Черновики</td><td class="n">370, из них 14 за 14.08</td><td>Писарь живой и работает на реальном входящем</td></tr>
+    <tr><td>Opportunity / Booking</td><td class="n">1 / 1</td><td><strong>Воронку ядро не ведёт</strong> — сделки живут в V1</td></tr>
+    <tr><td>Исходящие intent'ы</td><td class="n">0 за всю историю</td><td>Ядро ни разу ничего не отправило само — канон соблюдён физически</td></tr>
+  </table></div>
+
+  <h3>Компоненты и их статус</h3>
+  <div class="table-wrap"><table>
+    <tr><th>Компонент</th><th>Роль</th><th>Статус на 14.08</th></tr>
+    <tr><td><code>core-app-backend</code> :8880</td><td>Приложение V2 (<code>core-app.html</code>), 30 ручек <code>/api/core/*</code>, мутации только через операторскую сессию + одноразовый challenge</td><td><span class="chip ok">Жив</span></td></tr>
+    <tr><td><code>core-shadow-writer</code></td><td>Пишет черновики ответов + фолоуап/координация-драфты; только команда <code>create_draft</code>, ноль эффектов</td><td><span class="chip warn">Жив через nudge</span></td></tr>
+    <tr><td><code>tg-live-comparison</code></td><td>Сравнивает решение V1 и решение ядра по каждому входящему TG</td><td><span class="chip dead">Стоит с 12.08</span></td></tr>
+    <tr><td><code>core-calendar-mirror</code></td><td>Каждые 5 мин проецирует legacy-календарь в read-only зеркало ядра</td><td><span class="chip dead">Стоит с 12.08</span></td></tr>
+    <tr><td><code>telegram-delivery</code></td><td>Не V2, а legacy-синглтон: единственный процесс с правом отправки в TG; V2 лишь пользуется им</td><td><span class="chip dead">Crash-loop</span></td></tr>
+    <tr><td><code>core-capytime-replica</code></td><td>Offsite read-реплика ядра на сервере</td><td><span class="chip dead">Молчит 6 дней</span></td></tr>
+  </table></div>
+
+  <div class="cols">
+    <div class="panel v2">
+      <h3>Что V2 уже умеет</h3>
+      <ul>
+        <li>Видит <strong>100% входящих TG и WA</strong> (зеркало, когорта «все») + вся история импортирована (85 739 сообщений).</li>
+        <li>Пишет черновики ответов, разбуженный входящим за секунды (nudge), а не по таймеру.</li>
+        <li>Ручная отправка оператором из V2-приложения (TG и WA) — через legacy-очередь, с провайдерским receipt.</li>
+        <li>Проекция воронки: стадия из головной ревизии opportunity, бейдж V2/V1 в папках приложения.</li>
+        <li>Первый разрешённый write в legacy: прямые лиды ядра → <code>orders.db</code> → TG-папки (14.08, живой).</li>
+        <li>Operations-мост: ~70 операторских действий legacy доступны из V2-приложения по allowlist.</li>
+      </ul>
+    </div>
+    <div class="panel v1">
+      <h3>Чего V2 не делает</h3>
+      <ul>
+        <li><strong>Не отправляет сам.</strong> <code>agent_send_enabled=false</code>, блокеры: «диспетчер агента не развёрнут» + транспорт TG в режиме <code>live_direct</code> у V1. При этом в UI автономия уже выбрана (24.07) — намерение есть, исполнителя нет.</li>
+        <li><strong>Не владеет входящими.</strong> Режим mirror: копия идёт в ядро, обрабатывает по-прежнему V1.</li>
+        <li><strong>Не ведёт воронку</strong> — 1 opportunity; стадии читает из legacy CRM.</li>
+        <li>VK/IG живьём в ядро не пишутся (только исторический импорт).</li>
+        <li>Проекции наружу (календарь Google, папки, контакты) — выключены до отдельных canary.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">03</span><h2>Мосты между пайплайнами</h2></div>
+
+  <p>Системы связаны девятью явными мостами. Направление важно: почти всё течёт из legacy в ядро (наблюдение), и только два узких канала — обратно (и оба под гейтами).</p>
+
+  <div class="table-wrap"><table>
+    <tr><th>Мост</th><th>Направление</th><th>Что делает</th></tr>
+    <tr><td>Зеркало входящих TG / WA / VK</td><td><span class="dir l2c">legacy → core</span></td><td>Листенеры V1 кладут копию каждого входящего в durable inbox ядра; V1 остаётся владельцем обработки</td></tr>
+    <tr><td>Post-result shadow</td><td><span class="dir l2c">legacy → core</span></td><td>Решение V1 по сообщению (включая «промолчал») записывается в ядро — это «левая сторона» сравнения</td></tr>
+    <tr><td>Nudge писаря</td><td><span class="dir l2c">legacy → core</span></td><td>Листенер будит shadow-writer сразу после входящего</td></tr>
+    <tr><td>Зеркало календаря</td><td><span class="dir l2c">legacy → core</span></td><td>Read-only проекция трёх legacy-источников в БД ядра, раз в 5 минут</td></tr>
+    <tr><td>Импорт переписок / ролей / WA-истории</td><td><span class="dir l2c">legacy → core</span></td><td>Ручные разовые прогоны (август): вся история в ядре, роли посеяны из CRM</td></tr>
+    <tr><td>Receipt-реконсиляция</td><td><span class="dir l2c">legacy → core</span></td><td>Доставленное legacy-сервисом отражается в ядре как факт с provider-receipt</td></tr>
+    <tr><td>Ручная отправка из V2</td><td><span class="dir c2l">core → legacy</span></td><td>V2-приложение кладёт команду в legacy-очередь доставки (как продюсер «dashboard»); своего транспорта у ядра нет</td></tr>
+    <tr><td>Проекция прямых лидов</td><td><span class="dir c2l">core → legacy</span></td><td><strong>Единственный write ядра в <code>orders.db</code></strong> — верифицированные клиенты → воронка → TG-папки (CHG-20260814-003)</td></tr>
+    <tr><td>Воронка-read-model + Арбитраж</td><td><span class="dir l2c">оба читают</span></td><td><code>/api/v2/funnel_threads</code>: стадия из ядра, где ядро ведёт лид, иначе фолбэк V1 с бейджем источника; вкладка Арбитраж — судейство расхождений</td></tr>
+  </table></div>
+
+  <div class="callout">
+    <p><strong>Канон двух пайплайнов (с 19.07):</strong> отправляет только legacy, Core — в тени; любое изменение поведения — сначала сценарий и инвариант, несрочное строится только в Core; срочное — «Core решает, legacy исполняет» с временным фиксом и условием снятия. Проверяется машинно: ledger-запись без «Dual pipeline package» не проходит валидацию.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">04</span><h2>Сопоставление данных: что во что переезжает</h2></div>
+
+  <p>Целевая карта переноса зафиксирована в доменной модели — у каждого legacy-стора есть именованный приёмник и правило переезда:</p>
+
+  <div class="table-wrap"><table>
+    <tr><th>Legacy (V1)</th><th>Target (V2)</th><th>Правило</th></tr>
+    <tr><td><code>orders.db.orders</code></td><td>opportunities + bookings</td><td>Backfill → сверка → переключение писателя</td></tr>
+    <tr><td><code>message_events</code> + кэши</td><td>messages + inbox_events</td><td>Дедуп по provider-id, сырьё сохраняется <em>(уже сделано)</em></td></tr>
+    <tr><td><code>lcb_orders.json</code></td><td>доменные таблицы + проекция</td><td>Операторские факты импортируются до пересборки</td></tr>
+    <tr><td><code>event_planning.json</code></td><td>чек-лист / составы / финансы</td><td>Ручные секции — с provenance</td></tr>
+    <tr><td>event graph (<code>eg_*</code>)</td><td>bookings / relations / history</td><td>Стабильные UUID, сначала починка FK</td></tr>
+    <tr><td><code>broker_orders.json</code></td><td>broker / vendor / candidate таблицы</td><td>Импорт историй и свежести котировок</td></tr>
+    <tr><td><code>pending_approvals.json</code></td><td>approvals + outbound intents</td><td>Протухшее в карантин, никогда не авто-дренаж</td></tr>
+    <tr><td>Очереди WA/TG/VK</td><td>jobs + delivery attempts</td><td>Импорт как «истёкшие/на ревью», без переавторизации не слать</td></tr>
+    <tr><td>Календарь / папки / контакты / Sheets</td><td>projection links</td><td>Проекция никогда не становится источником правды</td></tr>
+  </table></div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">05</span><h2>Как выбирается «лучшая архитектура»</h2></div>
+
+  <p>Важная рамка: <strong>выбор «V1 или V2» как целого уже сделан</strong> — решением от 10–11.07 цель зафиксирована (эволюция внутри, strangler-миграция, V2 — целевой хребет). Реальный открытый вопрос другой: <em>когда каждый конкретный кусок работы можно безопасно передать ядру</em>. И для этого построен измерительный конвейер, а не спор мнений:</p>
+
+  <ol>
+    <li><strong>Shadow-сравнение решений.</strong> Одно и то же входящее проходит оба мозга. Решение V1 нормализуется, ядро независимо строит своё; сравнение идёт по шести осям: отношение к контакту, намерение, действие, предмет, деньги/договор, внешний эффект.</li>
+    <li><strong>Арбитраж = ground truth.</strong> Расхождения попадают во вкладку «Арбитраж» (основное приложение → LCB 2.0); твой вердикт по каждому — и есть критерий, кто прав. Не «V1 всегда эталон»: в 106 задокументированных случаях V1 ошибался.</li>
+    <li><strong>Бенчи писаря.</strong> На корпусе из 8 реальных переписок: V1 отправил все 8; V2 дал 5 черновиков и 3 честно отправил оператору, 0 ошибок. Два прогона различались только стилем текста — поведение стабильно.</li>
+    <li><strong>Измеримый cutover-гейт</strong> (для каждого канала/назначения): тень ≥14 дней и ≥300 событий; расхождений по деньгам/договорам — ноль; прочих &lt;2% и все разобраны; откат отрепетирован и укладывается в 15 минут.</li>
+    <li><strong>План волн</strong> (аудит 01.08: 49 агентов, 112 возможностей V1, 33 подтверждённых пробела, 31 блокирует cutover): W0 сравнение → W1 «руки» (отправка+гейты) → W2 цена → W3 память сделки → W4 дожимы (первая безопасная миграция) → W5 брокер → W6 лиды из event-чатов → W7 событие.</li>
+  </ol>
+
+  <div class="callout warn">
+    <p><strong>Где этот конвейер на момент среза: стоит на нуле.</strong> 175 сравнений накоплено, все — blocker (154) или mismatch (21), совпадений ноль, судейских вердиктов ноль, последнее сравнение — 12.08. Причина не в расхождении движков, а в инфраструктуре: интерпретатору не достались AI-провайдеры (vault заблокирован, суточные бюджеты CLI исчерпаны), поэтому большинство сравнений падает как «нет принятой интерпретации». Воронка это подтверждает: из 49 LCB-тредов все 49 показывают бейдж V1 — в ядре ровно одна сделка. <strong>Данных для выбора пока нет — это и есть волна W0.</strong></p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">06</span><h2>Что было сломано на момент среза</h2></div>
+
+  <div class="cols">
+    <div class="panel crit">
+      <h3>Битый venv → 3 агента лежат</h3>
+      <p class="panel-note">12.08 ~16:20 <code>brew cleanup</code> удалил Python 3.14.4, на который указывал симлинк <code>.venv/bin/python</code>. Три plist'а V2 с этим путём (<code>shadow-writer</code>, <code>calendar-mirror</code>, <code>tg-live-comparison</code>) с тех пор умирают с кодом 78, не успев записать ни строчки. Писарь выживает только потому, что листенер будит его напрямую. Лечение — пересоздать venv или перевести plist'ы на <code>/opt/homebrew/bin/python3</code> (как уже сделано у <code>core-app-backend</code>).</p>
+    </div>
+    <div class="panel crit">
+      <h3>telegram-delivery в crash-loop</h3>
+      <p class="panel-note">Preflight отказывается стартовать: 5 критических файлов (<code>event_ops_bot</code>, <code>project_reviewed_send</code>, <code>send_pending_approval</code>, <code>telegram_delivery_queue</code>, <code>telegram_delivery_service</code>) изменены и не закоммичены (правки от 13.08, 19:23). Это <strong>единственный владелец отправки в TG</strong>: пока он стоит, исходящие стоят и у V1, и у V2; 5 команд за 14.08 уже протухли (expired) и потребуют переотправки.</p>
+    </div>
+  </div>
+  <div class="panel crit mt16">
+    <h3>Offsite-реплика молчит 6 дней</h3>
+    <p class="panel-note">Последняя успешная синхронизация capytime-реплики — 08.08; с тех пор SSH до сервера таймаутит, а уведомления об этом гасятся дедупликацией — отказ тихий.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">07</span><h2>Вывод</h2></div>
+  <p>V1 — работающий, полный по покрытию, но структурно больной конвейер: его дефекты — один класс (общее состояние без владельца), и чинить их внутри V1 бессмысленно. V2 — архитектурно правильный ответ ровно на эту болезнь, он уже видит весь трафик, держит всю историю и пишет черновики, но пока не умеет главного — «рук» (отправки) и воронки, и по канону не получит их без данных сравнения.</p>
+  <p>Поэтому «выбрать лучшую архитектуру» сегодня — значит не сравнивать схемы на бумаге, а <strong>запустить измерение</strong>: починить runtime (venv, delivery), разблокировать AI-провайдеров интерпретатора и начать судить арбитраж. Как только сравнение начнёт производить вердикты, выбор по каждой волне (дожимы → брокер → лиды → событие) станет арифметикой гейта: 14 дней, 300 событий, ноль расхождений по деньгам.</p>
+</section>
+
+<footer>
+  <p>Статическая страница-снимок (обновляется вручную, не живая телеметрия). Источники: MASTER_PLAN.md v5.5 · DOMAIN_MODEL.md · REWRITE_EXECUTION_PROTOCOL.md · docs/rewrite/V2_GAP_PLAN_2026-07-31.md · docs/changes/2026 (CHG-20260801-002, CHG-20260802-003, CHG-20260811-001, CHG-20260814-003) · живой срез 14.08: launchctl, /api/core/health, core.db, tg_delivery.sqlite, логи /tmp. Разбор V1: ARCHITECTURE_REWRITE_v1.md (полное осознание 11.07).</p>
+</footer>
+</div>
+</body>
+</html>
