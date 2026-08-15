@@ -1856,7 +1856,7 @@ function renderSystem() {
   byId("systemHealthPill").className = `pill ${health.ok ? "ok" : "danger"}`;
 }
 
-const TOKEN_LIMIT_PROVIDERS = ["codex", "claude", "kimi", "minimax"];
+const TOKEN_LIMIT_PROVIDERS = ["codex", "claude", "kimi", "minimax", "antigravity"];
 
 function tokFmt(n) {
   n = Number(n) || 0;
@@ -1882,6 +1882,49 @@ function renderProviderStatusStrip(disabledTiers) {
   return `<div class="provider-status-strip">${items}</div>`;
 }
 
+function brainChipCls(t) {
+  return (t.wallet === "paid" ? "chip chip-paid" : t.tier === "kimi" ? "chip chip-kimi"
+    : t.tier === "claude_cli" ? "chip chip-claude"
+    : t.tier === "minimax" ? "chip chip-minimax"
+    : t.tier === "codex" ? "chip chip-codex"
+    : t.tier === "antigravity" ? "chip chip-antigravity" : "chip")
+    + (t.disabled ? " chip-disabled" : "");
+}
+
+/* Палитра «кубиков»: все доступные мозги. Кубик перетаскивается на цепочку,
+   чтобы назначить модель задаче; внутри — расход 24ч/7д и остаток недельного
+   справочного лимита (задаётся на экране лимитов, вызовы не блокирует). */
+function renderBrainPalette(palette) {
+  if (!palette || !palette.length) return "";
+  const cubes = palette.map((p) => {
+    const paid = p.wallet === "paid";
+    const limit = Number(p.week_limit_tokens) || 0;
+    const weekPct = limit ? Math.min(100, Math.round(100 * p.week_tokens / limit)) : 0;
+    const dayPct = limit ? Math.min(100, Math.round(100 * p.day_tokens / limit)) : 0;
+    let meter;
+    if (paid) {
+      meter = `<small class="cube-line">24ч ${tokFmt(p.day_tokens)} · 7д ${tokFmt(p.week_tokens)} · ${usdFmt(p.week_usd)}/нед</small>`;
+    } else if (limit) {
+      meter = `<div class="cube-track" title="Тёмная часть — последние 24ч">`
+        + `<i class="${weekPct >= 90 ? "is-hot" : ""}" style="width:${weekPct}%"></i>`
+        + `<b style="width:${dayPct}%"></b></div>`
+        + `<small class="cube-line">24ч ${tokFmt(p.day_tokens)} (${dayPct}%) · 7д ${tokFmt(p.week_tokens)} (${weekPct}%)</small>`
+        + `<small class="cube-line">осталось ${tokFmt(p.week_left_tokens)} из ${tokFmt(limit)}/нед</small>`;
+    } else {
+      meter = `<small class="cube-line">24ч ${tokFmt(p.day_tokens)} · 7д ${tokFmt(p.week_tokens)}</small>`
+        + `<small class="cube-line cube-nolimit">нед. лимит не задан — см. «Лимиты»</small>`;
+    }
+    const badge = p.disabled ? '<span class="chip-off" aria-hidden="true">⊘</span>' : "";
+    const title = (p.disabled ? "Отключён — запросы сюда сейчас не идут. " : "")
+      + "Перетащи кубик на цепочку, чтобы добавить модель";
+    return `<span class="${brainChipCls(p)} brain-cube" draggable="true" data-tier="${escapeHtml(p.tier)}"`
+      + ` title="${escapeHtml(title)}">${badge}<b>${escapeHtml(p.provider)}</b>`
+      + `<small>${escapeHtml(p.model_label)}</small>${meter}</span>`;
+  }).join("");
+  return `<div class="brain-palette" aria-label="Доступные модели">${cubes}`
+    + '<small class="palette-hint">Кубик → на цепочку: добавить. Чип → сюда (или ×): убрать.</small></div>';
+}
+
 function renderBrainMap(map) {
   const box = byId("brainMap");
   if (!box) return;
@@ -1892,24 +1935,22 @@ function renderBrainMap(map) {
     return;
   }
   const strip = renderProviderStatusStrip(map && map.disabled_tiers);
-  box.innerHTML = strip + rows.map((row) => {
+  const palette = renderBrainPalette(map && map.palette);
+  box.innerHTML = strip + palette + rows.map((row) => {
     const chips = row.tiers.map((t, i) => {
       const paid = t.wallet === "paid";
       const cost = paid
         ? "≈$" + Number(t.avg_usd_per_call || 0).toFixed(4) + "/зап"
         : "≈" + tokFmt(t.avg_tokens_per_call || 0) + " ток/зап";
-      const cls = (paid ? "chip chip-paid" : t.tier === "kimi" ? "chip chip-kimi"
-        : t.tier === "claude_cli" ? "chip chip-claude"
-        : t.tier === "antigravity" ? "chip chip-antigravity" : "chip")
-        + (t.disabled ? " chip-disabled" : "");
       const title = t.disabled
         ? "Отключён — запросы сюда сейчас не идут. Перетащи, чтобы поменять порядок"
         : "Перетащи, чтобы поменять порядок";
       const badge = t.disabled ? '<span class="chip-off" aria-hidden="true">⊘</span>' : "";
       return (i ? '<span class="chip-arrow" aria-hidden="true">→</span>' : "")
-        + `<span class="${cls}" draggable="true" data-tier="${escapeHtml(t.tier)}"`
+        + `<span class="${brainChipCls(t)}" draggable="true" data-tier="${escapeHtml(t.tier)}"`
         + ` title="${escapeHtml(title)}">${badge}<b>${escapeHtml(t.provider)}</b>`
-        + `<small>${escapeHtml(t.model_label)} · ${cost}</small></span>`;
+        + `<small>${escapeHtml(t.model_label)} · ${cost}</small>`
+        + '<span class="chip-remove" role="button" title="Убрать из цепочки">×</span></span>';
     }).join("");
     return `<div class="brain-row" data-purpose="${escapeHtml(row.purpose)}">
       <div class="brain-label"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.sub)}</small></div>
@@ -1921,31 +1962,119 @@ function renderBrainMap(map) {
   wireBrainDrag(box);
 }
 
-/* Перетаскивание чипов меняет порядок обращения к мозгам.
+/* Перетаскивание чипов меняет порядок обращения к мозгам, кубик из палитры
+   добавляет модель в цепочку, × (или чип → палитра) убирает её.
    Экран читает цепочку из ai_routing и туда же пишет — иначе он снова начнёт
    показывать одно, а система делать другое, как было с прошитым списком. */
+let brainDrag = null; // {tier, from: purpose|null, chipEl|null, moved}
+
 function wireBrainDrag(box) {
+  box.querySelectorAll(".brain-cube").forEach((cube) => {
+    cube.addEventListener("dragstart", (e) => {
+      brainDrag = { tier: cube.dataset.tier, from: null, chipEl: null };
+      cube.classList.add("is-dragging");
+      try { e.dataTransfer.setData("text/plain", cube.dataset.tier); } catch { /* не критично */ }
+    });
+    cube.addEventListener("dragend", () => { cube.classList.remove("is-dragging"); brainDrag = null; });
+  });
+
+  const paletteBox = box.querySelector(".brain-palette");
+  if (paletteBox) {
+    paletteBox.addEventListener("dragover", (e) => {
+      if (brainDrag && brainDrag.from) { e.preventDefault(); paletteBox.classList.add("is-removal"); }
+    });
+    paletteBox.addEventListener("dragleave", () => paletteBox.classList.remove("is-removal"));
+    paletteBox.addEventListener("drop", (e) => {
+      paletteBox.classList.remove("is-removal");
+      if (!brainDrag || !brainDrag.from) return;
+      e.preventDefault();
+      removeBrainTier(box, brainDrag.from, brainDrag.tier);
+      brainDrag = null;
+    });
+  }
+
   box.querySelectorAll(".brain-row").forEach((row) => {
     const chain = row.querySelector(".brain-chain");
     if (!chain) return;
-    let dragged = null;
     chain.querySelectorAll(".chip").forEach((chip) => {
-      chip.addEventListener("dragstart", () => { dragged = chip; chip.style.opacity = ".4"; });
-      chip.addEventListener("dragend", () => { chip.style.opacity = "1"; saveBrainChain(row); });
-      chip.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        if (!dragged || dragged === chip) return;
-        const rect = chip.getBoundingClientRect();
-        const after = e.clientX > rect.left + rect.width / 2;
-        chain.insertBefore(dragged, after ? chip.nextSibling : chip);
+      chip.addEventListener("dragstart", () => {
+        brainDrag = { tier: chip.dataset.tier, from: row.dataset.purpose, chipEl: chip };
+        chip.style.opacity = ".4";
       });
+      chip.addEventListener("dragend", () => {
+        chip.style.opacity = "1";
+        if (brainDrag && brainDrag.moved && brainDrag.chipEl === chip) saveBrainChain(row);
+        brainDrag = null;
+      });
+      const rm = chip.querySelector(".chip-remove");
+      if (rm) rm.addEventListener("click", (e) => {
+        e.stopPropagation();
+        removeBrainTier(box, row.dataset.purpose, chip.dataset.tier);
+      });
+    });
+    chain.addEventListener("dragover", (e) => {
+      if (!brainDrag) return;
+      e.preventDefault();
+      if (brainDrag.chipEl && brainDrag.from === row.dataset.purpose) {
+        // локальная перестановка — живой предпросмотр
+        const target = e.target.closest ? e.target.closest(".chip") : null;
+        if (target && target !== brainDrag.chipEl) {
+          const rect = target.getBoundingClientRect();
+          const after = e.clientX > rect.left + rect.width / 2;
+          chain.insertBefore(brainDrag.chipEl, after ? target.nextSibling : target);
+          brainDrag.moved = true;
+        }
+      } else {
+        chain.classList.add("drop-target");
+      }
+    });
+    chain.addEventListener("dragleave", () => chain.classList.remove("drop-target"));
+    chain.addEventListener("drop", (e) => {
+      chain.classList.remove("drop-target");
+      if (!brainDrag) return;
+      e.preventDefault();
+      // локальная перестановка сохраняется в dragend того же чипа
+      if (brainDrag.chipEl && brainDrag.from === row.dataset.purpose) return;
+      insertBrainTier(row, brainDrag.tier, e.clientX, e.clientY);
+      brainDrag = null;
     });
   });
 }
 
-async function saveBrainChain(row) {
+function insertBrainTier(row, tier, clientX, clientY) {
+  const entries = [...row.querySelectorAll(".brain-chain .chip")]
+    .filter((c) => c.dataset.tier !== tier);
+  let idx = 0;
+  for (const c of entries) {
+    const r = c.getBoundingClientRect();
+    if (clientY > r.bottom || (clientY >= r.top && clientX > r.left + r.width / 2)) idx += 1;
+  }
+  const chain = entries.map((c) => c.dataset.tier);
+  chain.splice(idx, 0, tier);
+  postBrainChain(row, chain);
+}
+
+function removeBrainTier(box, purpose, tier) {
+  const row = [...box.querySelectorAll(".brain-row")]
+    .find((r) => r.dataset.purpose === purpose);
+  if (!row) return;
+  const chain = [...row.querySelectorAll(".brain-chain .chip")]
+    .map((c) => c.dataset.tier).filter((t) => t !== tier);
+  const note = row.querySelector(".brain-saved");
+  if (!chain.length) {
+    if (note) { note.hidden = false; note.textContent = "Нельзя оставить цепочку пустой"; }
+    return;
+  }
+  postBrainChain(row, chain);
+}
+
+function saveBrainChain(row) {
+  postBrainChain(row, [...row.querySelectorAll(".brain-chain .chip")].map((c) => c.dataset.tier));
+}
+
+async function postBrainChain(row, rawChain) {
   const purpose = row.dataset.purpose;
-  const chain = [...row.querySelectorAll(".chip")].map((c) => c.dataset.tier);
+  const chain = rawChain.filter((t, i) => t && rawChain.indexOf(t) === i);
   const note = row.querySelector(".brain-saved");
   if (!purpose || !chain.length) return;
   try {
@@ -2071,11 +2200,14 @@ function renderTokenLimits() {
   const limits = state.tokenLimits || {};
   box.innerHTML = TOKEN_LIMIT_PROVIDERS.map((prov) => {
     const cur = limits[prov] || {};
-    const label = prov === "codex" ? "Codex" : prov === "claude" ? "Claude" : prov === "minimax" ? "MiniMax M3" : "Kimi K3";
+    const label = prov === "codex" ? "Codex" : prov === "claude" ? "Claude"
+      : prov === "minimax" ? "MiniMax M3" : prov === "antigravity" ? "Antigravity" : "Kimi K3";
+    const numVal = (v) => (Number(v) > 0 ? v : "");
     return `<div class="limit-row">
       <span class="limit-name">${label}</span>
-      <label>токенов/запрос<input type="number" min="0" data-limit="${prov}" data-field="max_tokens_per_call" value="${cur.max_tokens_per_call ?? ""}" placeholder="без лимита"></label>
-      <label>вызовов/5ч<input type="number" min="0" data-limit="${prov}" data-field="max_calls_5h" value="${cur.max_calls_5h ?? ""}" placeholder="без лимита"></label>
+      <label>токенов/запрос<input type="number" min="0" data-limit="${prov}" data-field="max_tokens_per_call" value="${numVal(cur.max_tokens_per_call)}" placeholder="без лимита"></label>
+      <label>вызовов/5ч<input type="number" min="0" data-limit="${prov}" data-field="max_calls_5h" value="${numVal(cur.max_calls_5h)}" placeholder="без лимита"></label>
+      <label>токенов/неделя · справочно, для кубиков<input type="number" min="0" data-limit="${prov}" data-field="max_tokens_week" value="${numVal(cur.max_tokens_week)}" placeholder="не задан"></label>
     </div>`;
   }).join("") + `<button class="text-button" id="limitsSaveBtn">Сохранить лимиты</button>`;
   byId("limitsSaveBtn").addEventListener("click", saveTokenLimits);

@@ -1064,8 +1064,39 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 :root[data-theme="dark"] .chip-kimi, .dark .chip-kimi { background: #16311f; border-color: #2c5c3c; }
 :root[data-theme="dark"] .chip-paid, .dark .chip-paid { background: #1c2a3d; border-color: #4a6fa3; }
 :root[data-theme="dark"] .chip-antigravity, .dark .chip-antigravity { background: #3a2c14; border-color: #7a5c28; }
+.chip-minimax { background: #f0eef9; border-color: #cbc3e6; }
+.chip-codex { background: #eef1f2; border-color: #c3ccd1; }
+:root[data-theme="dark"] .chip-minimax, .dark .chip-minimax { background: #272138; border-color: #4a3f6e; }
+:root[data-theme="dark"] .chip-codex, .dark .chip-codex { background: #23282b; border-color: #45525a; }
 .chip-arrow { color: var(--muted); }
 .brain-note { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+/* Палитра кубиков: перетащить на цепочку = добавить модель; чип обратно
+   в палитру (или × на чипе) = убрать. В кубике — расход 24ч/7д и остаток
+   недельного справочного лимита. */
+.brain-palette { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; padding: 12px;
+  margin: 12px 0; border: 1px dashed var(--line); border-radius: 12px; }
+.brain-palette.is-removal { border-color: var(--danger); }
+.brain-cube { cursor: grab; min-width: 150px; }
+.brain-cube:active { cursor: grabbing; }
+.brain-cube.is-dragging { opacity: .4; }
+.palette-hint { flex-basis: 100%; color: var(--muted); font-size: 11px; }
+.cube-track { position: relative; height: 6px; border-radius: 4px; background: var(--frame);
+  border: 1px solid var(--line); margin-top: 6px; overflow: hidden; }
+.cube-track i, .cube-track b { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; }
+.cube-track i { background: #4f8f68; }
+.cube-track b { background: #1e6146; }
+.cube-track i.is-hot { background: var(--danger); }
+.cube-line { display: block; color: var(--muted); font-size: 10.5px; line-height: 1.4; }
+.cube-nolimit { opacity: .75; font-style: italic; }
+.brain-chain.drop-target { outline: 2px dashed #4f8f68; outline-offset: 4px; border-radius: 10px; }
+.chip { position: relative; }
+.chip-remove { position: absolute; top: -7px; right: -7px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--paper); border: 1px solid var(--line); color: var(--muted); font-size: 11px;
+  line-height: 13px; text-align: center; cursor: pointer; opacity: 0; transition: opacity .15s; }
+.chip:hover .chip-remove, .chip-remove:focus { opacity: 1; }
+.chip-remove:hover { color: var(--danger); border-color: var(--danger); }
+.brain-cube .chip-remove { display: none; }
 
 /* Отключённый тир (kill-switch codex_enabled/antigravity_enabled) — остаётся
    виден в цепочке, но перечёркнутый кружочек показывает: запросы сюда не идут. */
