@@ -1051,7 +1051,10 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .brain-row:first-child { border-top: 0; }
 .brain-label { min-width: 170px; }
 .brain-label small { display: block; color: var(--muted); font-size: 12px; }
-.brain-chain { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* flex:1 — цепочка занимает всю свободную ширину строки, поэтому у ряда с
+   одним мозгом есть куда бросить кубик; без этого зона была шириной в чип. */
+.brain-chain { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  flex: 1 1 240px; min-height: 46px; border-radius: 10px; }
 .chip { display: inline-flex; flex-direction: column; padding: 7px 12px; border-radius: 10px;
   border: 1px solid var(--line); background: var(--frame); line-height: 1.25; }
 .chip b { font-size: 13px; font-weight: 500; }
@@ -1089,14 +1092,22 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .cube-track i.is-hot { background: var(--danger); }
 .cube-line { display: block; color: var(--muted); font-size: 10.5px; line-height: 1.4; }
 .cube-nolimit { opacity: .75; font-style: italic; }
-.brain-chain.drop-target { outline: 2px dashed #4f8f68; outline-offset: 4px; border-radius: 10px; }
+.brain-chain.drop-target { outline: 2px dashed #4f8f68; outline-offset: 2px; background: rgba(79, 143, 104, .09); }
 .chip { position: relative; }
-.chip-remove { position: absolute; top: -7px; right: -7px; width: 16px; height: 16px; border-radius: 50%;
-  background: var(--paper); border: 1px solid var(--line); color: var(--muted); font-size: 11px;
-  line-height: 13px; text-align: center; cursor: pointer; opacity: 0; transition: opacity .15s; }
-.chip:hover .chip-remove, .chip-remove:focus { opacity: 1; }
-.chip-remove:hover { color: var(--danger); border-color: var(--danger); }
-.brain-cube .chip-remove { display: none; }
+.chip-tools { display: flex; gap: 3px; margin-top: 5px; }
+.chip-tools button { width: 22px; height: 20px; padding: 0; border-radius: 6px; cursor: pointer;
+  background: var(--paper); border: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1; }
+.chip-tools button:hover:not(:disabled) { color: var(--ink); border-color: var(--ink); }
+.chip-tools button:disabled { opacity: .3; cursor: default; }
+.chip-remove:hover:not(:disabled) { color: var(--danger) !important; border-color: var(--danger) !important; }
+.brain-cube .chip-tools { display: none; }
+
+/* Кубик, выбранный кликом: ждём, куда его поставить. */
+.brain-cube { cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.brain-cube.is-armed { outline: 2px solid #4f8f68; outline-offset: 2px; }
+.brain-row.is-awaiting { cursor: pointer; }
+.brain-row.is-awaiting:hover .brain-chain { outline: 2px dashed #4f8f68; outline-offset: 2px;
+  background: rgba(79, 143, 104, .09); }
 
 /* Отключённый тир (kill-switch codex_enabled/antigravity_enabled) — остаётся
    виден в цепочке, но перечёркнутый кружочек показывает: запросы сюда не идут. */

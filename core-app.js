@@ -1920,13 +1920,14 @@ function renderBrainPalette(palette) {
     }
     const badge = p.disabled ? '<span class="chip-off" aria-hidden="true">⊘</span>' : "";
     const title = (p.disabled ? "Отключён — запросы сюда сейчас не идут. " : "")
-      + "Перетащи кубик на цепочку, чтобы добавить модель";
-    return `<span class="${brainChipCls(p)} brain-cube" draggable="true" data-tier="${escapeHtml(p.tier)}"`
+      + "Нажми кубик, потом строку — модель встанет в цепочку. Мышью тоже можно перетащить";
+    return `<button type="button" class="${brainChipCls(p)} brain-cube" draggable="true" data-tier="${escapeHtml(p.tier)}"`
       + ` title="${escapeHtml(title)}">${badge}<b>${escapeHtml(p.provider)}</b>`
-      + `<small>${escapeHtml(p.model_label)}</small>${meter}</span>`;
+      + `<small>${escapeHtml(p.model_label)}</small>${meter}</button>`;
   }).join("");
   return `<div class="brain-palette" aria-label="Доступные модели">${cubes}`
-    + '<small class="palette-hint">Кубик → на цепочку: добавить. Чип → сюда (или ×): убрать.</small></div>';
+    + '<small class="palette-hint" id="brainPaletteHint">Нажми кубик, затем строку — модель встанет в цепочку.'
+    + ' Стрелки ‹ › на чипе двигают мозг по очереди, × убирает.</small></div>';
 }
 
 function renderBrainMap(map) {
@@ -1947,14 +1948,19 @@ function renderBrainMap(map) {
         ? "≈$" + Number(t.avg_usd_per_call || 0).toFixed(4) + "/зап"
         : "≈" + tokFmt(t.avg_tokens_per_call || 0) + " ток/зап";
       const title = t.disabled
-        ? "Отключён — запросы сюда сейчас не идут. Перетащи, чтобы поменять порядок"
-        : "Перетащи, чтобы поменять порядок";
+        ? "Отключён — запросы сюда сейчас не идут. Стрелки двигают по очереди, × убирает"
+        : "Стрелки ‹ › двигают по очереди, × убирает";
       const badge = t.disabled ? '<span class="chip-off" aria-hidden="true">⊘</span>' : "";
+      const last = i === row.tiers.length - 1;
       return (i ? '<span class="chip-arrow" aria-hidden="true">→</span>' : "")
         + `<span class="${brainChipCls(t)}" draggable="true" data-tier="${escapeHtml(t.tier)}"`
         + ` title="${escapeHtml(title)}">${badge}<b>${escapeHtml(t.provider)}</b>`
         + `<small>${escapeHtml(t.model_label)} · ${cost}</small>`
-        + '<span class="chip-remove" role="button" title="Убрать из цепочки">×</span></span>';
+        + '<span class="chip-tools">'
+        + `<button type="button" class="chip-move" data-dir="-1" title="Раньше в очереди"${i ? "" : " disabled"}>‹</button>`
+        + `<button type="button" class="chip-move" data-dir="1" title="Позже в очереди"${last ? " disabled" : ""}>›</button>`
+        + '<button type="button" class="chip-remove" title="Убрать из цепочки">×</button>'
+        + "</span></span>";
     }).join("");
     return `<div class="brain-row" data-purpose="${escapeHtml(row.purpose)}">
       <div class="brain-label"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.sub)}</small></div>
@@ -1974,13 +1980,39 @@ function renderBrainMap(map) {
    Экран читает цепочку из ai_routing и туда же пишет — иначе он снова начнёт
    показывать одно, а система делать другое, как было с прошитым списком. */
 let brainDrag = null; // {tier, from: purpose|null, chipEl|null, moved}
+/* Выбранный кликом кубик. HTML5-перетаскивание работает не везде (в оболочке
+   приложения dragstart не приходит вовсе, на тач-экране его нет), поэтому
+   основной путь — «нажал кубик → нажал строку», а drag остаётся как удобство. */
+let brainArmedTier = null;
+
+function setBrainArmed(box, tier) {
+  brainArmedTier = tier;
+  box.querySelectorAll(".brain-cube").forEach((c) => {
+    c.classList.toggle("is-armed", !!tier && c.dataset.tier === tier);
+  });
+  box.querySelectorAll(".brain-row").forEach((r) => r.classList.toggle("is-awaiting", !!tier));
+  const hint = box.querySelector("#brainPaletteHint");
+  if (hint) {
+    const cube = tier ? box.querySelector(`.brain-cube[data-tier="${tier}"] b`) : null;
+    hint.textContent = tier
+      ? `${cube ? cube.textContent : tier} выбран — нажми строку, куда его поставить (ещё раз по кубику — отмена).`
+      : "Нажми кубик, затем строку — модель встанет в цепочку."
+        + " Стрелки ‹ › на чипе двигают мозг по очереди, × убирает.";
+  }
+}
 
 function wireBrainDrag(box) {
   // Ре-рендер посреди перетаскивания (например, после ×-удаления в другом ряду)
   // не должен оставить в brainDrag отвязанный от DOM чип: dragend по нему уже
   // не придёт, а dragover вставил бы его в свежую цепочку дублем.
   brainDrag = null;
+  const armed = brainArmedTier;
+  brainArmedTier = null;
+  if (armed) setBrainArmed(box, armed); // выбор переживает перерисовку
   box.querySelectorAll(".brain-cube").forEach((cube) => {
+    cube.addEventListener("click", () => {
+      setBrainArmed(box, brainArmedTier === cube.dataset.tier ? null : cube.dataset.tier);
+    });
     cube.addEventListener("dragstart", (e) => {
       brainDrag = { tier: cube.dataset.tier, from: null, chipEl: null };
       cube.classList.add("is-dragging");
@@ -2031,8 +2063,25 @@ function wireBrainDrag(box) {
         e.stopPropagation();
         removeBrainTier(box, row.dataset.purpose, chip.dataset.tier);
       });
+      chip.querySelectorAll(".chip-move").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          moveBrainTier(row, chip.dataset.tier, Number(btn.dataset.dir));
+        });
+      });
     });
-    chain.addEventListener("dragover", (e) => {
+    // Клик по строке ставит выбранный кубик — путь, не зависящий от HTML5 DnD.
+    row.addEventListener("click", (e) => {
+      if (!brainArmedTier) return;
+      if (e.target.closest(".chip-move, .chip-remove")) return;
+      const tier = brainArmedTier;
+      setBrainArmed(box, null);
+      insertBrainTier(row, tier, e.clientX, e.clientY);
+    });
+    // Слушает СТРОКА целиком, а не только полоска чипов: у ряда с одним
+    // мозгом («Карточки лидов») цепочка шириной в один чип, и попасть в неё
+    // мышью почти невозможно — кубик было некуда бросить.
+    row.addEventListener("dragover", (e) => {
       if (!brainDrag) return;
       e.preventDefault();
       if (brainDrag.chipEl && brainDrag.from === row.dataset.purpose) {
@@ -2047,11 +2096,16 @@ function wireBrainDrag(box) {
           brainDrag.moved = true;
         }
       } else {
+        try { e.dataTransfer.dropEffect = "copy"; } catch { /* не критично */ }
         chain.classList.add("drop-target");
       }
     });
-    chain.addEventListener("dragleave", () => chain.classList.remove("drop-target"));
-    chain.addEventListener("drop", (e) => {
+    row.addEventListener("dragleave", (e) => {
+      // Переход между дочерними элементами строки — не выход из неё.
+      if (e.relatedTarget && row.contains(e.relatedTarget)) return;
+      chain.classList.remove("drop-target");
+    });
+    row.addEventListener("drop", (e) => {
       chain.classList.remove("drop-target");
       if (!brainDrag) return;
       e.preventDefault();
@@ -2064,6 +2118,7 @@ function wireBrainDrag(box) {
 }
 
 function insertBrainTier(row, tier, clientX, clientY) {
+  const before = [...row.querySelectorAll(".brain-chain .chip")].map((c) => c.dataset.tier);
   const entries = [...row.querySelectorAll(".brain-chain .chip")]
     .filter((c) => c.dataset.tier !== tier);
   let idx = 0;
@@ -2073,6 +2128,22 @@ function insertBrainTier(row, tier, clientX, clientY) {
   }
   const chain = entries.map((c) => c.dataset.tier);
   chain.splice(idx, 0, tier);
+  // Бросили мозг туда, где он и так стоит — без отклика это выглядит как
+  // «перетаскивание не работает».
+  if (chain.join(">") === before.join(">")) {
+    const note = row.querySelector(".brain-saved");
+    if (note) { note.hidden = false; note.textContent = "Этот мозг уже стоит здесь — порядок не изменился"; }
+    return;
+  }
+  postBrainChain(row, chain);
+}
+
+function moveBrainTier(row, tier, dir) {
+  const chain = [...row.querySelectorAll(".brain-chain .chip")].map((c) => c.dataset.tier);
+  const idx = chain.indexOf(tier);
+  const next = idx + dir;
+  if (idx < 0 || next < 0 || next >= chain.length) return;
+  chain.splice(next, 0, chain.splice(idx, 1)[0]);
   postBrainChain(row, chain);
 }
 
