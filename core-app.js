@@ -2475,18 +2475,39 @@ function costumeStatusLabel(status) {
   return '<span class="costume-status unknown">? не проверено</span>';
 }
 
+function costumeInstrumentLabel(instrument) {
+  return ({
+    drums: "барабаны",
+    sax: "саксофон",
+    guitar: "гитара",
+    bass: "бас",
+    keys: "клавиши",
+    trumpet: "труба",
+    trombone: "тромбон",
+    tuba: "туба",
+    violin: "скрипка",
+  })[String(instrument || "").toLowerCase()] || instrument || "";
+}
+
 function renderCostumes() {
   const payload = state.costumes || {};
   const stats = payload.stats || {};
+  const selection = payload.selection || {};
   byId("costumeSummary").innerHTML = [
     [stats.total || 0, "музыкантов"],
     [stats.with_size || 0, "с размером"],
     [stats.with_costumes || 0, "с костюмами"],
     [stats.needs_confirmation || 0, "нужно уточнить"],
   ].map(([value, label]) => `<div><strong>${formatNumber(value)}</strong><span>${escapeHtml(label)}</span></div>`).join("");
-  byId("costumeUpdatedAt").textContent = payload.updated_at
-    ? `Обновлено ${String(payload.updated_at).replace("T", " ").slice(0, 16)}`
-    : "Нет подтверждений";
+  const rosterUpdatedAt = payload.roster_updated_at
+    ? String(payload.roster_updated_at).replace("T", " ").slice(0, 16)
+    : "";
+  const windowLabel = selection.window_start && selection.window_end
+    ? `${selection.window_start} — ${selection.window_end}`
+    : "";
+  byId("costumeUpdatedAt").textContent = selection.status === "ready"
+    ? `Составы проверены${rosterUpdatedAt ? ` ${rosterUpdatedAt}` : ""}${windowLabel ? ` · период ${windowLabel}` : ""}`
+    : "Нет проверенного списка отработанных составов";
 
   const query = state.query.trim().toLowerCase();
   const rows = (payload.musicians || []).filter((musician) => (
@@ -2494,7 +2515,7 @@ function renderCostumes() {
   ));
   const grid = byId("costumeGrid");
   if (!rows.length) {
-    grid.innerHTML = `<div class="costume-empty"><strong>${query ? "Ничего не найдено" : "Список пока пуст"}</strong><p>${query ? "Измени запрос." : "Музыканты появятся из папки «Музыканты», а размеры и костюмы — после подтверждений."}</p></div>`;
+    grid.innerHTML = `<div class="costume-empty"><strong>${query ? "Ничего не найдено" : "Список пока пуст"}</strong><p>${query ? "Измени запрос." : "Здесь появятся только инструменталисты из подтверждённых отработанных LCB-составов за последние шесть месяцев."}</p></div>`;
     return;
   }
   grid.innerHTML = rows.map((musician) => {
@@ -2502,6 +2523,10 @@ function renderCostumes() {
     const costumes = musician.costumes || [];
     const initials = String(musician.display_name || musician.username || "?").trim().slice(0, 1).toUpperCase();
     const identity = musician.username ? `@${musician.username}` : `ID ${musician.user_id || "—"}`;
+    const instrument = costumeInstrumentLabel(musician.instrument);
+    const workedSummary = musician.worked_event_count
+      ? `Работал в составах: ${formatNumber(musician.worked_event_count)}${musician.last_worked_date ? ` · последний ${escapeHtml(musician.last_worked_date)}` : ""}`
+      : "";
     const costumeRows = costumes.length ? costumes.map((costume) => {
       const variantCount = Number(costume.variant_count || 0);
       const variantDetails = (costume.variant_details || []).map((item) => escapeHtml(item)).join(" · ");
@@ -2523,7 +2548,7 @@ function renderCostumes() {
     return `<section class="costume-card ${escapeHtml(musician.profile_status || "empty")}">
       <header>
         ${musician.avatar_url ? `<img class="costume-avatar" src="${escapeHtml(musician.avatar_url)}" alt="">` : `<div class="costume-avatar placeholder">${escapeHtml(initials)}</div>`}
-        <div><h2>${escapeHtml(musician.display_name || musician.username || musician.identity)}</h2><p>${escapeHtml(identity)}${musician.instrument ? ` · ${escapeHtml(musician.instrument)}` : ""}</p></div>
+        <div><h2>${escapeHtml(musician.display_name || musician.username || musician.identity)}</h2><p>${escapeHtml(identity)}${instrument ? ` · ${escapeHtml(instrument)}` : ""}</p></div>
         <span class="costume-size ${size.value ? "known" : "unknown"}">${size.value ? `Размер ${escapeHtml(size.value)}` : "Размер ?"}</span>
       </header>
       <div class="costume-card-metrics">
@@ -2532,7 +2557,7 @@ function renderCostumes() {
         <span><b>${formatNumber(musician.variant_count || 0)}</b> вариантов</span>
       </div>
       <div class="costume-looks">${costumeRows}</div>
-      <footer>${musician.last_confirmed_at ? `Последнее подтверждение: ${escapeHtml(String(musician.last_confirmed_at).replace("T", " ").slice(0, 16))}` : "Подтверждений пока нет"}</footer>
+      <footer>${workedSummary}${workedSummary && musician.last_confirmed_at ? " · " : ""}${musician.last_confirmed_at ? `Последнее подтверждение костюма: ${escapeHtml(String(musician.last_confirmed_at).replace("T", " ").slice(0, 16))}` : workedSummary ? "" : "Подтверждений пока нет"}</footer>
     </section>`;
   }).join("");
 }
