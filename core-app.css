@@ -1203,3 +1203,19 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   .costume-card > header { grid-template-columns: 42px minmax(0, 1fr); }
   .costume-size { grid-column: 1 / -1; text-align: center; }
 }
+
+/* ── Сессии агентов (Claude Code / Codex) ─────────────────────────────── */
+.sessions-filters { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0 16px; }
+.sessions-filters label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.sessions-filters select { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; }
+.session-card { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px; background: var(--paper); }
+.session-card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.session-card-head strong { font-size: 13px; }
+.session-time { margin-left: auto; font-size: 12px; color: var(--muted); }
+.session-title { margin: 8px 0 0; font-size: 13px; line-height: 1.45; color: var(--ink); }
+.session-status { font-size: 12px; white-space: nowrap; }
+
+/* ── Карта двух пайплайнов (экран «Система») ──────────────────────────── */
+.arch-map-note { margin: 10px 0 12px; color: var(--muted); }
+.arch-map-link { display: inline-block; font-weight: 650; color: var(--accent); text-decoration: none; }
+.arch-map-link:hover { text-decoration: underline; }

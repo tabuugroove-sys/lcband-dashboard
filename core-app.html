@@ -55,6 +55,7 @@
     <button class="tab-button" data-view="fees"><span class="tab-icon" aria-hidden="true">₽</span>Гонорары</button>
     <button class="tab-button" data-view="tokens"><span class="tab-icon" aria-hidden="true">◈</span>Токены</button>
     <button class="tab-button" data-view="broadcast"><span class="tab-icon" aria-hidden="true">✈</span>Рассылка</button>
+    <button class="tab-button" data-view="sessions"><span class="tab-icon" aria-hidden="true">⌗</span>Сессии</button>
   </nav>
 
   <div class="workspace">
@@ -294,6 +295,11 @@
           <section class="band-section"><div class="section-head"><h2>Данные</h2></div><dl class="definition-list" id="schemaDetails"></dl></section>
           <section class="band-section"><div class="section-head"><h2>Предохранители</h2></div><ul class="guard-list"><li><b>×</b><span><strong>Нет read fallback</strong><small>Контакты и сообщения читаются из Core.</small></span></li><li><b>✓</b><span><strong>Черновик не является отправкой</strong><small>Shadow-writer создаёт immutable draft без outbound intent и без messenger SDK.</small></span></li><li><b>✓</b><span><strong>Ручная отправка отделена</strong><small>Только точный текст оператора через единственного delivery-owner и provider receipt.</small></span></li><li><b>×</b><span><strong>Автоответы выключены</strong><small>Агенты остаются в SEND HOLD.</small></span></li></ul></section>
         </div>
+        <section class="band-section">
+          <div class="section-head"><h2>Архитектура</h2></div>
+          <p class="arch-map-note">Как устроены legacy-конвейер (V1) и Core (V2), какие мосты их связывают и как по данным сравнения выбирается, когда ядру передавать каждый участок.</p>
+          <a class="arch-map-link" href="/pipelines-map.html">Открыть карту двух пайплайнов →</a>
+        </section>
         <section class="urgent-policy-card" aria-labelledby="urgentPolicyTitle">
           <header class="urgent-policy-head">
             <div class="urgent-signal" aria-hidden="true"><span></span><b>!</b></div>
@@ -506,6 +512,23 @@
         <div class="parity-content broadcast-parity" id="broadcastParity" aria-live="polite"></div>
       </section>
 
+      <section class="screen" id="screen-sessions">
+        <div class="page-head"><div><p class="eyebrow">Claude Code · Codex</p><h1>Сессии агентов</h1></div><span class="pill" id="sessionsCountPill">Загрузка…</span></div>
+        <section class="band-section">
+          <div class="section-head"><h2>Что решали и статус</h2><span>локальные транскрипты, 14 дней</span></div>
+          <div class="sessions-filters">
+            <label>Проект <select id="sessionsProjectFilter"><option value="">Все проекты</option></select></label>
+            <label>Статус <select id="sessionsStatusFilter">
+              <option value="">Все статусы</option>
+              <option value="active">🟢 активна</option>
+              <option value="done">✅ завершена</option>
+              <option value="stalled">🟡 брошена</option>
+            </select></label>
+          </div>
+          <div id="sessionsList" aria-live="polite"><div class="empty-state">Загрузка…</div></div>
+        </section>
+      </section>
+
     </main>
   </div>
 
@@ -522,6 +545,6 @@
     </form>
   </dialog>
   <script src="core-parity.js"></script>
-  <script src="core-app.js?v=20260815-001"></script>
+  <script src="core-app.js?v=20260815-002"></script>
 </body>
 </html>

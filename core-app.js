@@ -545,6 +545,7 @@ function setView(view) {
   }
   if (view === "operations") window.CoreParity?.activate("overview");
   if (view === "broadcast") renderBroadcast();
+  if (view === "sessions") refreshSessions();
 }
 
 function route() {
@@ -2320,6 +2321,48 @@ function renderFees() {
   byId("feesHistory").innerHTML = (payload.historical_sources || []).map((source) => `<article class="fee-history"><div><strong>${escapeHtml(source.title)}</strong><span class="pill hold">Историческое · не использовать автоматически</span></div><p>${escapeHtml(source.note)}</p><div class="fee-role-grid">${(source.role_rates || []).map((item) => `<span><b>${escapeHtml(item.role)}</b>${escapeHtml(formatFeeAmount(item.amount_minor, payload.currency))}</span>`).join("")}</div></article>`).join("") || '<div class="empty-state">Источники ставок ещё не добавлены.</div>';
 }
 
+const SESSION_STATUS_LABELS = {
+  active: '<span class="session-status active">🟢 активна</span>',
+  done: '<span class="session-status done">✅ завершена</span>',
+  stalled: '<span class="session-status stalled">🟡 брошена</span>',
+};
+
+async function refreshSessions() {
+  const project = byId("sessionsProjectFilter").value;
+  const status = byId("sessionsStatusFilter").value;
+  const query = new URLSearchParams();
+  if (project) query.set("project", project);
+  if (status) query.set("status", status);
+  try {
+    const payload = await apiGet(`/api/core/agent_sessions?${query}`);
+    state.sessions = payload;
+    renderSessions();
+  } catch (error) {
+    byId("sessionsCountPill").textContent = "Недоступно";
+    byId("sessionsList").innerHTML = `<div class="empty-state">Сессии не загружены: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderSessions() {
+  const payload = state.sessions || {};
+  const rows = payload.sessions || [];
+  byId("sessionsCountPill").textContent = `${payload.count ?? rows.length} сессий · ${payload.days ?? 14} дн`;
+  const projectFilter = byId("sessionsProjectFilter");
+  const selected = projectFilter.value;
+  projectFilter.innerHTML = '<option value="">Все проекты</option>'
+    + (payload.projects || []).map((name) => `<option value="${escapeHtml(name)}"${name === selected ? " selected" : ""}>${escapeHtml(name)}</option>`).join("");
+  byId("sessionsList").innerHTML = rows.map((row) => `
+    <article class="session-card">
+      <div class="session-card-head">
+        <span class="pill ${row.source === "codex" ? "hold" : "ok"}">${row.source === "codex" ? "Codex" : "Claude"}</span>
+        <strong>${escapeHtml(row.project)}</strong>
+        ${SESSION_STATUS_LABELS[row.status] || escapeHtml(row.status)}
+        <span class="session-time">${escapeHtml(row.last_activity)}</span>
+      </div>
+      <p class="session-title">${escapeHtml(row.title)}</p>
+    </article>`).join("") || '<div class="empty-state">Под выбранные фильтры сессий нет.</div>';
+}
+
 function costumeStatusLabel(status) {
   if (status === "yes") return '<span class="costume-status yes">✓ есть</span>';
   if (status === "no") return '<span class="costume-status no">✗ нет</span>';
@@ -2728,6 +2771,8 @@ function bindEvents() {
     Object.keys(state.calendarFilters).forEach((key) => { state.calendarFilters[key] = false; });
     renderCalendar();
   });
+  byId("sessionsProjectFilter").addEventListener("change", refreshSessions);
+  byId("sessionsStatusFilter").addEventListener("change", refreshSessions);
   byId("eventBack").addEventListener("click", closeEvent);
   byId("chatBack").addEventListener("click", () => {
     byId("conversation").classList.remove("is-open");
