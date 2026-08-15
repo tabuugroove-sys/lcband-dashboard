@@ -1,61 +1,62 @@
-<!DOCTYPE html>
+<!doctype html>
+<!-- Надгробие legacy-приложения (CHG-20260815-007). Решение Михаила 15.08.2026:
+     остаётся только локальное V2-приложение (core-app.html, :8880). Файл
+     сохраняет URL живым для старых закладок/PWA и переводит на V2; парный
+     app-sw.js — самоликвидирующийся service worker, чистящий старый PWA-кэш.
+     Десктопный дашборд index.html этим не затронут. -->
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#0E6B54">
-<title>LCB</title>
-<link rel="manifest" href="app.webmanifest">
-<link rel="apple-touch-icon" href="app-icon-180.png">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>LCB — приложение переехало</title>
 <link rel="icon" type="image/png" href="app-icon-192.png">
-<link rel="stylesheet" href="app.css">
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+         font: 16px/1.5 -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+         background: #f5f2ec; color: #2b2b28; }
+  @media (prefers-color-scheme: dark) { body { background: #191815; color: #e8e4da; } }
+  main { max-width: 26em; padding: 32px; text-align: center; }
+  a.go { display: inline-block; margin-top: 16px; padding: 10px 18px; border-radius: 8px;
+         background: #2f5d50; color: #fff; text-decoration: none; font-weight: 600; }
+  p.small { opacity: .65; font-size: 13px; margin-top: 18px; }
+</style>
 </head>
 <body>
-<div id="topbar">
-  <span class="brand">LCB</span>
-  <input id="search" type="search" placeholder="Поиск: контакт, событие…" autocomplete="off">
-  <button id="reloadBtn" title="Обновить данные">⟳</button>
-  <button id="themeBtn" title="Тема">◐</button>
-  <button id="connPill" class="st-init" aria-label="Состояние соединения" title="Состояние соединения"><span class="cdot"></span><span class="clabel">Подключение…</span></button>
-</div>
-<div id="offline">Офлайн — показан последний снимок данных</div>
-<div id="connDrawer" hidden><div class="dbody" id="drawerBody"></div></div>
-
 <main>
-  <section id="scr-cal" class="screen"></section>
-  <section id="scr-chats" class="screen"></section>
-  <section id="scr-today" class="screen"></section>
-  <section id="scr-sys" class="screen"></section>
-  <section id="scr-tokens" class="screen"></section>
-  <section id="scr-cast" class="screen"></section>
-  <section id="scr-core2" class="screen"></section>
-  <section id="scr-assurance" class="screen"></section>
-  <section id="scr-view" class="screen"></section>
+  <h1>Приложение переехало</h1>
+  <p>Теперь всё живёт в одном месте — локальном приложении LC Band 2.0.</p>
+  <a class="go" id="goLink" href="http://127.0.0.1:8880/core-app.html">Открыть V2-приложение</a>
+  <p class="small">Старая PWA-копия и её кэш удаляются автоматически.</p>
 </main>
-
-<nav id="tabbar">
-  <button data-tab="cal"><span class="ic">▦</span>Календарь</button>
-  <button data-tab="chats"><span class="ic">✉<span class="tabbadge" id="chatsTabBadge" hidden></span></span>Чаты</button>
-  <button data-tab="today"><span class="ic">☉</span>Сегодня</button>
-  <button data-tab="sys"><span class="ic">◔</span>Система</button>
-  <button data-tab="tokens"><span class="ic">◈</span>Токены</button>
-  <button data-tab="cast"><span class="ic">✈</span>Рассылка</button>
-  <button data-tab="core2"><span class="ic">⚛</span>LCB 2.0</button>
-</nav>
-
-<script src="app-api.js"></script>
-<script src="app-cal.js"></script>
-<script src="app-chats.js"></script>
-<script src="app-today.js"></script>
-<script src="app-event.js"></script>
-<script src="app-assurance.js"></script>
-<script src="app-sys.js"></script>
-<script src="app-tokens.js"></script>
-<script src="app-broadcast.js"></script>
-<script src="app-core2.js"></script>
-<script src="app.js"></script>
+<script>
+(function () {
+  "use strict";
+  // Старый PWA-кэш: снять service worker и вычистить lcb-app-кэши, иначе
+  // телефон Михаила может вечно показывать закэшированное старое приложение.
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistrations()
+      .then((regs) => regs.forEach((reg) => reg.unregister()))
+      .catch(() => {});
+  }
+  if (window.caches && caches.keys) {
+    caches.keys()
+      .then((keys) => keys.filter((k) => k.startsWith("lcb-app-")).forEach((k) => caches.delete(k)))
+      .catch(() => {});
+  }
+  // Вкладки старого приложения → экраны V2.
+  var tabMap = { cal: "calendar", chats: "chats", today: "today", sys: "system",
+                 tokens: "tokens", cast: "broadcast", core2: "arbitr" };
+  var oldTab = (location.hash || "").replace("#", "");
+  var target = "/core-app.html" + (tabMap[oldTab] ? "#" + tabMap[oldTab] : "");
+  var host = location.hostname;
+  var local = host === "127.0.0.1" || host === "localhost";
+  // Хост известен только для локального доступа; на tailnet/Pages порт 8880
+  // может быть замаплен иначе — там даём ссылку, но не редиректим вслепую.
+  var url = location.protocol + "//" + (host || "127.0.0.1") + ":8880" + target;
+  document.getElementById("goLink").href = url;
+  if (local) location.replace(url);
+})();
+</script>
 </body>
 </html>
