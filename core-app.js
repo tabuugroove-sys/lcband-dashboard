@@ -1905,9 +1905,11 @@ function renderBrainPalette(palette) {
     if (paid) {
       meter = `<small class="cube-line">24ч ${tokFmt(p.day_tokens)} · 7д ${tokFmt(p.week_tokens)} · ${usdFmt(p.week_usd)}/нед</small>`;
     } else if (limit) {
+      // Ширины ставятся JS'ом после innerHTML: CSP страницы (style-src 'self')
+      // блокирует inline style-атрибуты.
       meter = `<div class="cube-track" title="Тёмная часть — последние 24ч">`
-        + `<i class="${weekPct >= 90 ? "is-hot" : ""}" style="width:${weekPct}%"></i>`
-        + `<b style="width:${dayPct}%"></b></div>`
+        + `<i class="${weekPct >= 90 ? "is-hot" : ""}" data-w="${weekPct}"></i>`
+        + `<b data-w="${dayPct}"></b></div>`
         + `<small class="cube-line">24ч ${tokFmt(p.day_tokens)} (${dayPct}%) · 7д ${tokFmt(p.week_tokens)} (${weekPct}%)</small>`
         + `<small class="cube-line">осталось ${tokFmt(p.week_left_tokens)} из ${tokFmt(limit)}/нед</small>`;
     } else {
@@ -1959,6 +1961,9 @@ function renderBrainMap(map) {
       <div class="brain-saved" hidden></div>
     </div>`;
   }).join("");
+  box.querySelectorAll(".cube-track [data-w]").forEach((el) => {
+    el.style.width = Math.max(0, Math.min(100, Number(el.dataset.w) || 0)) + "%";
+  });
   wireBrainDrag(box);
 }
 
@@ -2109,10 +2114,19 @@ function renderOutputBudget(ob) {
   bar.innerHTML = `
     <div class="budget-line"><span>Потрачено (взвешенно)</span>
       <strong>${tokFmt(ob.spent_weighted)} из ${tokFmt(ob.base_tokens)} · ${pct}%</strong></div>
-    <div class="budget-track"><i style="width:${pct}%${over ? ";background:var(--danger)" : ""}"></i></div>
-    ${over ? '<p class="mtext" style="color:var(--danger)">База исчерпана: фон остановлен, ответы людям живут в запасе ×' + ob.headroom + "</p>" : ""}
+    <div class="budget-track"><i data-w="${pct}"></i></div>
+    ${over ? '<p class="mtext budget-over">База исчерпана: фон остановлен, ответы людям живут в запасе ×' + ob.headroom + "</p>" : ""}
     <label class="budget-base">База, ток/сутки:
       <input type="number" id="budgetBase" min="100000" step="100000" value="${ob.base_tokens}"></label>`;
+  // CSP страницы (style-src 'self') блокирует inline style-атрибуты, поэтому
+  // ширина и цвет заливки ставятся через CSSOM — иначе бар всегда полный.
+  const fill = bar.querySelector(".budget-track i[data-w]");
+  if (fill) {
+    fill.style.width = pct + "%";
+    if (over) fill.style.background = "var(--danger)";
+  }
+  const overNote = bar.querySelector(".budget-over");
+  if (overNote) overNote.style.color = "var(--danger)";
   const options = [1, 2, 4, 10, 20];
   mults.innerHTML = Object.entries(ob.multipliers || {}).map(([model, mult]) => {
     const opts = options.map((o) =>
