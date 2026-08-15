@@ -2486,6 +2486,7 @@ function costumeInstrumentLabel(instrument) {
     trombone: "тромбон",
     tuba: "туба",
     violin: "скрипка",
+    vocal: "вокал",
   })[String(instrument || "").toLowerCase()] || instrument || "";
 }
 
@@ -2502,8 +2503,15 @@ function renderCostumes() {
   const rosterUpdatedAt = payload.roster_updated_at
     ? String(payload.roster_updated_at).replace("T", " ").slice(0, 16)
     : "";
-  const windowLabel = selection.window_start && selection.window_end
-    ? `${selection.window_start} — ${selection.window_end}`
+  const windowLabel = selection.window_end
+    ? [
+      selection.instrument_window_start
+        ? `инструменталисты ${selection.instrument_window_start} — ${selection.window_end}`
+        : "",
+      selection.vocalist_window_start
+        ? `вокалисты ${selection.vocalist_window_start} — ${selection.window_end}`
+        : "",
+    ].filter(Boolean).join(" · ")
     : "";
   byId("costumeUpdatedAt").textContent = selection.status === "ready"
     ? `Составы проверены${rosterUpdatedAt ? ` ${rosterUpdatedAt}` : ""}${windowLabel ? ` · период ${windowLabel}` : ""}`
@@ -2515,7 +2523,7 @@ function renderCostumes() {
   ));
   const grid = byId("costumeGrid");
   if (!rows.length) {
-    grid.innerHTML = `<div class="costume-empty"><strong>${query ? "Ничего не найдено" : "Список пока пуст"}</strong><p>${query ? "Измени запрос." : "Здесь появятся только инструменталисты из подтверждённых отработанных LCB-составов за последние шесть месяцев."}</p></div>`;
+    grid.innerHTML = `<div class="costume-empty"><strong>${query ? "Ничего не найдено" : "Список пока пуст"}</strong><p>${query ? "Измени запрос." : "Здесь появятся только участники подтверждённых отработанных LCB-составов: инструменталисты за шесть месяцев и вокалисты за год."}</p></div>`;
     return;
   }
   grid.innerHTML = rows.map((musician) => {
