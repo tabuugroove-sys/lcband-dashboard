@@ -2021,6 +2021,10 @@ function renderBrainMap(map) {
   const box = byId("brainMap");
   if (!box) return;
   renderBrainCharts(map && map.palette);
+  // Открытые группы переживают перерисовку (сохранение цепочки зовёт
+  // renderTokens — без этого каждая правка схлопывала «Все процессы»).
+  const openGroups = new Set(
+    [...box.querySelectorAll(".brain-group[open]")].map((d) => d.dataset.group));
   const rows = (map && map.rows) || [];
   if (!rows.length) {
     box.innerHTML = '<div class="empty-state">Карта недоступна' +
@@ -2040,6 +2044,9 @@ function renderBrainMap(map) {
   }).join("") + renderBrainGroups(map && map.groups);
   box.querySelectorAll(".cube-track [data-w]").forEach((el) => {
     el.style.width = Math.max(0, Math.min(100, Number(el.dataset.w) || 0)) + "%";
+  });
+  box.querySelectorAll(".brain-group").forEach((d) => {
+    if (openGroups.has(d.dataset.group)) d.open = true;
   });
   wireBrainDrag(box);
 }
@@ -2241,15 +2248,17 @@ async function postBrainChain(row, rawChain) {
   if (!purpose || !chain.length) return;
   try {
     const res = await apiPost("/api/app/set_brain_chain", { purpose, chain });
-    if (note) {
-      note.hidden = false;
-      // Бэкенд может отрезать платный тир там, где канон его не разрешает —
-      // показываем то, что реально записалось, а не то, что перетащили.
-      note.textContent = res && res.chain
-        ? "Сохранено: " + res.chain.join(" → ")
-        : "Сохранено";
-    }
+    // Бэкенд может отрезать платный тир там, где канон его не разрешает —
+    // показываем то, что реально записалось, а не то, что перетащили.
+    // Toast, а не только .brain-saved: перерисовка карты стирает note, и без
+    // тоста подтверждение жило доли секунды.
+    const savedText = res && res.chain
+      ? "Сохранено: " + purpose + " = " + res.chain.join(" → ")
+      : "Сохранено: " + purpose;
+    toast(savedText);
+    if (note) { note.hidden = false; note.textContent = savedText; }
   } catch (err) {
+    toast("Не сохранилось: " + String(err).slice(0, 80));
     if (note) { note.hidden = false; note.textContent = "Не сохранилось: " + String(err).slice(0, 80); }
   }
   // Перечитываем карту: бэкенд мог поправить цепочку, и экран обязан показать
