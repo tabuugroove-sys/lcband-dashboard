@@ -2017,6 +2017,26 @@ function renderBrainCharts(palette) {
   });
 }
 
+/* Когда кубики последний раз реально сверялись с ai_routing.chain_for() —
+   на переключении вкладки, после сохранения правки и на 30s-тике (см. ниже
+   window.setInterval). Абсолютное время, не «Nс назад»: проще проверить
+   глазами, что тик не встал. */
+function markBrainSync(ok, error) {
+  const pill = byId("brainSyncPill");
+  if (!pill) return;
+  const now = new Date();
+  const time = now.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  if (ok) {
+    pill.textContent = "Сверено: " + time;
+    pill.className = "pill ok";
+    pill.title = "Последняя сверка кубиков с ai_routing.chain_for()";
+  } else {
+    pill.textContent = "Не сверено: " + time;
+    pill.className = "pill hold";
+    pill.title = "Ошибка: " + String(error).slice(0, 160);
+  }
+}
+
 function renderBrainMap(map) {
   const box = byId("brainMap");
   if (!box) return;
@@ -2337,9 +2357,11 @@ async function renderTokens() {
     const map = await apiGet("/api/app/brain_map");
     if (stale()) return;
     renderBrainMap(map);
+    markBrainSync(true);
   } catch (error) {
     if (stale()) return;
     renderBrainMap({ rows: [], error: String(error) });
+    markBrainSync(false, error);
   }
   try {
     const cfg = await apiGet("/api/app/token_limits");
