@@ -2055,10 +2055,14 @@ function renderBrainMap(map) {
   const palette = renderBrainPalette(map && map.palette);
   box.innerHTML = strip + palette + rows.map((row) => {
     const chips = row.tiers.map((t, i) => brainChipHtml(t, i, row.tiers.length)).join("");
+    // Текстовые пометки (row.note — «платно нельзя», «Codex убран 04.08» и
+    // т.п.) убраны 16.08 по просьбе Михаила: на узком экране колонка с ними
+    // съедала место и оставляла пустоту. Та же информация уже читается из
+    // самих чипов (paid-чип просто не появится, если канон его не разрешает);
+    // визуальный след — графики расхода ниже, а не текст в каждой строке.
     return `<div class="brain-row" data-purpose="${escapeHtml(row.purpose)}">
       <div class="brain-label"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.sub)}</small></div>
       <div class="brain-chain">${chips}</div>
-      ${row.note ? `<div class="brain-note">${escapeHtml(row.note)}</div>` : ""}
       <div class="brain-saved" hidden></div>
     </div>`;
   }).join("") + renderBrainGroups(map && map.groups);
