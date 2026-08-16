@@ -1930,9 +1930,97 @@ function renderBrainPalette(palette) {
     + ' Стрелки ‹ › на чипе двигают мозг по очереди, × убирает.</small></div>';
 }
 
+function brainChipHtml(t, i, count) {
+  const paid = t.wallet === "paid";
+  const cost = paid
+    ? "≈$" + Number(t.avg_usd_per_call || 0).toFixed(4) + "/зап"
+    : "≈" + tokFmt(t.avg_tokens_per_call || 0) + " ток/зап";
+  const title = t.disabled
+    ? "Отключён — запросы сюда сейчас не идут. Стрелки двигают по очереди, × убирает"
+    : "Стрелки ‹ › двигают по очереди, × убирает";
+  const badge = t.disabled ? '<span class="chip-off" aria-hidden="true">⊘</span>' : "";
+  const last = i === count - 1;
+  return (i ? '<span class="chip-arrow" aria-hidden="true">→</span>' : "")
+    + `<span class="${brainChipCls(t)}" draggable="true" data-tier="${escapeHtml(t.tier)}"`
+    + ` title="${escapeHtml(title)}">${badge}<b>${escapeHtml(t.provider)}</b>`
+    + `<small>${escapeHtml(t.model_label)} · ${cost}</small>`
+    + '<span class="chip-tools">'
+    + `<button type="button" class="chip-move" data-dir="-1" title="Раньше в очереди"${i ? "" : " disabled"}>‹</button>`
+    + `<button type="button" class="chip-move" data-dir="1" title="Позже в очереди"${last ? " disabled" : ""}>›</button>`
+    + '<button type="button" class="chip-remove" title="Убрать из цепочки">×</button>'
+    + "</span></span>";
+}
+
+/* Все зарегистрированные процессы, по категориям purpose_categories. Строки —
+   те же .brain-row, весь механизм (кубик-клик, drag, ‹ ›, ×) работает как в
+   основной карте. Fixed-группа — транспортно-связанные, без редактирования. */
+function renderBrainGroups(groups) {
+  if (!groups || !groups.length) return "";
+  return '<div class="brain-groups"><h3 class="brain-groups-title">Все процессы</h3>'
+    + groups.map((g) => {
+      const fixed = g.fixed || [];
+      const purposes = g.purposes || [];
+      const count = purposes.length || fixed.length;
+      const body = fixed.length
+        ? fixed.map((f) => `<div class="brain-fixed-row"><code>${escapeHtml(f.purpose)}</code>
+            <span>${escapeHtml(f.note)}</span></div>`).join("")
+        : purposes.map((p) => {
+          const chips = (p.tiers || []).map((t, i) => brainChipHtml(t, i, p.tiers.length)).join("");
+          return `<div class="brain-row brain-row-compact" data-purpose="${escapeHtml(p.purpose)}">
+            <div class="brain-label"><code>${escapeHtml(p.purpose)}</code></div>
+            <div class="brain-chain">${chips}</div>
+            <div class="brain-saved" hidden></div>
+          </div>`;
+        }).join("");
+      return `<details class="brain-group" data-group="${escapeHtml(g.key)}">
+        <summary>${escapeHtml(g.label)} <b>${count}</b></summary>
+        <div class="brain-group-body">${body}</div>
+      </details>`;
+    }).join("") + "</div>";
+}
+
+/* Два графика: сколько каждый мозг сжёг недельного лимита — за 24 часа и за
+   7 дней. Лимит задаётся в секции «Лимиты» (токенов/неделя); если не задан —
+   шкала относительная (от максимума среди мозгов) с пометкой. */
+function renderBrainCharts(palette) {
+  const box = byId("brainCharts");
+  if (!box) return;
+  const items = (palette || []).filter((p) => p.wallet !== "paid");
+  if (!items.length) { box.innerHTML = ""; return; }
+  const maxWeek = Math.max(1, ...items.map((p) => Number(p.week_tokens) || 0));
+  const maxDay = Math.max(1, ...items.map((p) => Number(p.day_tokens) || 0));
+  const panel = (title, field, relMax) => {
+    const rows = items.map((p) => {
+      const spent = Number(p[field]) || 0;
+      const limit = Number(p.week_limit_tokens) || 0;
+      const pct = limit ? Math.min(100, Math.round(100 * spent / limit)) : 0;
+      const relPct = Math.min(100, Math.round(100 * spent / relMax));
+      const width = limit ? pct : relPct;
+      const label = limit
+        ? `${tokFmt(spent)} · ${pct}% лимита` + (field === "week_tokens"
+          ? ` · осталось ${tokFmt(Math.max(0, limit - spent))}` : "")
+        : `${tokFmt(spent)} · лимит не задан`;
+      const hot = limit && pct >= 90 ? " is-hot" : "";
+      return `<div class="chart-row">
+        <span class="chart-name">${escapeHtml(p.provider)}</span>
+        <span class="chart-track"><i class="${limit ? "" : "is-nolimit"}${hot}" data-w="${width}"></i></span>
+        <span class="chart-value">${escapeHtml(label)}</span>
+      </div>`;
+    }).join("");
+    return `<div class="chart-panel"><h3>${title}</h3>${rows}</div>`;
+  };
+  box.innerHTML =
+    panel("За 24 часа — от недельного лимита", "day_tokens", maxDay)
+    + panel("За 7 дней — от недельного лимита", "week_tokens", maxWeek);
+  box.querySelectorAll(".chart-track [data-w]").forEach((el) => {
+    el.style.width = Math.max(0, Math.min(100, Number(el.dataset.w) || 0)) + "%";
+  });
+}
+
 function renderBrainMap(map) {
   const box = byId("brainMap");
   if (!box) return;
+  renderBrainCharts(map && map.palette);
   const rows = (map && map.rows) || [];
   if (!rows.length) {
     box.innerHTML = '<div class="empty-state">Карта недоступна' +
@@ -1942,33 +2030,14 @@ function renderBrainMap(map) {
   const strip = renderProviderStatusStrip(map && map.disabled_tiers);
   const palette = renderBrainPalette(map && map.palette);
   box.innerHTML = strip + palette + rows.map((row) => {
-    const chips = row.tiers.map((t, i) => {
-      const paid = t.wallet === "paid";
-      const cost = paid
-        ? "≈$" + Number(t.avg_usd_per_call || 0).toFixed(4) + "/зап"
-        : "≈" + tokFmt(t.avg_tokens_per_call || 0) + " ток/зап";
-      const title = t.disabled
-        ? "Отключён — запросы сюда сейчас не идут. Стрелки двигают по очереди, × убирает"
-        : "Стрелки ‹ › двигают по очереди, × убирает";
-      const badge = t.disabled ? '<span class="chip-off" aria-hidden="true">⊘</span>' : "";
-      const last = i === row.tiers.length - 1;
-      return (i ? '<span class="chip-arrow" aria-hidden="true">→</span>' : "")
-        + `<span class="${brainChipCls(t)}" draggable="true" data-tier="${escapeHtml(t.tier)}"`
-        + ` title="${escapeHtml(title)}">${badge}<b>${escapeHtml(t.provider)}</b>`
-        + `<small>${escapeHtml(t.model_label)} · ${cost}</small>`
-        + '<span class="chip-tools">'
-        + `<button type="button" class="chip-move" data-dir="-1" title="Раньше в очереди"${i ? "" : " disabled"}>‹</button>`
-        + `<button type="button" class="chip-move" data-dir="1" title="Позже в очереди"${last ? " disabled" : ""}>›</button>`
-        + '<button type="button" class="chip-remove" title="Убрать из цепочки">×</button>'
-        + "</span></span>";
-    }).join("");
+    const chips = row.tiers.map((t, i) => brainChipHtml(t, i, row.tiers.length)).join("");
     return `<div class="brain-row" data-purpose="${escapeHtml(row.purpose)}">
       <div class="brain-label"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.sub)}</small></div>
       <div class="brain-chain">${chips}</div>
       ${row.note ? `<div class="brain-note">${escapeHtml(row.note)}</div>` : ""}
       <div class="brain-saved" hidden></div>
     </div>`;
-  }).join("");
+  }).join("") + renderBrainGroups(map && map.groups);
   box.querySelectorAll(".cube-track [data-w]").forEach((el) => {
     el.style.width = Math.max(0, Math.min(100, Number(el.dataset.w) || 0)) + "%";
   });

@@ -1243,3 +1243,37 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .arbitr-axes { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
 .arbitr-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
 .arbitr-actions .text-button { border: 1px solid var(--line); }
+
+/* Все процессы (CHG-20260816-007): категории purpose_categories как
+   раскрывающиеся группы; строки — те же brain-row, механизм правки общий. */
+.brain-groups { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 10px; }
+.brain-groups-title { margin: 0 0 6px; font-size: 15px; }
+.brain-group { border: 1px solid var(--line); border-radius: 10px; margin-top: 8px; background: var(--paper); }
+.brain-group > summary { cursor: pointer; padding: 9px 12px; font-weight: 500; list-style: none; }
+.brain-group > summary::-webkit-details-marker { display: none; }
+.brain-group > summary::before { content: "▸ "; color: var(--muted); }
+.brain-group[open] > summary::before { content: "▾ "; }
+.brain-group > summary b { color: var(--muted); font-weight: 400; margin-left: 4px; }
+.brain-group-body { padding: 0 12px 10px; }
+.brain-row-compact { padding: 8px 0; }
+.brain-row-compact .brain-label { min-width: 250px; }
+.brain-row-compact .brain-label code,
+.brain-fixed-row code { font-size: 12px; background: var(--frame); padding: 2px 6px; border-radius: 6px; }
+.brain-row-compact .chip { padding: 4px 9px; }
+.brain-row-compact .chip small { font-size: 10px; }
+.brain-fixed-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+.brain-fixed-row:first-child { border-top: 0; }
+.brain-fixed-row span { color: var(--muted); font-size: 12px; }
+
+/* Графики недельного лимита: за 24ч и за 7д, по мозгам. */
+.brain-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 760px) { .brain-charts { grid-template-columns: 1fr; } }
+.chart-panel h3 { margin: 0 0 8px; font-size: 13.5px; }
+.chart-row { display: grid; grid-template-columns: 92px 1fr auto; align-items: center; gap: 10px; padding: 5px 0; }
+.chart-name { font-size: 12.5px; font-weight: 500; }
+.chart-track { position: relative; height: 12px; border-radius: 6px; background: var(--frame);
+  border: 1px solid var(--line); overflow: hidden; }
+.chart-track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: #4f8f68; }
+.chart-track i.is-hot { background: var(--danger); }
+.chart-track i.is-nolimit { background: #9db8a6; }
+.chart-value { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
