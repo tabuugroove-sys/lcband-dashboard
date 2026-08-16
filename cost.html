@@ -594,9 +594,19 @@ a:hover { text-decoration: underline; }
     <span style="font-size:11px;color:var(--muted);" id="routing-mode-current">—</span>
   </h2>
   <div class="label" style="margin:-4px 0 10px 0;">
-    Primary split применяется к CLI-call'ам <b>без явной цепочки мозгов</b> (перекрывает per-category фейдеры).
-    Задачи с цепочкой (карточка «Цепочки мозгов» ниже) исполняют её напрямую, минуя режим.
-    Единое правило отказа для задач без цепочки: <b id="xfb-rule">упал primary → один раз пробуем второго провайдера; оба упали → no-send</b>.
+    <span id="solo-legend" style="display:none;"><b>Solo</b> («Только …») — почти весь AI-трафик в один мозг:
+    все вызовы центрального диспатча и Gemini-скрины. Вне solo остаются узкие прямые вызовы
+    (Codex-гейты эскалаций/платежей, vision и договоры на Claude-файлах). Отказ solo-мозга = no-send/skip,
+    платный API недоступен. </span><b>Авто</b> — задачи с цепочкой исполняют её (карточка «Цепочки мозгов» ниже),
+    задачи без цепочки идут через legacy split. Правило отказа:
+    <b id="xfb-rule">упал primary → один раз пробуем второго провайдера; оба упали → no-send</b>.
+  </div>
+  <div id="solo-tier-row" style="display:none;margin:0 0 12px 0;">
+    <div id="solo-tier-buttons" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
+    <div id="solo-tier-toast" style="margin-top:6px;font-size:13px;"></div>
+  </div>
+  <div class="label" id="legacy-split-caption" style="margin:0 0 6px 0;">
+    Legacy split — только для задач без явной цепочки и только в режиме «Авто»:
   </div>
   <div id="routing-mode-buttons" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
   <div id="routing-mode-providers" style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);"></div>
@@ -2937,15 +2947,53 @@ async function loadRoutingMode() {
     const byKey = {}; (d.modes||[]).forEach(m => byKey[m.key] = m);
     const cur = d.current_mode || '';
 
+    const solo = d.solo_tier || '';
+    const _soloNames = {claude: 'Claude', codex: 'GPT (Codex)', kimi: 'Kimi'};
+
     const curEl = document.getElementById('routing-mode-current');
-    if (curEl) curEl.textContent = cur
+    if (curEl) curEl.textContent = solo
+      ? ('Активен: Solo — только ' + (_soloNames[solo] || solo))
+      : cur
       ? ('Активен: ' + ((byKey[cur]||{}).label || cur))
       : 'Активен: custom (per-category faders)';
+
+    // Solo-ряд (16.08): главный контрол. Старый backend без solo_allowed →
+    // ряд остаётся скрытым, страница живёт как раньше.
+    const soloRow = document.getElementById('solo-tier-row');
+    const soloBtns = document.getElementById('solo-tier-buttons');
+    const soloAllowed = d.solo_allowed || [];
+    if (soloRow && soloBtns && soloAllowed.length) {
+      soloRow.style.display = '';
+      const defs = [
+        {k: '', label: '🧠 Авто', sub: 'цепочки мозгов'},
+        {k: 'claude', label: 'Только Claude', sub: 'Opus/Sonnet CLI'},
+        {k: 'codex', label: 'Только GPT', sub: 'Codex GPT-5.5'},
+        {k: 'kimi', label: 'Только Kimi', sub: 'K3'},
+      ];
+      soloBtns.innerHTML = defs.filter(s => !s.k || soloAllowed.includes(s.k)).map(s => {
+        const active = s.k === solo;
+        const bg = active ? 'background:rgba(0,112,243,0.16);border-color:var(--accent);'
+                          : 'background:var(--panel-2,#fafafa);';
+        const prov = s.k && d.providers ? d.providers[s.k] : null;
+        const warn = s.k && prov && !prov.funded
+          ? '<div style="font-size:10px;color:var(--warn,#d97706);margin-top:3px;">⚠ budget 0 — упрётся в guard</div>' : '';
+        return `<button onclick="applySoloTier('${s.k}')" style="
+          padding:12px 10px;border:1.5px solid var(--border);border-radius:10px;
+          cursor:pointer;text-align:center;transition:all .15s;${bg}">
+          <div style="font-weight:700;font-size:13px;">${esc(s.label)}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">${esc(s.sub)}</div>
+          ${warn}
+        </button>`;
+      }).join('');
+    }
 
     const ruleEl = document.getElementById('xfb-rule');
     if (ruleEl) {
       const scope = d.cross_fallback_scope || 'all';
-      ruleEl.textContent = cur === 'codex_only'
+      ruleEl.textContent = solo
+        ? ('Solo: диспатч-трафик идёт только в ' + (_soloNames[solo] || solo) +
+           '; его отказ = no-send/skip, второго провайдера нет')
+        : cur === 'codex_only'
         ? 'Codex only: Codex fail → no-send/skip; Claude/Opus fallback выключен'
         : scope === 'none'
         ? 'упал primary → сразу skip/blocker (cross-fallback выкл)'
@@ -2953,6 +3001,8 @@ async function loadRoutingMode() {
             ? 'client-visible: упал primary → пробуем второго; иначе skip'
             : 'все CLI-call защищены: упал primary → один раз пробуем второго; оба упали → no-send');
     }
+    const legendEl = document.getElementById('solo-legend');
+    if (legendEl && (d.solo_allowed || []).length) legendEl.style.display = '';
 
     const cont = document.getElementById('routing-mode-buttons');
     if (cont) {
@@ -2963,7 +3013,7 @@ async function loadRoutingMode() {
                           : 'background:var(--panel-2,#fafafa);';
         const warn = m.ready ? ''
           : '<div style="font-size:10px;color:var(--warn,#d97706);margin-top:3px;">⚠ включит бюджет</div>';
-        return `<button onclick="applyRoutingMode('${k}')" style="
+        return `<button ${solo ? 'disabled ' : ''}onclick="applyRoutingMode('${k}')" style="
           padding:12px 10px;border:1.5px solid var(--border);border-radius:10px;
           cursor:pointer;text-align:center;transition:all .15s;${bg}">
           <div style="font-weight:700;font-size:13px;">${esc(m.label)}</div>
@@ -2972,7 +3022,14 @@ async function loadRoutingMode() {
           ${warn}
         </button>`;
       }).join('');
+      // Под solo legacy split не решает ничего — гасим, но не прячем.
+      cont.style.opacity = solo ? '.4' : '';
+      cont.style.pointerEvents = solo ? 'none' : '';
     }
+    const capEl = document.getElementById('legacy-split-caption');
+    if (capEl) capEl.textContent = solo
+      ? 'Legacy split игнорируется, пока Solo активен (вернётся в режиме «Авто»):'
+      : 'Legacy split — только для задач без явной цепочки и только в режиме «Авто»:';
 
     const provEl = document.getElementById('routing-mode-providers');
     if (provEl) {
@@ -3010,13 +3067,59 @@ async function loadRoutingMode() {
     const psEl = document.getElementById('protected-summary');
     if (psEl) {
       const pcText = '<span id="protected-count">' + ((d.protected_purposes || []).length) + '</span>';
-      psEl.innerHTML = cur === 'codex_only'
+      psEl.innerHTML = solo
+        ? '🛡️ Protected purposes (' + pcText + ') — под Solo дожим вторым провайдером выключен'
+        : cur === 'codex_only'
         ? '🛡️ Protected purposes (' + pcText + ') — Opus fallback off'
         : '🛡️ Protected purposes (' + pcText + ') — дожимаются Opus';
     }
     const bgEl = document.getElementById('background-count');
     if (bgEl) bgEl.textContent = (d.background_other_opus || []).length;
   } catch (e) { /* silent */ }
+}
+
+async function applySoloTier(tier) {
+  const bu = await loadBackend();
+  if (bu === null) return;
+  const toast = document.getElementById('solo-tier-toast');
+  const names = {claude: 'Claude', codex: 'GPT (Codex)', kimi: 'Kimi'};
+  if (tier && !window.confirm(
+      'Включить «Только ' + (names[tier] || tier) + '»? Почти весь AI-трафик — клиентские ответы, ' +
+      'presend, classify-цепочки, Gemini-скрины, тень V2, legacy-задачи — пойдёт только в ' +
+      (names[tier] || tier) + '. Вне solo остаются узкие прямые вызовы (Codex-гейты эскалаций и платежей, ' +
+      'vision и договоры на Claude-файлах). Отказ ' + (names[tier] || tier) +
+      ' = no-send/skip (другой LLM не подстрахует), платный API недоступен.')) return;
+  if (toast) toast.innerHTML = '<span class="muted">⏳ применяется…</span>';
+  try {
+    const doPost = async (tok) => {
+      const headers = {'Content-Type': 'application/json'};
+      if (tok) headers['X-Admin-Token'] = tok;
+      return fetch(bu + '/api/runtime_config/solo_tier', {
+        method: 'POST', headers, body: JSON.stringify({tier}),
+      });
+    };
+    let r = await doPost(ensureAdminToken(true));
+    if (r.status === 403) {
+      // Токен протух: сбросить, спросить заново, повторить один раз — не
+      // гонять пользователя через confirm-диалог по второму кругу.
+      localStorage.removeItem('lcband_admin_token'); _adminToken = '';
+      const tok = ensureAdminToken(true);
+      if (!tok) { if (toast) toast.innerHTML = '<span style="color:var(--danger)">❌ нужен admin token</span>'; return; }
+      r = await doPost(tok);
+    }
+    const j = await r.json();
+    if (j.error) {
+      if (toast) toast.innerHTML = '<span style="color:var(--danger);">❌ ' + esc(j.error) + '</span>';
+      return;
+    }
+    const warn = (j.warnings || []).length ? ' · ⚠ ' + j.warnings.join('; ') : '';
+    if (toast) toast.innerHTML = '<span style="color:var(--ok);">✅ ' +
+      (j.solo_tier ? 'Solo: только ' + esc(names[j.solo_tier] || j.solo_tier) : 'Авто (цепочки)') +
+      esc(warn) + '</span>';
+    setTimeout(() => { if (toast) toast.innerHTML = ''; loadRoutingMode(); loadBrainChains(); }, 2500);
+  } catch (e) {
+    if (toast) toast.innerHTML = '<span style="color:var(--danger);">❌ ' + esc(e.message) + '</span>';
+  }
 }
 
 async function applyRoutingMode(mode) {
@@ -3094,12 +3197,19 @@ setInterval(loadRoutingMode, 30000);
 const _TIER_LABELS = {minimax:'MiniMax', kimi:'Kimi', claude_cli:'Claude', codex:'Codex', antigravity:'Antigravity', claude_api:'Claude API'};
 const _SAFE_PURPOSE = /^[A-Za-z0-9_.:-]+$/;
 let _brainMapData = null;
+let _brainSolo = '';    // solo-тир из brain_map: цепочки показываются (solo,), правка выключена
 let _chainEdits = {};   // purpose -> рабочая копия цепочки; пока не пуста, авто-refresh не перерисовывает
 let _chainSaving = false;
 
 function _chainModeNote(rm) {
   const tail = 'он правит только задачи без явной цепочки';
   if (!rm) return tail;
+  const soloNow = String(rm.solo_tier || '');
+  if (soloNow) {
+    const names = {claude: 'Claude', codex: 'GPT (Codex)', kimi: 'Kimi'};
+    return 'сейчас активен Solo (только ' + (names[soloNow] || soloNow) +
+      ') — игнорируются и режимы, и нарисованные цепочки';
+  }
   const cur = rm.current_mode || '';
   if (!cur) return tail + ' (сейчас: custom per-category faders)';
   const m = (rm.modes || []).find(x => x.key === cur) || {};
@@ -3129,7 +3239,16 @@ function renderBrainChains() {
   (bm.palette || []).forEach(c => { if (c && c.tier) specByTier[c.tier] = c; });
   rows.forEach(r => (r.tiers || []).forEach(t => { if (t && t.tier && !specByTier[t.tier]) specByTier[t.tier] = t; }));
 
-  box.innerHTML = rows.map(row => {
+  const _soloDisp = {claude: 'Claude', codex: 'GPT (Codex)', kimi: 'Kimi'};
+  const soloBanner = _brainSolo
+    ? '<div style="margin:0 0 10px 0;padding:8px 12px;border:1px solid rgba(210,153,34,.55);' +
+      'background:rgba(210,153,34,.08);border-radius:8px;font-size:12px;">⚡ <b>Solo-режим: все запросы идут только в ' +
+      esc(_soloDisp[_brainSolo] || _brainSolo) + '</b> — строки ниже показывают фактическое состояние. ' +
+      'Нарисованные цепочки не потеряны и вернутся в режиме «Авто»; правка заморожена — ' +
+      'сервер отклонит сохранение и с экрана «Токены» V2.</div>'
+    : '';
+
+  box.innerHTML = soloBanner + rows.map(row => {
     const p = String(row.purpose || '');
     const editable = _SAFE_PURPOSE.test(p);
     const editing = editable && Object.prototype.hasOwnProperty.call(_chainEdits, p);
@@ -3163,7 +3282,7 @@ function renderBrainChains() {
       '<span class="muted">платный тир сохранится только там, где разрешён каноном</span>' +
       '</div>';
 
-    const editBtn = editable && !editing
+    const editBtn = editable && !editing && !_brainSolo
       ? '<button class="thread-action" title="изменить порядок тиров" onclick="chainEdit(\'' + p + '\')">✏️</button>' : '';
     return '<div class="chain-row">' +
       '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;">' +
@@ -3188,11 +3307,17 @@ async function loadBrainChains() {
     if (Object.keys(_chainEdits).length) {
       // Правка открыта: список из-под рук не выдёргиваем, но mode-note
       // обновляем — смена режима в карточке выше не должна зависать.
-      const rmR = await fetch(bu + '/api/runtime_config/routing_mode', {cache: 'no-store'});
-      const rm = await rmR.json();
-      const noteEl = document.getElementById('brain-chains-mode-note');
-      if (noteEl && rm && !rm.error) noteEl.textContent = _chainModeNote(rm);
-      return;
+      const rmR0 = await fetch(bu + '/api/runtime_config/routing_mode', {cache: 'no-store'});
+      const rm0 = await rmR0.json();
+      const noteEl0 = document.getElementById('brain-chains-mode-note');
+      if (noteEl0 && rm0 && !rm0.error) noteEl0.textContent = _chainModeNote(rm0);
+      // Solo включили, пока правка была открыта (другая вкладка / V2): правки
+      // снимаем и падаем в полный reload — иначе карточка навсегда без баннера,
+      // а chainSave мог бы отправить однотировый override (сервер его и так
+      // отклонит 409, но UI не должен даже предлагать).
+      const soloNow0 = rm0 && !rm0.error ? String(rm0.solo_tier || '') : '';
+      if (!soloNow0) return;
+      _chainEdits = {};
     }
     const [bmR, rmR] = await Promise.all([
       fetch(bu + '/api/app/brain_map', {cache: 'no-store'}),
@@ -3203,6 +3328,8 @@ async function loadBrainChains() {
     let rm = null;
     try { rm = await rmR.json(); } catch (e) { /* mode note опционален */ }
     _brainMapData = bm;
+    _brainSolo = String(bm.solo_tier || '');
+    if (_brainSolo) _chainEdits = {}; // под solo правки не имеют смысла и скрыты
     // Пока ждали сеть, могла открыться правка — рендер её сохранит. Но правку
     // purpose'а, которого больше нет в данных, снимаем: иначе её некому закрыть
     // (строка не рендерится) и guard заблокирует refresh навсегда.
@@ -3220,6 +3347,7 @@ async function loadBrainChains() {
 }
 
 function chainEdit(p) {
+  if (_brainSolo) return; // под solo правки выключены (кнопка и так скрыта)
   const row = ((_brainMapData || {}).rows || []).find(r => r.purpose === p);
   if (!row) return;
   _chainEdits[p] = (row.tiers || []).map(t => t.tier);
@@ -3250,6 +3378,7 @@ function chainAdd(p) {
 }
 async function chainSave(p) {
   if (_chainSaving) return; // re-entrancy: двойной клик/второй ряд = один POST за раз
+  if (_brainSolo) return;   // под solo цепочки заморожены (сервер тоже отклонит 409)
   const arr = _chainEdits[p];
   if (!arr || !arr.length) return;
   const bu = await loadBackend();
