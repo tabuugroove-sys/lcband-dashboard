@@ -2424,7 +2424,8 @@ async function renderTokens() {
 }
 
 const SPEND_DEBATE_STATUS_LABEL = {
-  ok: '<span class="pill ok">решение готово</span>',
+  ok: '<span class="pill ok">решение готово · консенсус</span>',
+  disagreement: '<span class="pill hold">⚡ без консенсуса</span>',
   cooldown: '<span class="pill hold">⏳ кулдаун</span>',
   timeout: '<span class="pill hold">⚠️ таймаут</span>',
   error: '<span class="pill hold">⚠️ ошибка</span>',
@@ -2464,6 +2465,11 @@ function renderSpendDebates(payload) {
     if (a.status === "ok") {
       body = `<p class="mtext spend-debate-decision">${escapeHtml(a.decision || "")}</p>
         <button type="button" class="text-button" data-spend-debate-send="${i}">Отправить Claude в чат</button>`;
+    } else if (a.status === "disagreement") {
+      const failed = Object.entries(a.failed_providers || {}).map(([p, why]) => `${p}: ${why}`).join(", ");
+      body = `<p class="mtext">${failed ? "Сбой участника: " + escapeHtml(failed) : "Модели не сошлись во мнении"} — решению ниже доверять осторожнее, консенсуса нет.</p>
+        <p class="mtext spend-debate-decision">${escapeHtml(a.decision || "")}</p>
+        <button type="button" class="text-button" data-spend-debate-send="${i}">Отправить (без консенсуса) в чат</button>`;
     } else if (a.status === "cooldown") {
       body = `<p class="mtext">MiniMax/Kimi сейчас в кулдауне у нашего guard — спор не запускался, чтобы не жечь TriBrain-квоту впустую.<br><small>${escapeHtml(a.cooldown_reason || "")}</small></p>`;
     } else {
