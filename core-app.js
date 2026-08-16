@@ -2414,6 +2414,78 @@ async function renderTokens() {
   agents.querySelectorAll("[data-agent-idx]").forEach((row) => {
     row.addEventListener("click", () => openAgentDrilldown(Number(row.dataset.agentIdx)));
   });
+
+  try {
+    const debates = await apiGet("/api/app/spend_reduction_debates");
+    if (!stale()) renderSpendDebates(debates);
+  } catch (error) {
+    if (!stale()) renderSpendDebates({ agents: [], error: String(error) });
+  }
+}
+
+const SPEND_DEBATE_STATUS_LABEL = {
+  ok: '<span class="pill ok">решение готово</span>',
+  cooldown: '<span class="pill hold">⏳ кулдаун</span>',
+  timeout: '<span class="pill hold">⚠️ таймаут</span>',
+  error: '<span class="pill hold">⚠️ ошибка</span>',
+};
+
+/* Раз в сутки launchd-агент кладёт результат спора MiniMax↔Kimi (через
+   TriBrain) в spend_reduction_debate_report.json — экран только читает и
+   рисует. «Отправить Claude» — тот же безопасный sendPrompt/alert-паттерн,
+   что и у обычной кнопки ревью: никакого автономного редактирования кода. */
+function renderSpendDebates(payload) {
+  const box = byId("spendDebateAgents");
+  const pill = byId("spendDebateSyncPill");
+  if (!box) return;
+  if (payload && payload.generated_at && pill) {
+    const dt = new Date(payload.generated_at);
+    pill.textContent = "Прогон: " + dt.toLocaleString("ru-RU", {
+      day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+    });
+    pill.className = "pill ok";
+  } else if (pill) {
+    pill.textContent = payload && payload.note === "no_report_yet" ? "Ещё не запускался" : "—";
+    pill.className = "pill";
+  }
+  const rows = (payload && payload.agents) || [];
+  if (payload && payload.error) {
+    box.innerHTML = `<div class="empty-state">Недоступно: ${escapeHtml(String(payload.error))}</div>`;
+    return;
+  }
+  if (!rows.length) {
+    box.innerHTML = '<div class="empty-state">Отчёт пуст — либо ещё не было прогона, либо все агенты ниже порога.</div>';
+    return;
+  }
+  box.innerHTML = rows.map((a, i) => {
+    const short = String(a.agent || "").replace("com.lcband.", "");
+    const statusPill = SPEND_DEBATE_STATUS_LABEL[a.status] || "";
+    let body;
+    if (a.status === "ok") {
+      body = `<p class="mtext spend-debate-decision">${escapeHtml(a.decision || "")}</p>
+        <button type="button" class="text-button" data-spend-debate-send="${i}">Отправить Claude в чат</button>`;
+    } else if (a.status === "cooldown") {
+      body = `<p class="mtext">MiniMax/Kimi сейчас в кулдауне у нашего guard — спор не запускался, чтобы не жечь TriBrain-квоту впустую.<br><small>${escapeHtml(a.cooldown_reason || "")}</small></p>`;
+    } else {
+      body = `<p class="mtext">${escapeHtml(a.detail || a.status || "")}</p>`;
+    }
+    return `<div class="brain-row spend-debate-row">
+      <div class="brain-label"><strong>${escapeHtml(short)}</strong><small>${tokFmt(a.day_tokens || 0)} ток/24ч</small></div>
+      ${statusPill}
+      ${body}
+    </div>`;
+  }).join("");
+  box.querySelectorAll("[data-spend-debate-send]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const row = rows[Number(btn.dataset.spendDebateSend)];
+      if (!row) return;
+      const prompt = `MiniMax и Kimi (через TriBrain) предложили снизить расход токенов агента `
+        + `${row.agent} (${tokFmt(row.day_tokens || 0)} токенов за 24ч):\n\n${row.decision}\n\n`
+        + `Проверь предложение и, если оно безопасно и не нарушает канон проекта — примени.`;
+      if (typeof sendPrompt === "function") sendPrompt(prompt);
+      else alert("Решение спора:\n\n" + prompt);
+    });
+  });
 }
 
 function renderTokenLimits() {
