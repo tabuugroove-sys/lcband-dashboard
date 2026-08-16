@@ -47,6 +47,7 @@
   <nav class="tabbar" aria-label="Разделы приложения">
     <button class="tab-button is-active" data-view="calendar"><span class="tab-icon" aria-hidden="true">▦</span>Календарь</button>
     <button class="tab-button" data-view="chats"><span class="tab-icon" aria-hidden="true">✉<span class="tab-badge" id="navChatsCount" hidden></span></span>Чаты</button>
+    <button class="tab-button" data-view="flow"><span class="tab-icon" aria-hidden="true">⌁</span>Карта лидов</button>
     <button class="tab-button" data-view="today"><span class="tab-icon" aria-hidden="true">☉<span class="tab-badge brass" id="navTodayCount" hidden></span></span>Сегодня</button>
     <button class="tab-button" data-view="promo"><span class="tab-icon" aria-hidden="true">▤</span>Промо</button>
     <button class="tab-button" data-view="costumes"><span class="tab-icon" aria-hidden="true">♢</span>Костюмы</button>
@@ -284,6 +285,41 @@
           <button data-work-tab="domain_events">Журнал <span id="countEvents">0</span></button>
         </div>
         <div class="work-list" id="workList"></div>
+      </section>
+
+      <section class="screen flow-screen" id="screen-flow">
+        <div class="page-head flow-page-head">
+          <div><p class="eyebrow">Фактические переходы · read-only</p><h1>Карта движения лидов</h1></div>
+          <span class="pill" id="flowFreshness">Загрузка…</span>
+        </div>
+        <section class="flow-intro" aria-labelledby="flowIntroTitle">
+          <div>
+            <span class="flow-kicker">LCB · V1 authority</span>
+            <h2 id="flowIntroTitle">Где находятся лиды и каким путём они туда пришли</h2>
+            <p>Сплошные линии — подтверждённая история. Пунктир означает неполную историю или только текущее положение. Карта ничего не отправляет и не меняет стадии.</p>
+          </div>
+          <div class="flow-coverage-ring" id="flowCoverageRing" aria-label="Покрытие истории"><strong>—</strong><span>истории</span></div>
+        </section>
+        <div class="flow-controls" aria-label="Фильтры карты">
+          <label><span>Контур</span><select id="flowScope"><option value="lcb">LCB клиенты</option><option value="broker" disabled>Broker — нет истории переходов</option></select></label>
+          <label><span>Период</span><select id="flowPeriod"><option value="30">30 дней</option><option value="90" selected>90 дней</option><option value="180">180 дней</option></select></label>
+          <label><span>Источник</span><select id="flowSource"><option value="">Все источники</option><option value="direct">Прямые</option><option value="tg">Telegram</option><option value="wa">WhatsApp</option><option value="vk">VK</option><option value="unknown">Не определён</option></select></label>
+          <label class="flow-search"><span>Найти лид</span><input id="flowSearch" type="search" placeholder="Имя, @username или ID" autocomplete="off"></label>
+          <button class="text-button flow-reload" id="flowReload" type="button">Обновить карту</button>
+        </div>
+        <div class="flow-metrics" id="flowMetrics" aria-live="polite"></div>
+        <div class="flow-warnings" id="flowWarnings" aria-live="polite"></div>
+        <div class="flow-layout">
+          <section class="flow-map-panel" aria-labelledby="flowMapTitle">
+            <div class="section-head"><div><p class="eyebrow">Маршруты за период</p><h2 id="flowMapTitle">Переходы между стадиями</h2></div><div class="flow-legend"><span class="confirmed">история CRM</span><span class="log">fallback-журнал</span><span class="partial">неполная история</span><span class="snapshot">только снимок</span></div></div>
+            <div class="flow-map-scroll" id="flowMapScroll">
+              <div class="flow-map-canvas" id="flowMapCanvas"><div class="flow-loading">Собираем фактические переходы…</div></div>
+            </div>
+          </section>
+          <aside class="flow-detail" id="flowDetail" aria-live="polite">
+            <div class="flow-detail-empty"><span>⌁</span><h2>Выберите стадию или линию</h2><p>Здесь появятся конкретные лиды, время перехода и уровень доказательности.</p></div>
+          </aside>
+        </div>
       </section>
 
       <section class="screen" id="screen-system">

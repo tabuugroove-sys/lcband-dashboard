@@ -19,6 +19,7 @@ const API = Object.freeze({
   assignRole: "/api/core/roles/assign",
   work: "/api/core/work",
   operations: "/api/core/operations",
+  leadFlow: "/api/app/lead_flow",
 });
 
 const state = {
@@ -33,7 +34,14 @@ const state = {
   coordinationCases: [],
   work: null,
   operations: null,
+  leadFlow: null,
   activeView: "calendar",
+  flowPeriod: 90,
+  flowSource: "",
+  flowQuery: "",
+  flowSelected: null,
+  flowLoading: false,
+  flowRefreshedAt: 0,
   activeWorkTab: "obligations",
   selectedThreadId: "",
   selectedEventId: "",
@@ -531,6 +539,10 @@ function setView(view) {
     refreshCalendar();
   }
   if (view === "chats") renderThreads();
+  if (view === "flow") {
+    renderFlow();
+    refreshFlow();
+  }
   if (view === "today") renderToday();
   if (view === "system") renderSystem();
   if (view === "tokens") renderTokens();
@@ -564,7 +576,7 @@ function route() {
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "today", "system", "tokens", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "arbitr"].includes(name)
+  const view = ["calendar", "chats", "flow", "today", "system", "tokens", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "arbitr"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";
@@ -2912,6 +2924,227 @@ async function refreshPromo(force = false) {
   }
 }
 
+const FLOW_EVIDENCE = Object.freeze({
+  history_transition: { label: "История CRM", className: "" },
+  log_transition: { label: "Fallback-журнал", className: "is-log" },
+  to_only: { label: "Предыдущая стадия не доказана", className: "is-partial" },
+  snapshot_only: { label: "Только текущее положение", className: "is-snapshot" },
+});
+
+function flowFormatTime(value) {
+  if (!value) return "время неизвестно";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("ru-RU", {
+    day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function flowFilteredLeads(leads = state.leadFlow?.leads || []) {
+  const query = state.flowQuery.toLocaleLowerCase("ru-RU");
+  return leads.filter((lead) => {
+    if (state.flowSource && lead.lead_source?.key !== state.flowSource) return false;
+    if (!query) return true;
+    return [lead.display, lead.username, lead.lead_id, lead.stage_label, lead.channel]
+      .some((value) => String(value || "").toLocaleLowerCase("ru-RU").includes(query));
+  });
+}
+
+function flowMetric(value, label, className = "") {
+  return `<article class="flow-metric ${className}"><strong>${formatNumber(value)}</strong><span>${escapeHtml(label)}</span></article>`;
+}
+
+function renderFlowMetrics() {
+  const data = state.leadFlow;
+  if (!data) return;
+  const coverage = data.coverage || {};
+  const visible = flowFilteredLeads();
+  const visibleIds = new Set(visible.map((lead) => lead.lead_id));
+  const filtersActive = Boolean(state.flowSource || state.flowQuery);
+  const confirmedTransitions = filtersActive
+    ? (data.transitions || []).filter((row) => visibleIds.has(row.lead_id) && ["history_transition", "log_transition"].includes(row.evidence)).length
+    : Number(coverage.confirmed_transitions || 0);
+  const snapshotOnly = filtersActive
+    ? visible.filter((lead) => lead.history_state === "snapshot_only").length
+    : Number(coverage.snapshot_only_leads || 0);
+  const stuck = visible.filter((lead) => lead.stuck).length;
+  byId("flowMetrics").innerHTML = [
+    flowMetric(visible.length, visible.length === Number(coverage.leads_total || 0) ? "лидов в выбранном контуре" : `лидов после фильтра · всего ${coverage.leads_total || 0}`, "is-accent"),
+    flowMetric(confirmedTransitions, "подтверждённых переходов"),
+    flowMetric(snapshotOnly, "без машинно-читаемого маршрута", snapshotOnly ? "is-warn" : ""),
+    flowMetric(stuck, "без движения ≥ 14 дней", stuck ? "is-warn" : ""),
+  ].join("");
+  const pct = Number(coverage.history_pct || 0);
+  byId("flowCoverageRing").style.borderTopColor = pct >= 60 ? "var(--pine)" : "var(--warn)";
+  byId("flowCoverageRing").querySelector("strong").textContent = `${Math.round(pct)}%`;
+  byId("flowFreshness").textContent = `Обновлено ${flowFormatTime(data.generated_at)}`;
+}
+
+function renderFlowWarnings() {
+  const warnings = state.leadFlow?.warnings || [];
+  byId("flowWarnings").innerHTML = warnings.map((warning) => `
+    <div class="flow-warning"><b>!</b><span>${escapeHtml(warning.detail || warning.code)}</span></div>
+  `).join("");
+}
+
+function flowSelectedKey(selection = state.flowSelected) {
+  if (!selection) return "";
+  if (selection.kind === "edge") return `${selection.from}|${selection.to}|${selection.evidence}`;
+  return selection.key || selection.leadId || "";
+}
+
+function renderFlowMap() {
+  const data = state.leadFlow;
+  const canvas = byId("flowMapCanvas");
+  if (!data) {
+    canvas.style.width = "100%";
+    canvas.innerHTML = '<div class="flow-loading">Собираем фактические переходы…</div>';
+    return;
+  }
+  const visibleLeads = flowFilteredLeads();
+  const visibleIds = new Set(visibleLeads.map((lead) => lead.lead_id));
+  const nodes = data.nodes || [];
+  const edges = (data.edges || []).map((edge) => ({
+    ...edge,
+    visibleLeadIds: (edge.lead_ids || []).filter((leadId) => visibleIds.has(leadId)),
+  })).filter((edge) => edge.visibleLeadIds.length > 0);
+  const width = Math.max(1080, nodes.length * 184 + 80);
+  canvas.style.width = `${width}px`;
+  const positions = new Map(nodes.map((node, index) => [node.key, 34 + index * 184]));
+  const visibleNodeCount = (node) => node.key === "snapshot_origin"
+    ? visibleLeads.filter((lead) => lead.history_state === "snapshot_only").length
+    : visibleLeads.filter((lead) => lead.stage === node.key).length;
+  if (!state.flowSelected) {
+    const first = [...nodes].sort((a, b) => {
+      const countDiff = visibleNodeCount(b) - visibleNodeCount(a);
+      if (countDiff) return countDiff;
+      return Number(a.kind === "evidence_gap") - Number(b.kind === "evidence_gap");
+    })[0];
+    if (first) state.flowSelected = { kind: "node", key: first.key };
+  }
+  const selectedKey = flowSelectedKey();
+  const nodeHtml = nodes.map((node, index) => {
+    const count = visibleNodeCount(node);
+    const stuck = node.key === "snapshot_origin" ? 0 : visibleLeads.filter((lead) => lead.stage === node.key && lead.stuck).length;
+    const active = node.key === "snapshot_origin"
+      ? visibleLeads.filter((lead) => lead.history_state === "snapshot_only" && lead.lead_status === "active").length
+      : visibleLeads.filter((lead) => lead.stage === node.key && lead.lead_status === "active").length;
+    const classes = ["flow-node", node.kind === "evidence_gap" ? "is-gap" : "", count === 0 ? "is-empty" : "", selectedKey === node.key ? "is-selected" : ""].filter(Boolean).join(" ");
+    return `<button class="${classes}" type="button" data-flow-node="${escapeHtml(node.key)}" data-flow-index="${index}">
+      <span class="flow-node-name">${escapeHtml(node.label)}</span>
+      <strong class="flow-node-count">${formatNumber(count)}</strong>
+      <span class="flow-node-meta">${stuck ? `<i class="is-stuck">застряли ${stuck}</i>` : ""}${node.intra_stage_moves ? `<i>внутри стадии ${node.intra_stage_moves}</i>` : ""}<i>${active} активных</i></span>
+    </button>`;
+  }).join("");
+  const drawableEdges = edges.filter((edge) => positions.has(edge.from) && positions.has(edge.to));
+  const paths = drawableEdges.map((edge, index) => {
+    const x1 = positions.get(edge.from) + 79;
+    const x2 = positions.get(edge.to) + 79;
+    const lane = 174 + (index % 8) * 31;
+    const key = `${edge.from}|${edge.to}|${edge.evidence}`;
+    const meta = FLOW_EVIDENCE[edge.evidence] || { label: edge.evidence, className: "is-partial" };
+    const selected = selectedKey === key ? " is-selected" : "";
+    const path = `M ${x1} 132 C ${x1} ${lane}, ${x2} ${lane}, ${x2} 132`;
+    return `<path class="flow-edge ${meta.className}${selected}" d="${path}" data-flow-edge="${escapeHtml(key)}"><title>${escapeHtml(meta.label)} · ${edge.visibleLeadIds.length} лидов</title></path>
+      <text class="flow-edge-label" x="${(x1 + x2) / 2}" y="${lane - 5}" text-anchor="middle" data-flow-edge="${escapeHtml(key)}">${edge.visibleLeadIds.length}</text>`;
+  }).join("");
+  const marker = `<defs><marker id="flowArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--pine)"></path></marker></defs>`;
+  canvas.innerHTML = `<svg class="flow-map-svg" width="${width}" height="450" viewBox="0 0 ${width} 450" aria-hidden="true">${marker}${paths}</svg>${nodeHtml}`;
+  canvas.querySelectorAll(".flow-edge").forEach((path) => path.setAttribute("marker-end", "url(#flowArrow)"));
+
+}
+
+function flowLeadCard(lead) {
+  const source = lead.lead_source?.label || "Источник не определён";
+  const status = lead.lead_status === "archived" ? "архивный" : "активный";
+  const handle = lead.username ? `@${lead.username}` : lead.lead_id;
+  return `<button class="flow-lead ${state.flowSelected?.leadId === lead.lead_id ? "is-selected" : ""}" type="button" data-flow-lead="${escapeHtml(lead.lead_id)}">
+    <span class="flow-lead-top"><strong>${escapeHtml(lead.display)}</strong><em>${escapeHtml(status)}</em></span>
+    <p>${escapeHtml(handle)} · ${escapeHtml(source)}</p>
+    <span class="flow-lead-badges"><span>${escapeHtml(lead.stage_label || "Стадия неизвестна")}</span>${lead.stuck ? '<span class="is-stuck">застрял</span>' : ""}<span>${escapeHtml(lead.history_state)}</span></span>
+  </button>`;
+}
+
+function renderFlowLeadDetail(lead) {
+  const transitions = (state.leadFlow?.transitions || []).filter((row) => row.lead_id === lead.lead_id);
+  const timeline = transitions.length ? transitions.map((row) => {
+    const evidence = FLOW_EVIDENCE[row.evidence] || { label: row.evidence };
+    const from = row.from ? (state.leadFlow.nodes || []).find((node) => node.key === row.from)?.label || row.raw_from || row.from : "предыдущая стадия неизвестна";
+    const to = row.to ? (state.leadFlow.nodes || []).find((node) => node.key === row.to)?.label || row.raw_to || row.to : row.raw_to || "стадия не сопоставлена";
+    return `<div class="flow-transition ${row.evidence === "to_only" ? "is-partial" : ""}"><strong>${escapeHtml(from)} → ${escapeHtml(to)}</strong><time>${escapeHtml(flowFormatTime(row.ts))}</time><small>${escapeHtml(evidence.label)} · ${escapeHtml(row.actor || "источник неизвестен")}</small></div>`;
+  }).join("") : '<div class="flow-no-results">Подтверждённых переходов в выбранном периоде нет. Показано только текущее положение.</div>';
+  const ageLabel = lead.days_in_stage === null ? "" : lead.days_in_stage_basis === "transition"
+    ? ` · ${lead.days_in_stage} дн. на стадии`
+    : ` · ${lead.days_in_stage} дн. без активности`;
+  byId("flowDetail").innerHTML = `<div class="flow-detail-head"><p class="eyebrow">${escapeHtml(lead.lead_id)}</p><h2>${escapeHtml(lead.display)}</h2><p>${escapeHtml(lead.stage_label || "Стадия неизвестна")} · ${escapeHtml(lead.lead_source?.label || "Источник неизвестен")}${ageLabel}</p></div>
+    ${lead.next_action ? `<div class="flow-warning"><b>→</b><span>${escapeHtml(lead.next_action)}</span></div>` : ""}
+    <div class="flow-timeline">${timeline}</div>`;
+}
+
+function renderFlowDetail() {
+  const data = state.leadFlow;
+  if (!data) return;
+  const selected = state.flowSelected;
+  if (selected?.kind === "lead") {
+    const lead = (data.leads || []).find((item) => item.lead_id === selected.leadId);
+    if (lead) {
+      renderFlowLeadDetail(lead);
+      return;
+    }
+  }
+  let leads = flowFilteredLeads();
+  let eyebrow = "Выбор на карте";
+  let title = "Лиды";
+  let note = "Текущее положение в CRM";
+  if (selected?.kind === "node") {
+    const node = (data.nodes || []).find((item) => item.key === selected.key);
+    title = node?.label || selected.key;
+    leads = leads.filter((lead) => selected.key === "snapshot_origin" ? lead.history_state === "snapshot_only" : lead.stage === selected.key);
+    note = selected.key === "snapshot_origin" ? "Маршрут не доказан; это не отдельная стадия" : `${leads.length} лидов сейчас`;
+  } else if (selected?.kind === "edge") {
+    const edge = (data.edges || []).find((item) => item.from === selected.from && item.to === selected.to && item.evidence === selected.evidence);
+    const from = (data.nodes || []).find((node) => node.key === selected.from)?.label || selected.from;
+    const to = (data.nodes || []).find((node) => node.key === selected.to)?.label || selected.to;
+    title = `${from} → ${to}`;
+    eyebrow = FLOW_EVIDENCE[selected.evidence]?.label || selected.evidence;
+    const ids = new Set(edge?.lead_ids || []);
+    leads = leads.filter((lead) => ids.has(lead.lead_id));
+    note = `${leads.length} уникальных лидов`;
+  }
+  const cards = leads.slice(0, 80).map(flowLeadCard).join("");
+  byId("flowDetail").innerHTML = `<div class="flow-detail-head"><p class="eyebrow">${escapeHtml(eyebrow)}</p><h2>${escapeHtml(title)}</h2><p>${escapeHtml(note)}</p></div><div class="flow-lead-list">${cards || '<div class="flow-no-results">По выбранным фильтрам лидов нет.</div>'}</div>`;
+}
+
+function renderFlow() {
+  renderFlowMetrics();
+  renderFlowWarnings();
+  renderFlowMap();
+  renderFlowDetail();
+}
+
+async function refreshFlow(force = false) {
+  const now = Date.now();
+  if (state.flowLoading) return;
+  if (!force && state.flowRefreshedAt && now - state.flowRefreshedAt < 90000) return;
+  state.flowLoading = true;
+  byId("flowFreshness").textContent = "Обновление…";
+  const params = new URLSearchParams({ scope: "lcb", period_days: String(state.flowPeriod) });
+  try {
+    state.leadFlow = await apiGet(`${API.leadFlow}?${params.toString()}`);
+    state.flowRefreshedAt = Date.now();
+    state.flowSelected = null;
+    renderFlow();
+  } catch (error) {
+    byId("flowFreshness").textContent = "Карта недоступна";
+    byId("flowMapCanvas").style.width = "100%";
+    byId("flowMapCanvas").innerHTML = `<div class="flow-error"><strong>Не удалось собрать карту</strong><span>${escapeHtml(error.message)}</span></div>`;
+    byId("flowWarnings").innerHTML = "";
+    byId("flowMetrics").innerHTML = "";
+  } finally {
+    state.flowLoading = false;
+  }
+}
+
 function changePromoFilters(changes) {
   Object.assign(state.promoFilters, changes, { page: changes.page || 1 });
   state.promoRefreshedAt = 0;
@@ -3102,6 +3335,46 @@ function bindEvents() {
     Object.keys(state.calendarFilters).forEach((key) => { state.calendarFilters[key] = false; });
     renderCalendar();
   });
+  byId("flowPeriod").addEventListener("change", (event) => {
+    state.flowPeriod = Number(event.target.value || 90);
+    state.flowRefreshedAt = 0;
+    refreshFlow(true);
+  });
+  byId("flowSource").addEventListener("change", (event) => {
+    state.flowSource = event.target.value;
+    state.flowSelected = null;
+    renderFlow();
+  });
+  let flowSearchTimer;
+  byId("flowSearch").addEventListener("input", (event) => {
+    window.clearTimeout(flowSearchTimer);
+    flowSearchTimer = window.setTimeout(() => {
+      state.flowQuery = event.target.value.trim();
+      state.flowSelected = null;
+      renderFlow();
+    }, 140);
+  });
+  byId("flowReload").addEventListener("click", () => refreshFlow(true));
+  byId("flowMapCanvas").addEventListener("click", (event) => {
+    const node = event.target.closest("[data-flow-node]");
+    if (node) {
+      state.flowSelected = { kind: "node", key: node.dataset.flowNode };
+      renderFlow();
+      return;
+    }
+    const edge = event.target.closest("[data-flow-edge]");
+    if (edge) {
+      const [from, to, evidence] = edge.dataset.flowEdge.split("|");
+      state.flowSelected = { kind: "edge", from, to, evidence };
+      renderFlow();
+    }
+  });
+  byId("flowDetail").addEventListener("click", (event) => {
+    const lead = event.target.closest("[data-flow-lead]");
+    if (!lead) return;
+    state.flowSelected = { kind: "lead", leadId: lead.dataset.flowLead };
+    renderFlowDetail();
+  });
   byId("sessionsProjectFilter").addEventListener("change", refreshSessions);
   byId("sessionsStatusFilter").addEventListener("change", refreshSessions);
   byId("eventBack").addEventListener("click", closeEvent);
@@ -3160,6 +3433,7 @@ function bindEvents() {
   });
   byId("refreshButton").addEventListener("click", async () => {
     await refreshAll();
+    if (state.activeView === "flow") await refreshFlow(true);
     if (state.activeView === "promo") await refreshPromo(true);
     if (state.activeView === "costumes") await refreshCostumes(true);
     if (["operations", "broadcast"].includes(state.activeView)) await window.CoreParity?.refresh();
@@ -3219,6 +3493,9 @@ window.setInterval(refreshAll, 30000);
 window.setInterval(() => {
   if (state.activeView === "tokens" && !brainDrag && !brainArmedTier) renderTokens();
 }, 30000);
+window.setInterval(() => {
+  if (state.activeView === "flow") refreshFlow();
+}, 90000);
 window.setInterval(syncActiveThread, 5000);
 
 /* ── Арбитраж «старый vs Core» ──────────────────────────────────────────────
