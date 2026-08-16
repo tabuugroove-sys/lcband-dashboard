@@ -2485,9 +2485,19 @@ function renderSpendDebates(payload) {
     btn.addEventListener("click", () => {
       const row = rows[Number(btn.dataset.spendDebateSend)];
       if (!row) return;
-      const prompt = `MiniMax и Kimi (через TriBrain) предложили снизить расход токенов агента `
-        + `${row.agent} (${tokFmt(row.day_tokens || 0)} токенов за 24ч):\n\n${row.decision}\n\n`
-        + `Проверь предложение и, если оно безопасно и не нарушает канон проекта — примени.`;
+      // Решение уже приходит от MiniMax/Kimi в формате ТЗ (Где/Что менять/
+      // Почему безопасно/Как проверить — см. spend_reduction_debate._debate_question).
+      // Оборачиваем явным указанием следовать канону проекта — change ledger,
+      // тесты — а не просто «примени» (16.08, Михаил).
+      const trustNote = row.status === "disagreement"
+        ? "Консенсуса между MiniMax и Kimi НЕ было (см. пометку выше) — проверь ТЗ вдвойне критично, часть пунктов может быть от одной модели без второго мнения.\n\n"
+        : "";
+      const prompt = `Техзадание от MiniMax/Kimi (спор через TriBrain, топ-10 расход за 24ч): `
+        + `агент ${row.agent}, ${tokFmt(row.day_tokens || 0)} токенов/24ч.\n\n${trustNote}`
+        + `${row.decision}\n\n`
+        + `Прежде чем вносить правки: (1) проверь каждую ссылку file:line по факту — модели могли ошибиться; `
+        + `(2) если правка реальна и безопасна — веди её как обычный change (ledger-запись, тесты, при риске P0/P1 — adversarial review), `
+        + `как для любого изменения в этом проекте; (3) если ТЗ не подтверждается кодом или трогает safety-гейты/presend/voice/деньги — не применяй, объясни почему.`;
       if (typeof sendPrompt === "function") sendPrompt(prompt);
       else alert("Решение спора:\n\n" + prompt);
     });
