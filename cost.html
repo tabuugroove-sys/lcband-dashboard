@@ -594,11 +594,12 @@ a:hover { text-decoration: underline; }
     <span style="font-size:11px;color:var(--muted);" id="routing-mode-current">—</span>
   </h2>
   <div class="label" style="margin:-4px 0 10px 0;">
-    <span id="solo-legend" style="display:none;"><b>Solo</b> («Только …») — почти весь AI-трафик в один мозг:
-    все вызовы центрального диспатча и Gemini-скрины. Вне solo остаются узкие прямые вызовы
-    (Codex-гейты эскалаций/платежей, vision и договоры на Claude-файлах). Отказ solo-мозга = no-send/skip,
-    платный API недоступен. </span><b>Авто</b> — задачи с цепочкой исполняют её (карточка «Цепочки мозгов» ниже),
-    задачи без цепочки идут через legacy split. Правило отказа:
+    <span id="solo-legend" style="display:none;"><b>Solo</b> («X первым») — выбранный мозг идёт первым слоем
+    в цепочке каждой задачи; <b>подстраховка сохраняется</b>: он тупит/молчит → дальше по цепочке
+    (для клиентских — включая платный хвост). Покрывает диспатч и Gemini-скрины; вне solo — узкие прямые
+    вызовы (Codex-гейты эскалаций/платежей, vision и договоры на Claude-файлах). </span><b>Авто</b> —
+    задачи с цепочкой исполняют её (карточка «Цепочки мозгов» ниже), задачи без цепочки идут через
+    legacy split. Правило отказа:
     <b id="xfb-rule">упал primary → один раз пробуем второго провайдера; оба упали → no-send</b>.
   </div>
   <div id="solo-tier-row" style="display:none;margin:0 0 12px 0;">
@@ -2952,7 +2953,7 @@ async function loadRoutingMode() {
 
     const curEl = document.getElementById('routing-mode-current');
     if (curEl) curEl.textContent = solo
-      ? ('Активен: Solo — только ' + (_soloNames[solo] || solo))
+      ? ('Активен: Solo — ' + (_soloNames[solo] || solo) + ' первым')
       : cur
       ? ('Активен: ' + ((byKey[cur]||{}).label || cur))
       : 'Активен: custom (per-category faders)';
@@ -2966,9 +2967,9 @@ async function loadRoutingMode() {
       soloRow.style.display = '';
       const defs = [
         {k: '', label: '🧠 Авто', sub: 'цепочки мозгов'},
-        {k: 'claude', label: 'Только Claude', sub: 'Opus/Sonnet CLI'},
-        {k: 'codex', label: 'Только GPT', sub: 'Codex GPT-5.5'},
-        {k: 'kimi', label: 'Только Kimi', sub: 'K3'},
+        {k: 'claude', label: 'Claude первым', sub: 'Opus/Sonnet CLI'},
+        {k: 'codex', label: 'GPT первым', sub: 'Codex GPT-5.5'},
+        {k: 'kimi', label: 'Kimi первым', sub: 'K3'},
       ];
       soloBtns.innerHTML = defs.filter(s => !s.k || soloAllowed.includes(s.k)).map(s => {
         const active = s.k === solo;
@@ -2991,8 +2992,8 @@ async function loadRoutingMode() {
     if (ruleEl) {
       const scope = d.cross_fallback_scope || 'all';
       ruleEl.textContent = solo
-        ? ('Solo: диспатч-трафик идёт только в ' + (_soloNames[solo] || solo) +
-           '; его отказ = no-send/skip, второго провайдера нет')
+        ? ('Solo: ' + (_soloNames[solo] || solo) +
+           ' первым слоем; его сбой → дальше по цепочке (подстраховка сохранена)')
         : cur === 'codex_only'
         ? 'Codex only: Codex fail → no-send/skip; Claude/Opus fallback выключен'
         : scope === 'none'
@@ -3067,9 +3068,7 @@ async function loadRoutingMode() {
     const psEl = document.getElementById('protected-summary');
     if (psEl) {
       const pcText = '<span id="protected-count">' + ((d.protected_purposes || []).length) + '</span>';
-      psEl.innerHTML = solo
-        ? '🛡️ Protected purposes (' + pcText + ') — под Solo дожим вторым провайдером выключен'
-        : cur === 'codex_only'
+      psEl.innerHTML = cur === 'codex_only' && !solo
         ? '🛡️ Protected purposes (' + pcText + ') — Opus fallback off'
         : '🛡️ Protected purposes (' + pcText + ') — дожимаются Opus';
     }
@@ -3084,11 +3083,11 @@ async function applySoloTier(tier) {
   const toast = document.getElementById('solo-tier-toast');
   const names = {claude: 'Claude', codex: 'GPT (Codex)', kimi: 'Kimi'};
   if (tier && !window.confirm(
-      'Включить «Только ' + (names[tier] || tier) + '»? Почти весь AI-трафик — клиентские ответы, ' +
-      'presend, classify-цепочки, Gemini-скрины, тень V2, legacy-задачи — пойдёт только в ' +
-      (names[tier] || tier) + '. Вне solo остаются узкие прямые вызовы (Codex-гейты эскалаций и платежей, ' +
-      'vision и договоры на Claude-файлах). Отказ ' + (names[tier] || tier) +
-      ' = no-send/skip (другой LLM не подстрахует), платный API недоступен.')) return;
+      'Поставить ' + (names[tier] || tier) + ' первым слоем? Почти весь AI-трафик — клиентские ответы, ' +
+      'presend, classify-цепочки, Gemini-скрины, тень V2, legacy-задачи — сначала идёт в ' +
+      (names[tier] || tier) + '; если он тупит/молчит — подстраховка по цепочке сохраняется ' +
+      '(для клиентских — включая платный хвост). Вне solo остаются узкие прямые вызовы ' +
+      '(Codex-гейты эскалаций и платежей, vision и договоры на Claude-файлах).')) return;
   if (toast) toast.innerHTML = '<span class="muted">⏳ применяется…</span>';
   try {
     const doPost = async (tok) => {
@@ -3114,7 +3113,7 @@ async function applySoloTier(tier) {
     }
     const warn = (j.warnings || []).length ? ' · ⚠ ' + j.warnings.join('; ') : '';
     if (toast) toast.innerHTML = '<span style="color:var(--ok);">✅ ' +
-      (j.solo_tier ? 'Solo: только ' + esc(names[j.solo_tier] || j.solo_tier) : 'Авто (цепочки)') +
+      (j.solo_tier ? 'Solo: ' + esc(names[j.solo_tier] || j.solo_tier) + ' первым' : 'Авто (цепочки)') +
       esc(warn) + '</span>';
     setTimeout(() => { if (toast) toast.innerHTML = ''; loadRoutingMode(); loadBrainChains(); }, 2500);
   } catch (e) {
@@ -3207,8 +3206,8 @@ function _chainModeNote(rm) {
   const soloNow = String(rm.solo_tier || '');
   if (soloNow) {
     const names = {claude: 'Claude', codex: 'GPT (Codex)', kimi: 'Kimi'};
-    return 'сейчас активен Solo (только ' + (names[soloNow] || soloNow) +
-      ') — игнорируются и режимы, и нарисованные цепочки';
+    return 'сейчас активен Solo (' + (names[soloNow] || soloNow) +
+      ' первым) — режимы игнорируются, цепочки исполняются с ним впереди';
   }
   const cur = rm.current_mode || '';
   if (!cur) return tail + ' (сейчас: custom per-category faders)';
@@ -3242,10 +3241,10 @@ function renderBrainChains() {
   const _soloDisp = {claude: 'Claude', codex: 'GPT (Codex)', kimi: 'Kimi'};
   const soloBanner = _brainSolo
     ? '<div style="margin:0 0 10px 0;padding:8px 12px;border:1px solid rgba(210,153,34,.55);' +
-      'background:rgba(210,153,34,.08);border-radius:8px;font-size:12px;">⚡ <b>Solo-режим: все запросы идут только в ' +
-      esc(_soloDisp[_brainSolo] || _brainSolo) + '</b> — строки ниже показывают фактическое состояние. ' +
-      'Нарисованные цепочки не потеряны и вернутся в режиме «Авто»; правка заморожена — ' +
-      'сервер отклонит сохранение и с экрана «Токены» V2.</div>'
+      'background:rgba(210,153,34,.08);border-radius:8px;font-size:12px;">⚡ <b>Solo: ' +
+      esc(_soloDisp[_brainSolo] || _brainSolo) + ' первым слоем во всех цепочках</b>, подстраховка ' +
+      'сохранена — строки ниже показывают фактический порядок. Нарисованный порядок вернётся ' +
+      'в режиме «Авто»; правка пока заморожена — сервер отклонит сохранение и с экрана «Токены» V2.</div>'
     : '';
 
   box.innerHTML = soloBanner + rows.map(row => {
