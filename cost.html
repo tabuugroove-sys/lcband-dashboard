@@ -468,6 +468,33 @@ a:hover { text-decoration: underline; }
   font-size: 11px;
   font-family:'SF Mono','Menlo','Consolas',monospace;
 }
+/* ── Brain chains (цепочки мозгов per задача, зеркало экрана «Токены» V2) ── */
+.chain-row { padding:10px 0; border-top:1px solid var(--border); }
+.chain-row:first-child { border-top:none; padding-top:2px; }
+.chain-title { font-weight:600; font-size:13px; }
+.chain-sub { color:var(--muted); font-size:11px; font-family:'SF Mono','Menlo','Consolas',monospace; }
+.chain-note { color:var(--muted); font-size:11px; }
+.chain-tiers { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.chain-chip { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border);
+  border-radius:10px; padding:4px 9px; background:var(--panel-2,#fafafa); font-size:11px; }
+.chain-chip .chip-body { display:flex; flex-direction:column; }
+.chain-chip .t-name { font-weight:700; font-size:12px; }
+.chain-chip .t-meta { color:var(--muted); font-size:10px; }
+.chain-chip.disabled { opacity:.45; }
+.chain-chip.disabled .t-name { text-decoration:line-through; }
+.chain-chip.paid { border-color:rgba(210,153,34,.55); background:rgba(210,153,34,.08); }
+.chain-arrow { color:var(--muted); font-size:11px; }
+.chain-chip .chip-btns { display:flex; gap:2px; }
+.chain-chip .chip-btn { border:none; background:transparent; color:var(--muted); cursor:pointer;
+  padding:0 2px; font-size:11px; line-height:1; }
+.chain-chip .chip-btn:hover { color:var(--accent); }
+.chain-edit-bar { display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap; font-size:11px; }
+.chain-edit-bar select { font-size:11px; padding:2px 4px; border:1px solid var(--border); border-radius:6px;
+  background:var(--panel-2,#fafafa); color:var(--fg); }
+.chain-edit-bar button { border:1px solid var(--border); border-radius:6px; background:transparent;
+  color:var(--fg); padding:3px 8px; cursor:pointer; font-size:11px; font-weight:600; }
+.chain-edit-bar button:hover { border-color:var(--accent); color:var(--accent); }
+.chain-edit-bar button.primary { border-color:var(--accent); color:var(--accent); }
 </style>
   <link rel="stylesheet" href="_theme.css">
   <script src="_theme.js"></script>
@@ -567,8 +594,9 @@ a:hover { text-decoration: underline; }
     <span style="font-size:11px;color:var(--muted);" id="routing-mode-current">—</span>
   </h2>
   <div class="label" style="margin:-4px 0 10px 0;">
-    Primary split применяется ко <b>всем</b> CLI-call'ам (не per-category; перекрывает фейдеры).
-    Единое правило отказа: <b id="xfb-rule">упал primary → один раз пробуем второго провайдера; оба упали → no-send</b>.
+    Primary split применяется к CLI-call'ам <b>без явной цепочки мозгов</b> (перекрывает per-category фейдеры).
+    Задачи с цепочкой (карточка «Цепочки мозгов» ниже) исполняют её напрямую, минуя режим.
+    Единое правило отказа для задач без цепочки: <b id="xfb-rule">упал primary → один раз пробуем второго провайдера; оба упали → no-send</b>.
   </div>
   <div id="routing-mode-buttons" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
   <div id="routing-mode-providers" style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);"></div>
@@ -594,7 +622,7 @@ a:hover { text-decoration: underline; }
   <details style="margin-top:10px;">
     <summary style="cursor:pointer;color:var(--muted);font-size:11px;">📄 Routing contract (1 режим, 1 правило)</summary>
     <ol style="margin:6px 0 0 0;padding-left:18px;font-size:11px;color:var(--muted);line-height:1.5;">
-      <li>Один режим = primary-провайдер для всех CLI-call'ов.</li>
+      <li>Один режим = primary-провайдер для CLI-call'ов без явной цепочки мозгов; задачи с цепочкой (ce211c0d, 16.08) исполняют её напрямую.</li>
       <li>Codex only = Codex primary без Claude/Opus fallback.</li>
       <li>В остальных режимах primary упал + cross-fallback="client/all" → один раз пробуем второго: Opus/Claude → Codex или Codex → Claude.</li>
       <li>Для allowlisted pitch/review Codex-fail после второго провайдера → paid API как последний шанс.</li>
@@ -603,6 +631,21 @@ a:hover { text-decoration: underline; }
       <li>Per-category фейдеры не решают роутинг, пока режим валиден.</li>
     </ol>
   </details>
+</div>
+
+<div class="card" id="brain-chains-card" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>🧠 Цепочки мозгов</span>
+    <span style="font-size:11px;color:var(--muted);" id="brain-chains-status">загрузка…</span>
+  </h2>
+  <div class="label" style="margin:-4px 0 10px 0;">
+    Порядок тиров per задача — тот же реестр <code>ai_routing</code>, что и на экране «Токены» V2-приложения:
+    правка здесь сразу видна там (и наоборот), действует без рестарта. Цепочка исполняется слева направо:
+    технический сбой тира → следующий; «нужен мозг сильнее» → только строго более способный тир;
+    policy/safety-стоп → стоп без обхода. На задачи с цепочкой Routing mode (карточка выше) <b>не влияет</b> —
+    <b id="brain-chains-mode-note">он правит только задачи без явной цепочки</b>.
+  </div>
+  <div id="brain-chains-list" class="muted" style="font-size:12px;">—</div>
 </div>
 
 <div class="card" id="guard-limits" style="margin-bottom:18px;">
@@ -3008,7 +3051,7 @@ async function applyRoutingMode(mode) {
       const fundedNote = fundedKeys.length ? ' · авто-включён бюджет: ' + fundedKeys.join(', ') : '';
       if (toast) toast.innerHTML = '<span style="color:var(--ok);">✅ ' + esc(j.label || mode) +
         ' · агенты подхватят ~30с' + esc(fundedNote) + '</span>';
-      setTimeout(() => { if (toast) toast.innerHTML = ''; loadRoutingMode(); loadRoutingControls(); load(); }, 2500);
+      setTimeout(() => { if (toast) toast.innerHTML = ''; loadRoutingMode(); loadRoutingControls(); loadBrainChains(); load(); }, 2500);
     }
   } catch (e) {
     if (toast) toast.innerHTML = '<span style="color:var(--danger);">❌ ' + esc(e.message) + '</span>';
@@ -3043,6 +3086,222 @@ async function toggleSonnetEmergency() {
 }
 loadRoutingMode();
 setInterval(loadRoutingMode, 30000);
+
+// ── Brain chains (цепочки мозгов) — зеркало экрана «Токены» V2 ─────────
+// Читает GET /api/app/brain_map (:8878), правит POST /api/app/set_brain_chain →
+// ai_routing.set_chain → runtime_config.json:ai_routing_chains. Тот же store,
+// что у V2-приложения: правка на любом из экранов видна на обоих.
+const _TIER_LABELS = {minimax:'MiniMax', kimi:'Kimi', claude_cli:'Claude', codex:'Codex', antigravity:'Antigravity', claude_api:'Claude API'};
+const _SAFE_PURPOSE = /^[A-Za-z0-9_.:-]+$/;
+let _brainMapData = null;
+let _chainEdits = {};   // purpose -> рабочая копия цепочки; пока не пуста, авто-refresh не перерисовывает
+let _chainSaving = false;
+
+function _chainModeNote(rm) {
+  const tail = 'он правит только задачи без явной цепочки';
+  if (!rm) return tail;
+  const cur = rm.current_mode || '';
+  if (!cur) return tail + ' (сейчас: custom per-category faders)';
+  const m = (rm.modes || []).find(x => x.key === cur) || {};
+  return tail + ' (сейчас: ' + (m.label || cur) + ')';
+}
+
+function _fmtTierUsage(spec) {
+  if (!spec) return '';
+  if (spec.tier === 'claude_api') {
+    const usd = spec.avg_usd_per_call;
+    return usd == null ? '' : '≈$' + Number(usd).toFixed(4) + '/зап';
+  }
+  const t = spec.avg_tokens_per_call;
+  if (t == null) return '';
+  const v = t >= 1000 ? (t / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(Math.round(t));
+  return '≈' + v + ' ток/зап';
+}
+
+function renderBrainChains() {
+  const box = document.getElementById('brain-chains-list');
+  if (!box) return;
+  const bm = _brainMapData;
+  if (!bm) { box.textContent = '—'; return; }
+  const rows = bm.rows || [];
+  if (!rows.length) { box.textContent = 'нет данных' + (bm.error ? ' (' + bm.error + ')' : ''); return; }
+  const specByTier = {};
+  (bm.palette || []).forEach(c => { if (c && c.tier) specByTier[c.tier] = c; });
+  rows.forEach(r => (r.tiers || []).forEach(t => { if (t && t.tier && !specByTier[t.tier]) specByTier[t.tier] = t; }));
+
+  box.innerHTML = rows.map(row => {
+    const p = String(row.purpose || '');
+    const editable = _SAFE_PURPOSE.test(p);
+    const editing = editable && Object.prototype.hasOwnProperty.call(_chainEdits, p);
+    const tierKeys = editing ? _chainEdits[p] : (row.tiers || []).map(t => t.tier);
+
+    const chips = tierKeys.map((k, i) => {
+      const rowSpec = !editing && (row.tiers || [])[i] && row.tiers[i].tier === k ? row.tiers[i] : null;
+      const spec = rowSpec || specByTier[k] || {tier: k};
+      const cls = 'chain-chip' + (spec.disabled ? ' disabled' : '') + (k === 'claude_api' ? ' paid' : '');
+      const meta = [spec.model_label || spec.model || '', _fmtTierUsage(spec)].filter(Boolean).join(' · ');
+      const btns = !editing ? '' : '<span class="chip-btns">' +
+        '<button class="chip-btn" title="влево" onclick="chainMove(\'' + p + '\',' + i + ',-1)">◀</button>' +
+        '<button class="chip-btn" title="вправо" onclick="chainMove(\'' + p + '\',' + i + ',1)">▶</button>' +
+        '<button class="chip-btn" title="убрать" onclick="chainRemove(\'' + p + '\',' + i + ')">✕</button>' +
+        '</span>';
+      return '<span class="' + cls + '"><span class="chip-body">' +
+        '<span class="t-name">' + esc(_TIER_LABELS[k] || k) + '</span>' +
+        (meta ? '<span class="t-meta">' + esc(meta) + '</span>' : '') +
+        '</span>' + btns + '</span>';
+    }).join('<span class="chain-arrow">→</span>');
+
+    const addOpts = Object.keys(_TIER_LABELS)
+      .filter(k => !tierKeys.includes(k) && specByTier[k])
+      .map(k => '<option value="' + k + '">' + esc(_TIER_LABELS[k]) +
+        (specByTier[k].disabled ? ' (выкл)' : '') + '</option>').join('');
+    const editBar = !editing ? '' : '<div class="chain-edit-bar">' +
+      (addOpts ? '<select id="chain-add-' + p + '"><option value="">+ тир…</option>' + addOpts + '</select>' +
+        '<button onclick="chainAdd(\'' + p + '\')">добавить</button>' : '') +
+      '<button class="primary" onclick="chainSave(\'' + p + '\')">💾 сохранить</button>' +
+      '<button onclick="chainCancel(\'' + p + '\')">отмена</button>' +
+      '<span class="muted">платный тир сохранится только там, где разрешён каноном</span>' +
+      '</div>';
+
+    const editBtn = editable && !editing
+      ? '<button class="thread-action" title="изменить порядок тиров" onclick="chainEdit(\'' + p + '\')">✏️</button>' : '';
+    return '<div class="chain-row">' +
+      '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;">' +
+      '<div><span class="chain-title">' + esc(row.title || p) + '</span> ' +
+      '<span class="chain-sub" title="' + esc(p) + '">' + esc(row.sub || p) + '</span></div>' +
+      '<div style="display:flex;gap:8px;align-items:center;">' +
+      (row.note ? '<span class="chain-note">' + esc(row.note) + '</span>' : '') + editBtn +
+      '</div></div>' +
+      '<div class="chain-tiers">' + chips + '</div>' +
+      (editable ? '<div id="chain-toast-' + esc(p) + '" style="margin-top:4px;font-size:12px;"></div>' : '') +
+      editBar +
+      '</div>';
+  }).join('');
+}
+
+async function loadBrainChains() {
+  const bu = await loadBackend();
+  const st = document.getElementById('brain-chains-status');
+  if (bu === null) { if (st) st.textContent = '—'; return; }
+  if (_chainSaving) return;
+  try {
+    if (Object.keys(_chainEdits).length) {
+      // Правка открыта: список из-под рук не выдёргиваем, но mode-note
+      // обновляем — смена режима в карточке выше не должна зависать.
+      const rmR = await fetch(bu + '/api/runtime_config/routing_mode', {cache: 'no-store'});
+      const rm = await rmR.json();
+      const noteEl = document.getElementById('brain-chains-mode-note');
+      if (noteEl && rm && !rm.error) noteEl.textContent = _chainModeNote(rm);
+      return;
+    }
+    const [bmR, rmR] = await Promise.all([
+      fetch(bu + '/api/app/brain_map', {cache: 'no-store'}),
+      fetch(bu + '/api/runtime_config/routing_mode', {cache: 'no-store'}),
+    ]);
+    const bm = await bmR.json();
+    if (bm.error && !(bm.rows || []).length) { if (st) st.textContent = '⚠️ ' + bm.error; return; }
+    let rm = null;
+    try { rm = await rmR.json(); } catch (e) { /* mode note опционален */ }
+    _brainMapData = bm;
+    // Пока ждали сеть, могла открыться правка — рендер её сохранит. Но правку
+    // purpose'а, которого больше нет в данных, снимаем: иначе её некому закрыть
+    // (строка не рендерится) и guard заблокирует refresh навсегда.
+    const freshRows = bm.rows || [];
+    Object.keys(_chainEdits).forEach(k => {
+      if (!freshRows.some(r => r.purpose === k)) delete _chainEdits[k];
+    });
+    const noteEl = document.getElementById('brain-chains-mode-note');
+    if (noteEl) noteEl.textContent = _chainModeNote(rm && !rm.error ? rm : null);
+    if (st) st.textContent = freshRows.length + ' задач · перечёркнутый тир = выключен kill-switch\'ем';
+    renderBrainChains();
+  } catch (e) {
+    if (st) st.textContent = 'backend offline — ' + e.message;
+  }
+}
+
+function chainEdit(p) {
+  const row = ((_brainMapData || {}).rows || []).find(r => r.purpose === p);
+  if (!row) return;
+  _chainEdits[p] = (row.tiers || []).map(t => t.tier);
+  renderBrainChains();
+}
+function chainCancel(p) {
+  delete _chainEdits[p];
+  renderBrainChains();
+  if (!Object.keys(_chainEdits).length) loadBrainChains();
+}
+function chainMove(p, i, d) {
+  const arr = _chainEdits[p]; if (!arr) return;
+  const j = i + d; if (j < 0 || j >= arr.length) return;
+  const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  renderBrainChains();
+}
+function chainRemove(p, i) {
+  const arr = _chainEdits[p]; if (!arr || arr.length <= 1) return;
+  arr.splice(i, 1);
+  renderBrainChains();
+}
+function chainAdd(p) {
+  const sel = document.getElementById('chain-add-' + p);
+  const arr = _chainEdits[p];
+  if (!sel || !arr || !sel.value) return;
+  if (!arr.includes(sel.value)) arr.push(sel.value);
+  renderBrainChains();
+}
+async function chainSave(p) {
+  if (_chainSaving) return; // re-entrancy: двойной клик/второй ряд = один POST за раз
+  const arr = _chainEdits[p];
+  if (!arr || !arr.length) return;
+  const bu = await loadBackend();
+  if (bu === null) return;
+  // Ре-рендер пересоздаёт DOM — тост искать заново, а не держать ссылку.
+  const toast = () => document.getElementById('chain-toast-' + p);
+  _chainSaving = true;
+  try {
+    // Localhost сохраняет без токена; за Tailscale Serve backend требует
+    // X-Admin-Token на POST — поэтому: пробуем с кэшированным, на 403 спрашиваем.
+    const doPost = async (tok) => {
+      const headers = {'Content-Type': 'application/json'};
+      if (tok) headers['X-Admin-Token'] = tok;
+      return fetch(bu + '/api/app/set_brain_chain', {
+        method: 'POST', headers, body: JSON.stringify({purpose: p, chain: arr}),
+      });
+    };
+    let r = await doPost(_adminToken);
+    if (r.status === 403) {
+      localStorage.removeItem('lcband_admin_token'); _adminToken = '';
+      const tok = ensureAdminToken(true);
+      if (!tok) { const t = toast(); if (t) t.innerHTML = '<span style="color:var(--danger)">❌ нужен admin token</span>'; return; }
+      r = await doPost(tok);
+    }
+    const j = await r.json();
+    if (j.error) { const t = toast(); if (t) t.innerHTML = '<span style="color:var(--danger);">❌ ' + esc(j.error) + '</span>'; return; }
+    // Обновить строку локально из серверного ответа: refresh может быть подавлен
+    // другой открытой правкой, а базовые данные не должны откатывать только что
+    // сохранённое (повторный ✏️ со stale-данных молча отменял бы save).
+    const saved = (j.chain || []).map(t => t === 'claude' ? 'claude_cli' : String(t));
+    const row = ((_brainMapData || {}).rows || []).find(x => x.purpose === p);
+    if (row && saved.length) {
+      const specByTier = {};
+      ((_brainMapData || {}).palette || []).forEach(c => { if (c && c.tier) specByTier[c.tier] = c; });
+      (row.tiers || []).forEach(t => { if (t && t.tier && !specByTier[t.tier]) specByTier[t.tier] = t; });
+      row.tiers = saved.map(k => specByTier[k] || {tier: k});
+    }
+    delete _chainEdits[p];
+    renderBrainChains();
+    const t = toast();
+    if (t) t.innerHTML = '<span style="color:var(--ok);">✅ сохранено: ' +
+      esc(saved.map(k => _TIER_LABELS[k] || k).join(' → ')) + ' · действует сразу (без рестарта)</span>';
+    setTimeout(loadBrainChains, 1500);
+  } catch (e) {
+    const t = toast();
+    if (t) t.innerHTML = '<span style="color:var(--danger);">❌ ' + esc(e.message) + '</span>';
+  } finally {
+    _chainSaving = false;
+  }
+}
+loadBrainChains();
+setInterval(loadBrainChains, 30000);
 
 // ────────── REMOTE Claude sessions ──────────
 function ageDot(sec) {
