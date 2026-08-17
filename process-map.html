@@ -578,10 +578,10 @@
       },
       {
         group:'events', name:'Costume Collector', label:'com.lcband.costume-collector',
-        file:'event_costume_collector.py run --send', schedule:'каждые 10 мин',
-        why:'Реагирует на нового вокалиста на подтверждённом событии и собирает костюм-папку под аппрув клиента.',
-        input:'confirmed events + new vocalist signal (lineup change)', action:'просит у нового вокалиста 2-3 сценических образа + собирает per-event папку', output:'event_costumes/<event_id>/<username>/ + approval bot bundle',
-        logic:['триггер — любой новый вокалист на confirmed событии, решает resolve_production_lineup (Opus), не regex','default DRY-RUN; live send требует --send И env LCB_COSTUME_COLLECTOR=1','сообщения вокалистам через event_ops presend (no budget/finance)','клиентский bundle только через approval bot, никогда auto-send','event_ops_bot.py импортирует READ-ONLY, не редактирует'],
+        file:'event_costume_collector.py confirm --send', schedule:'каждые 10 мин',
+        why:'Собирает костюм-папку нового вокалиста и ведёт event-specific готовность состава по выбранным клиентом образам без повторных вопросов об уже закрытых стандартах.',
+        input:'confirmed events + lineup + delivered costume references + event_costume_policies.json', action:'применяет операторские defaults/shared wardrobe → задаёт по одному staged-вопросу только по неизвестным деталям → сохраняет evidence', output:'event_costumes/<event_id>/<username>/ + musician_costume_inventory.json + approval bot bundle',
+        logic:['триггер папки — любой новый вокалист на confirmed событии, решает resolve_production_lineup (Opus), не regex','event policy отделяет готовность состава от полноты общего гардероба; closed vocalist может иметь pending custodian detail','стандартный black закрывается policy и никогда не спрашивается; white/red уточняются по очереди','shared red suits не трактуются как личная собственность музыканта: у него спрашиваются размер и недостающие top/shoes','неопределённый ответ не стирает прежний verified yes/no и не создаёт галочку','staged-вопрос проходит source-exact mechanical gate и fail-closed AI pre-send без rewrite','default DRY-RUN; live send требует --send И env LCB_COSTUME_COLLECTOR=1','клиентский bundle только через approval bot, никогда auto-send','event_ops_bot.py импортирует READ-ONLY, не редактирует'],
       },
       {
         group:'events', name:'Event Ops Group Approval', label:'com.lcband.event-ops-group-approval',
