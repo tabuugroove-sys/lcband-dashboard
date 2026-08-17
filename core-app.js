@@ -55,9 +55,6 @@ const state = {
   calendarFilters: {
     lcb: true,
     broker: true,
-    jobs: true,
-    requests: true,
-    technical: false,
     performed: true,
     content_pending: true,
     content_received: true,
@@ -610,26 +607,14 @@ function calendarEvents() {
 function calendarEventMatchesFilters(event) {
   const filters = state.calendarFilters;
   const businessLine = String(event.business_line || "").toLowerCase();
-  const recordType = String(event.record_type || "").toLowerCase();
-  const isTechnical = Boolean(event.is_technical);
   const selectedBusinessLines = [
     filters.lcb ? "lcb" : null,
     filters.broker ? "broker" : null,
   ].filter(Boolean);
 
-  // Business line and record type are independent dimensions. With neither
-  // record-type checkbox selected, keep all record types for the chosen line;
-  // this makes selecting only LCB/Broker useful instead of showing zero rows.
-  if (isTechnical) {
-    if (!filters.technical) return false;
-  } else if (!selectedBusinessLines.includes(businessLine)) {
-    return false;
-  }
-  const selectedRecordTypes = [
-    filters.jobs ? "job" : null,
-    filters.requests ? "request" : null,
-  ].filter(Boolean);
-  if (selectedRecordTypes.length && !selectedRecordTypes.includes(recordType)) return false;
+  // The calendar has two business lines. Selecting another line expands the
+  // result set; requests/jobs are records inside a line, not extra filters.
+  if (event.is_technical || !selectedBusinessLines.includes(businessLine)) return false;
 
   const cancelled = Boolean(
     event.cancelled
@@ -667,10 +652,7 @@ function syncCalendarFilterControls() {
   const mapping = {
     filterLcb: "lcb",
     filterBroker: "broker",
-    filterJobs: "jobs",
-    filterRequests: "requests",
     filterCancelled: "cancelled",
-    filterTechnical: "technical",
     filterStagePerformed: "performed",
     filterStageContentPending: "content_pending",
     filterStageContentReceived: "content_received",
@@ -692,9 +674,6 @@ function renderCalendar() {
   const summary = [];
   if (!payload.model_ready) summary.push('<span class="pill danger">Модель календаря не готова</span>');
   summary.push(`<span>LCBand ${formatNumber((payload.by_business_line || {}).lcb)} · Broker ${formatNumber((payload.by_business_line || {}).broker)}</span>`);
-  if (Number(payload.technical_events || 0)) {
-    summary.push(`<span>· ${formatNumber(payload.technical_events)} технических</span>`);
-  }
   if (payload.mirror_snapshot) {
     const ageSeconds = Math.max(0, Math.floor(Date.now() / 1000) - Number(payload.mirror_snapshot.activated_at_epoch || 0));
     summary.push(`<span class="pill ${ageSeconds > 900 ? "danger" : "ok"}">зеркало ${escapeHtml(formatAge(ageSeconds))}</span>`);
@@ -740,7 +719,7 @@ function renderCalendar() {
   const undated = visibleEvents.filter((event) => !event.event_date);
   byId("undatedCount").textContent = formatNumber(undated.length);
   byId("undatedList").innerHTML = undated.length
-    ? undated.map((event) => `<button class="undated-item" data-event-id="${escapeHtml(event.calendar_id || event.occurrence_id)}"><strong>${escapeHtml(eventTitle(event))}</strong><span>${event.business_line === "broker" ? "Broker" : "LCBand"} · ${event.record_type === "job" ? "событие" : "заявка"} · ${escapeHtml(funnelStageLabel(event))}</span></button>`).join("")
+    ? undated.map((event) => `<button class="undated-item" data-event-id="${escapeHtml(event.calendar_id || event.occurrence_id)}"><strong>${escapeHtml(eventTitle(event))}</strong><span>${event.business_line === "broker" ? "Broker" : "LCBand"} · ${escapeHtml(funnelStageLabel(event))}</span></button>`).join("")
     : '<div class="calendar-empty-note">По выбранным фильтрам записей без даты нет</div>';
   byId("undatedList").querySelectorAll("[data-event-id]").forEach((button) => {
     button.addEventListener("click", () => openEvent(button.dataset.eventId));
@@ -3342,10 +3321,7 @@ function bindEvents() {
   const calendarFilterInputs = {
     filterLcb: "lcb",
     filterBroker: "broker",
-    filterJobs: "jobs",
-    filterRequests: "requests",
     filterCancelled: "cancelled",
-    filterTechnical: "technical",
     filterStagePerformed: "performed",
     filterStageContentPending: "content_pending",
     filterStageContentReceived: "content_received",
