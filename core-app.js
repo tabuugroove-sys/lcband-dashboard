@@ -2029,6 +2029,39 @@ function renderBrainCharts(palette) {
   });
 }
 
+/* Два графика: сколько токенов сожгла каждая ПАПКА процессов («Все
+   процессы» — client_generation/client_review/broker/classify/
+   funnel_review/other_opus/fixed) — за 24ч и за 7д, вся папка целиком
+   (сумма по всем purpose внутри, day_tokens/week_tokens с бэкенда). Шкала —
+   относительная, от максимума среди папок (у папки нет своего недельного
+   лимита — лимит задаётся per-тир, не per-задача). */
+function renderProcessCharts(groups) {
+  const box = byId("processCharts");
+  if (!box) return;
+  const items = (groups || []).filter((g) => g.key !== "error");
+  if (!items.length) { box.innerHTML = ""; return; }
+  const panel = (title, field) => {
+    const sorted = [...items].sort((a, b) => (Number(b[field]) || 0) - (Number(a[field]) || 0));
+    const relMax = Math.max(1, ...sorted.map((g) => Number(g[field]) || 0));
+    const rows = sorted.map((g) => {
+      const spent = Number(g[field]) || 0;
+      const width = Math.min(100, Math.round(100 * spent / relMax));
+      const count = Number(g.purpose_count) || 0;
+      const label = `${tokFmt(spent)}` + (count ? ` · ${count} проц.` : "");
+      return `<div class="chart-row chart-row-wide">
+        <span class="chart-name">${escapeHtml(g.label || g.key)}</span>
+        <span class="chart-track"><i class="is-nolimit" data-w="${width}"></i></span>
+        <span class="chart-value">${escapeHtml(label)}</span>
+      </div>`;
+    }).join("");
+    return `<div class="chart-panel"><h3>${title}</h3>${rows}</div>`;
+  };
+  box.innerHTML = panel("Папки — за 24 часа", "day_tokens") + panel("Папки — за 7 дней", "week_tokens");
+  box.querySelectorAll(".chart-track [data-w]").forEach((el) => {
+    el.style.width = Math.max(0, Math.min(100, Number(el.dataset.w) || 0)) + "%";
+  });
+}
+
 /* Когда кубики последний раз реально сверялись с ai_routing.chain_for() —
    на переключении вкладки, после сохранения правки и на 30s-тике (см. ниже
    window.setInterval). Абсолютное время, не «Nс назад»: проще проверить
@@ -2053,6 +2086,7 @@ function renderBrainMap(map) {
   const box = byId("brainMap");
   if (!box) return;
   renderBrainCharts(map && map.palette);
+  renderProcessCharts(map && map.groups);
   // Открытые группы переживают перерисовку (сохранение цепочки зовёт
   // renderTokens — без этого каждая правка схлопывала «Все процессы»).
   const openGroups = new Set(
