@@ -659,6 +659,37 @@ a:hover { text-decoration: underline; }
   <div id="brain-chains-list" class="muted" style="font-size:12px;">—</div>
 </div>
 
+<div class="card" id="model-report-card" style="margin-bottom:18px;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;">
+    <span>📊 Модели — что реально работало за 24ч</span>
+    <span style="font-size:11px;color:var(--muted);" id="model-report-status">загрузка…</span>
+  </h2>
+  <div class="label" style="margin:-4px 0 10px 0;">
+    Вызовы/токены/% лимита — тот же счётчик, что решает блокировку в guard-карточке ниже (двигай лимиты там,
+    здесь только отчёт). «Побед в цепочке» — сколько раз тир реально ответил первым, кто отвечал. «JSON» — доля
+    успешных попыток в json-режиме; включает и реальный отказ модели, и блок anti-repeat guard'а до модели —
+    не считай 100% этого «модель не смогла».
+  </div>
+  <div style="overflow-x:auto;">
+  <table style="width:100%;border-collapse:collapse;font-size:12px;" id="model-report-table">
+    <thead>
+      <tr style="text-align:left;color:var(--muted);font-size:11px;">
+        <th style="padding:4px 8px 4px 0;">Тир</th>
+        <th style="padding:4px 8px;">Вызовов 24ч</th>
+        <th style="padding:4px 8px;">% суточн. лимита</th>
+        <th style="padding:4px 8px;">% 5ч-лимита</th>
+        <th style="padding:4px 8px;">Токены 24ч</th>
+        <th style="padding:4px 8px;">Побед в цепочке</th>
+        <th style="padding:4px 8px;">JSON успех</th>
+      </tr>
+    </thead>
+    <tbody id="model-report-tbody">
+      <tr><td colspan="7" class="muted" style="padding:8px 0;">—</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
 <div class="card" id="guard-limits" style="margin-bottom:18px;">
   <h2 style="display:flex;justify-content:space-between;align-items:center;">
     <span>🛡️ AI call guard — hard limits</span>
@@ -1607,6 +1638,11 @@ const GUARD_PROVIDERS = [
   { key: 'codex',  label: '🔵 Codex',  max24: 3000, step24: 50, max5: 1000, step5: 25 },
   { key: 'claude', label: '🟣 Claude', max24: 1500, step24: 50, max5: 600,  step5: 20 },
   { key: 'antigravity', label: '🟠 Antigravity / Gemini free', max24: 3000, step24: 50, max5: 1000, step5: 25 },
+  // 17.08: Kimi/MiniMax отдавали данные в /api/llm_guard с самого начала —
+  // просто не были нарисованы карточками (см. отчёт «Модели» выше). Лимиты
+  // у них исторически выше (2500/1500 в сутки), max/step слайдера — под это.
+  { key: 'kimi',   label: '🟢 Kimi',   max24: 5000, step24: 100, max5: 1000, step5: 25 },
+  { key: 'minimax', label: '🟡 MiniMax', max24: 3000, step24: 50, max5: 3000, step5: 50 },
 ];
 let _guardStatus = { providers: {} };
 
@@ -1851,6 +1887,52 @@ async function loadGuardControls() {
     if (status) status.textContent = 'guard: live · ' + new Date().toLocaleTimeString('ru-RU').slice(0, 5);
   } catch (err) {
     if (status) status.textContent = 'guard: backend offline — ' + err.message;
+  }
+}
+
+// ── Модели за 24ч (17.08) — «кто реально работал», лимиты правятся в guard-
+// карточке ниже (одна и та же /api/llm_guard, не отдельный контур).
+function fmtModelTok(n) {
+  n = Number(n) || 0;
+  return n >= 1e6 ? (n / 1e6).toFixed(2) + 'М' : n >= 1e3 ? Math.round(n / 1e3) + 'К' : String(n);
+}
+function renderModelReport(rows) {
+  const tbody = document.getElementById('model-report-tbody');
+  if (!tbody) return;
+  if (!rows || !rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="muted">нет данных</td></tr>'; return; }
+  // Для лимитов высокий % — плохо (близко к блокировке); для JSON-успеха
+  // высокий % — хорошо, поэтому цвет считаем от «доли отказа» (100 - success).
+  const pctColor = pct => pct == null ? 'var(--muted)' : pct >= 100 ? 'var(--danger)' : pct >= 80 ? 'var(--warn,#d97706)' : 'var(--ok,#2da44e)';
+  tbody.innerHTML = rows.map(r => {
+    const dim = r.disabled ? 'opacity:.45;' : '';
+    const json = r.json_success_pct == null
+      ? '<span class="muted">—</span>'
+      : `<span style="color:${pctColor(100 - r.json_success_pct)};">${r.json_success_pct}%</span>` +
+        `<span class="muted" style="font-size:10px;"> (${r.json_ok_24h}/${r.json_ok_24h + r.json_fail_24h})</span>`;
+    return `<tr style="border-top:1px solid var(--border);${dim}">
+      <td style="padding:5px 8px 5px 0;font-weight:600;">${esc(r.label)}${r.disabled ? ' <span class="muted" style="font-weight:400;">(выкл)</span>' : ''}</td>
+      <td style="padding:5px 8px;">${r.calls_24h}</td>
+      <td style="padding:5px 8px;color:${pctColor(r.calls_24h_pct)};">${r.calls_24h_pct == null ? '<span class="muted">∞</span>' : r.calls_24h_pct + '%'}
+        <span class="muted" style="font-size:10px;"> (${r.calls_24h}/${r.calls_24h_limit || '∞'})</span></td>
+      <td style="padding:5px 8px;color:${pctColor(r.calls_5h_pct)};">${r.calls_5h_pct == null ? '<span class="muted">∞</span>' : r.calls_5h_pct + '%'}</td>
+      <td style="padding:5px 8px;">${fmtModelTok(r.tokens_24h)}</td>
+      <td style="padding:5px 8px;">${r.wins_24h}</td>
+      <td style="padding:5px 8px;">${json}</td>
+    </tr>`;
+  }).join('');
+}
+async function loadModelReport() {
+  const bu = await loadBackend();
+  const status = document.getElementById('model-report-status');
+  if (bu === null) { if (status) status.textContent = '—'; return; }
+  try {
+    const res = await fetch(bu + '/api/app/model_report_24h', { cache: 'no-store' });
+    const data = await res.json();
+    if (data.error && !(data.rows || []).length) { if (status) status.textContent = '⚠️ ' + data.error; return; }
+    renderModelReport(data.rows || []);
+    if (status) status.textContent = 'live · ' + new Date().toLocaleTimeString('ru-RU').slice(0, 5);
+  } catch (err) {
+    if (status) status.textContent = 'backend offline — ' + err.message;
   }
 }
 
@@ -3488,6 +3570,8 @@ loadRoutingControls();
 setInterval(loadRoutingControls, 30000);
 loadGuardControls();
 setInterval(loadGuardControls, 30000);
+loadModelReport();
+setInterval(loadModelReport, 30000);
 
 // ────────── LIVE AI calls feed ──────────
 let _liveLastTs = '';
