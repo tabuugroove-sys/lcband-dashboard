@@ -56,6 +56,7 @@
     <button class="tab-button" data-view="system"><span class="tab-icon" aria-hidden="true">◔</span>Система</button>
     <button class="tab-button" data-view="fees"><span class="tab-icon" aria-hidden="true">₽</span>Гонорары</button>
     <button class="tab-button" data-view="tokens"><span class="tab-icon" aria-hidden="true">◈</span>Токены</button>
+    <button class="tab-button" data-view="loopguard"><span class="tab-icon" aria-hidden="true">⛔<span class="tab-badge" id="navLoopGuardCount" hidden></span></span>Loop-Guard</button>
     <button class="tab-button" data-view="broadcast"><span class="tab-icon" aria-hidden="true">✈</span>Рассылка</button>
     <button class="tab-button" data-view="sessions"><span class="tab-icon" aria-hidden="true">⌗</span>Сессии</button>
   </nav>
@@ -420,6 +421,15 @@
           <div class="section-head"><h2>Топ-10 за 24ч — спор MiniMax/Kimi об экономии</h2><span class="pill" id="spendDebateSyncPill">—</span></div>
           <p class="mtext">Раз в сутки (5:30) MiniMax и Kimi через TriBrain спорят по каждому из топ-10 агентов за 24ч: что можно безопасно снизить в расходе токенов. Кулдаун нашего guard — до запуска спора, показан отдельно. Итог не применяется сам: кнопка кладёт решение в этот чат Claude Code, применяешь сам.</p>
           <div id="spendDebateAgents"></div>
+        </section>
+      </section>
+
+      <section class="screen" id="screen-loopguard">
+        <div class="page-head"><div><p class="eyebrow">Retry containment и доказательства</p><h1>Loop-Guard</h1></div><span class="pill" id="loopGuardPill">Загрузка…</span></div>
+        <section class="band-section">
+          <div class="section-head"><h2>Состояние за окно watchdog</h2></div>
+          <p class="mtext"><code>spend_efficiency_watchdog.py</code> считает logical attempts, а не строки провайдеров. Durable containment показан отдельно от наблюдаемых сигналов; общий budget/policy block не выдаётся за застрявшую карточку. Автоблок разрешён только для точной entity + source revision, новая revision снова допускается к работе.</p>
+          <div id="loopGuardList"></div>
         </section>
       </section>
 

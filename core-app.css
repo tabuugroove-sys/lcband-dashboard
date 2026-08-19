@@ -1076,6 +1076,35 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .chip-arrow { color: var(--muted); }
 .brain-note { margin-left: auto; color: var(--muted); font-size: 12px; }
 
+/* Loop-Guard: evidence groups, budget blocks and durable incidents. */
+.loop-guard-section-title { margin: 14px 0 6px; font-size: 12px; color: var(--muted); }
+.loop-guard-section-title:first-child { margin-top: 0; }
+.loop-guard-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 52px minmax(0, 1.4fr);
+  gap: 8px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 4px;
+  font-size: 11.5px;
+}
+.loop-guard-purpose { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loop-guard-target { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loop-guard-count { text-align: right; font-variant-numeric: tabular-nums; color: var(--danger); }
+.loop-guard-note { color: var(--muted); font-size: 10.5px; }
+.loop-guard-note .is-stop { color: var(--danger); }
+.loop-guard-row.is-contained { border-color: color-mix(in srgb, var(--danger) 52%, var(--line)); background: var(--danger-soft); }
+.loop-guard-row.is-budget { opacity: .82; }
+.loop-guard-summary { margin-bottom: 10px; color: var(--muted); font-size: 10.5px; }
+.loop-guard-freshness { margin-bottom: 10px; padding: 9px 10px; border: 1px solid var(--warn); border-radius: 8px; color: var(--warn); font-size: 10.5px; }
+.loop-guard-freshness strong { color: inherit; }
+@media (max-width: 760px) {
+  .loop-guard-row { grid-template-columns: 1fr; gap: 2px; }
+  .loop-guard-count { text-align: left; }
+}
+
 /* Палитра кубиков: перетащить на цепочку = добавить модель; чип обратно
    в палитру (или × на чипе) = убрать. В кубике — расход 24ч/7д и остаток
    недельного справочного лимита. */

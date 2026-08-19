@@ -545,6 +545,7 @@ function setView(view) {
   if (view === "today") renderToday();
   if (view === "system") renderSystem();
   if (view === "tokens") renderTokens();
+  if (view === "loopguard") renderLoopGuard();
   if (view === "fees") renderFees();
   if (view === "costumes") {
     renderCostumes();
@@ -575,7 +576,7 @@ function route() {
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "flow", "today", "system", "tokens", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "arbitr"].includes(name)
+  const view = ["calendar", "chats", "flow", "today", "system", "tokens", "loopguard", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "arbitr"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";
@@ -2370,6 +2371,176 @@ function renderOutputBudget(ob) {
   });
 }
 
+/* Loop-Guard v2.  Durable containment incidents are facts; repeat-loop rows
+   are evidence groups; budget blocks are policy telemetry, not incidents. */
+let loopGuardRenderSeq = 0;
+
+function loopGuardActiveIncidents(report) {
+  const items = report?.containment_incidents?.items || [];
+  return items.filter((row) => row.status === "open" || row.status === "acknowledged");
+}
+
+function loopGuardIdentityKey(row, kind) {
+  const entity = kind === "thread"
+    ? `conversation:${row.thread_id || ""}`
+    : (row.entity_id || "");
+  return `${row.purpose || ""}|${entity}|${row.source_revision || ""}`;
+}
+
+function loopGuardSignalCount(report, activeIncidents = loopGuardActiveIncidents(report)) {
+  if (!report || report.available === false) return 0;
+  // A durable incident and its originating evidence group are two projections
+  // of one problem. Count only alert-only signal identities in addition to
+  // active incidents; otherwise the navigation badge doubles every contained
+  // loop even though both sections remain visible on the detail screen.
+  const activeKeys = new Set(
+    activeIncidents.map((row) => loopGuardIdentityKey(row, "incident"))
+  );
+  const purposeRows = report.purpose_only_loops || [];
+  const threadRows = report.repeat_loops || [];
+  if (purposeRows.length || threadRows.length) {
+    const signalKeys = new Set();
+    purposeRows.forEach((row) => {
+      const key = loopGuardIdentityKey(row, "purpose");
+      if (!activeKeys.has(key)) signalKeys.add(key);
+    });
+    threadRows.forEach((row) => {
+      const key = loopGuardIdentityKey(row, "thread");
+      if (!activeKeys.has(key)) signalKeys.add(key);
+    });
+    return signalKeys.size;
+  }
+  const counts = report.counts || {};
+  return Number(counts.repeat_loop_groups_total ?? (report.repeat_loops || []).length)
+    + Number(counts.purpose_only_loop_groups_total ?? (report.purpose_only_loops || []).length);
+}
+
+function loopGuardIncidentCount(report) {
+  if (!report || report.available === false) return 0;
+  const activeIncidents = loopGuardActiveIncidents(report);
+  return activeIncidents.length + loopGuardSignalCount(report, activeIncidents);
+}
+
+async function refreshLoopGuardBadge() {
+  try {
+    const report = await apiGet("/api/app/spend_efficiency");
+    setBadge("navLoopGuardCount", loopGuardIncidentCount(report));
+  } catch {
+    // Silent — badge just stays at its last known value; the screen itself
+    // shows the real error state when opened.
+  }
+}
+
+function loopGuardRowHtml(kind, row) {
+  if (kind === "thread") {
+    const attempts = row.logical_attempts ?? row.repeats ?? 0;
+    const progress = Number(row.progress_evidence_count || 0);
+    const quality = row.revision_known ? "revision известна" : "revision неизвестна · только сигнал";
+    return `<div class="loop-guard-row">
+      <span class="loop-guard-purpose">${escapeHtml(row.purpose)}</span>
+      <span class="loop-guard-target">@${escapeHtml(row.username || row.thread_id)}</span>
+      <span class="loop-guard-count">${escapeHtml(String(attempts))}×</span>
+      <span class="loop-guard-note">logical attempts · progress ${progress} · ${escapeHtml(quality)}</span>
+    </div>`;
+  }
+  if (kind === "incident") {
+    const status = row.status === "acknowledged" ? "принят" : "открыт";
+    const action = row.containment_action || "block";
+    return `<div class="loop-guard-row is-contained">
+      <span class="loop-guard-purpose">${escapeHtml(row.rule || row.purpose)}</span>
+      <span class="loop-guard-target">${escapeHtml(row.entity_id || "—")}</span>
+      <span class="loop-guard-count">${escapeHtml(String(row.occurrence_count || 1))}×</span>
+      <span class="loop-guard-note"><span class="is-stop">${escapeHtml(status)} · ${escapeHtml(action)}</span> · ${escapeHtml(row.purpose || "")}</span>
+    </div>`;
+  }
+  if (kind === "budget") {
+    return `<div class="loop-guard-row is-budget">
+      <span class="loop-guard-purpose">${escapeHtml(row.purpose || "policy")}</span>
+      <span class="loop-guard-target">${escapeHtml(row.entity_id || row.provider || "общий лимит")}</span>
+      <span class="loop-guard-count">${escapeHtml(String(row.guard_events ?? row.repeats ?? 0))}×</span>
+      <span class="loop-guard-note">budget/policy block · не retry-инцидент</span>
+    </div>`;
+  }
+  const identityStatus = row.identity_status || (row.missing_scope ? "missing" : "strong");
+  const scopeNote = identityStatus === "strong"
+    ? `${row.block_class || "loop"} · ${row.alert_episodes || 1} episode`
+    : '<span class="is-stop">identity недостаточна · только alert, без auto-block</span>';
+  return `<div class="loop-guard-row">
+    <span class="loop-guard-purpose">${escapeHtml(row.purpose)}</span>
+    <span class="loop-guard-target">${escapeHtml(row.entity_id || "без entity")}</span>
+    <span class="loop-guard-count">${escapeHtml(String(row.guard_events ?? row.repeats ?? 0))}×</span>
+    <span class="loop-guard-note">${scopeNote}</span>
+  </div>`;
+}
+
+async function renderLoopGuard() {
+  const seq = ++loopGuardRenderSeq;
+  const stale = () => seq !== loopGuardRenderSeq;
+  const pill = byId("loopGuardPill");
+  const list = byId("loopGuardList");
+  if (pill) pill.textContent = "Загрузка…";
+  let report;
+  try {
+    report = await apiGet("/api/app/spend_efficiency");
+  } catch (error) {
+    if (stale()) return;
+    if (pill) { pill.textContent = "Ошибка"; pill.className = "pill hold"; }
+    if (list) list.innerHTML = `<div class="empty-state">${escapeHtml(String(error))}</div>`;
+    return;
+  }
+  if (stale()) return;
+  const threadLoops = report.repeat_loops || [];
+  const purposeLoops = report.purpose_only_loops || [];
+  const budgetBlocks = report.budget_blocks || [];
+  const activeIncidents = loopGuardActiveIncidents(report);
+  const signalTotal = loopGuardSignalCount(report, activeIncidents);
+  const total = activeIncidents.length + signalTotal;
+  setBadge("navLoopGuardCount", total);
+  if (report.available === false) {
+    if (pill) { pill.textContent = "Отчёт ещё не создан"; pill.className = "pill hold"; }
+    if (list) list.innerHTML = '<div class="empty-state">spend_efficiency_watchdog.py ещё не запускался.</div>';
+    return;
+  }
+  if (pill) {
+    const stale = report.freshness?.stale;
+    pill.textContent = stale
+      ? "Отчёт устарел"
+      : total
+        ? `${activeIncidents.length} удержано · ${signalTotal} сигналов`
+        : "Чисто";
+    pill.className = (stale || total) ? "pill hold" : "pill ok";
+  }
+  if (!list) return;
+  if (!total && !budgetBlocks.length && !report.freshness?.degraded) {
+    list.innerHTML = '<div class="empty-state">Нет активных containment-инцидентов и повторов без прогресса.</div>';
+    return;
+  }
+  const sections = [];
+  if (report.freshness?.degraded) {
+    const age = report.freshness.report_age_sec;
+    const ageText = Number.isFinite(age) ? ` · отчёту ${Math.round(age / 60)} мин` : "";
+    sections.push(`<div class="loop-guard-freshness"><strong>Данные неполные или устарели</strong>${escapeHtml(ageText)}. Auto-containment не считается подтверждённым без свежей strong identity.</div>`);
+  }
+  sections.push(`<div class="loop-guard-summary">Окно ${escapeHtml(String(report.window_hours || 24))}ч · AI calls ${escapeHtml(String(report.totals?.ai_calls || 0))} · provider hops ${escapeHtml(String(report.totals?.provider_hops || 0))} · logical attempts ${escapeHtml(String(report.totals?.logical_attempts || 0))}</div>`);
+  if (activeIncidents.length) {
+    sections.push(`<h3 class="loop-guard-section-title">Durable containment (${activeIncidents.length})</h3>`
+      + activeIncidents.map((r) => loopGuardRowHtml("incident", r)).join(""));
+  }
+  if (purposeLoops.length) {
+    sections.push(`<h3 class="loop-guard-section-title">Сигналы без диалога (${purposeLoops.length})</h3>`
+      + purposeLoops.map((r) => loopGuardRowHtml("purpose", r)).join(""));
+  }
+  if (threadLoops.length) {
+    sections.push(`<h3 class="loop-guard-section-title">Сигналы по диалогу (${threadLoops.length})</h3>`
+      + threadLoops.map((r) => loopGuardRowHtml("thread", r)).join(""));
+  }
+  if (budgetBlocks.length) {
+    sections.push(`<h3 class="loop-guard-section-title">Бюджетные блокировки — отдельно (${budgetBlocks.length})</h3>`
+      + budgetBlocks.map((r) => loopGuardRowHtml("budget", r)).join(""));
+  }
+  list.innerHTML = sections.join("");
+}
+
 /* Быстрые последовательные вызовы (два сохранения подряд) не должны давать
    устаревшему ответу закрасить свежий: рисует только последний вызов. */
 let tokensRenderSeq = 0;
@@ -3499,6 +3670,10 @@ bindEvents();
 route();
 refreshAll();
 window.setInterval(refreshAll, 30000);
+// Own lighter interval, not folded into refreshAll's 30s hot-path: the
+// underlying report only changes once an hour (spend_efficiency_watchdog.py).
+refreshLoopGuardBadge();
+window.setInterval(refreshLoopGuardBadge, 120000);
 /* Карта мозгов не входит в refreshAll (она дорогая: ~184 живых chain_for()).
    Без своего тика вкладка Токены показывала снимок на момент открытия —
    если цепочку поменяли извне (другая сессия, автоматика), кубики врали, пока
