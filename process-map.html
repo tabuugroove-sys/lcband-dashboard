@@ -199,6 +199,10 @@
       <b>Telegram user-account boundary:</b> business agents производят reviewed candidate/approval envelope → explicit operator enqueue → <code>telegram_delivery_queue.py</code> / <code>tg_delivery.sqlite</code> → <code>com.lcband.telegram-delivery</code>. Только <code>telegram_delivery_service.py</code> мутирует личный аккаунт через Telethon. Exact-текст, прямо подтверждённый оператором, использует <code>operator_exact_text</code>: actor=operator, trusted producer, запрет override и immutable event/purpose scope; этот lane не доступен автономным агентам. Ночью обычное ручное нажатие создаёт одну durable-команду с <code>not_before_at=08:00 MSK</code>; приложение показывает её исходящим сообщением с часами. Крестик освобождает ту же команду для немедленной отправки, но не создаёт второй intent и не обходит recipient/suppression/stale-context/dedup guards. Bot-token notification/control calls — отдельные identities и transport; любой Telethon path смешанного модуля остаётся внутри user-account boundary.
     </div>
 
+    <div class="delivery-boundary">
+      <b>Vendor promo evidence boundary:</b> клиентское промо стороннего артиста берётся из typed read-model <code>broker_vendor_media.vendor_media_evidence()</code>; URL сверяется только по exact provider-aware identity, без <code>startswith</code> и без подмены неизвестного материала общей папкой LCB. Verified membership подтверждает происхождение, но не разрешает отправку: обычный fail-closed presend остаётся обязательным. Для <code>unified_tg_pending</code> queued ≠ sent; явно помеченное <code>unfulfilled_promise</code> при <code>superseded</code>, <code>thread_moved_on</code> или <code>presend_blocked</code> становится <code>hold_operator</code> с <code>sent=false</code>, а не исчезает как выполненное обещание.
+    </div>
+
     <div class="effpanel">
       <div class="eff-head">
         <div class="eff-title">Расход CLI-токенов<span class="eff-sub" id="effSub">— загрузка…</span></div>
