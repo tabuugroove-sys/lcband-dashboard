@@ -54,16 +54,18 @@ const state = {
   promoFilters: { q: "", category: "", status: "all", page: 1 },
   calendarFilters: {
     lcb: true,
-    broker: true,
-    performed: true,
-    content_pending: true,
-    content_received: true,
+    broker: false,
+    performed: false,
+    content_pending: false,
+    content_received: false,
     prepayment: true,
     contract: true,
     confirmed: true,
     negotiating: true,
-    followup_cold: true,
-    cancelled: true,
+    lead: false,
+    followup_waiting: false,
+    followup_cold: false,
+    cancelled: false,
   },
   month: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   loading: false,
@@ -117,9 +119,9 @@ const CALENDAR_STAGE_LABELS = Object.freeze({
   contract: "Договор",
   confirmed: "Подтверждено",
   negotiating: "Отвечает / в работе",
-  followup_waiting: "Отвечает / в работе",
+  followup_waiting: "Ждём ответа",
   followup_cold: "Не отвечает",
-  lead: "Отвечает / в работе",
+  lead: "Новая заявка",
   cancelled: "Отмена",
 });
 
@@ -629,7 +631,6 @@ function calendarEventMatchesFilters(event) {
 }
 
 function eventFunnelStage(event) {
-  if (["lead", "followup_waiting"].includes(event.funnel_stage)) return "negotiating";
   if (event.funnel_stage && CALENDAR_STAGE_LABELS[event.funnel_stage]) return event.funnel_stage;
   if (event.cancelled || event.lifecycle === "cancelled" || event.occurrence_status === "cancelled") return "cancelled";
   if (event.lifecycle === "performed" || event.occurrence_status === "performed") return "performed";
@@ -660,6 +661,8 @@ function syncCalendarFilterControls() {
     filterStageContract: "contract",
     filterStageConfirmed: "confirmed",
     filterStageNegotiating: "negotiating",
+    filterStageLead: "lead",
+    filterStageFollowupWaiting: "followup_waiting",
     filterStageFollowupCold: "followup_cold",
   };
   Object.entries(mapping).forEach(([id, key]) => {
@@ -3329,6 +3332,8 @@ function bindEvents() {
     filterStageContract: "contract",
     filterStageConfirmed: "confirmed",
     filterStageNegotiating: "negotiating",
+    filterStageLead: "lead",
+    filterStageFollowupWaiting: "followup_waiting",
     filterStageFollowupCold: "followup_cold",
   };
   Object.entries(calendarFilterInputs).forEach(([id, key]) => {

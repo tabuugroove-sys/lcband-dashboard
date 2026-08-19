@@ -78,7 +78,7 @@
           </div>
           <div class="calendar-filterbar" aria-label="Фильтры календаря">
             <label><input id="filterLcb" type="checkbox" checked> LCBand</label>
-            <label><input id="filterBroker" type="checkbox" checked> Broker</label>
+            <label><input id="filterBroker" type="checkbox"> Broker</label>
             <span class="calendar-filter-actions">
               <button class="text-button" id="calendarSelectAll" type="button">Выбрать все</button>
               <button class="text-button" id="calendarClearAll" type="button">Снять все</button>
@@ -86,15 +86,17 @@
           </div>
           <div class="calendar-stage-filterbar" aria-label="Этапы воронки">
             <span class="calendar-filter-title">Этап воронки</span>
-            <label class="stage-filter performed"><input id="filterStagePerformed" type="checkbox" checked> Состоялось</label>
-            <label class="stage-filter content-pending"><input id="filterStageContentPending" type="checkbox" checked> Фото/видео запросить</label>
-            <label class="stage-filter content-received"><input id="filterStageContentReceived" type="checkbox" checked> Фото/видео получены</label>
+            <label class="stage-filter performed"><input id="filterStagePerformed" type="checkbox"> Состоялось</label>
+            <label class="stage-filter content-pending"><input id="filterStageContentPending" type="checkbox"> Фото/видео запросить</label>
+            <label class="stage-filter content-received"><input id="filterStageContentReceived" type="checkbox"> Фото/видео получены</label>
             <label class="stage-filter prepayment"><input id="filterStagePrepayment" type="checkbox" checked> Предоплата</label>
             <label class="stage-filter contract"><input id="filterStageContract" type="checkbox" checked> Договор</label>
             <label class="stage-filter confirmed"><input id="filterStageConfirmed" type="checkbox" checked> Подтверждено</label>
             <label class="stage-filter negotiating"><input id="filterStageNegotiating" type="checkbox" checked> Отвечает / в работе</label>
-            <label class="stage-filter followup-cold"><input id="filterStageFollowupCold" type="checkbox" checked> Не отвечает</label>
-            <label class="stage-filter cancelled"><input id="filterCancelled" type="checkbox" checked> Отмена</label>
+            <label class="stage-filter lead"><input id="filterStageLead" type="checkbox"> Новая заявка</label>
+            <label class="stage-filter followup-waiting"><input id="filterStageFollowupWaiting" type="checkbox"> Ждём ответа</label>
+            <label class="stage-filter followup-cold"><input id="filterStageFollowupCold" type="checkbox"> Не отвечает</label>
+            <label class="stage-filter cancelled"><input id="filterCancelled" type="checkbox"> Отмена</label>
           </div>
           <div class="calendar-legend" aria-label="Обозначения цветов">
             <span>Цвет = этап воронки</span>
@@ -104,6 +106,8 @@
             <span class="legend-item contract"><i></i>Договор</span>
             <span class="legend-item confirmed"><i></i>Подтверждено</span>
             <span class="legend-item negotiating"><i></i>Отвечает / в работе</span>
+            <span class="legend-item lead"><i></i>Новая заявка</span>
+            <span class="legend-item followup-waiting"><i></i>Ждём ответа</span>
             <span class="legend-item followup-cold"><i></i>Не отвечает</span>
             <span class="legend-item cancelled"><i></i>Отмена</span>
           </div>

@@ -299,6 +299,8 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .legend-item.contract i { background: #c77722; }
 .legend-item.confirmed i { background: #c39b23; }
 .legend-item.negotiating i { background: #4f8f68; }
+.legend-item.lead i { background: #2f8f72; }
+.legend-item.followup-waiting i { background: #78a875; }
 .legend-item.followup-cold i { background: #a3bda1; }
 .legend-item.cancelled i { background: #b8bec2; }
 .calendar-summary { min-height: 30px; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
@@ -339,9 +341,9 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .event-chip.funnel-prepayment { background: #b42318; color: white; }
 .event-chip.funnel-contract { background: #c77722; color: white; }
 .event-chip.funnel-confirmed { background: #c39b23; color: white; }
-.event-chip.funnel-negotiating,
-.event-chip.funnel-followup-waiting,
-.event-chip.funnel-lead { background: #4f8f68; color: white; }
+.event-chip.funnel-negotiating { background: #4f8f68; color: white; }
+.event-chip.funnel-lead { background: #2f8f72; color: white; }
+.event-chip.funnel-followup-waiting { background: #78a875; color: white; }
 .event-chip.funnel-followup-cold { background: #a3bda1; color: #263a29; }
 .event-chip.funnel-cancelled { background: #b8bec2; color: #586067; text-decoration: line-through; }
 .event-chip.technical { background: var(--frame); color: var(--muted); }
@@ -468,9 +470,9 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .contact-date-stage.funnel-prepayment { background: #b42318; }
 .contact-date-stage.funnel-contract { background: #c77722; }
 .contact-date-stage.funnel-confirmed { background: #c39b23; }
-.contact-date-stage.funnel-negotiating,
-.contact-date-stage.funnel-followup-waiting,
-.contact-date-stage.funnel-lead { background: #4f8f68; }
+.contact-date-stage.funnel-negotiating { background: #4f8f68; }
+.contact-date-stage.funnel-lead { background: #2f8f72; }
+.contact-date-stage.funnel-followup-waiting { background: #78a875; }
 .contact-date-stage.funnel-followup-cold { background: #a3bda1; color: #24382b; }
 .contact-date-stage.funnel-cancelled { background: #b8bec2; color: #354047; }
 .mobile-back { display: none; border: 0; background: transparent; color: var(--pine); font-size: 26px; cursor: pointer; }
