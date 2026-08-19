@@ -353,6 +353,10 @@ function renderOrder(o) {
     const m = (o.event_date||'').match(/(\d{1,2})[\.\s](\d{1,2}|\w+)/);
     return m && parseInt(m[1]) <= 14;  // crude: less than 2 weeks
   })();
+  const isClosed = o.status === 'closed_won' || o.status === 'closed_lost';
+  const lastHistoryLine = isClosed && Array.isArray(o.history) && o.history.length
+    ? (o.history[o.history.length - 1] || {}).event || ''
+    : '';
 
   // assigned contractor
   const contractorBlock = o.contractor_username
@@ -362,7 +366,7 @@ function renderOrder(o) {
        </div>`
     : `<span class="badge warn">подрядчик не назначен</span>`;
 
-  return `<div class="order-card" data-id="${o.id}">
+  return `<div class="order-card" data-id="${o.id}" style="${isClosed ? 'opacity:0.6' : ''}">
     <div class="order-header">
       <div>
         <div class="order-title">${escHtml(o.service_label)}</div>
@@ -377,6 +381,7 @@ function renderOrder(o) {
       <div style="text-align:right">
         <div style="font-size:11px;color:var(--muted)">id <code>${o.id}</code></div>
         <div style="font-size:13px;margin-top:4px">${escHtml(o.status)}</div>
+        ${lastHistoryLine ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;max-width:260px">${escHtml(lastHistoryLine)}</div>` : ''}
       </div>
     </div>
 
@@ -412,6 +417,15 @@ function renderOrder(o) {
 }
 
 var _brokerOrdersCollapsed = true;
+// 18.08.2026: без этого закрытые заказы (в т.ч. auto_closed_lost из
+// stale-order автозакрытия) невидимы нигде на дашборде — тумблер нужен,
+// чтобы проверить, что автозакрытие сработало и не закрыло живой заказ.
+var _brokerShowClosed = false;
+
+function toggleBrokerShowClosed(checked) {
+  _brokerShowClosed = !!checked;
+  load();
+}
 
 function toggleBrokerOrders() {
   _brokerOrdersCollapsed = !_brokerOrdersCollapsed;
@@ -571,7 +585,8 @@ async function load() {
   const base = await getBackendUrl();
   loadRoster(base);  // параллельно, не ждём
   try {
-    const r = await fetch(`${base}/api/broker_dashboard`, { cache: 'no-store' });
+    const closedParam = _brokerShowClosed ? '?include_closed=1' : '';
+    const r = await fetch(`${base}/api/broker_dashboard${closedParam}`, { cache: 'no-store' });
     const data = await r.json();
     if (data.error) throw new Error(data.error);
 
@@ -583,12 +598,17 @@ async function load() {
 
     const ordersHtml = data.orders.map(renderOrder).join('');
     const collapsed = _brokerOrdersCollapsed;
+    const closedCount = data.orders.filter(o => o.status === 'closed_won' || o.status === 'closed_lost').length;
     document.getElementById('orders').innerHTML = `
       <section class="orders-section">
         <div class="orders-header">
           <div>
-            <div class="orders-title">Активные broker-заказы · ${data.orders.length}</div>
+            <div class="orders-title">${_brokerShowClosed ? 'Broker-заказы (вкл. закрытые)' : 'Активные broker-заказы'} · ${data.orders.length}</div>
             <div style="font-size:11px;color:var(--muted)">Протухшие early-stage заявки закрывает broker-state-repair автоматически.</div>
+            <label style="font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:4px;margin-top:4px;cursor:pointer">
+              <input type="checkbox" ${_brokerShowClosed ? 'checked' : ''} onchange="toggleBrokerShowClosed(this.checked)">
+              показать закрытые${_brokerShowClosed ? ` (${closedCount})` : ''}
+            </label>
           </div>
           <button class="orders-toggle" id="orders-toggle"
                   onclick="toggleBrokerOrders()"
