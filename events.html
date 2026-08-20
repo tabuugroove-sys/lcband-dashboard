@@ -1410,8 +1410,10 @@
     const clientNal = Number(f.client_nal) || 0;
     const clientBn = Number(f.client_bn) || 0;
     const kirill = Number(f.kirill) || 0;
-    const margin = Number(f.margin) || 0;
-    const marginPct = clientTotal ? Math.round((margin / clientTotal) * 100) : null;
+    const marginKnown = f.margin !== null && f.margin !== undefined &&
+      f.margin_status !== 'unknown_incomplete_team_fees' && Number.isFinite(Number(f.margin));
+    const margin = marginKnown ? Number(f.margin) : 0;
+    const marginPct = clientTotal && marginKnown ? Math.round((margin / clientTotal) * 100) : null;
     const fromContract = f.client_total_source === 'contract';
 
     const hasFin = CURRENT_EVENT.finance && (clientTotal || bandTotal);
@@ -1427,9 +1429,9 @@
         sub: [fromContract ? '📄 по договору' : '',
               (clientNal && clientBn) ? `${fmtMoneyShort(clientNal)} нал · ${fmtMoneyShort(clientBn)} безнал` : '']
               .filter(Boolean).join(' · ') },
-      { label: 'Маржа', value: hasFin ? fmtMoneyShort(margin) : '—',
-        cls: margin >= 0 ? 'pos' : 'neg',
-        sub: hasFin ? (marginPct !== null ? `${marginPct}%` : '') + (kirill ? ` · ИП ${fmtMoneyShort(kirill)}` : '') : '' },
+      { label: 'Маржа', value: hasFin && marginKnown ? fmtMoneyShort(margin) : '—',
+        cls: marginKnown ? (margin >= 0 ? 'pos' : 'neg') : '',
+        sub: hasFin && marginKnown ? (marginPct !== null ? `${marginPct}%` : '') + (kirill ? ` · ИП ${fmtMoneyShort(kirill)}` : '') : '' },
     ];
     el.innerHTML = `<div class="fin-summary">` + cells.map(c => `
       <div class="fin-cell ${c.cls || ''}">
