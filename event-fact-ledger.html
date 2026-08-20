@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Event Fact Ledger — LCBand</title>
+  <style>
+    :root{color-scheme:dark;--bg:#08111f;--card:#111d30;--line:#29415f;--text:#e8f1ff;--muted:#9db0c8;--ok:#43d19e;--hold:#ffbd59}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#142a48,var(--bg) 44%);color:var(--text);font:15px/1.45 system-ui,-apple-system,sans-serif}
+    main{max-width:1180px;margin:auto;padding:34px 22px 60px}h1{margin:0 0 8px;font-size:30px}.lead{color:var(--muted);max-width:850px;margin-bottom:28px}
+    .flow{display:grid;grid-template-columns:1fr 60px 1.1fr 60px 1fr;align-items:stretch;gap:10px}.node{background:linear-gradient(145deg,#14243a,#0d1829);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 16px 35px #0005}.arrow{display:grid;place-items:center;color:#6aa7e8;font-size:28px}
+    h2{font-size:17px;margin:0 0 12px}.pill{display:inline-block;margin:4px 4px 0 0;padding:5px 9px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:12px}.ok{color:var(--ok)}.hold{color:var(--hold)}
+    .rules{margin-top:22px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.rule{background:#0d1829;border:1px solid var(--line);border-radius:14px;padding:16px}.rule b{display:block;margin-bottom:6px}.rule span{color:var(--muted)}
+    @media(max-width:850px){.flow{grid-template-columns:1fr}.arrow{transform:rotate(90deg);height:30px}.rules{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <h1>Переписки → журнал фактов → карточка</h1>
+  <div class="lead">Единый evidence-first контур. Сообщение никогда не теряется, но неоднозначный текст не становится подтверждённым фактом и не запускает отправку.</div>
+  <div class="flow">
+    <section class="node"><h2>1. Связанные источники</h2><span class="pill">организатор</span><span class="pill">участники состава</span><span class="pill">event TG-group</span><span class="pill">explicit event-thread</span><p>Только явная связь с мероприятием; глобальное чтение всех чатов запрещено.</p></section>
+    <div class="arrow">→</div>
+    <section class="node"><h2>2. Event Fact Ledger</h2><p><span class="ok">Каждое сообщение сохраняется</span> с event ID, человеком, message ID, датой, темой и типом привязки.</p><span class="pill">reported</span><span class="pill">ordered</span><span class="pill">received</span><span class="pill hold">needs_review</span></section>
+    <div class="arrow">→</div>
+    <section class="node"><h2>3. Потребители</h2><span class="pill">Legacy card</span><span class="pill">Core checklist</span><span class="pill">костюмы</span><span class="pill">трансфер</span><span class="pill">машины / парковка</span><p>Групповая дельта остаётся approval-only и закрывается только provider receipt.</p></section>
+  </div>
+  <div class="rules">
+    <div class="rule"><b>Детерминированно сначала</b><span>Regex только выделяет тему. Исходный текст и provenance всегда сохраняются.</span></div>
+    <div class="rule"><b>Неоднозначность не подтверждает</b><span>Несколько возможных событий → needs_review. TriBrain допустим только как судья.</span></div>
+    <div class="rule"><b>Идемпотентность</b><span>Один source row записывается один раз; новый факт сохраняет ссылку на superseded evidence.</span></div>
+  </div>
+</main></body></html>
