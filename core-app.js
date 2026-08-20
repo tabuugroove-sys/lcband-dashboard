@@ -2822,14 +2822,21 @@ const SESSION_STATUS_LABELS = {
   active: '<span class="session-status active">🟢 активна</span>',
   done: '<span class="session-status done">✅ завершена</span>',
   stalled: '<span class="session-status stalled">🟡 брошена</span>',
+  single_shot: '<span class="session-status single-shot">⚙️ авто-классификация</span>',
 };
+
+function sessionCountLabel(value) {
+  const count = Number(value || 0);
+  const mod100 = count % 100;
+  const mod10 = count % 10;
+  const noun = mod100 >= 11 && mod100 <= 14 ? "сессий" : mod10 === 1 ? "сессия" : mod10 >= 2 && mod10 <= 4 ? "сессии" : "сессий";
+  return `${count} ${noun}`;
+}
 
 async function refreshSessions() {
   const project = byId("sessionsProjectFilter").value;
-  const status = byId("sessionsStatusFilter").value;
   const query = new URLSearchParams();
   if (project) query.set("project", project);
-  if (status) query.set("status", status);
   try {
     const payload = await apiGet(`/api/core/agent_sessions?${query}`);
     state.sessions = payload;
@@ -2843,21 +2850,45 @@ async function refreshSessions() {
 function renderSessions() {
   const payload = state.sessions || {};
   const rows = payload.sessions || [];
-  byId("sessionsCountPill").textContent = `${payload.count ?? rows.length} сессий · ${payload.days ?? 14} дн`;
+  const branches = payload.branches || rows.map((row, index) => ({
+    key: `legacy-${index}`,
+    title: row.heading || row.title,
+    problem: row.problem || row.title,
+    solution_preview: row.solution_preview,
+    status: row.status,
+    sources: [row.source],
+    projects: [row.project],
+    last_activity: row.last_activity,
+    session_count: 1,
+    sessions: [row],
+  }));
+  byId("sessionsCountPill").textContent = `${payload.count ?? rows.length} сессий · ${payload.branch_count ?? branches.length} веток · ${payload.days ?? 14} дн`;
   const projectFilter = byId("sessionsProjectFilter");
   const selected = projectFilter.value;
   projectFilter.innerHTML = '<option value="">Все проекты</option>'
     + (payload.projects || []).map((name) => `<option value="${escapeHtml(name)}"${name === selected ? " selected" : ""}>${escapeHtml(name)}</option>`).join("");
-  byId("sessionsList").innerHTML = rows.map((row) => `
-    <article class="session-card">
-      <div class="session-card-head">
-        <span class="pill ${row.source === "codex" ? "hold" : "ok"}">${row.source === "codex" ? "Codex" : "Claude"}</span>
-        <strong>${escapeHtml(row.project)}</strong>
-        ${SESSION_STATUS_LABELS[row.status] || escapeHtml(row.status)}
-        <span class="session-time">${escapeHtml(row.last_activity)}</span>
+  const sourcePill = (source) => `<span class="pill ${source === "codex" ? "hold" : "ok"}">${source === "codex" ? "Codex" : "Claude"}</span>`;
+  byId("sessionsList").innerHTML = branches.map((branch) => `
+    <article class="session-branch">
+      <div class="session-branch-head">
+        <span class="session-folder-mark" aria-hidden="true">▰</span>
+        ${(branch.sources || []).map(sourcePill).join("")}
+        <strong>${escapeHtml((branch.projects || []).join(" · "))}</strong>
+        ${SESSION_STATUS_LABELS[branch.status] || escapeHtml(branch.status || "")}
+        <span class="session-branch-count">${sessionCountLabel(branch.session_count || 1)}</span>
+        <span class="session-time">${escapeHtml(branch.last_activity || "")}</span>
       </div>
-      <p class="session-title">${escapeHtml(row.title)}</p>
-    </article>`).join("") || '<div class="empty-state">Под выбранные фильтры сессий нет.</div>';
+      <div class="session-summary">
+        <div class="session-summary-row is-problem">
+          <span class="session-summary-label">Проблема</span>
+          <p>${escapeHtml(branch.problem || "Описание проблемы ещё не сформировано.")}</p>
+        </div>
+        <div class="session-summary-row is-solution">
+          <span class="session-summary-label">Решение</span>
+          <p>${escapeHtml(branch.solution_preview || "Подтверждённый итог ещё не сформирован.")}</p>
+        </div>
+      </div>
+    </article>`).join("") || '<div class="empty-state">Под выбранные фильтры веток нет.</div>';
 }
 
 function costumeStatusLabel(status) {
@@ -3562,7 +3593,6 @@ function bindEvents() {
     renderFlowDetail();
   });
   byId("sessionsProjectFilter").addEventListener("change", refreshSessions);
-  byId("sessionsStatusFilter").addEventListener("change", refreshSessions);
   byId("eventBack").addEventListener("click", closeEvent);
   byId("chatBack").addEventListener("click", () => {
     byId("conversation").classList.remove("is-open");
