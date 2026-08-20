@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Broker Autopilot — LCBand</title>
+  <style>
+    :root {
+      --ink: #171915;
+      --paper: #f1eadc;
+      --line: #8f8a7d;
+      --orange: #f05a28;
+      --green: #c7f15b;
+      --red: #d92929;
+      --muted: #666458;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: "Avenir Next", "Futura", sans-serif;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .16;
+      background-image: repeating-linear-gradient(0deg, transparent 0 7px, #171915 8px);
+      mix-blend-mode: multiply;
+    }
+    main { width: min(1460px, calc(100% - 40px)); margin: 0 auto; padding: 28px 0 64px; }
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(240px, .7fr);
+      gap: 28px;
+      border-top: 9px solid var(--ink);
+      border-bottom: 2px solid var(--ink);
+      padding: 18px 0 22px;
+    }
+    h1 { margin: 0; font: 900 clamp(44px, 8vw, 120px)/.82 "Avenir Next Condensed", Impact, sans-serif; letter-spacing: -.065em; text-transform: uppercase; }
+    .kicker, .stamp, .state, code { font-family: "Courier Prime", "SFMono-Regular", monospace; }
+    .kicker { margin: 0 0 12px; font-size: 13px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    .stamp { align-self: end; border: 2px solid var(--ink); padding: 15px; font-size: 12px; line-height: 1.55; transform: rotate(1deg); background: var(--green); box-shadow: 7px 7px 0 var(--ink); }
+    .lede { max-width: 820px; margin: 20px 0 0; font-size: clamp(18px, 2.2vw, 30px); line-height: 1.08; font-weight: 650; }
+    h2 { margin: 52px 0 18px; font: 900 clamp(28px, 4vw, 52px)/.95 "Avenir Next Condensed", sans-serif; text-transform: uppercase; letter-spacing: -.03em; }
+    .flow { display: grid; grid-template-columns: repeat(6, minmax(150px, 1fr)); border: 2px solid var(--ink); background: var(--ink); gap: 2px; }
+    .node { min-height: 220px; padding: 18px; background: var(--paper); position: relative; }
+    .node::after { content: "→"; position: absolute; right: -20px; top: 46%; z-index: 3; color: var(--orange); font-size: 34px; font-weight: 900; }
+    .node:last-child::after { display: none; }
+    .num { display: block; font: 900 46px/1 "Courier Prime", monospace; color: var(--orange); }
+    .node h3 { margin: 30px 0 8px; font-size: 18px; line-height: 1; text-transform: uppercase; }
+    .node p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .state { display: inline-block; margin-top: 16px; padding: 5px 7px; background: var(--ink); color: var(--paper); font-size: 10px; letter-spacing: .08em; }
+    .rules { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .panel { border-top: 6px solid var(--ink); padding-top: 14px; }
+    .panel.stop { border-color: var(--red); }
+    .panel h3 { margin: 0 0 14px; font-size: 24px; text-transform: uppercase; }
+    ul { margin: 0; padding: 0; list-style: none; }
+    li { padding: 10px 0; border-bottom: 1px solid var(--line); line-height: 1.35; }
+    li::before { content: "■"; color: var(--orange); margin-right: 10px; }
+    .stop li::before { color: var(--red); }
+    table { width: 100%; border-collapse: collapse; border: 2px solid var(--ink); background: rgba(241,234,220,.92); }
+    th, td { padding: 13px 14px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--ink); color: var(--paper); text-transform: uppercase; font-size: 12px; letter-spacing: .08em; }
+    td:first-child { font-family: "Courier Prime", monospace; font-weight: 800; white-space: nowrap; }
+    .receipt { margin-top: 50px; padding: 24px; border: 3px solid var(--ink); background: var(--green); box-shadow: 10px 10px 0 var(--ink); display: grid; grid-template-columns: 1fr 2fr; gap: 28px; align-items: center; }
+    .receipt strong { font: 900 clamp(28px, 4vw, 56px)/.9 "Avenir Next Condensed", sans-serif; text-transform: uppercase; }
+    .receipt p { margin: 0; font-size: 17px; line-height: 1.4; }
+    footer { margin-top: 54px; border-top: 2px solid var(--ink); padding-top: 12px; font: 12px/1.5 "Courier Prime", monospace; color: var(--muted); }
+    @media (max-width: 1100px) { .flow { grid-template-columns: repeat(3, 1fr); } .node:nth-child(3)::after { display: none; } }
+    @media (max-width: 700px) { main { width: min(100% - 24px, 1460px); } header, .rules, .receipt { grid-template-columns: 1fr; } .flow { grid-template-columns: 1fr; } .node { min-height: 0; } .node::after { display: none; } .stamp { transform: none; } table { font-size: 12px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="kicker">LCBand / Architecture contract / Broker vNext</p>
+      <h1>Broker<br>Autopilot</h1>
+      <p class="lede">Один writer ведёт клиента и подрядчика. Один delivery owner отправляет. Один provider receipt доказывает результат.</p>
+    </div>
+    <div class="stamp">НЕ LIVE-ИНДИКАТОР<br>Страница описывает обязательный контур. Текущее состояние подтверждается process heartbeat, immutable queue и Telegram receipt.</div>
+  </header>
+
+  <h2>Замкнутая петля</h2>
+  <section class="flow" aria-label="Автоматический broker flow">
+    <article class="node"><span class="num">01</span><h3>Пост</h3><p>Realtime и cursor scan используют один effect lock. Один Telegram message_id — один кандидат.</p><span class="state">INGESTED</span></article>
+    <article class="node"><span class="num">02</span><h3>Заказ</h3><p>Классификация, география и broker_order фиксируются до любого исходящего.</p><span class="state">OWNED</span></article>
+    <article class="node"><span class="num">03</span><h3>Подрядчик</h3><p>Бриф, цена под ключ, промо и логистика — через contractor presend и exact-text review.</p><span class="state">PROJECT_REVIEWED</span></article>
+    <article class="node"><span class="num">04</span><h3>КП</h3><p>Клиент получает только очищенный пакет, подтверждённые условия и клиентскую цену.</p><span class="state">SEALED</span></article>
+    <article class="node"><span class="num">05</span><h3>Диалог</h3><p>Ответ любой стороны обновляет broker_order и создаёт следующий конкретный шаг.</p><span class="state">NEXT ACTION</span></article>
+    <article class="node"><span class="num">06</span><h3>Доставка</h3><p>Статус закрывается только Telegram receipt с точным peer_id, payload hash и message_id.</p><span class="state">DELIVERED</span></article>
+  </section>
+
+  <h2>Что автоматично / что блокируется</h2>
+  <section class="rules">
+    <article class="panel">
+      <h3>Автоматически</h3>
+      <ul>
+        <li>Перезапуск упавшего realtime listener через supervisor.</li>
+        <li>Дедупликация startup scan и realtime события.</li>
+        <li>Первичный запрос и follow-up подрядчику.</li>
+        <li>Сбор цены, доступности, промо и логистики.</li>
+        <li>Отправка проверенного КП и дальнейшие уточнения клиенту.</li>
+        <li>Замена устаревшего legacy draft свежим сообщением после нового чтения треда.</li>
+      </ul>
+    </article>
+    <article class="panel stop">
+      <h3>Hold / без отправки</h3>
+      <ul>
+        <li>Неизвестный numeric peer_id или конфликт личности.</li>
+        <li>Opt-out, отказ подрядчика, личный или внутренний контакт.</li>
+        <li>Неподтверждённая цена, конфликт суммы или обещание оплаты.</li>
+        <li>Реквизиты, карта, счёт, договор или проверка платежа.</li>
+        <li>Попытка раскрыть контакт клиента, подрядчика, маржу или источник заявки.</li>
+        <li>Нет AI review либо нет точного provider receipt.</li>
+      </ul>
+    </article>
+  </section>
+
+  <h2>Правда статусов</h2>
+  <table>
+    <thead><tr><th>Статус</th><th>Что доказано</th><th>Что происходит дальше</th></tr></thead>
+    <tbody>
+      <tr><td>queued</td><td>Точный текст, peer_id и хэш закреплены в immutable command.</td><td>Единственный delivery owner может забрать команду.</td></tr>
+      <tr><td>blocked</td><td>Review или deterministic gate запретил эту конкретную версию.</td><td>Новый текст возможен только после нового факта/ревизии.</td></tr>
+      <tr><td>unknown</td><td>Была попытка, но точного provider receipt нет.</td><td>Автоповтор запрещён; сначала reconciliation.</td></tr>
+      <tr><td>delivered</td><td>Telegram вернул message_id, связанный с peer_id и payload hash.</td><td>Обязательство закрывается, state machine двигается дальше.</td></tr>
+      <tr><td>superseded</td><td>Старый ручной draft не отправлялся и больше не актуален.</td><td>Следующий цикл перечитывает диалог и создаёт свежую версию.</td></tr>
+    </tbody>
+  </table>
+
+  <section class="receipt">
+    <strong>Queued ≠ Sent</strong>
+    <p>Ни draft, ни зелёный тест, ни запись в pending не считаются перепиской. Для факта отправки требуется Telegram provider receipt; при неизвестном результате система не делает слепой повтор.</p>
+  </section>
+
+  <footer>Source of truth: /Users/a1111/lcband · Broker writer: broker_dialog_agent.py · Delivery owner: telegram_delivery_service.py · Runtime proof: tg_delivery.sqlite + orders.db.message_events</footer>
+</main>
+</body>
+</html>
