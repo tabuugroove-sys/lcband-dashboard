@@ -1544,3 +1544,18 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   .flow-map-panel .section-head { display: block; }
   .flow-legend { margin-top: 8px; justify-content: flex-start; }
 }
+
+/* Второй контур мозгов — CapyTime (CHG-20260823-003). Визуально отделён от
+   карты LC Band, чтобы нельзя было спутать, чью цепочку правишь. */
+.brain-scope-capytime {
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 2px dashed var(--line, #d8d8de);
+}
+.brain-scope-capytime .brain-groups-title { margin-bottom: 4px; }
+.brain-scope-note {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted, #6b6b76);
+}

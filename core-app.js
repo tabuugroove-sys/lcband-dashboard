@@ -2065,6 +2065,30 @@ function markBrainSync(ok, error) {
   }
 }
 
+/* Второй контур мозгов — CapyTime (CHG-20260823-003). Отдельный проект со
+   своей цепочкой, своим расходом и своим kill-switch; общий тут только экран.
+   Карточки и стрелки те же, поэтому переиспользуем brainChainHtml. */
+function renderCapytimeBrain(map) {
+  const rows = (map && map.rows) || [];
+  if (!rows.length) {
+    return '<div class="brain-scope brain-scope-capytime">'
+      + '<h3 class="brain-groups-title">CapyTime — отдельный контур</h3>'
+      + '<div class="empty-state">Карта недоступна'
+      + (map && map.error ? ": " + escapeHtml(map.error) : "") + "</div></div>";
+  }
+  return '<div class="brain-scope brain-scope-capytime">'
+    + '<h3 class="brain-groups-title">CapyTime — отдельный контур</h3>'
+    + '<p class="brain-scope-note">Свой конфиг, свой учёт расхода и свой лимит. '
+    + 'Переключатели LC Band сюда не достают, и наоборот.</p>'
+    + rows.map((row) => `<div class="brain-row brain-process-row" data-scope="capytime" data-purpose="${escapeHtml(row.purpose)}">
+      <div class="brain-label"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.sub)}</small></div>
+      <div class="brain-chain">${brainChainHtml(row)}</div>
+      <div class="brain-saved" hidden></div>
+    </div>`).join("")
+    + "</div>";
+}
+
+
 function renderBrainMap(map) {
   const box = byId("brainMap");
   if (!box) return;
@@ -2094,7 +2118,8 @@ function renderBrainMap(map) {
       <div class="brain-chain">${chips}</div>
       <div class="brain-saved" hidden></div>
     </div>`;
-  }).join("") + renderBrainGroups(map && map.groups);
+  }).join("") + renderBrainGroups(map && map.groups)
+    + renderCapytimeBrain(state.capytimeBrain);
   box.querySelectorAll(".cube-track [data-w]").forEach((el) => {
     el.style.width = Math.max(0, Math.min(100, Number(el.dataset.w) || 0)) + "%";
   });
@@ -2299,8 +2324,15 @@ async function postBrainChain(row, rawChain) {
   const chain = rawChain.filter((t, i) => t && rawChain.indexOf(t) === i);
   const note = row.querySelector(".brain-saved");
   if (!purpose || !chain.length) return;
+  // 23.08.2026 (CHG-20260823-003): строка знает свой контур. Без этого правка
+  // цепочки CapyTime уходила бы в конфиг LC Band — экран показывал бы одно, а
+  // менял другое, ровно та болезнь, из-за которой цепочки вообще вынесли в данные.
+  const scope = row.dataset.scope || "";
+  const endpoint = scope === "capytime"
+    ? "/api/app/capytime_set_brain_chain"
+    : "/api/app/set_brain_chain";
   try {
-    const res = await apiPost("/api/app/set_brain_chain", { purpose, chain });
+    const res = await apiPost(endpoint, { purpose, chain });
     // Бэкенд может отрезать платный тир там, где канон его не разрешает —
     // показываем то, что реально записалось, а не то, что перетащили.
     // Toast, а не только .brain-saved: перерисовка карты стирает note, и без
@@ -2558,6 +2590,14 @@ async function renderTokens() {
   }
   try {
     const map = await apiGet("/api/app/brain_map");
+    if (stale()) return;
+    // Второй контур не должен ронять основную карту: своя try/catch, и при
+    // ошибке секция просто скажет «недоступна».
+    try {
+      state.capytimeBrain = await apiGet("/api/app/capytime_brain_map");
+    } catch (capyErr) {
+      state.capytimeBrain = { rows: [], error: String(capyErr) };
+    }
     if (stale()) return;
     renderBrainMap(map);
     markBrainSync(true);
