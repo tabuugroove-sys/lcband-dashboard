@@ -1829,6 +1829,7 @@ function renderToday() {
 function renderSystem() {
   const health = state.health || {};
   const autonomy = state.autonomy || {};
+  const telegramOwner = health.telegram_delivery_owner || {};
   const autonomyConfig = AUTONOMY_MODES[autonomy.mode] || AUTONOMY_MODES.approval_required;
   const rows = [
     ["Runtime", health.runtime_mode || "unknown"],
@@ -1838,6 +1839,9 @@ function renderSystem() {
     ["Автоотправка", health.agent_send_enabled ? "включена" : "HOLD"],
     ["Режим общения", autonomyConfig.label],
     ["Telegram transport", autonomy.transport_mode || health.telegram_transport_mode || "hold"],
+    ["Telegram owner", telegramOwner.available
+      ? `healthy · ${telegramOwner.reason || "owner_healthy"}`
+      : `HOLD · ${telegramOwner.reason || "owner_state_missing"}`],
   ];
   byId("systemState").innerHTML = rows.map(([label, value]) => `<div class="system-state-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
   const details = [
