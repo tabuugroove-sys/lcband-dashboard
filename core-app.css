@@ -80,6 +80,72 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 :root[data-theme="dark"] .topbar { background: rgba(19, 23, 21, 0.97); }
 .brand { flex: 0 0 auto; font-size: 16px; }
+.runtime-rack {
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+.runtime-chip {
+  position: relative;
+  min-width: 108px;
+  min-height: 40px;
+  padding: 5px 10px 5px 9px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--muted);
+}
+.runtime-chip::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: var(--line);
+}
+.runtime-chip small,
+.runtime-chip strong { display: block; line-height: 1.15; white-space: nowrap; }
+.runtime-chip small {
+  font: 600 8px/1.15 ui-monospace, "SFMono-Regular", Menlo, monospace;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.runtime-chip strong { margin-top: 3px; color: var(--ink); font-size: 10px; font-weight: 690; }
+.runtime-chip strong b { font: 760 11px/1 ui-monospace, "SFMono-Regular", Menlo, monospace; }
+.runtime-chip strong i { padding: 0 2px; color: var(--line); font-style: normal; }
+.runtime-processes { min-width: 166px; }
+.runtime-glyph {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--pine-line);
+  border-radius: 50%;
+  background: var(--pine-soft);
+  color: var(--pine);
+  font-size: 13px;
+}
+.runtime-lamp {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--muted) 11%, transparent);
+}
+.runtime-chip.is-online::after { background: var(--ok); }
+.runtime-chip.is-online .runtime-lamp { background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 13%, transparent); }
+.runtime-chip.is-degraded::after { background: var(--warn); }
+.runtime-chip.is-degraded .runtime-lamp { background: var(--warn); box-shadow: 0 0 0 4px color-mix(in srgb, var(--warn) 14%, transparent); }
+.runtime-chip.is-offline::after { background: var(--danger); }
+.runtime-chip.is-offline .runtime-lamp { background: var(--danger); box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 13%, transparent); }
+.runtime-chip.is-loading .runtime-lamp { animation: runtime-pulse 1.35s ease-in-out infinite; }
+@keyframes runtime-pulse { 50% { opacity: .35; transform: scale(.78); } }
 .search {
   width: min(460px, 44vw);
   height: 40px;
@@ -793,6 +859,12 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .toast { position: fixed; right: 18px; bottom: 18px; z-index: 60; max-width: 380px; padding: 11px 14px; border: 1px solid #d4aaa6; border-radius: 8px; background: var(--danger-soft); color: var(--danger); box-shadow: var(--shadow); }
 
 @media (max-width: 1120px) {
+  .runtime-processes { min-width: 126px; }
+  .runtime-processes strong { font-size: 0; }
+  .runtime-processes strong b { font-size: 11px; }
+  .runtime-processes strong b:first-child::after { content: " в работе"; font: 650 9px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+  .runtime-processes strong b:last-child::after { content: " стоят"; font: 650 9px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+  .search { display: none; }
   .autonomy-button > span:nth-child(2) { min-width: 0; }
   .autonomy-button small { display: none; }
   .chat-shell { grid-template-columns: 96px 340px minmax(0, 1fr); }
@@ -808,6 +880,10 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   body { padding-bottom: 67px; }
   .topbar { min-height: 62px; margin-left: 0; padding: 10px 12px; }
   .brand { font-size: 14px; }
+  .runtime-rack { flex: 1; overflow-x: auto; scrollbar-width: none; }
+  .runtime-rack::-webkit-scrollbar { display: none; }
+  .runtime-chip { min-width: 104px; flex: 0 0 auto; }
+  .runtime-processes { min-width: 126px; }
   .search { width: auto; flex: 1; }
   .connection { width: 40px; padding: 0; justify-content: center; }
   .connection span:last-child { display: none; }
@@ -873,6 +949,10 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 }
 
 @media (max-width: 560px) {
+  .brand { display: none; }
+  .runtime-chip { min-width: 96px; }
+  .runtime-chip small { font-size: 7px; }
+  .runtime-processes { min-width: 116px; }
   #themeButton { display: none; }
   .search { min-width: 0; }
   .calendar-head h1 { min-width: 0; flex: 1; font-size: 17px; }

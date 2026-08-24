@@ -2,6 +2,7 @@
 
 const API = Object.freeze({
   health: "/api/core/health",
+  runtimeStatus: "/api/core/runtime-status",
   autonomy: "/api/core/autonomy",
   summary: "/api/core/summary",
   fees: "/api/core/fees",
@@ -24,6 +25,7 @@ const API = Object.freeze({
 
 const state = {
   health: null,
+  runtimeStatus: null,
   autonomy: null,
   summary: null,
   fees: null,
@@ -445,6 +447,68 @@ function deliveryErrorState(message) {
 function setConnection(kind, label) {
   byId("connectionDot").className = `status-dot ${kind === "ok" ? "is-ok" : kind === "error" ? "is-error" : ""}`;
   byId("connectionLabel").textContent = label;
+}
+
+function runtimeStatusLabel(status) {
+  return {
+    online: "Работает",
+    degraded: "Частично",
+    offline: "Не работает",
+    unknown: "Нет данных",
+    connected: "Связь есть",
+    disconnected: "Нет связи",
+  }[status] || "Проверка";
+}
+
+function runtimeAgeLabel(seconds) {
+  if (!Number.isFinite(Number(seconds))) return "время синхронизации неизвестно";
+  const value = Number(seconds);
+  if (value < 90) return "копия только что";
+  if (value < 3600) return `копия ${Math.floor(value / 60)} мин назад`;
+  if (value < 86400) return `копия ${Math.floor(value / 3600)} ч назад`;
+  return `копия ${Math.floor(value / 86400)} дн назад`;
+}
+
+function setRuntimeChip(id, status, title) {
+  const element = byId(id);
+  if (!element) return;
+  const classStatus = ["online", "degraded", "offline"].includes(status) ? status : "unknown";
+  element.className = `${element.classList.contains("runtime-processes") ? "runtime-chip runtime-processes" : "runtime-chip"} is-${classStatus}`;
+  element.title = title || "";
+}
+
+function renderRuntimeStatus() {
+  const runtime = state.runtimeStatus;
+  if (!runtime) return;
+  const processes = runtime.processes || {};
+  byId("runtimeRunning").textContent = Number.isFinite(Number(processes.running)) ? String(processes.running) : "—";
+  byId("runtimeStopped").textContent = Number.isFinite(Number(processes.stopped)) ? String(processes.stopped) : "—";
+  const processState = processes.error ? "unknown" : Number(processes.stopped) > 0 ? "degraded" : "online";
+  setRuntimeChip(
+    "runtimeProcesses",
+    processState,
+    processes.error
+      ? "launchctl недоступен — число процессов не подтверждено"
+      : `${processes.running || 0} постоянных процессов работают, ${processes.stopped || 0} остановлены. Задачи по расписанию исключены.`,
+  );
+
+  const v1 = runtime.projects?.v1 || {};
+  byId("runtimeV1Label").textContent = runtimeStatusLabel(v1.status);
+  setRuntimeChip("runtimeV1", v1.status, `V1 локально: ${v1.running_critical || 0} из ${v1.critical_total || 0} критических процессов работают`);
+
+  const v2 = runtime.projects?.v2 || {};
+  byId("runtimeV2Label").textContent = runtimeStatusLabel(v2.status);
+  setRuntimeChip("runtimeV2", v2.status, `V2 на сервере: ${runtimeAgeLabel(v2.replica_age_seconds)}; режим ${v2.runtime_mode || "не подтверждён"}`);
+
+  const ssh = runtime.ssh || {};
+  byId("runtimeSshLabel").textContent = runtimeStatusLabel(ssh.status);
+  setRuntimeChip(
+    "runtimeSsh",
+    ssh.status === "connected" ? "online" : ssh.status === "disconnected" ? "offline" : "unknown",
+    ssh.status === "connected"
+      ? `SSH подключён${Number.isFinite(Number(ssh.latency_ms)) ? ` · ${ssh.latency_ms} мс` : ""}`
+      : `SSH: ${ssh.reason || "состояние неизвестно"}`,
+  );
 }
 
 function closeAutonomyMenu() {
@@ -3438,7 +3502,7 @@ async function refreshCalendar(force = false) {
   }
 }
 
-async function refreshAll() {
+async function refreshAll(force = false) {
   if (state.loading) return;
   state.loading = true;
   byId("refreshButton").disabled = true;
@@ -3448,6 +3512,7 @@ async function refreshAll() {
       apiGet(API.health),
       apiGet(API.autonomy),
       apiGet(API.summary),
+      apiGet(`${API.runtimeStatus}${force ? "?force=1" : ""}`),
       apiGet(API.fees),
       apiGet(API.costumes),
       apiGet(`${API.threads}?limit=200`),
@@ -3455,7 +3520,7 @@ async function refreshAll() {
       apiGet(API.work),
       apiGet(API.operations),
     ]);
-    const [healthResult, autonomyResult, summaryResult, feesResult, costumesResult, threadsResult, coordinationResult, workResult, operationsResult] = results;
+    const [healthResult, autonomyResult, summaryResult, runtimeStatusResult, feesResult, costumesResult, threadsResult, coordinationResult, workResult, operationsResult] = results;
     if (healthResult.status !== "fulfilled" || threadsResult.status !== "fulfilled") {
       const failure = healthResult.status === "rejected" ? healthResult.reason : threadsResult.reason;
       throw failure instanceof Error ? failure : new Error(String(failure || "Core read failed"));
@@ -3463,6 +3528,7 @@ async function refreshAll() {
     const health = healthResult.value;
     const threadsPayload = threadsResult.value;
     state.health = health;
+    if (runtimeStatusResult.status === "fulfilled") state.runtimeStatus = runtimeStatusResult.value;
     if (autonomyResult.status === "fulfilled") state.autonomy = autonomyResult.value;
     if (summaryResult.status === "fulfilled") state.summary = summaryResult.value;
     if (feesResult.status === "fulfilled") state.fees = feesResult.value;
@@ -3493,9 +3559,10 @@ async function refreshAll() {
     renderCostumes();
     renderBroadcast();
     renderAutonomy();
+    renderRuntimeStatus();
     renderManualSendState();
     updateCounts();
-    const partial = results.some((result, index) => ![0, 5].includes(index) && result.status === "rejected");
+    const partial = results.some((result, index) => ![0, 6].includes(index) && result.status === "rejected");
     setConnection(
       health.ok ? "ok" : "error",
       health.ok ? (partial ? "Core доступен · часть данных" : "Core доступен") : "Core неполон",
@@ -3503,6 +3570,10 @@ async function refreshAll() {
     if (state.selectedEventId) openEvent(state.selectedEventId, false);
   } catch (error) {
     setConnection("error", "Core недоступен");
+    setRuntimeChip("runtimeProcesses", "unknown", "Core недоступен — статус процессов не обновлён");
+    setRuntimeChip("runtimeV1", "unknown", "Core недоступен — статус V1 не обновлён");
+    setRuntimeChip("runtimeV2", "unknown", "Core недоступен — статус V2 не обновлён");
+    setRuntimeChip("runtimeSsh", "unknown", "Core недоступен — SSH не проверен");
     toast(`Не удалось прочитать Core: ${error.message}`);
   } finally {
     state.loading = false;
@@ -3692,7 +3763,7 @@ function bindEvents() {
     changePromoFilters({ page: state.promoFilters.page + 1 });
   });
   byId("refreshButton").addEventListener("click", async () => {
-    await refreshAll();
+    await refreshAll(true);
     if (state.activeView === "flow") await refreshFlow(true);
     if (state.activeView === "promo") await refreshPromo(true);
     if (state.activeView === "costumes") await refreshCostumes(true);

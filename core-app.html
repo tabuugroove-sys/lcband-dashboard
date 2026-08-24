@@ -12,6 +12,24 @@
 <body>
   <header class="topbar">
     <strong class="brand">LCB 2.0</strong>
+    <section class="runtime-rack" id="runtimeRack" aria-label="Состояние проектов и процессов" aria-live="polite">
+      <div class="runtime-chip runtime-processes is-loading" id="runtimeProcesses" title="Считаются только постоянные LaunchAgents; задачи по расписанию не считаются остановленными">
+        <span class="runtime-glyph" aria-hidden="true">⌁</span>
+        <span><small>Процессы</small><strong><b id="runtimeRunning">—</b> работают <i>·</i> <b id="runtimeStopped">—</b> стоят</strong></span>
+      </div>
+      <div class="runtime-chip is-loading" id="runtimeV1">
+        <span class="runtime-lamp" aria-hidden="true"></span>
+        <span><small>V1 · локально</small><strong id="runtimeV1Label">Проверка</strong></span>
+      </div>
+      <div class="runtime-chip is-loading" id="runtimeV2">
+        <span class="runtime-lamp" aria-hidden="true"></span>
+        <span><small>V2 · сервер</small><strong id="runtimeV2Label">Проверка</strong></span>
+      </div>
+      <div class="runtime-chip is-loading" id="runtimeSsh">
+        <span class="runtime-lamp" aria-hidden="true"></span>
+        <span><small>SSH</small><strong id="runtimeSshLabel">Проверка</strong></span>
+      </div>
+    </section>
     <label class="search" id="globalSearchWrap">
       <span aria-hidden="true">⌕</span>
       <input id="globalSearch" type="search" placeholder="Поиск: контакт, событие…" autocomplete="off">
