@@ -7,13 +7,17 @@
   <title>LCB 2.0</title>
   <link rel="icon" type="image/png" href="app-icon-192.png">
   <link rel="apple-touch-icon" href="app-icon-180.png">
-  <link rel="stylesheet" href="core-app.css">
+  <link rel="stylesheet" href="core-app.css?v=20260825-002">
 </head>
 <body>
   <header class="topbar">
     <strong class="brand">LCB 2.0</strong>
     <section class="runtime-rack" id="runtimeRack" aria-label="Состояние проектов и процессов" aria-live="polite">
-      <div class="runtime-chip runtime-processes is-loading" id="runtimeProcesses" title="Считаются только постоянные LaunchAgents; задачи по расписанию не считаются остановленными">
+      <div class="runtime-chip runtime-readiness is-loading is-actionable" id="runtimeReadiness" role="button" tabindex="0" aria-label="Открыть объяснение готовности системы">
+        <span class="runtime-lamp" aria-hidden="true"></span>
+        <span><small>Система</small><strong id="runtimeReadinessLabel">Проверка</strong></span>
+      </div>
+      <div class="runtime-chip runtime-processes is-loading is-actionable" id="runtimeProcesses" role="button" tabindex="0" aria-label="Открыть управление постоянными процессами" title="Только постоянные LaunchAgents; логические AI-процессы из Токенов сюда не входят">
         <span class="runtime-glyph" aria-hidden="true">⌁</span>
         <span><small>Процессы</small><strong><b id="runtimeRunning">—</b> работают <i>·</i> <b id="runtimeStopped">—</b> стоят</strong></span>
       </div>
@@ -348,6 +352,22 @@
           <div><h2>Новый Core работает отдельно</h2><p>Приложение читает каноническую Core DB без legacy fallback. Отдельный shadow-writer записывает только черновики; он не меняет unread и не имеет доступа к транспортам мессенджеров.</p></div>
           <div class="system-state" id="systemState"></div>
         </section>
+        <section class="runtime-explainer" aria-labelledby="runtimeExplainerTitle">
+          <header>
+            <div><p class="eyebrow">Как читать верхнюю строку</p><h2 id="runtimeExplainerTitle">Процессы, AI-маршруты и готовность — разные вещи</h2></div>
+            <span class="pill" id="runtimeExplainerState">Проверка</span>
+          </header>
+          <div class="runtime-explainer-grid">
+            <article><strong id="runtimeProcessScopeTitle">Постоянные процессы</strong><p id="runtimeProcessScopeText">Загрузка live launchd inventory…</p></article>
+            <article><strong>Почему в «Токенах» больше 100</strong><p>Там перечислены логические AI-purpose: генерация, ревью, broker, классификация и другие маршруты моделей. Они запускаются внутри небольшого числа macOS-процессов и не являются отдельными PID.</p></article>
+            <article><strong id="runtimeReadinessReasonTitle">Почему статус частичный</strong><p id="runtimeReadinessReasonText">Загрузка recovery evidence…</p></article>
+          </div>
+          <div class="runtime-explainer-actions">
+            <button class="text-button" type="button" id="runtimeOpenControls">Открыть Операции → Процессы</button>
+            <button class="text-button" type="button" id="runtimeRefreshStatus">Обновить статус</button>
+            <span>Для перезапуска: operator-login → отметить точные labels → «Перезапустить выбранные» → подтвердить действие.</span>
+          </div>
+        </section>
         <div class="system-columns">
           <section class="band-section"><div class="section-head"><h2>Данные</h2></div><dl class="definition-list" id="schemaDetails"></dl></section>
           <section class="band-section"><div class="section-head"><h2>Предохранители</h2></div><ul class="guard-list"><li><b>×</b><span><strong>Нет read fallback</strong><small>Контакты и сообщения читаются из Core.</small></span></li><li><b>✓</b><span><strong>Черновик не является отправкой</strong><small>Shadow-writer создаёт immutable draft без outbound intent и без messenger SDK.</small></span></li><li><b>✓</b><span><strong>Ручная отправка отделена</strong><small>Только точный текст оператора через единственного delivery-owner и provider receipt.</small></span></li><li><b>×</b><span><strong>Автоответы выключены</strong><small>Агенты остаются в SEND HOLD.</small></span></li></ul></section>
@@ -623,6 +643,6 @@
     </form>
   </dialog>
   <script src="core-parity.js"></script>
-  <script src="core-app.js?v=20260823-021"></script>
+  <script src="core-app.js?v=20260825-002"></script>
 </body>
 </html>

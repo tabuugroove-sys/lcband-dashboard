@@ -460,6 +460,76 @@ function runtimeStatusLabel(status) {
   }[status] || "Проверка";
 }
 
+function readinessStatusLabel(status) {
+  return {
+    FULLY_READY: "Полностью готова",
+    RECOVERING: "Восстанавливается",
+    DEGRADED: "Работает частично",
+    OFFLINE: "Не работает",
+  }[status] || "Нет доказательств";
+}
+
+function readinessChipState(status) {
+  return {
+    FULLY_READY: "online",
+    RECOVERING: "recovering",
+    DEGRADED: "degraded",
+    OFFLINE: "offline",
+  }[status] || "unknown";
+}
+
+const READINESS_REASON_TEXT = Object.freeze({
+  private_dm_recovery_unproven: "Event Chats восстановлены, но исторический догон личных Telegram DM намеренно отключён. Новые DM продолжают поступать через NewMessage; полная recovery-проверка всей системы поэтому не заявляется.",
+  telegram_private_dm_catchup_disabled: "Исторический догон личных Telegram DM отключён; это ограничение покрытия, а не остановка Event Chats.",
+  v1_offline: "Критические процессы V1 не работают.",
+  v1_degraded: "Работает только часть критических процессов V1.",
+  v1_unknown: "launchctl не подтвердил состояние критических процессов V1.",
+});
+
+function runtimeReadinessReason(readiness) {
+  const codes = [...(readiness.reason_codes || []), ...(readiness.not_covered || [])];
+  const translated = [...new Set(codes)].map((code) => READINESS_REASON_TEXT[code] || `Неподтверждённая граница: ${code}`);
+  if (translated.length) return translated.join(" ");
+  if (String(readiness.state || "") === "FULLY_READY") {
+    return "Все обязательные для текущего контура источники перечислены; processing/read residual равны нулю.";
+  }
+  return "Backend не передал конкретную причину; обновите статус и проверьте Операции → Процессы.";
+}
+
+function renderRuntimeExplanation() {
+  const runtime = state.runtimeStatus || {};
+  const processes = runtime.processes || {};
+  const readiness = runtime.readiness || {};
+  const running = Number(processes.running || 0);
+  const stopped = Number(processes.stopped || 0);
+  const stoppedNames = (processes.items || [])
+    .filter((item) => item.state === "stopped")
+    .map((item) => item.name || item.label);
+  const ignored = (processes.ignored_retired || []).map((item) => item.label);
+  const scopeTitle = byId("runtimeProcessScopeTitle");
+  const scopeText = byId("runtimeProcessScopeText");
+  const reasonTitle = byId("runtimeReadinessReasonTitle");
+  const reasonText = byId("runtimeReadinessReasonText");
+  const pill = byId("runtimeExplainerState");
+  if (!scopeTitle || !scopeText || !reasonTitle || !reasonText || !pill) return;
+  scopeTitle.textContent = `${running} работают · ${stopped} остановлены`;
+  scopeText.textContent = processes.error
+    ? "launchctl недоступен — список постоянных процессов не подтверждён."
+    : "Считаются только KeepAlive LaunchAgents, то есть реальные долгоживущие PID. Задачи по расписанию и AI-purpose из «Токенов» сюда не входят."
+      + `${stoppedNames.length ? ` Остановлены: ${stoppedNames.join(", ")}.` : ""}`
+      + `${ignored.length ? ` Выведенные из эксплуатации plist исключены: ${ignored.join(", ")}.` : ""}`;
+  const readinessState = String(readiness.state || "DEGRADED");
+  reasonTitle.textContent = readinessState === "FULLY_READY" ? "Почему система готова" : "Почему статус частичный";
+  reasonText.textContent = runtimeReadinessReason(readiness);
+  pill.textContent = readinessStatusLabel(readinessState);
+  pill.className = `pill ${readinessState === "FULLY_READY" ? "ok" : "hold"}`;
+}
+
+function openRuntimeControls() {
+  location.hash = "operations";
+  window.setTimeout(() => window.CoreParity?.activate("runtime"), 0);
+}
+
 function runtimeAgeLabel(seconds) {
   if (!Number.isFinite(Number(seconds))) return "время синхронизации неизвестно";
   const value = Number(seconds);
@@ -473,23 +543,40 @@ function setRuntimeChip(id, status, title) {
   const element = byId(id);
   if (!element) return;
   const classStatus = ["online", "degraded", "offline"].includes(status) ? status : "unknown";
-  element.className = `${element.classList.contains("runtime-processes") ? "runtime-chip runtime-processes" : "runtime-chip"} is-${classStatus}`;
+  const variants = ["runtime-readiness", "runtime-processes", "runtime-metric", "is-actionable"]
+    .filter((name) => element.classList.contains(name));
+  element.className = ["runtime-chip", ...variants, `is-${classStatus}`].join(" ");
   element.title = title || "";
 }
 
 function renderRuntimeStatus() {
   const runtime = state.runtimeStatus;
   if (!runtime) return;
+  const readiness = runtime.readiness || {};
+  const readinessState = String(readiness.state || "DEGRADED");
+  byId("runtimeReadinessLabel").textContent = readinessStatusLabel(readinessState);
+  setRuntimeChip(
+    "runtimeReadiness",
+    readinessChipState(readinessState),
+    `${readinessStatusLabel(readinessState)} · ${runtimeReadinessReason(readiness)}`,
+  );
   const processes = runtime.processes || {};
   byId("runtimeRunning").textContent = Number.isFinite(Number(processes.running)) ? String(processes.running) : "—";
   byId("runtimeStopped").textContent = Number.isFinite(Number(processes.stopped)) ? String(processes.stopped) : "—";
   const processState = processes.error ? "unknown" : Number(processes.stopped) > 0 ? "degraded" : "online";
+  const stoppedNames = (processes.items || [])
+    .filter((item) => item.state === "stopped")
+    .map((item) => item.name || item.label);
+  const ignoredRetired = (processes.ignored_retired || []).map((item) => item.label);
   setRuntimeChip(
     "runtimeProcesses",
     processState,
     processes.error
       ? "launchctl недоступен — число процессов не подтверждено"
-      : `${processes.running || 0} постоянных процессов работают, ${processes.stopped || 0} остановлены. Задачи по расписанию исключены.`,
+      : `${processes.running || 0} KeepAlive LaunchAgents работают, ${processes.stopped || 0} остановлены.`
+        + `${stoppedNames.length ? ` Остановлены: ${stoppedNames.join(", ")}.` : ""}`
+        + `${ignoredRetired.length ? ` Retired исключены: ${ignoredRetired.join(", ")}.` : ""}`
+        + " AI-purpose из меню «Токены» не являются отдельными PID.",
   );
 
   const v1 = runtime.projects?.v1 || {};
@@ -509,6 +596,7 @@ function renderRuntimeStatus() {
       ? `SSH подключён${Number.isFinite(Number(ssh.latency_ms)) ? ` · ${ssh.latency_ms} мс` : ""}`
       : `SSH: ${ssh.reason || "состояние неизвестно"}`,
   );
+  renderRuntimeExplanation();
 }
 
 function closeAutonomyMenu() {
@@ -3769,6 +3857,20 @@ function bindEvents() {
     if (state.activeView === "costumes") await refreshCostumes(true);
     if (["operations", "broadcast"].includes(state.activeView)) await window.CoreParity?.refresh();
   });
+  const bindRuntimeShortcut = (id, action) => {
+    const element = byId(id);
+    if (!element) return;
+    element.addEventListener("click", action);
+    element.addEventListener("keydown", (event) => {
+      if (!["Enter", " "].includes(event.key)) return;
+      event.preventDefault();
+      action();
+    });
+  };
+  bindRuntimeShortcut("runtimeReadiness", () => { location.hash = "system"; });
+  bindRuntimeShortcut("runtimeProcesses", openRuntimeControls);
+  byId("runtimeOpenControls")?.addEventListener("click", openRuntimeControls);
+  byId("runtimeRefreshStatus")?.addEventListener("click", () => refreshAll(true));
   byId("autonomyButton").addEventListener("click", (event) => {
     event.stopPropagation();
     const menu = byId("autonomyMenu");
