@@ -642,6 +642,15 @@
     {id:'ctxclean', g:'infra', n:'Context Cleanup', f:'context_cleanup', s:'daily 02:30', src:['SCH'], r:['MEV'], wr:['MEV'], why:'One-off чистка дублей outbound-строк.'},
   ];
 
+  const tgRecoveryNode = N.find((node) => node.id === 'tgmon');
+  if (tgRecoveryNode) {
+    tgRecoveryNode.why += ' После reboot/login launchd поднимает один OS-locked owner. Recovery фиксирует target каждого Event Chat, читает oldest-first bounded-страницами с look-ahead и продолжает с паузой; исчерпание доказывается перечислением, а не непрерывностью Telegram msg_id. Атомарная pre-AI lease не позволяет realtime и catch-up одновременно оплатить классификацию одного поста.';
+  }
+  const heartbeatWatchdogNode = N.find((node) => node.id === 'watchdog');
+  if (heartbeatWatchdogNode) {
+    heartbeatWatchdogNode.why += ' Несколько component-heartbeat одного launchd label могут дать только один kickstart за проход; per-label cooldown предотвращает повторный restart churn исправного Realtime Gateway.';
+  }
+
   const coreAppNode = N.find((node) => node.id === 'coreapp');
   if (coreAppNode) {
     coreAppNode.why = coreAppNode.why.replace(
