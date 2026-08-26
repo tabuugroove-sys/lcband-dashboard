@@ -7,7 +7,8 @@
   <title>LCB 2.0</title>
   <link rel="icon" type="image/png" href="app-icon-192.png">
   <link rel="apple-touch-icon" href="app-icon-180.png">
-  <link rel="stylesheet" href="core-app.css?v=20260825-002">
+  <link rel="stylesheet" href="core-app.css?v=20260825-003">
+  <link rel="stylesheet" href="opsmap.css?v=20260825-010-1">
 </head>
 <body>
   <header class="topbar">
@@ -33,6 +34,18 @@
         <span class="runtime-lamp" aria-hidden="true"></span>
         <span><small>SSH</small><strong id="runtimeSshLabel">Проверка</strong></span>
       </div>
+      <div class="runtime-chip runtime-metric is-loading" id="runtimeCatchup">
+        <span><small>Догон</small><strong id="runtimeCatchupLabel">— / —</strong></span>
+      </div>
+      <div class="runtime-chip runtime-metric is-loading" id="runtimePosts">
+        <span><small>Посты / питчи · 24ч</small><strong id="runtimePostsLabel">— / —</strong></span>
+      </div>
+      <div class="runtime-chip runtime-metric is-loading" id="runtimeRecovered">
+        <span><small>После восстановления</small><strong id="runtimeRecoveredLabel">—</strong></span>
+      </div>
+      <div class="runtime-chip runtime-metric is-loading" id="runtimeDelivered">
+        <span><small>Клиентам · 24ч</small><strong id="runtimeDeliveredLabel">—</strong></span>
+      </div>
     </section>
     <label class="search" id="globalSearchWrap">
       <span aria-hidden="true">⌕</span>
@@ -41,11 +54,11 @@
     <div class="autonomy-picker" id="autonomyPicker">
       <button class="autonomy-button" id="autonomyButton" type="button" aria-haspopup="menu" aria-expanded="false" title="Режим общения агента">
         <span class="autonomy-icon" aria-hidden="true">✋</span>
-        <span><small>Режим агента</small><strong id="autonomyLabel">Спрашивать</strong></span>
+        <span><small id="autonomyCaption">Режим агента</small><strong id="autonomyLabel">Спрашивать</strong></span>
         <span aria-hidden="true">⌄</span>
       </button>
       <div class="autonomy-menu" id="autonomyMenu" role="menu" hidden>
-        <p>Как агенту вести переписку?</p>
+        <p>Как агенту вести переписку? Выбор режима не означает, что transport уже способен отправлять.</p>
         <button type="button" data-autonomy-mode="approval_required" role="menuitemradio">
           <span aria-hidden="true">✋</span><span><strong>Спрашивать</strong><small>Каждый ответ сначала показывать тебе.</small></span>
         </button>
@@ -55,6 +68,7 @@
         <button type="button" data-autonomy-mode="autonomous" role="menuitemradio">
           <span aria-hidden="true">◎</span><span><strong>Самостоятельно</strong><small>Вести обычную переписку без обращения к тебе.</small></span>
         </button>
+        <div class="autonomy-runtime-notice is-blocked" id="autonomyRuntimeNotice" role="status">Фактически: Core автоотправка не запущена.</div>
         <div class="autonomy-guard">Деньги, договоры, документы, отмены и неизвестные факты всегда проходят отдельные проверки.</div>
       </div>
     </div>
@@ -67,20 +81,32 @@
   </header>
 
   <nav class="tabbar" aria-label="Разделы приложения">
-    <button class="tab-button is-active" data-view="calendar"><span class="tab-icon" aria-hidden="true">▦</span>Календарь</button>
-    <button class="tab-button" data-view="chats"><span class="tab-icon" aria-hidden="true">✉<span class="tab-badge" id="navChatsCount" hidden></span></span>Чаты</button>
-    <button class="tab-button" data-view="flow"><span class="tab-icon" aria-hidden="true">⌁</span>Карта лидов</button>
-    <button class="tab-button" data-view="today"><span class="tab-icon" aria-hidden="true">☉<span class="tab-badge brass" id="navTodayCount" hidden></span></span>Сегодня</button>
-    <button class="tab-button" data-view="promo"><span class="tab-icon" aria-hidden="true">▤</span>Промо</button>
-    <button class="tab-button" data-view="costumes"><span class="tab-icon" aria-hidden="true">♢</span>Костюмы</button>
-    <button class="tab-button" data-view="operations"><span class="tab-icon" aria-hidden="true">⌘</span>Операции</button>
-    <button class="tab-button" data-view="arbitr"><span class="tab-icon" aria-hidden="true">⚖</span>Арбитраж</button>
-    <button class="tab-button" data-view="system"><span class="tab-icon" aria-hidden="true">◔</span>Система</button>
-    <button class="tab-button" data-view="fees"><span class="tab-icon" aria-hidden="true">₽</span>Гонорары</button>
-    <button class="tab-button" data-view="tokens"><span class="tab-icon" aria-hidden="true">◈</span>Токены</button>
-    <button class="tab-button" data-view="loopguard"><span class="tab-icon" aria-hidden="true">⛔<span class="tab-badge" id="navLoopGuardCount" hidden></span></span>Loop-Guard</button>
-    <button class="tab-button" data-view="broadcast"><span class="tab-icon" aria-hidden="true">✈</span>Рассылка</button>
-    <button class="tab-button" data-view="sessions"><span class="tab-icon" aria-hidden="true">⌗</span>Сессии</button>
+    <section class="tabbar-zone is-primary" data-nav-zone="primary" aria-labelledby="primaryNavLabel">
+      <div class="tabbar-zone-head" id="primaryNavLabel"><strong>Главное</strong><span>перетащите пункт</span></div>
+      <div class="tabbar-items">
+        <button class="tab-button is-active" data-view="calendar"><span class="tab-icon" aria-hidden="true">▦</span>Календарь</button>
+        <button class="tab-button" data-view="chats"><span class="tab-icon" aria-hidden="true">✉<span class="tab-badge" id="navChatsCount" hidden></span></span>Чаты</button>
+        <button class="tab-button" data-view="flow"><span class="tab-icon" aria-hidden="true">⌁</span>Карта лидов</button>
+        <button class="tab-button" data-view="opsmap"><span class="tab-icon" aria-hidden="true">⬡</span>OpsMap</button>
+        <button class="tab-button" data-view="today"><span class="tab-icon" aria-hidden="true">☉<span class="tab-badge brass" id="navTodayCount" hidden></span></span>Сегодня</button>
+        <button class="tab-button" data-view="promo"><span class="tab-icon" aria-hidden="true">▤</span>Промо</button>
+        <button class="tab-button" data-view="costumes"><span class="tab-icon" aria-hidden="true">♢</span>Костюмы</button>
+        <button class="tab-button" data-view="operations"><span class="tab-icon" aria-hidden="true">⌘</span>Операции</button>
+        <button class="tab-button" data-view="arbitr"><span class="tab-icon" aria-hidden="true">⚖</span>Арбитраж</button>
+      </div>
+    </section>
+    <div class="tabbar-divider" aria-hidden="true"><span>⋮⋮</span></div>
+    <section class="tabbar-zone is-secondary" data-nav-zone="secondary" aria-labelledby="secondaryNavLabel">
+      <div class="tabbar-zone-head" id="secondaryNavLabel"><strong>Нижнее меню</strong><span>настройки и контроль</span></div>
+      <div class="tabbar-items">
+        <button class="tab-button" data-view="system"><span class="tab-icon" aria-hidden="true">◔</span>Система</button>
+        <button class="tab-button" data-view="fees"><span class="tab-icon" aria-hidden="true">₽</span>Гонорары</button>
+        <button class="tab-button" data-view="tokens"><span class="tab-icon" aria-hidden="true">◈</span>Токены</button>
+        <button class="tab-button" data-view="loopguard"><span class="tab-icon" aria-hidden="true">⛔<span class="tab-badge" id="navLoopGuardCount" hidden></span></span>Loop-Guard</button>
+        <button class="tab-button" data-view="broadcast"><span class="tab-icon" aria-hidden="true">✈</span>Рассылка</button>
+        <button class="tab-button" data-view="sessions"><span class="tab-icon" aria-hidden="true">⌗</span>Сессии</button>
+      </div>
+    </section>
   </nav>
 
   <div class="workspace">
@@ -346,6 +372,105 @@
         </div>
       </section>
 
+      <section class="screen ops-screen" id="screen-opsmap">
+        <div class="page-head flow-page-head">
+          <div><p class="eyebrow">Процессы · read-only · LCB_OPSMAP_ENABLED</p><h1>OpsMap — карта процессов</h1></div>
+          <span class="pill" id="opsFreshness">Загрузка…</span>
+        </div>
+        <div class="flow-layout opsmap-live-workspace">
+          <aside class="flow-detail opsmap-live-rail" id="opsmap-live-rail" aria-live="polite" aria-label="Живой мониторинг Telegram и AI-операций">
+            <div class="opsmap-live-head">
+              <div><p class="eyebrow">Общий live</p><h2>Что система делает сейчас</h2></div>
+              <span class="opsmap-live-status" id="opsmap-live-status"></span>
+            </div>
+            <section class="opsmap-tg-monitor is-loading" id="opsmap-telegram-monitor" aria-label="Как система смотрит посты Telegram">
+              <strong>Telegram-посты</strong><span>Загрузка состояния мониторинга…</span>
+            </section>
+            <div class="opsmap-live-list" id="opsmap-live-list"></div>
+          </aside>
+          <section class="flow-map-panel opsmap-process-panel" aria-labelledby="opsMapTitle">
+            <div class="section-head opsmap-map-head">
+              <div><p class="eyebrow">Выбранная операция</p><h2 id="opsMapTitle">Обработка данных системой</h2></div>
+              <div class="opsmap-viewport-controls" id="opsmap-viewport-controls" role="toolbar" aria-label="Масштаб карты">
+                <span class="opsmap-zoom-value" id="opsmap-zoom-value" aria-live="polite">100%</span>
+                <button type="button" id="opsmap-zoom-out" title="Уменьшить (−)" aria-label="Уменьшить">−</button>
+                <button type="button" id="opsmap-zoom-in" title="Увеличить (+)" aria-label="Увеличить">+</button>
+                <button type="button" id="opsmap-fit" title="Вписать в окно" aria-label="Вписать в окно">Вписать</button>
+                <button type="button" id="opsmap-reset" title="Сбросить масштаб (0)" aria-label="Сбросить масштаб">Сбросить</button>
+              </div>
+              <div class="flow-legend ops-legend"><span class="ops-ev-confirmed">confirmed</span><span class="ops-ev-registered">registered only</span><span class="ops-ev-inferred">inferred</span><span class="ops-ev-gap">evidence gap</span></div>
+              <button type="button" class="text-button opsmap-tech-toggle" id="opsmap-tech-toggle" aria-pressed="true">Показать клиентскую цепочку</button>
+            </div>
+            <div class="opsmap-human-journey" id="opsmap-human-journey" aria-live="polite"></div>
+            <div class="flow-map-scroll" id="opsMapScroll" tabindex="0" aria-label="OpsMap граф. Стрелки панорама, +/− масштаб.">
+              <div class="ops-map-canvas" id="opsMapCanvas"><div class="flow-loading">Собираем процессы…</div></div>
+            </div>
+          </section>
+        </div>
+        <section class="flow-intro" aria-labelledby="opsIntroTitle">
+          <div>
+            <span class="flow-kicker">evidence classes · no transport</span>
+            <h2 id="opsIntroTitle">Путь лида: от обращения до заказа и события</h2>
+            <p>Каждый узел показывает процесс, базу, AI-purpose, причину остановки и владельца следующего шага. OutboundRecord — это регистрация исходящего, а не доказательство доставки. Карта ничего не отправляет и не меняет данные.</p>
+          </div>
+          <div class="flow-coverage-ring ops-gap-ring" id="opsGapRing" aria-label="Доля доказанных узлов"><strong>—</strong><span>доказано</span></div>
+        </section>
+        <div class="flow-controls" aria-label="Фильтры OpsMap">
+          <label><span>Контур</span><select id="opsContour"><option value="all" selected>Все контуры</option><option value="lcb">LCB клиенты</option><option value="broker">Broker</option></select></label>
+          <label><span>Период</span><select id="opsPeriod"><option value="30">30 дней</option><option value="90" selected>90 дней</option><option value="180">180 дней</option></select></label>
+          <label><span>Масштаб</span><select id="opsDepth"><option value="domain">L0 Домены</option><option value="process" selected>L1 Процессы</option><option value="node">L2 Узлы</option></select></label>
+          <label><span>Режим</span><select id="opsMode"><option value="all" selected>Все</option><option value="runtime">Runtime</option><option value="business">Только бизнес</option><option value="ai">Только AI</option><option value="lead">Путь лида</option><option value="problems">Проблемы</option></select></label>
+          <label><span>Доказательность</span><select id="opsEvidence"><option value="">Все классы</option><option value="confirmed">confirmed</option><option value="registered_only">registered only</option><option value="inferred">inferred</option><option value="evidence_gap">evidence gap</option></select></label>
+          <label><span>Только остановленные</span><select id="opsStopped"><option value="">Нет</option><option value="1">Да, со stop reason</option></select></label>
+          <label class="flow-search"><span>Найти узел</span><input id="opsSearch" type="search" placeholder="ID, статус, владелец…" autocomplete="off"></label>
+          <button class="text-button flow-reload" id="opsReload" type="button">Обновить карту</button>
+        </div>
+        <div class="opsmap-lead-panel" id="opsmap-lead-panel" hidden>
+          <div class="opsmap-lead-search">
+            <input id="opsmap-lead-q" type="search" placeholder="handle / phone / thread / order / event" autocomplete="off">
+            <select id="opsmap-lead-by" aria-label="Искать по">
+              <option value="handle">handle</option>
+              <option value="phone">phone</option>
+              <option value="thread">thread</option>
+              <option value="order">order</option>
+              <option value="event">event</option>
+            </select>
+            <button id="opsmap-lead-search" type="button">Найти</button>
+          </div>
+          <div class="opsmap-lead-status" id="opsmap-lead-status" aria-live="polite"></div>
+          <ul class="opsmap-lead-candidates" id="opsmap-lead-candidates" role="listbox"></ul>
+          <div class="opsmap-lead-detail" id="opsmap-lead-detail" hidden>
+            <table id="opsmap-stage-table"><tbody></tbody></table>
+            <div id="opsmap-stage-conflict" class="opsmap-stage-conflict" hidden></div>
+            <div id="opsmap-lead-gaps" class="opsmap-lead-gaps"></div>
+            <div id="opsmap-identity-split" class="opsmap-identity-split"></div>
+            <div id="opsmap-stop-diagnostics" class="opsmap-stop-diagnostics"></div>
+          </div>
+        </div>
+        <div class="flow-metrics" id="opsMetrics" aria-live="polite"></div>
+        <div class="flow-warnings" id="opsWarnings" aria-live="polite"></div>
+        <div class="opsmap-detail-panel" id="opsmap-detail-panel" aria-label="Детали узла" hidden>
+          <div class="opsmap-panel-head">
+            <h2 id="opsmap-detail-title">Узел</h2>
+            <div class="opsmap-history-controls">
+              <button type="button" id="opsmap-history-back" title="Назад" aria-label="Назад">‹</button>
+              <button type="button" id="opsmap-history-forward" title="Вперёд" aria-label="Вперёд">›</button>
+            </div>
+          </div>
+          <dl class="opsmap-detail-meta" id="opsmap-detail-meta"></dl>
+          <div class="opsmap-detail-neighbors" id="opsmap-detail-neighbors"></div>
+        </div>
+        <div class="opsmap-edge-panel" id="opsmap-edge-panel" aria-label="Детали ребра" hidden>
+          <h2 id="opsmap-edge-title">Ребро</h2>
+          <dl class="opsmap-edge-meta" id="opsmap-edge-meta"></dl>
+          <div class="opsmap-edge-actions" id="opsmap-edge-actions"></div>
+        </div>
+        <div class="opsmap-trace-header" id="opsmap-trace-header" hidden>
+          <div class="opsmap-trace-title" id="opsmap-trace-title"></div>
+          <button type="button" class="text-button" id="opsmap-trace-close">Закрыть трассу</button>
+        </div>
+      </section>
+
       <section class="screen" id="screen-system">
         <div class="page-head"><div><p class="eyebrow">LC Band 2.0</p><h1>Система</h1></div><span class="pill" id="systemHealthPill">Проверка</span></div>
         <section class="system-band">
@@ -385,7 +510,7 @@
               <h2 id="urgentPolicyTitle">Что отправляется в Urgent Bot</h2>
               <p>Не всё важное, а только ситуация, где активному клиенту нужен ваш немедленный выбор или обещанная передача файлов подтверждённо сорвалась.</p>
             </div>
-            <span class="urgent-policy-count">4 причины</span>
+            <span class="urgent-policy-count">5 причин</span>
           </header>
           <div class="urgent-rule-grid">
             <article class="urgent-rule" data-policy-kind="active_client_call_requires_operator">
@@ -403,6 +528,10 @@
             <article class="urgent-rule" data-policy-kind="media_delivery_incomplete">
               <span class="urgent-rule-number">04</span>
               <div><h3>Медиапакет доставлен не полностью</h3><p>Неполная отправка доказана данными провайдера, а не предположением или отсутствием файла в интерфейсе.</p></div>
+            </article>
+            <article class="urgent-rule" data-policy-kind="active_client_inbound_suppressed">
+              <span class="urgent-rule-number">05</span>
+              <div><h3>Активный клиент технически заглушён</h3><p>Кейс @zhmoks: входящее ошибочно попало в broker_public_casting_request_detect, упёрлось в лимит 10/10 и было принято за handled. Исправление: active LCB обходит casting, claim снимается, HOLD остаётся retryable, чат не помечается прочитанным.</p></div>
             </article>
           </div>
           <div class="urgent-gates" aria-label="Обязательные условия Urgent Bot">
@@ -435,17 +564,14 @@
         </section>
         <section class="band-section">
           <div class="section-head"><h2>Карта мозгов</h2><span class="pill" id="brainSyncPill">—</span></div>
-          <p class="mtext">Кто первым берёт задачу; упал — идёт к следующему. Нажми кубик сверху, потом строку — модель встанет в цепочку (мышью можно и перетащить). Стрелки ‹ › на чипе двигают мозг по очереди, × убирает. В кубике — расход за 24ч и 7д и остаток недельного лимита. Ниже — расход по мозгам за 24ч и за 7д, дальше в «Все процессы» — цепочки всех зарегистрированных задач по категориям; правятся так же. Пока вкладка открыта, цепочки сами сверяются с реальным состоянием каждые 30 секунд.</p>
-          <div id="brainCharts" class="brain-charts"></div>
-          <p class="mtext">Расход по процессам (папки ниже, «Все процессы») — за 24ч и за 7 дней, вся папка целиком.</p>
-          <div id="processCharts" class="brain-charts"></div>
+          <p class="mtext">Каждая строка — один процесс. Между мозгами показана реальная воронка за 24 часа: сколько задач перешло дальше, какой это процент, сколько раз потребовалась более сильная модель и сколько было терминальных блокировок. Справа — расход всей цепочки за сутки и неделю и её настраиваемый недельный лимит. Нажми кубик сверху, потом строку — модель встанет в цепочку; ‹ › меняют очередь, × убирает.</p>
           <div id="brainMap"></div>
-        </section>
-        <section class="band-section">
-          <div class="section-head"><h2>Лимиты токенов на один запрос</h2></div>
-          <p class="mtext">Максимум токенов на вызов и предел вызовов за 5 часов. Пусто = без ограничения. «Токенов/неделя» — справочный недельный лимит подписки: рисует остаток на кубиках карты мозгов, вызовы не блокирует.</p>
-          <div id="tokenLimits"></div>
-          <p class="mtext" id="limitsSaveNote"></p>
+          <details class="provider-limits-details">
+            <summary>Глобальные аварийные лимиты провайдеров</summary>
+            <p class="mtext">Эти ограничения общие для провайдера и не относятся к одной цепочке: максимум токенов на вызов и вызовов за 5 часов. Лимит конкретного процесса настраивается справа в его строке.</p>
+            <div id="tokenLimits"></div>
+            <p class="mtext" id="limitsSaveNote"></p>
+          </details>
         </section>
         <section class="band-section">
           <div class="section-head"><h2>Провайдеры — подписка и платный</h2></div>
@@ -476,7 +602,27 @@
         <section class="band-section">
           <div class="section-head"><h2>Счёт судейства</h2></div>
           <div class="arbitr-stats" id="arbitrStats"></div>
-          <p class="mtext">Каждая карточка — одно входящее и решения обоих движков рядом. Твои вердикты — ground truth для перехода на Core; журнал append-only, «оба плохо» уходит на разбор.</p>
+          <div class="arbitr-filters" id="arbitrFilters" aria-label="Тип контакта">
+            <button class="text-button is-selected" type="button" data-arbitr-group="clients">Клиенты</button>
+            <button class="text-button" type="button" data-arbitr-group="musicians">Музыканты</button>
+            <button class="text-button" type="button" data-arbitr-group="contractors">Подрядчики</button>
+            <button class="text-button" type="button" data-arbitr-group="team">Команда</button>
+            <button class="text-button" type="button" data-arbitr-group="personal">Личное</button>
+            <button class="text-button" type="button" data-arbitr-group="unknown">Не определено</button>
+            <button class="text-button" type="button" data-arbitr-group="all">Все</button>
+          </div>
+          <details class="arbitr-legend">
+            <summary>Как читать этот экран</summary>
+            <p class="mtext">Каждое входящее сообщение независимо разбирают две версии системы:
+            <b>Старый (v1)</b> — тот, что реально работает и отвечает клиентам, и <b>Core (v2)</b> — новая
+            архитектура в тестовом режиме (ничего не отправляет). Здесь показаны только случаи, где их
+            выводы <b>разошлись</b>: «критичное расхождение» — разница затрагивает действие или деньги,
+            «расхождение» — разница в трактовке. В карточке: само сообщение клиента, как каждая версия его
+            поняла и что решила делать; выше карточек — последние сообщения диалога для контекста.</p>
+            <p class="mtext">Твоя задача — нажать, чья трактовка верна. Эти вердикты копятся как эталон:
+            по ним видно, какая версия справляется лучше и что чинить. «Оба плохо» уходит на разбор.
+            Журнал append-only, по умолчанию показаны только клиенты.</p>
+          </details>
         </section>
         <div id="arbitrCards"></div>
       </section>
@@ -643,6 +789,7 @@
     </form>
   </dialog>
   <script src="core-parity.js"></script>
-  <script src="core-app.js?v=20260825-002"></script>
+  <script src="opsmap.js?v=20260825-005"></script>
+  <script src="core-app.js?v=20260825-011"></script>
 </body>
 </html>

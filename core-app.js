@@ -21,7 +21,26 @@ const API = Object.freeze({
   work: "/api/core/work",
   operations: "/api/core/operations",
   leadFlow: "/api/app/lead_flow",
+  opsmap: "/api/app/opsmap",
+  opsmapReveal: "/api/app/opsmap/reveal",
 });
+
+// OpsMap Phase 2 lead-mode surface. Used by opsmap.js; explicit references keep
+// the Core app contract discoverable and CSP-clean.
+const OPSMAP_LEAD_API = Object.freeze({
+  search: "/api/opsmap/leads/search",
+  trace: "/api/opsmap/leads",
+});
+const OPSMAP_LEAD_SELECTORS = Object.freeze([
+  "opsmap-trace-node",
+  "opsmap-inferred-edge",
+  "opsmap-gap-marker",
+]);
+const OPSMAP_LEAD_FIELDS = Object.freeze([
+  "stage_conflict",
+  "identity_split",
+  "evidence_gaps",
+]);
 
 const state = {
   health: null,
@@ -44,6 +63,28 @@ const state = {
   flowSelected: null,
   flowLoading: false,
   flowRefreshedAt: 0,
+  opsmap: null,
+  opsContour: "all",
+  opsPeriod: 90,
+  opsEvidence: "",
+  opsStopped: "",
+  opsQuery: "",
+  opsDepth: "process",
+  opsMode: "all",
+  opsSelected: null,
+  opsLoading: false,
+  opsRefreshedAt: 0,
+  opsDisabled: false,
+  opsMapSvg: null,
+  opsMapLoadedDepth: null,
+  opsLiveOps: null,
+  opsLiveOpsLoading: false,
+  opsLiveOpsRefreshedAt: 0,
+  opsTelegramLoading: false,
+  runtimeStatusRefreshedAt: 0,
+  opsSelectedOperation: null,
+  opsTraceRef: null,
+  opsTechnicalVisible: true,
   activeWorkTab: "obligations",
   selectedThreadId: "",
   selectedEventId: "",
@@ -113,6 +154,26 @@ const AUTONOMY_MODES = Object.freeze({
   },
 });
 
+const AUTONOMY_BLOCKER_LABELS = Object.freeze({
+  policy_requires_approval: "выбран режим с подтверждением человеком",
+  agent_dispatcher_not_deployed: "Core dispatcher автоотправки не развёрнут",
+  telegram_transport_live_direct: "Telegram остаётся на legacy live_direct, Core delivery queue не владеет отправкой",
+  telegram_transport_operator_only: "Telegram принимает только действия оператора",
+  telegram_transport_hold: "Telegram transport находится в HOLD",
+  core_unavailable: "Core недоступен",
+});
+
+function autonomyBlockerText(autonomy) {
+  const details = Array.isArray(autonomy?.effective_blocker_details)
+    ? autonomy.effective_blocker_details.map((item) => item?.label).filter(Boolean)
+    : [];
+  if (details.length) return details.join("; ");
+  return (autonomy?.effective_blockers || [])
+    .map((code) => AUTONOMY_BLOCKER_LABELS[code] || code)
+    .filter(Boolean)
+    .join("; ");
+}
+
 const CALENDAR_STAGE_LABELS = Object.freeze({
   performed: "Состоялось",
   content_pending: "Фото/видео запросить",
@@ -177,6 +238,117 @@ const ROLE_OPTIONS = Object.freeze([
 ]);
 
 const byId = (id) => document.getElementById(id);
+
+const NAV_LAYOUT_KEY = "lcb_core_nav_layout_v1";
+const DEFAULT_NAV_LAYOUT = Object.freeze({
+  primary: ["calendar", "chats", "flow", "opsmap", "today", "promo", "costumes", "operations", "arbitr"],
+  secondary: ["system", "fees", "tokens", "loopguard", "broadcast", "sessions"],
+});
+let navDrag = null;
+let navDropCommitted = false;
+let navSuppressClickUntil = 0;
+
+function navLayoutFromDom() {
+  const views = (zone) => [...zone.querySelectorAll(".tab-button")].map((button) => button.dataset.view);
+  return Object.fromEntries([...document.querySelectorAll("[data-nav-zone]")]
+    .map((zone) => [zone.dataset.navZone, views(zone)]));
+}
+
+function normalizedNavLayout(candidate = {}) {
+  const known = [...document.querySelectorAll(".tab-button")].map((button) => button.dataset.view);
+  const knownSet = new Set(known);
+  const seen = new Set();
+  const take = (values) => (Array.isArray(values) ? values : [])
+    .filter((view) => knownSet.has(view) && !seen.has(view) && seen.add(view));
+  const primary = take(candidate.primary);
+  const secondary = take(candidate.secondary);
+  known.forEach((view) => {
+    if (seen.has(view)) return;
+    const fallback = DEFAULT_NAV_LAYOUT.secondary.includes(view) ? secondary : primary;
+    fallback.push(view);
+    seen.add(view);
+  });
+  return { primary, secondary };
+}
+
+function savedNavLayout() {
+  try {
+    return normalizedNavLayout(JSON.parse(localStorage.getItem(NAV_LAYOUT_KEY) || "{}"));
+  } catch {
+    return normalizedNavLayout(DEFAULT_NAV_LAYOUT);
+  }
+}
+
+function applyNavLayout(layout) {
+  const normalized = normalizedNavLayout(layout);
+  Object.entries(normalized).forEach(([zoneName, views]) => {
+    const container = document.querySelector(`[data-nav-zone="${zoneName}"] .tabbar-items`);
+    views.forEach((view) => {
+      const button = document.querySelector(`.tab-button[data-view="${view}"]`);
+      if (button) container.append(button);
+    });
+  });
+}
+
+function saveNavLayout() {
+  try {
+    localStorage.setItem(NAV_LAYOUT_KEY, JSON.stringify(navLayoutFromDom()));
+  } catch {
+    // Перетаскивание продолжает работать до перезагрузки даже без localStorage.
+  }
+}
+
+function navInsertTarget(container, clientY) {
+  return [...container.querySelectorAll(".tab-button:not(.is-dragging)")].find((button) => {
+    const rect = button.getBoundingClientRect();
+    return clientY < rect.top + rect.height / 2;
+  }) || null;
+}
+
+function initNavLayout() {
+  applyNavLayout(savedNavLayout());
+  const zones = [...document.querySelectorAll("[data-nav-zone]")];
+  document.querySelectorAll(".tab-button").forEach((button) => {
+    button.draggable = true;
+    button.title = `${button.textContent.trim()} · перетащите, чтобы изменить меню`;
+    button.addEventListener("dragstart", (event) => {
+      navDrag = { button, layout: navLayoutFromDom() };
+      navDropCommitted = false;
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", button.dataset.view);
+      requestAnimationFrame(() => button.classList.add("is-dragging"));
+    });
+    button.addEventListener("dragend", () => {
+      if (navDrag && !navDropCommitted) applyNavLayout(navDrag.layout);
+      button.classList.remove("is-dragging");
+      zones.forEach((zone) => zone.classList.remove("is-drag-over"));
+      navDrag = null;
+      navDropCommitted = false;
+    });
+  });
+  zones.forEach((zone) => {
+    zone.addEventListener("dragover", (event) => {
+      if (!navDrag) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      zones.forEach((item) => item.classList.toggle("is-drag-over", item === zone));
+      const container = zone.querySelector(".tabbar-items");
+      const before = navInsertTarget(container, event.clientY);
+      container.insertBefore(navDrag.button, before);
+    });
+    zone.addEventListener("dragleave", (event) => {
+      if (!zone.contains(event.relatedTarget)) zone.classList.remove("is-drag-over");
+    });
+    zone.addEventListener("drop", (event) => {
+      if (!navDrag) return;
+      event.preventDefault();
+      navDropCommitted = true;
+      navSuppressClickUntil = Date.now() + 250;
+      saveNavLayout();
+      zone.classList.remove("is-drag-over");
+    });
+  });
+}
 const escapeHtml = (value) => String(value ?? "")
   .replaceAll("&", "&amp;")
   .replaceAll("<", "&lt;")
@@ -515,7 +687,7 @@ function renderRuntimeExplanation() {
   scopeTitle.textContent = `${running} работают · ${stopped} остановлены`;
   scopeText.textContent = processes.error
     ? "launchctl недоступен — список постоянных процессов не подтверждён."
-    : "Считаются только KeepAlive LaunchAgents, то есть реальные долгоживущие PID. Задачи по расписанию и AI-purpose из «Токенов» сюда не входят."
+    : `Считаются только KeepAlive LaunchAgents, то есть реальные долгоживущие PID. Задачи по расписанию и AI-purpose из «Токенов» сюда не входят.`
       + `${stoppedNames.length ? ` Остановлены: ${stoppedNames.join(", ")}.` : ""}`
       + `${ignored.length ? ` Выведенные из эксплуатации plist исключены: ${ignored.join(", ")}.` : ""}`;
   const readinessState = String(readiness.state || "DEGRADED");
@@ -542,8 +714,8 @@ function runtimeAgeLabel(seconds) {
 function setRuntimeChip(id, status, title) {
   const element = byId(id);
   if (!element) return;
-  const classStatus = ["online", "degraded", "offline"].includes(status) ? status : "unknown";
-  const variants = ["runtime-readiness", "runtime-processes", "runtime-metric", "is-actionable"]
+  const classStatus = ["online", "recovering", "degraded", "offline"].includes(status) ? status : "unknown";
+  const variants = ["runtime-readiness", "runtime-processes", "runtime-metric"]
     .filter((name) => element.classList.contains(name));
   element.className = ["runtime-chip", ...variants, `is-${classStatus}`].join(" ");
   element.title = title || "";
@@ -552,13 +724,65 @@ function setRuntimeChip(id, status, title) {
 function renderRuntimeStatus() {
   const runtime = state.runtimeStatus;
   if (!runtime) return;
+  if (!runtime.readiness) {
+    byId("runtimeReadinessLabel").textContent = "Нужен перезапуск";
+    setRuntimeChip(
+      "runtimeReadiness", "degraded",
+      "Backend ещё работает на старой версии и не отдаёт доказательства recovery",
+    );
+    byId("runtimeCatchupLabel").textContent = "— / —";
+    byId("runtimePostsLabel").textContent = "—";
+    byId("runtimeRecoveredLabel").textContent = "—";
+    byId("runtimeDeliveredLabel").textContent = "—";
+    ["runtimeCatchup", "runtimePosts", "runtimeRecovered", "runtimeDelivered"]
+      .forEach((id) => setRuntimeChip(id, "unknown", "Нет данных: backend ещё не перезапущен с recovery ledger"));
+  }
   const readiness = runtime.readiness || {};
+  const catchup = readiness.catchup || {};
+  const counters = readiness.counters || {};
   const readinessState = String(readiness.state || "DEGRADED");
-  byId("runtimeReadinessLabel").textContent = readinessStatusLabel(readinessState);
-  setRuntimeChip(
+  if (runtime.readiness) byId("runtimeReadinessLabel").textContent = readinessStatusLabel(readinessState);
+  if (runtime.readiness) setRuntimeChip(
     "runtimeReadiness",
     readinessChipState(readinessState),
-    `${readinessStatusLabel(readinessState)} · ${runtimeReadinessReason(readiness)}`,
+    `${readinessStatusLabel(readinessState)} · контур ${readiness.scope || "не подтверждён"}`
+      + `${readiness.full_system ? "" : " · полная система не доказана"}`
+      + `${(readiness.reason_codes || []).length ? ` · ${readiness.reason_codes.join(", ")}` : ""}`,
+  );
+  const completedSources = Number(catchup.sources_completed || 0);
+  const totalSources = Number(catchup.sources_total || 0);
+  if (runtime.readiness) byId("runtimeCatchupLabel").textContent = `${completedSources} / ${totalSources}`;
+  if (runtime.readiness) setRuntimeChip(
+    "runtimeCatchup",
+    totalSources > 0 && completedSources === totalSources ? "online" : readinessState === "RECOVERING" ? "recovering" : "degraded",
+    `Обязательные источники: ${completedSources} из ${totalSources}; processing residual ${catchup.processing_residual || 0}; read residual ${catchup.ack_residual || 0}`
+      + `${(catchup.pending_sources || []).length ? ` · ждём: ${catchup.pending_sources.join(", ")}` : ""}`,
+  );
+  const windowMark = readiness.complete_window ? "" : "*";
+  const posts = Number(counters.posts_processed_24h || 0);
+  const pitches = Number(counters.client_pitches_delivered_24h || 0);
+  if (runtime.readiness) byId("runtimePostsLabel").textContent = `${formatNumber(posts)}${windowMark} / ${formatNumber(pitches)}`;
+  if (runtime.readiness) setRuntimeChip(
+    "runtimePosts", readiness.complete_window ? "online" : "degraded",
+    `${formatNumber(posts)} уникальных постов с terminal processing result`
+      + ` · ${formatNumber(pitches)} клиентских питчей с provider delivery receipt`
+      + (readiness.complete_window
+        ? " · скользящие 24 часа"
+        : " · окно постов ещё неполное; показана доступная часть ledger"),
+  );
+  if (runtime.readiness) byId("runtimeRecoveredLabel").textContent = formatNumber(counters.recovery_unread_processed || 0);
+  if (runtime.readiness) setRuntimeChip(
+    "runtimeRecovered", readinessState === "RECOVERING" ? "recovering" : "online",
+    "Посты, которые были непрочитанными при открытии текущего recovery-cycle и получили terminal processing result",
+  );
+  const messages = Number(counters.client_messages_delivered_24h || 0);
+  if (runtime.readiness) byId("runtimeDeliveredLabel").textContent = `${pitches} · ${messages}`;
+  if (runtime.readiness) setRuntimeChip(
+    "runtimeDelivered",
+    Number(counters.delivery_audience_unknown_24h || 0) > 0 ? "degraded" : "online",
+    `${pitches} клиентских питчей · ${messages} provider-сообщений с точным delivery receipt`
+      + ` · всего receipts ${counters.delivery_receipts_total_24h || 0}`
+      + ` · audience не доказана ${counters.delivery_audience_unknown_24h || 0}`,
   );
   const processes = runtime.processes || {};
   byId("runtimeRunning").textContent = Number.isFinite(Number(processes.running)) ? String(processes.running) : "—";
@@ -597,6 +821,7 @@ function renderRuntimeStatus() {
       : `SSH: ${ssh.reason || "состояние неизвестно"}`,
   );
   renderRuntimeExplanation();
+  renderOpsmapTelegramMonitor();
 }
 
 function closeAutonomyMenu() {
@@ -612,20 +837,34 @@ function renderAutonomy() {
     transport_mode: "hold",
   };
   const config = AUTONOMY_MODES[autonomy.mode] || AUTONOMY_MODES.approval_required;
-  byId("autonomyLabel").textContent = config.label;
-  byId("autonomyButton").querySelector(".autonomy-icon").textContent = config.icon;
-  byId("autonomyButton").disabled = state.changingAutonomy;
-  const blocker = (autonomy.effective_blockers || []).join(", ");
-  byId("autonomyButton").title = autonomy.agent_send_enabled
+  const agentSendEnabled = autonomy.agent_send_enabled === true;
+  const blocker = autonomyBlockerText(autonomy);
+  const autonomyButton = byId("autonomyButton");
+  const autonomyNotice = byId("autonomyRuntimeNotice");
+  byId("autonomyCaption").textContent = agentSendEnabled
+    ? "Режим агента"
+    : `Выбрано: ${config.label}`;
+  byId("autonomyLabel").textContent = agentSendEnabled
+    ? config.label
+    : "АВТООТПРАВКА ВЫКЛ";
+  autonomyButton.querySelector(".autonomy-icon").textContent = agentSendEnabled ? config.icon : "⏸";
+  autonomyButton.classList.toggle("is-blocked", !agentSendEnabled);
+  autonomyButton.disabled = state.changingAutonomy;
+  autonomyButton.title = agentSendEnabled
     ? `${config.description}. Автоответы доступны.`
-    : `${config.description}. Фактическая отправка заблокирована: ${blocker || "HOLD"}.`;
+    : `Выбран режим «${config.label}», но Core не отправляет автоматически: ${blocker || "HOLD"}.`;
+  autonomyButton.setAttribute("aria-label", autonomyButton.title);
+  autonomyNotice.textContent = agentSendEnabled
+    ? `Фактически: Core может автоматически отправлять обычные текстовые ответы в режиме «${config.label}».`
+    : `Фактически: Core не отправляет автоматически. ${blocker || "Действует HOLD."}`;
+  autonomyNotice.classList.toggle("is-blocked", !agentSendEnabled);
   document.querySelectorAll("[data-autonomy-mode]").forEach((button) => {
     const selected = button.dataset.autonomyMode === autonomy.mode;
     button.classList.toggle("is-selected", selected);
     button.setAttribute("aria-checked", String(selected));
     button.disabled = state.changingAutonomy;
   });
-  if (autonomy.agent_send_enabled) {
+  if (agentSendEnabled) {
     byId("shadowStripText").innerHTML = `<strong>LC Band 2.0</strong> · ${escapeHtml(config.description)} · строгие бизнес-гейты активны`;
     byId("shadowStripPill").textContent = "AUTO READY";
     byId("shadowStripPill").className = "pill ok";
@@ -654,7 +893,10 @@ async function setAutonomyMode(mode) {
       telegram_transport_mode: state.autonomy.transport_mode,
     };
     renderSystem();
-    toast(`Режим агента: ${AUTONOMY_MODES[state.autonomy.mode].label}.`);
+    const selectedLabel = AUTONOMY_MODES[state.autonomy.mode].label;
+    toast(state.autonomy.agent_send_enabled
+      ? `Режим агента: ${selectedLabel}. Core автоотправка включена.`
+      : `Режим «${selectedLabel}» выбран, но Core автоотправка не включена: ${autonomyBlockerText(state.autonomy) || "HOLD"}.`);
   } catch (error) {
     toast(`Режим не изменён: ${error.message}`);
   } finally {
@@ -670,7 +912,7 @@ function setBadge(id, value) {
   badge.hidden = count === 0;
 }
 
-function setView(view) {
+async function setView(view) {
   state.activeView = view;
   document.querySelectorAll(".tab-button").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.view === view);
@@ -694,6 +936,13 @@ function setView(view) {
     renderFlow();
     refreshFlow();
   }
+  if (view === "opsmap") {
+    await renderOpsmap();
+    refreshOpsmap();
+    startOpsmapLivePolling();
+  } else {
+    stopOpsmapLivePolling();
+  }
   if (view === "today") renderToday();
   if (view === "system") renderSystem();
   if (view === "tokens") renderTokens();
@@ -713,22 +962,22 @@ function setView(view) {
   if (view === "arbitr") renderArbitr();
 }
 
-function route() {
+async function route() {
   const raw = (location.hash || "#calendar").slice(1);
   const slash = raw.indexOf("/");
   const name = slash === -1 ? raw : raw.slice(0, slash);
   const argument = slash === -1 ? "" : decodeURIComponent(raw.slice(slash + 1));
   if (name === "event") {
-    setView("calendar");
-    if (argument) openEvent(argument, false);
+    await setView("calendar");
+    if (argument) await openEvent(argument, false);
     return;
   }
   if (name === "chat") {
-    setView("chats");
+    await setView("chats");
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "flow", "today", "system", "tokens", "loopguard", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "arbitr"].includes(name)
+  const view = ["calendar", "chats", "flow", "opsmap", "today", "system", "tokens", "loopguard", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "arbitr"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";
@@ -739,7 +988,7 @@ function route() {
     state.selectedThreadId = "";
     byId("conversation").classList.remove("is-open");
   }
-  setView(view);
+  await setView(view);
 }
 
 function isoDate(date) {
@@ -870,7 +1119,7 @@ function renderCalendar() {
   html += "</div>";
   byId("calendarGrid").innerHTML = html;
   byId("calendarGrid").querySelectorAll("[data-event-id]").forEach((button) => {
-    button.addEventListener("click", () => openEvent(button.dataset.eventId));
+    button.addEventListener("click", async () => await openEvent(button.dataset.eventId));
   });
   const undated = visibleEvents.filter((event) => !event.event_date);
   byId("undatedCount").textContent = formatNumber(undated.length);
@@ -878,7 +1127,7 @@ function renderCalendar() {
     ? undated.map((event) => `<button class="undated-item" data-event-id="${escapeHtml(event.calendar_id || event.occurrence_id)}"><strong>${escapeHtml(eventTitle(event))}</strong><span>${event.business_line === "broker" ? "Broker" : "LCBand"} · ${escapeHtml(funnelStageLabel(event))}</span></button>`).join("")
     : '<div class="calendar-empty-note">По выбранным фильтрам записей без даты нет</div>';
   byId("undatedList").querySelectorAll("[data-event-id]").forEach((button) => {
-    button.addEventListener("click", () => openEvent(button.dataset.eventId));
+    button.addEventListener("click", async () => await openEvent(button.dataset.eventId));
   });
 }
 
@@ -938,7 +1187,7 @@ function renderEventDetail(event) {
     : '<div class="calendar-empty-note">В Core нет подтверждённых гонораров и выплат. Маржа не рассчитывается.</div>';
 }
 
-function openEvent(occurrenceId, updateHash = true) {
+async function openEvent(occurrenceId, updateHash = true) {
   const event = (state.calendar.events || []).find((item) => (item.calendar_id || item.occurrence_id) === occurrenceId);
   if (!event) {
     if (state.loading) return;
@@ -946,7 +1195,7 @@ function openEvent(occurrenceId, updateHash = true) {
     return;
   }
   if (event.navigation_target === "thread") {
-    setView("chats");
+    await setView("chats");
     openThread(event.thread_id, true);
     return;
   }
@@ -1988,7 +2237,7 @@ function renderSystem() {
     ["Legacy fallback", health.legacy_fallback ? "включён" : "нет"],
     ["Черновики V2", health.draft_write_enabled ? "включены" : "выключены"],
     ["Отправка", health.send_enabled ? "включена" : "выключена"],
-    ["Автоотправка", health.agent_send_enabled ? "включена" : "HOLD"],
+    ["Core автоотправка", health.agent_send_enabled ? "включена" : "НЕ ЗАПУЩЕНА"],
     ["Режим общения", autonomyConfig.label],
     ["Telegram transport", autonomy.transport_mode || health.telegram_transport_mode || "hold"],
     ["Telegram owner", telegramOwner.available
@@ -2090,11 +2339,14 @@ function brainChipHtml(t, i, count) {
     ? "Отключён — запросы сюда сейчас не идут. Стрелки двигают по очереди, × убирает"
     : "Стрелки ‹ › двигают по очереди, × убирает";
   const badge = t.disabled ? '<span class="chip-off" aria-hidden="true">⊘</span>' : "";
+  const liveStatus = t.disabled
+    ? '<small class="chip-live-status is-off">неактивен — запросы не идут</small>'
+    : '<small class="chip-live-status is-on">активен</small>';
   const last = i === count - 1;
-  return (i ? '<span class="chip-arrow" aria-hidden="true">→</span>' : "")
-    + `<span class="${brainChipCls(t)}" draggable="true" data-tier="${escapeHtml(t.tier)}"`
+  return `<span class="${brainChipCls(t)}" draggable="true" data-tier="${escapeHtml(t.tier)}"`
     + ` title="${escapeHtml(title)}">${badge}<b>${escapeHtml(t.provider)}</b>`
     + `<small>${escapeHtml(t.model_label)} · ${cost}</small>`
+    + liveStatus
     + '<span class="chip-tools">'
     + `<button type="button" class="chip-move" data-dir="-1" title="Раньше в очереди"${i ? "" : " disabled"}>‹</button>`
     + `<button type="button" class="chip-move" data-dir="1" title="Позже в очереди"${last ? " disabled" : ""}>›</button>`
@@ -2102,29 +2354,128 @@ function brainChipHtml(t, i, count) {
     + "</span></span>";
 }
 
+function chainTierKey(tier) {
+  return tier === "claude_cli" ? "claude" : String(tier || "");
+}
+
+function brainHandoffHtml(row, from, to) {
+  const stats = row.chain_stats || {};
+  const fromKey = chainTierKey(from.tier);
+  const toKey = chainTierKey(to.tier);
+  const edge = (stats.edges_24h || {})[`${fromKey}>${toKey}`] || {};
+  const tier = (stats.tier_stats_24h || {})[fromKey] || {};
+  const entered = Number(edge.entered || tier.attempted || 0);
+  const moved = Number(edge.transitions || 0);
+  const pct = edge.conversion_pct == null ? (entered ? 0 : null) : Number(edge.conversion_pct);
+  const smarter = Number(edge.smarter || 0);
+  const smarterPct = edge.smarter_pct == null ? null : Number(edge.smarter_pct);
+  const stopped = Number(tier.stopped || 0);
+  const stopPct = entered ? Math.round(100 * stopped / entered) : null;
+  // 18.08.2026 (CHG-20260818-008): technical теперь честно исключает
+  // guard-блоки (llm_budget_guard/kill-switch остановил вызов ДО провайдера) —
+  // они отдельным полем guardBlocked, не "модель ответила плохо".
+  // guard_blocked/technical_pct отсутствуют на записях без schema_version=2
+  // (старая история, честная черта — см. dashboard_backend.py).
+  const technical = Number(edge.technical || 0);
+  const guardBlocked = Number(edge.guard_blocked || 0);
+  const guardBlockedPct = edge.guard_blocked_pct == null ? null : Number(edge.guard_blocked_pct);
+  const reasons = Object.entries(tier.reasons || {})
+    .sort((a, b) => Number(b[1]) - Number(a[1]))
+    .map(([reason, count]) => `${reason}: ${count}`).join(" · ");
+  const title = entered
+    ? `За 24ч: в ${from.provider} вошло ${entered}; в ${to.provider} перешло ${moved}`
+      + (guardBlocked ? `, из них ${guardBlocked} — мы сами заблокировали вызов (не модель)` : "")
+      + (reasons ? `. Причины: ${reasons}` : "")
+    : "За 24ч фактических запусков этого перехода не было";
+  return `<span class="brain-handoff" title="${escapeHtml(title)}">
+    <span class="handoff-arrow" aria-hidden="true">→</span>
+    <span class="handoff-rate"><b>${moved}</b><small>${pct == null ? "нет запусков" : `${pct}% перешло`}</small></span>
+    <span class="handoff-causes">
+      <em class="is-smart">умнее ${smarter}${smarterPct == null ? "" : ` · ${smarterPct}%`}</em>
+      <em>тех. отказ ${technical}</em>
+      ${guardBlocked ? `<em class="is-guard">заблок. нами ${guardBlocked}${guardBlockedPct == null ? "" : ` · ${guardBlockedPct}%`}</em>` : ""}
+      <em class="is-stop">блок ${stopped}${stopPct == null ? "" : ` · ${stopPct}%`}</em>
+    </span>
+  </span>`;
+}
+
+function brainChainHtml(row) {
+  const tiers = row.tiers || [];
+  return tiers.map((t, i) =>
+    (i ? brainHandoffHtml(row, tiers[i - 1], t) : "") + brainChipHtml(t, i, tiers.length)
+  ).join("");
+}
+
+function processSpendHtml(row) {
+  const day = Number(row.day_tokens || 0);
+  const week = Number(row.week_tokens || 0);
+  const limit = Number(row.week_limit_tokens || 0);
+  const dailyPlan = limit / 7;
+  const dayPct = limit ? Math.round(100 * day / Math.max(1, dailyPlan))
+    : (week ? Math.round(100 * day / week) : 0);
+  const weekPct = limit ? Math.round(100 * week / limit) : (week ? 100 : 0);
+  const stats = row.chain_stats || {};
+  const runs = Number(stats.runs_24h || 0);
+  const success = stats.success_pct_24h == null ? "—" : `${stats.success_pct_24h}%`;
+  const stopped = Number(stats.stopped_24h || 0);
+  const exhausted = Number(stats.exhausted_24h || 0);
+  const hot = limit && weekPct > 100 ? " is-over" : "";
+  return `<aside class="chain-spend${hot}" data-purpose-limit="${escapeHtml(row.purpose)}">
+    <div class="chain-spend-head"><strong>Расход цепочки</strong><small>${runs} запусков · успех ${success}</small></div>
+    <div class="chain-spend-line"><span>24ч <b>${tokFmt(day)}</b></span><small>${limit ? `${dayPct}% дневного темпа` : "доля недели"}</small></div>
+    <span class="chain-spend-track"><i data-w="${Math.min(100, Math.max(0, dayPct))}"></i></span>
+    <div class="chain-spend-line"><span>7д <b>${tokFmt(week)}</b></span><small>${limit ? `${weekPct}% лимита` : "лимит не задан"}</small></div>
+    <span class="chain-spend-track week"><i data-w="${Math.min(100, Math.max(0, weekPct))}"></i></span>
+    <div class="chain-outcomes"><span>⛔ блок ${stopped}</span><span>∅ исчерпано ${exhausted}</span></div>
+    <label class="chain-limit-label">Лимит/7д
+      <input type="number" min="0" step="1000" value="${limit || ""}" placeholder="не задан" aria-label="Лимит токенов процесса за 7 дней">
+      <button type="button" class="process-limit-save">Сохранить</button>
+    </label>
+    <small class="process-limit-note" aria-live="polite"></small>
+  </aside>`;
+}
+
 /* Все зарегистрированные процессы, по категориям purpose_categories. Строки —
    те же .brain-row, весь механизм (кубик-клик, drag, ‹ ›, ×) работает как в
    основной карте. Fixed-группа — транспортно-связанные, без редактирования. */
 function renderBrainGroups(groups) {
   if (!groups || !groups.length) return "";
+  const spendGroups = groups.filter((g) => g.key !== "error");
+  const maxDay = Math.max(1, ...spendGroups.map((g) => Number(g.day_tokens) || 0));
+  const maxWeek = Math.max(1, ...spendGroups.map((g) => Number(g.week_tokens) || 0));
   return '<div class="brain-groups"><h3 class="brain-groups-title">Все процессы</h3>'
     + groups.map((g) => {
       const fixed = g.fixed || [];
       const purposes = g.purposes || [];
       const count = purposes.length || fixed.length;
+      const dayTokens = Number(g.day_tokens) || 0;
+      const weekTokens = Number(g.week_tokens) || 0;
+      const dayWidth = Math.round(100 * dayTokens / maxDay);
+      const weekWidth = Math.round(100 * weekTokens / maxWeek);
       const body = fixed.length
         ? fixed.map((f) => `<div class="brain-fixed-row"><code>${escapeHtml(f.purpose)}</code>
             <span>${escapeHtml(f.note)}</span></div>`).join("")
         : purposes.map((p) => {
-          const chips = (p.tiers || []).map((t, i) => brainChipHtml(t, i, p.tiers.length)).join("");
-          return `<div class="brain-row brain-row-compact" data-purpose="${escapeHtml(p.purpose)}">
+          const chips = brainChainHtml(p);
+          return `<div class="brain-row brain-process-row brain-row-compact" data-purpose="${escapeHtml(p.purpose)}">
             <div class="brain-label"><code>${escapeHtml(p.purpose)}</code></div>
             <div class="brain-chain">${chips}</div>
+            ${processSpendHtml(p)}
             <div class="brain-saved" hidden></div>
           </div>`;
         }).join("");
       return `<details class="brain-group" data-group="${escapeHtml(g.key)}">
-        <summary>${escapeHtml(g.label)} <b>${count}</b></summary>
+        <summary>
+          <span class="brain-group-heading">${escapeHtml(g.label)} <b>${count}</b></span>
+          <span class="brain-group-total">
+            <span class="is-day"><i></i>24ч <strong>${tokFmt(dayTokens)}</strong></span>
+            <span class="is-week"><i></i>7д <strong>${tokFmt(weekTokens)}</strong></span>
+          </span>
+          <span class="brain-group-chart" title="Длина линий — относительно самой расходной категории">
+            <span class="is-day"><i data-w="${dayWidth}"></i></span>
+            <span class="is-week"><i data-w="${weekWidth}"></i></span>
+          </span>
+        </summary>
         <div class="brain-group-body">${body}</div>
       </details>`;
     }).join("") + "</div>";
@@ -2248,8 +2599,6 @@ function renderCapytimeBrain(map) {
 function renderBrainMap(map) {
   const box = byId("brainMap");
   if (!box) return;
-  renderBrainCharts(map && map.palette);
-  renderProcessCharts(map && map.groups);
   // Открытые группы переживают перерисовку (сохранение цепочки зовёт
   // renderTokens — без этого каждая правка схлопывала «Все процессы»).
   const openGroups = new Set(
@@ -2263,15 +2612,16 @@ function renderBrainMap(map) {
   const strip = renderProviderStatusStrip(map && map.disabled_tiers);
   const palette = renderBrainPalette(map && map.palette);
   box.innerHTML = strip + palette + rows.map((row) => {
-    const chips = row.tiers.map((t, i) => brainChipHtml(t, i, row.tiers.length)).join("");
+    const chips = brainChainHtml(row);
     // Текстовые пометки (row.note — «платно нельзя», «Codex убран 04.08» и
     // т.п.) убраны 16.08 по просьбе Михаила: на узком экране колонка с ними
     // съедала место и оставляла пустоту. Та же информация уже читается из
     // самих чипов (paid-чип просто не появится, если канон его не разрешает);
     // визуальный след — графики расхода ниже, а не текст в каждой строке.
-    return `<div class="brain-row" data-purpose="${escapeHtml(row.purpose)}">
+    return `<div class="brain-row brain-process-row" data-purpose="${escapeHtml(row.purpose)}">
       <div class="brain-label"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.sub)}</small></div>
       <div class="brain-chain">${chips}</div>
+      ${processSpendHtml(row)}
       <div class="brain-saved" hidden></div>
     </div>`;
   }).join("") + renderBrainGroups(map && map.groups)
@@ -2279,10 +2629,46 @@ function renderBrainMap(map) {
   box.querySelectorAll(".cube-track [data-w]").forEach((el) => {
     el.style.width = Math.max(0, Math.min(100, Number(el.dataset.w) || 0)) + "%";
   });
+  box.querySelectorAll(".chain-spend-track [data-w]").forEach((el) => {
+    el.style.width = Math.max(0, Math.min(100, Number(el.dataset.w) || 0)) + "%";
+  });
+  box.querySelectorAll(".brain-group-chart [data-w]").forEach((el) => {
+    el.style.width = Math.max(0, Math.min(100, Number(el.dataset.w) || 0)) + "%";
+  });
   box.querySelectorAll(".brain-group").forEach((d) => {
     if (openGroups.has(d.dataset.group)) d.open = true;
   });
   wireBrainDrag(box);
+  wireProcessLimits(box);
+}
+
+function wireProcessLimits(box) {
+  box.querySelectorAll(".process-limit-save").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const panel = btn.closest(".chain-spend");
+      const input = panel && panel.querySelector("input");
+      const note = panel && panel.querySelector(".process-limit-note");
+      const purpose = panel && panel.dataset.purposeLimit;
+      if (!input || !purpose) return;
+      const value = input.value.trim() === "" ? 0 : Math.max(0, parseInt(input.value, 10) || 0);
+      if (note) note.textContent = "Сохраняю…";
+      try {
+        await apiPost("/api/app/set_process_token_limit", { purpose, max_tokens_week: value });
+        if (note) note.textContent = "Сохранено";
+        renderTokens();
+      } catch (error) {
+        if (note) note.textContent = "Ошибка: " + String(error).slice(0, 70);
+      }
+    });
+  });
+  box.querySelectorAll(".chain-spend input").forEach((input) => {
+    input.addEventListener("click", (e) => e.stopPropagation());
+    input.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") input.closest(".chain-spend").querySelector(".process-limit-save").click();
+    });
+  });
 }
 
 /* Перетаскивание чипов меняет порядок обращения к мозгам, кубик из палитры
@@ -2383,7 +2769,7 @@ function wireBrainDrag(box) {
     // Клик по строке ставит выбранный кубик — путь, не зависящий от HTML5 DnD.
     row.addEventListener("click", (e) => {
       if (!brainArmedTier) return;
-      if (e.target.closest(".chip-move, .chip-remove")) return;
+      if (e.target.closest(".chip-move, .chip-remove, .chain-spend")) return;
       const tier = brainArmedTier;
       setBrainArmed(box, null);
       insertBrainTier(row, tier, e.clientX, e.clientY);
@@ -3029,6 +3415,21 @@ function sessionCountLabel(value) {
   return `${count} ${noun}`;
 }
 
+function sessionReviewBadge(label, level, levelLabel, done, reasons = []) {
+  const labels = {
+    not_needed: "не нужен",
+    recommended: "желательно",
+    strongly_recommended: "настоятельно рекомендуется",
+    required: "обязателен",
+  };
+  const normalizedLevel = Object.hasOwn(labels, level) ? level : "not_needed";
+  const needLabel = levelLabel || labels[normalizedLevel];
+  const completion = done ? "✓" : "□";
+  const completionLabel = done ? "выполнен" : "не выполнен";
+  const reasonText = Array.isArray(reasons) && reasons.length ? ` Причины: ${reasons.join("; ")}.` : "";
+  return `<span class="session-review-badge need-${escapeHtml(normalizedLevel)}${done ? " is-done" : ""}" title="${escapeHtml(`${label}: ${needLabel}; ${completionLabel}.${reasonText}`)}"><span>${escapeHtml(label)}</span><b>${escapeHtml(needLabel)}</b><i aria-hidden="true">${completion}</i></span>`;
+}
+
 async function refreshSessions() {
   const project = byId("sessionsProjectFilter").value;
   const query = new URLSearchParams();
@@ -3056,6 +3457,14 @@ function renderSessions() {
     projects: [row.project],
     last_activity: row.last_activity,
     session_count: 1,
+    review_need_level: row.review_need_level,
+    review_need_label: row.review_need_label,
+    review_need_reasons: row.review_need_reasons,
+    ultra_review_need_level: row.ultra_review_need_level,
+    ultra_review_need_label: row.ultra_review_need_label,
+    ultra_review_need_reasons: row.ultra_review_need_reasons,
+    review_done: row.review_done,
+    ultra_review_done: row.ultra_review_done,
     sessions: [row],
   }));
   byId("sessionsCountPill").textContent = `${payload.count ?? rows.length} сессий · ${payload.branch_count ?? branches.length} веток · ${payload.days ?? 14} дн`;
@@ -3072,6 +3481,10 @@ function renderSessions() {
         <strong>${escapeHtml((branch.projects || []).join(" · "))}</strong>
         ${SESSION_STATUS_LABELS[branch.status] || escapeHtml(branch.status || "")}
         <span class="session-branch-count">${sessionCountLabel(branch.session_count || 1)}</span>
+        <span class="session-review-assurance" aria-label="Необходимость и выполнение review">
+          ${sessionReviewBadge("Review", branch.review_need_level, branch.review_need_label, branch.review_done, branch.review_need_reasons)}
+          ${sessionReviewBadge("Ultra", branch.ultra_review_need_level, branch.ultra_review_need_label, branch.ultra_review_done, branch.ultra_review_need_reasons)}
+        </span>
         <span class="session-time">${escapeHtml(branch.last_activity || "")}</span>
       </div>
       <div class="session-summary">
@@ -3559,6 +3972,969 @@ async function refreshFlow(force = false) {
   }
 }
 
+// ── OpsMap ────────────────────────────────────────────────────────────────
+// Read-only карта процессов. Canonical node/edge panels live in opsmap.js.
+// Live AI operations rail is rendered here. No messages, no data mutations.
+
+function renderOpsmapMetrics() {
+  const data = state.opsmap;
+  const metrics = byId("opsMetrics");
+  if (!data) { metrics.innerHTML = ""; return; }
+  const coverage = data.coverage || {};
+  const nodes = data.nodes || [];
+  const confirmed = nodes.filter((node) => node.evidence === "confirmed").length;
+  const pct = nodes.length ? (100 * confirmed) / nodes.length : 0;
+  metrics.innerHTML = [
+    flowMetric(nodes.length, "узлов на карте", "is-accent"),
+    flowMetric(coverage.outbound_records || 0, "outbound-записей"),
+    flowMetric(coverage.delivery_evidence_gaps || 0, "доставок без receipt", coverage.delivery_evidence_gaps ? "is-warn" : ""),
+    flowMetric(coverage.identity_splits || 0, "identity split", coverage.identity_splits ? "is-warn" : ""),
+    flowMetric(coverage.obligations_breached || 0, "просрочено obligations", coverage.obligations_breached ? "is-warn" : ""),
+  ].join("");
+  const ring = byId("opsGapRing");
+  ring.style.borderTopColor = pct >= 50 ? "var(--pine)" : "var(--warn)";
+  ring.querySelector("strong").textContent = `${Math.round(pct)}%`;
+  byId("opsFreshness").textContent = `Обновлено ${flowFormatTime(data.generated_at)} · PII скрыта`;
+}
+
+function renderOpsmapWarnings() {
+  const warnings = state.opsmap?.warnings || [];
+  byId("opsWarnings").innerHTML = warnings.map((warning) => `
+    <div class="flow-warning"><b>!</b><span>${escapeHtml(warning.detail || warning.code)}</span></div>
+  `).join("");
+}
+
+async function renderOpsmapMap() {
+  const canvas = byId("opsMapCanvas");
+  if (!window.OpsMapSvg) {
+    canvas.innerHTML = '<div class="flow-loading">SVG-модуль не загружен</div>';
+    return;
+  }
+  if (!state.opsMapSvg) {
+    state.opsMapSvg = new window.OpsMapSvg(canvas);
+    canvas.addEventListener("opsmap-node-select", (ev) => {
+      state.opsSelected = { kind: "node", nodeId: ev.detail.nodeId };
+      renderOpsmapLiveOps();
+    });
+  }
+  state.opsMapSvg.setMode(state.opsMode || "all");
+  const depth = state.opsDepth || "node";
+  // Prefer canonical topology endpoint (P6-1); fallback to cached data.
+  if (!state.opsMapSvg.data || state.opsMapLoadedDepth !== depth) {
+    state.opsMapLoadedDepth = depth;
+    try {
+      const envelope = await apiGet(`/api/opsmap/topology?depth=${encodeURIComponent(depth)}`);
+      state.opsMapSvg.data = envelope.data || {};
+      state.opsMapSvg.registryVersion = envelope.registry_version;
+      state.opsMapSvg.depth = depth;
+      state.opsMapSvg.render();
+      state.opsMapSvg.showReadableStart();
+    } catch (error) {
+      state.opsMapSvg.load(depth);
+    }
+  } else {
+    state.opsMapSvg.render();
+  }
+}
+
+async function renderOpsmap() {
+  renderOpsmapMetrics();
+  renderOpsmapWarnings();
+  await renderOpsmapMap();
+  if (state.opsSelectedOperation) renderOpsmapOperationJourney(state.opsSelectedOperation);
+  else renderOpsmapHumanOverview();
+  setOpsmapTechnicalVisible(state.opsTechnicalVisible);
+  renderOpsmapLiveOps();
+}
+
+function renderOpsmapDisabled(detail) {
+  state.opsDisabled = true;
+  byId("opsFreshness").textContent = "OpsMap выключена";
+  byId("opsMetrics").innerHTML = "";
+  byId("opsWarnings").innerHTML = "";
+  byId("opsMapCanvas").innerHTML = `<div class="flow-error"><strong>OpsMap выключена feature-флагом</strong><span>${escapeHtml(detail || "Включите LCB_OPSMAP_ENABLED=1 в окружении dashboard_backend и перезапустите процесс. Production не меняется.")}</span></div>`;
+  const liveList = byId("opsmap-live-list");
+  if (liveList) liveList.innerHTML = '<div class="opsmap-live-empty">OpsMap выключена</div>';
+}
+
+// ── Live AI operations rail (P7) ───────────────────────────────────────────
+
+const OPS_STATUS_LABEL = Object.freeze({
+  active: "идёт",
+  completed: "завершено",
+  failed: "ошибка",
+  stale: "устарело",
+  recent: "недавнее",
+  unknown: "неизвестно",
+});
+
+const OPS_LEAD_LABEL = Object.freeze({
+  exact: { text: "карточка связана", className: "is-exact" },
+  ambiguous: { text: "несколько карточек", className: "is-ambiguous" },
+  unlinked: { text: "карточка не найдена", className: "is-unlinked" },
+});
+
+const OPS_EFFECT_LABEL = Object.freeze({
+  working: "в работе",
+  proposal_ready: "результат модели",
+  completed: "выполнено",
+  recorded: "записано",
+  partial: "частично",
+  no_action: "без внешнего действия",
+  held: "нужен оператор",
+  stalled: "остановилось",
+  failed: "ошибка",
+});
+
+const OPS_PURPOSE_FALLBACK = Object.freeze({
+  unified_dm_handle: ["Обработка нового сообщения", "Система определяет контекст и следующий шаг."],
+  lead_context_enrich: ["Поиск карточки и контекста", "Система ищет заказ, мероприятие и историю общения."],
+  lead_context_classify: ["Классификация сообщения в переписке", "Сообщение в переписке классифицировано."],
+  tg_post_classify: ["Классификация поста Telegram", "Пост Telegram классифицирован."],
+  vk_post_classify: ["Классификация поста VK", "Пост VK классифицирован."],
+  core_role_classify: ["Определение роли собеседника", "Модель проверила роль автора сообщения."],
+  core_shadow_writer: ["Подготовка черновика ответа", "Черновик подготовлен; это ещё не отправка."],
+  broker_client_reply_disposition: ["Выбор следующего шага по клиенту", "Модель предложила действие; выполнение не подтверждено."],
+  lcb_writer_followup: ["Подготовка повторного сообщения", "Вариант follow-up подготовлен; отправка не подтверждена."],
+  thread_context_extract: ["Извлечение фактов из переписки", "Факты выделены моделью; применение ещё не подтверждено."],
+  classify_batch: ["Классификация новых сообщений", "Пакет сообщений классифицирован моделью."],
+  classify_batch_l2_opus: ["Повторная проверка классификации", "Сложная классификация перепроверена моделью."],
+  lcb_writer_reply: ["Подготовка ответа клиенту", "Черновик ответа подготовлен; это ещё не отправка."],
+  broker_public_casting_request_detect: ["Проверка запроса на поиск исполнителя", "Модель определила необходимость поиска; запуск не подтверждён."],
+  broker_service_match: ["Подбор подходящей услуги", "Вариант услуги подобран моделью; подтверждение ещё требуется."],
+  inbound_business_event: ["Распознавание бизнес-события", "Возможное изменение заказа распознано; применение не подтверждено."],
+  promo_media_client_expectations: ["Проверка ожиданий клиента по промо", "Требования к промо выделены моделью."],
+});
+
+const OPS_LEAD_REASON_HELP = Object.freeze({
+  no_thread_id: "У операции не записан thread_id и нет order_id, event_id или lead_id.",
+  no_lead_evidence: "По thread_id не найдено доказательств связи с карточкой лида или мероприятия.",
+  multiple_candidates: "По одной переписке найдено несколько возможных лидов. Нужен order_id, event_id или lead_id конкретного мероприятия.",
+  conflicting_explicit_ids: "В операции записаны противоречащие друг другу order_id, event_id или lead_id. Система не выбирает один из них наугад.",
+  explicit_id_not_found: "В операции записан конкретный ID, но соответствующая карточка не найдена.",
+  explicit_id_resolver_error: "Конкретный ID записан, но проверить его по базе сейчас не удалось.",
+  resolver_error: "Поиск связи с лидом завершился технической ошибкой.",
+});
+
+function opsLeadHelp(op) {
+  const state = op.lead?.state || "unlinked";
+  const reason = op.lead?.reason || "";
+  if (state === "exact") {
+    const matched = op.lead?.matched_by;
+    const source = matched === "order" ? "order_id"
+      : matched === "event" ? "event_id"
+      : "уникальной связи переписки";
+    return `Найдена одна конкретная карточка по ${source}. Нажмите операцию, чтобы показать её путь.`;
+  }
+  if (state === "ambiguous") {
+    return OPS_LEAD_REASON_HELP[reason]
+      || "Найдено несколько возможных карточек. Система не выбирает наугад; операции нужен order_id, event_id или lead_id.";
+  }
+  return OPS_LEAD_REASON_HELP[reason]
+    || "AI-операция видна, но её нельзя доказанно связать с конкретной карточкой.";
+}
+
+function formatOpsTokens(tokens) {
+  if (!tokens) return "—";
+  if (tokens.state === "pending") return "считаются…";
+  if (tokens.state === "unavailable") return "н/д";
+  return `${formatNumber(tokens.total || 0)} ток`;
+}
+
+function opsPlainText(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string" || typeof value === "number") return String(value).trim();
+  if (Array.isArray(value)) return value.map(opsPlainText).filter(Boolean).join(" · ");
+  if (typeof value === "object") {
+    for (const key of ["label", "summary", "title", "detail", "message", "reason", "code", "name"]) {
+      const text = opsPlainText(value[key]);
+      if (text) return text;
+    }
+  }
+  return "";
+}
+
+function opsContextHasConcreteContact(context) {
+  const client = context?.client || {};
+  const label = opsClientLabel(context).trim().toLowerCase();
+  const missing = ["", "контакт не определён", "контакт не определен", "unknown"];
+  return Boolean(context?.conversation_available && !missing.includes(label)
+    && (client.name || client.username || client.contact_id || client.thread_id));
+}
+
+function opsContextHasConcreteEvent(op) {
+  const context = op?.business_context || {};
+  const event = context.event || {};
+  const eventId = String(event.event_id || "").trim();
+  const eventDate = String(event.date || "").trim().slice(0, 10);
+  const terminal = new Set([
+    "cancelled", "canceled", "done", "lost", "rejected", "declined",
+    "hold_no_client", "archived", "ai-skip", "отмена", "отказ",
+  ]);
+  if (!eventId || !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) return false;
+  if (terminal.has(String(event.status || "").trim().toLowerCase())) return false;
+  const endOfEventDay = Date.parse(`${eventDate}T23:59:59`);
+  return Number.isFinite(endOfEventDay) && endOfEventDay >= Date.now();
+}
+
+function opsIsActionableOperation(op) {
+  if (!op || op.actionable === false || op.admission?.allowed === false) return false;
+  return op.lead?.state === "exact"
+    && opsContextHasConcreteContact(op.business_context || {})
+    && opsContextHasConcreteEvent(op);
+}
+
+function opsActionableOperations(data) {
+  return (data?.operations || []).filter(opsIsActionableOperation);
+}
+
+function opsHumanAction(op) {
+  const supplied = opsPlainText(op.human_action);
+  if (supplied && supplied !== "Обработка данных системой") return supplied;
+  const planned = opsPlainText(op.business_context?.planned_action);
+  return planned || OPS_PURPOSE_FALLBACK[op.purpose]?.[0] || "Назначение операции не записано";
+}
+
+function opsResultLabel(op) {
+  if (op.result?.label) return op.result.label;
+  if (op.status === "active") return OPS_PURPOSE_FALLBACK[op.purpose]?.[1] || "Операция выполняется; итог ещё не зафиксирован.";
+  if (op.status === "failed") return "Операция завершилась ошибкой; полезное действие не подтверждено.";
+  return OPS_PURPOSE_FALLBACK[op.purpose]?.[1] || "Модель вернула результат; внешний эффект не подтверждён.";
+}
+
+function opsSubjectLabel(op) {
+  const context = op.business_context || {};
+  const client = context.client || {};
+  const event = context.event || {};
+  const subject = op.subject || {};
+  const contact = opsClientLabel(context);
+  const orderId = client.order_id || subject.order_id;
+  const eventLabel = opsEventLabel(context);
+  const pieces = [];
+  if (opsContextHasConcreteContact(context)) pieces.push(contact);
+  if (orderId) pieces.push(`заказ ${orderId}`);
+  if (event.event_id || event.date || event.city || event.venue) pieces.push(eventLabel);
+  if (pieces.length) return pieces.join(" · ");
+  if (subject.event_id) return `мероприятие ${subject.event_id}`;
+  if (subject.trace_ref) return subject.trace_ref.replace(/^order:/, "заказ ").replace(/^event:/, "мероприятие ");
+  return "Контекст операции не подтверждён";
+}
+
+function opsContextValue(value, empty = "не указано") {
+  if (value === true) return "да";
+  if (value === false) return "нет";
+  if (value === null || value === undefined || value === "") return empty;
+  return String(value);
+}
+
+function opsClientLabel(context) {
+  const client = context?.client || {};
+  const handle = client.username ? `@${client.username}` : "";
+  return [client.name, handle].filter(Boolean).join(" · ") || "Контакт не определён";
+}
+
+function opsClientLink(context) {
+  const label = escapeHtml(opsClientLabel(context));
+  if (!opsContextHasConcreteContact(context) || !context?.operation_id) {
+    return `<strong class="opsmap-contact-missing">${label}</strong>`;
+  }
+  return `<button type="button" class="opsmap-contact-link" data-opsmap-operation-id="${escapeHtml(String(context?.operation_id || ""))}" title="Открыть переписку с контактом">${label}</button>`;
+}
+
+async function openOpsmapConversation(operationId) {
+  if (!operationId) return;
+  const payload = await apiGet(`/api/opsmap/live-operations/${encodeURIComponent(operationId)}/conversation`);
+  const threadId = String(payload.thread_id || "").trim();
+  const telegramUrl = String(payload.telegram_url || "").trim();
+  if (telegramUrl) {
+    window.location.assign(telegramUrl);
+    return;
+  }
+  if (!threadId) throw new Error("Переписка для этой операции не записана");
+  // OpsMap is served by the legacy dashboard process; the Core conversation
+  // reader lives on its dedicated app server. Navigate there explicitly
+  // instead of showing an empty local Chats tab when the two ports differ.
+  const coreApp = window.CORE_APP_URL || "http://127.0.0.1:8880/core-app.html";
+  window.location.assign(`${coreApp}#chat/${encodeURIComponent(threadId)}`);
+}
+
+function opsEventLabel(context) {
+  const event = context?.event || {};
+  return [event.date, event.city, event.venue].filter(Boolean).join(" · ") || "Мероприятие пока не определено";
+}
+
+const OPS_LIVE_PLAN_LABEL = Object.freeze({
+  unregistered_client_identity: "Контакт не зарегистрирован как клиент — автоответ запрещён.",
+  provider_identity_conflict: "Конфликт идентификации контакта — действие остановлено.",
+});
+
+function opsLivePlanLabel(value, fallback) {
+  const raw = String(value || "").trim();
+  return OPS_LIVE_PLAN_LABEL[raw] || raw || fallback;
+}
+
+function opsContactRoleLabel(role) {
+  const code = String(role || "unknown").toLowerCase();
+  if (code.startsWith("client")) return code === "client_organizer" ? "клиент / организатор" : "клиент";
+  if (code.includes("vocal") || code.includes("musician")) return code === "lcb_resident_vocalist" ? "штатный вокалист LCB" : "музыкант";
+  if (code.startsWith("contractor") || code === "vendor") return "подрядчик";
+  if (code === "team" || code.includes("internal")) return "команда LCB";
+  if (code === "personal") return "личный контакт";
+  return "статус не определён";
+}
+
+function opsOperationTrigger(op) {
+  const context = op.business_context || {};
+  const rawValue = op.trigger ?? context.trigger ?? {};
+  const trigger = rawValue && typeof rawValue === "object" ? rawValue : {};
+  const kind = String(trigger.kind || trigger.type || op.trigger_type || context.trigger_type || "").trim();
+  const kindCode = kind.toLowerCase();
+  const inferred = trigger.inferred === true;
+  const source = opsPlainText(trigger.source || trigger.source_label || op.trigger_source || context.trigger_source);
+  const sourceEventId = opsPlainText(
+    trigger.source_event_id || trigger.event_id || trigger.message_id
+    || op.source_event_id || context.source_event_id || context.message?.message_id || context.message?.id
+  );
+  const reason = opsPlainText(trigger.reason || trigger.detail || op.trigger_reason || context.trigger_reason);
+  const explicitTitle = opsPlainText(
+    typeof rawValue === "string" ? rawValue : (trigger.label || trigger.title || trigger.summary)
+  );
+  const contact = opsClientLabel(context);
+  const isMessageTrigger = /message|inbound|new_message/.test(kindCode) || op.purpose === "unified_dm_handle";
+  let title = explicitTitle;
+  if (!title && isMessageTrigger) {
+    title = inferred ? `Вероятный триггер: сообщение от ${contact}` : `Новое сообщение от ${contact}`;
+  } else if (!title && (/follow.?up|schedule|timer/.test(kindCode) || op.purpose === "lcb_writer_followup")) {
+    title = `Плановый follow-up для ${contact}`;
+  } else if (!title && /card.?change|event.?change/.test(kindCode)) {
+    title = `Изменение карточки ${contact}`;
+  } else if (!title && /manual|operator/.test(kindCode)) {
+    title = `Ручной запуск для ${contact}`;
+  } else if (!title && /retry|replay/.test(kindCode)) {
+    title = `Повтор операции для ${contact}`;
+  } else if (!title && (source || kind)) {
+    title = `Запуск: ${source || kind}`;
+  }
+  return {
+    title: title || "Триггер не записан",
+    detail: reason,
+    source,
+    sourceEventId,
+    at: opsPlainText(trigger.at || trigger.ts || op.triggered_at || (isMessageTrigger ? context.message?.at : "") || op.started_at),
+    kind,
+    inferred,
+    provenance: opsPlainText(trigger.provenance),
+  };
+}
+
+function opsBusinessGoal(op) {
+  const context = op.business_context || {};
+  return opsPlainText(op.business_goal || context.business_goal || context.planned_action)
+    || OPS_PURPOSE_FALLBACK[op.purpose]?.[0]
+    || "Бизнес-цель не записана";
+}
+
+function opsAgentLabel(op) {
+  const context = op.business_context || {};
+  return opsPlainText(op.agent || context.agent || op.owner_label)
+    || opsPlainText(op.process_node_id)
+    || "Ответственный агент не записан";
+}
+
+function opsBusinessEffect(op) {
+  const context = op.business_context || {};
+  return opsPlainText(op.business_effect || context.business_effect) || opsResultLabel(op);
+}
+
+function opsOperationHeadline(op) {
+  const trigger = opsOperationTrigger(op);
+  return trigger.title === "Триггер не записан" ? opsHumanAction(op) : trigger.title;
+}
+
+const OPS_MODEL_ATTEMPT_STATUS = Object.freeze({
+  success: "успешно",
+  succeeded: "успешно",
+  completed: "успешно",
+  done: "успешно",
+  ok: "успешно",
+  active: "выполняется",
+  running: "выполняется",
+  pending: "ожидание",
+  failed: "ошибка",
+  error: "ошибка",
+  timeout: "тайм-аут",
+  escalated: "передано следующей модели",
+  stopped: "остановлено",
+  blocked: "заблокировано",
+  skipped: "пропущено",
+  cancelled: "отменено",
+});
+
+function opsModelAttemptState(status) {
+  const code = String(status || "unknown").toLowerCase();
+  if (["success", "succeeded", "completed", "done", "ok"].includes(code)) return "done";
+  if (["active", "running", "pending"].includes(code)) return "active";
+  if (["blocked", "skipped", "cancelled", "stopped"].includes(code)) return "blocked";
+  if (["failed", "error", "timeout", "escalated"].includes(code)) return "failed";
+  return "unknown";
+}
+
+function opsTokenNumber(...values) {
+  const value = values.find((item) => item !== null && item !== undefined && item !== "");
+  if (value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function opsModelAttempts(op) {
+  const supplied = Array.isArray(op.model_attempts) ? op.model_attempts : [];
+  const rows = supplied.length ? supplied : [{
+    provider: op.provider,
+    model: op.model,
+    status: op.status === "failed" ? "failed" : (op.status === "active" ? "active" : "completed"),
+    tokens: op.tokens,
+  }];
+  return rows.map((attempt, index) => {
+    const tokens = attempt.tokens && typeof attempt.tokens === "object" ? attempt.tokens : {};
+    const input = opsTokenNumber(attempt.input_tokens, attempt.input_tok, tokens.input, tokens.input_tok);
+    const output = opsTokenNumber(attempt.output_tokens, attempt.output_tok, tokens.output, tokens.output_tok);
+    const explicitTotal = opsTokenNumber(attempt.total_tokens, attempt.total_tok, tokens.total, tokens.total_tok);
+    const total = explicitTotal ?? (input !== null || output !== null ? (input || 0) + (output || 0) : null);
+    const error = opsPlainText(
+      attempt.error || attempt.error_detail || attempt.failure || attempt.failure_reason || attempt.error_code
+    );
+    const status = String(
+      attempt.status || attempt.state || attempt.outcome
+      || (attempt.success === true ? "success" : "")
+      || (error ? "failed" : "unknown")
+    ).toLowerCase();
+    const suppliedIndex = Number(attempt.sequence || attempt.attempt || index + 1);
+    return {
+      index: Number.isFinite(suppliedIndex) ? suppliedIndex : index + 1,
+      tier: opsPlainText(attempt.configured_tier || attempt.tier),
+      provider: opsPlainText(attempt.provider || attempt.service),
+      model: opsPlainText(attempt.model || attempt.model_name),
+      status,
+      tokenState: opsPlainText(tokens.state || attempt.token_state || "actual"),
+      input,
+      output,
+      total,
+      error,
+      fallbackReason: opsPlainText(attempt.fallback_reason || attempt.handoff_reason || attempt.retry_reason || attempt.reason),
+    };
+  }).sort((left, right) => left.index - right.index);
+}
+
+function opsModelName(attempt) {
+  const values = [attempt.provider, attempt.model, attempt.tier]
+    .filter((value) => value && value !== "unknown")
+    .filter((value, index, all) => all.indexOf(value) === index);
+  return values.join(" · ") || "Модель не записана";
+}
+
+function opsPrimaryModelLabel(op) {
+  const attempts = opsModelAttempts(op);
+  const successful = [...attempts].reverse().find((attempt) => opsModelAttemptState(attempt.status) === "done");
+  return opsModelName(successful || attempts[attempts.length - 1]);
+}
+
+function opsAttemptTokensLabel(attempt) {
+  if (attempt.tokenState === "pending") return "токены считаются…";
+  if (attempt.tokenState === "unavailable" && attempt.total === null) return "токены не записаны";
+  const value = (token) => token === null ? "—" : formatNumber(token);
+  return `вход ${value(attempt.input)} · выход ${value(attempt.output)} · всего ${value(attempt.total)}`;
+}
+
+function renderOpsmapModelChain(op) {
+  const attempts = opsModelAttempts(op);
+  const operationTotal = opsTokenNumber(op.tokens?.total);
+  const attemptTotal = attempts.reduce((sum, attempt) => sum + (attempt.total || 0), 0);
+  const hasActualAttempts = attempts.some((attempt) => attempt.tokenState === "actual" && attempt.total !== null);
+  const hasActualOperationTotal = op.tokens?.state === "actual" && operationTotal !== null;
+  const total = operationTotal && operationTotal > 0 ? operationTotal : attemptTotal;
+  const totalLabel = hasActualOperationTotal || hasActualAttempts
+    ? `${formatNumber(total || 0)} ток`
+    : (op.tokens?.state === "pending" ? "токены считаются…" : "токены н/д");
+  const attemptWord = attempts.length % 10 === 1 && attempts.length % 100 !== 11
+    ? "попытка"
+    : ([2, 3, 4].includes(attempts.length % 10) && ![12, 13, 14].includes(attempts.length % 100) ? "попытки" : "попыток");
+  return `<details class="opsmap-model-chain">
+    <summary><span>Модели и токены</span><strong>${attempts.length} ${attemptWord} · ${escapeHtml(totalLabel)}</strong></summary>
+    <ol>
+      ${attempts.map((attempt, index) => {
+        const state = opsModelAttemptState(attempt.status);
+        const previous = index ? attempts[index - 1] : null;
+        const handoffReason = attempt.fallbackReason || previous?.error || previous?.fallbackReason || "";
+        return `<li class="is-${escapeHtml(state)}">
+          ${index ? `<p class="opsmap-model-handoff"><span>Почему переключились</span>${escapeHtml(handoffReason || "Причина переключения не записана")}</p>` : ""}
+          <div class="opsmap-model-attempt-head"><span>${index + 1}</span><strong>${escapeHtml(opsModelName(attempt))}</strong><b>${escapeHtml(OPS_MODEL_ATTEMPT_STATUS[attempt.status] || attempt.status || "статус не записан")}</b></div>
+          <p class="opsmap-model-token-split">${escapeHtml(opsAttemptTokensLabel(attempt))}</p>
+          ${attempt.error ? `<p class="opsmap-model-error"><span>Почему не сработало</span>${escapeHtml(attempt.error)}</p>` : ""}
+        </li>`;
+      }).join("")}
+    </ol>
+    <p class="opsmap-model-proof">Здесь показаны технические попытки модели. Они не доказывают отправку сообщения или изменение заказа.</p>
+  </details>`;
+}
+
+function renderOpsmapLiveIdentity(op) {
+  const context = op.business_context || {};
+  const client = context.client || {};
+  const order = client.order_id ? `заказ ${client.order_id}` : "заказ не определён";
+  const event = opsEventLabel(context);
+  const goal = opsBusinessGoal(op);
+  const contact = context.conversation_available
+    ? opsClientLink({ ...context, operation_id: op.operation_id })
+    : `<strong>${escapeHtml(opsClientLabel(context))}</strong>`;
+  const conversationNote = context.conversation_available ? "" : '<small class="opsmap-live-no-conversation">переписка не записана</small>';
+  return `
+    <div class="opsmap-live-identity">
+      <div><span>Контакт</span>${contact}<small>Статус: ${escapeHtml(opsContactRoleLabel(client.role))}</small>${conversationNote}</div>
+      <div><span>Заказ / мероприятие</span><strong>${escapeHtml(`${order} · ${event}`)}</strong></div>
+    </div>
+    <p class="opsmap-live-action"><span>Зачем</span>${escapeHtml(goal)}</p>`;
+}
+
+function renderOpsmapBusinessContext(op, compact = false) {
+  const context = op.business_context || {};
+  const trigger = opsOperationTrigger(op);
+  const message = opsPlainText(context.message?.text);
+  const goal = opsBusinessGoal(op);
+  const goalRecord = op.business_goal || context.business_goal || {};
+  const goalInferred = Boolean(
+    goalRecord && typeof goalRecord === "object" && goalRecord.inferred === true
+  );
+  const agent = opsAgentLabel(op);
+  const action = opsHumanAction(op);
+  const effect = opsBusinessEffect(op);
+  const deliveryCode = String(context.planned_action?.delivery || op.business_effect?.delivery || "").toLowerCase();
+  const deliveryLabel = ({
+    not_sent: "не отправлено",
+    drafted: "создан черновик",
+    approval: "на согласовании",
+    sent: "отправлено, доставка не доказана",
+    delivered: "доставка подтверждена",
+    recorded: "изменение записано",
+  })[deliveryCode] || "внешний эффект не подтверждён";
+  const basis = context.decision_basis || [];
+  const changes = context.card_changes || [];
+  const triggerMeta = [
+    trigger.source ? `источник: ${trigger.source}` : "",
+    trigger.sourceEventId ? `событие: ${trigger.sourceEventId}` : "",
+    trigger.at ? `время: ${trigger.at}` : "",
+    trigger.inferred ? "причина восстановлена по ближайшему контексту" : "",
+  ].filter(Boolean).join(" · ");
+  const clientOrder = context.client?.order_id ? `заказ ${context.client.order_id}` : "заказ не записан";
+  const changeHtml = changes.length
+    ? `<div class="opsmap-card-changes">
+        <strong>Что изменилось в карточке</strong>
+        ${changes.map((change) => `<div class="opsmap-change-row"><span>${escapeHtml(change.label || change.field || "Поле")}</span><del>${escapeHtml(opsContextValue(change.before, "не было"))}</del><b>→</b><ins>${escapeHtml(opsContextValue(change.after, "очищено"))}</ins></div>`).join("")}
+      </div>`
+    : (op.result?.code === "card_refreshed" && !compact
+      ? '<p class="opsmap-change-empty">Для этой операции точный снимок «до» не записан. Ниже показан доступный текущий контекст карточки.</p>'
+      : "");
+  return `
+    <section class="opsmap-business-context ${compact ? "is-compact" : ""}">
+      <div class="opsmap-context-trigger">
+        <span>Что запустило процесс</span>
+        <strong>${escapeHtml(trigger.title)}</strong>
+        ${triggerMeta ? `<small>${escapeHtml(triggerMeta)}</small>` : ""}
+        ${trigger.detail ? `<p>${escapeHtml(trigger.detail)}</p>` : ""}
+      </div>
+      <div class="opsmap-context-grid">
+        <div><span>Контакт</span>${opsClientLink({ ...context, operation_id: op.operation_id })}<small>${escapeHtml(`${opsContactRoleLabel(context.client?.role)} · ${context.client?.channel || "канал не записан"}`)}</small></div>
+        <div><span>Заказ / мероприятие</span><strong>${escapeHtml(`${clientOrder} · ${opsEventLabel(context)}`)}</strong><small>${escapeHtml(context.event?.status || "статус не указан")}</small></div>
+      </div>
+      <div class="opsmap-context-message"><span>Сообщение / входные данные</span><blockquote>${escapeHtml(message || "Содержимое события не записано в журнале.")}</blockquote></div>
+      <div class="opsmap-context-story-grid">
+        <div class="opsmap-context-goal"><span>Зачем запущено</span><strong>${escapeHtml(goal)}</strong>${goalInferred ? "<small>Цель восстановлена по назначению процесса, а не записана в исходном событии.</small>" : ""}</div>
+        <div class="opsmap-context-agent"><span>Кто и что делал</span><strong>${escapeHtml(agent)}</strong><p>${escapeHtml(action)}</p></div>
+      </div>
+      <div class="opsmap-context-effect"><span>Бизнес-результат</span><strong>${escapeHtml(effect)}</strong><small>${escapeHtml(deliveryLabel)}</small></div>
+      ${!compact && basis.length ? `<div class="opsmap-context-basis"><span>Почему выбран этот шаг</span><ul>${basis.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
+      ${changeHtml}
+    </section>`;
+}
+
+function setOpsmapTechnicalVisible(visible) {
+  state.opsTechnicalVisible = Boolean(visible);
+  const panel = document.querySelector("#screen-opsmap .flow-map-panel");
+  const toggle = byId("opsmap-tech-toggle");
+  const title = byId("opsMapTitle");
+  if (panel) panel.classList.toggle("is-technical-view", state.opsTechnicalVisible);
+  if (toggle) {
+    toggle.setAttribute("aria-pressed", String(state.opsTechnicalVisible));
+    toggle.textContent = state.opsTechnicalVisible ? "Показать клиентскую цепочку" : "Показать карту процессов";
+  }
+  if (title && state.opsTechnicalVisible) title.textContent = "Карта процессов";
+  else if (title && !state.opsSelectedOperation) title.textContent = "Клиентские операции";
+  if (state.opsTechnicalVisible && state.opsMapSvg) {
+    window.requestAnimationFrame(() => state.opsMapSvg.showReadableStart());
+  }
+}
+
+function renderOpsmapHumanOverview() {
+  const host = byId("opsmap-human-journey");
+  const title = byId("opsMapTitle");
+  if (!host) return;
+  if (title) title.textContent = "Клиентские операции";
+  const steps = [
+    ["1", "Получен триггер", "Фиксируем источник, автора и конкретное событие запуска."],
+    ["2", "Карточка связана", "Связываем действие с отдельной карточкой заказа или события."],
+    ["3", "Собран контекст", "Поднимаем историю, договорённости и подтверждённые факты."],
+    ["4", "Определён следующий шаг", "Решаем: ответить, уточнить, поставить на согласование или остановить."],
+    ["5", "Подготовлен результат", "Модель создаёт классификацию, черновик или предложение действия."],
+    ["6", "Проверено", "Проверяем факты, адресата и ограничения до внешнего действия."],
+    ["7", "Подтверждён эффект", "Отдельно доказываем запись, отправку или доставку."],
+  ];
+  host.innerHTML = `
+    <div class="opsmap-human-intro">
+      <div><span class="opsmap-human-kicker">Путь одной операции</span><h3>Выберите операцию справа</h3><p>Карта покажет только те шаги, которые реально выполнились, и честно отделит результат модели от отправки или доставки.</p></div>
+      <span class="opsmap-human-readonly">read-only</span>
+    </div>
+    <ol class="opsmap-human-steps is-overview">
+      ${steps.map(([num, stepTitle, detail]) => `<li class="opsmap-human-step is-idle"><span class="opsmap-step-index">${num}</span><div><strong>${escapeHtml(stepTitle)}</strong><p>${escapeHtml(detail)}</p></div></li>`).join("")}
+    </ol>`;
+  setOpsmapTechnicalVisible(true);
+}
+
+function renderOpsmapOperationJourney(op) {
+  const host = byId("opsmap-human-journey");
+  const title = byId("opsMapTitle");
+  if (!host) return;
+  const action = opsHumanAction(op);
+  const headline = opsOperationHeadline(op);
+  const trigger = opsOperationTrigger(op);
+  const result = opsResultLabel(op);
+  const effectState = op.result?.effect_state || (op.status === "active" ? "working" : "proposal_ready");
+  const effectLabel = OPS_EFFECT_LABEL[effectState] || OPS_STATUS_LABEL[op.status] || effectState;
+  const recordedSteps = op.journey || [
+    { step_id: "work", state: op.status === "active" ? "active" : "done", title: action, detail: result },
+  ];
+  const steps = [
+    {
+      step_id: "trigger",
+      state: trigger.title === "Триггер не записан" || trigger.inferred ? "warning" : "done",
+      title: trigger.title,
+      detail: trigger.detail || (trigger.title === "Триггер не записан" ? "Источник запуска отсутствует в телеметрии." : "Источник запуска зафиксирован выше."),
+    },
+    ...recordedSteps.filter((step) => {
+      const stepId = String(step.step_id || "");
+      return stepId !== "trigger" && !stepId.startsWith("model_");
+    }),
+  ];
+  if (title) title.textContent = headline;
+  host.innerHTML = `
+    <div class="opsmap-result-hero is-${escapeHtml(effectState)}">
+      <div>
+        <span class="opsmap-human-kicker">${escapeHtml(opsSubjectLabel(op))}</span>
+        <h3>${escapeHtml(headline)}</h3>
+        <p>${escapeHtml(`${opsBusinessGoal(op)} · ${result}`)}</p>
+      </div>
+      <span class="opsmap-effect-pill">${escapeHtml(effectLabel)}</span>
+    </div>
+    ${renderOpsmapBusinessContext(op)}
+    <ol class="opsmap-human-steps">
+      ${steps.map((step, index) => `
+        <li class="opsmap-human-step is-${escapeHtml(step.state || "idle")}">
+          <span class="opsmap-step-index">${index + 1}</span>
+          <div><strong>${escapeHtml(step.title || "Шаг")}</strong><p>${escapeHtml(step.detail || "")}</p></div>
+        </li>`).join("")}
+    </ol>
+    ${renderOpsmapModelChain(op)}
+    <div class="opsmap-next-step"><span>Что дальше</span><strong>${escapeHtml(op.result?.next_step || "Проверить результат перед внешним действием.")}</strong></div>
+    <p class="opsmap-proof-note">${escapeHtml(op.proof_note || "AI-операция сама по себе не доказывает отправку или доставку.")}</p>`;
+  setOpsmapTechnicalVisible(false);
+}
+
+function renderOpsmapTelegramMonitor() {
+  const host = byId("opsmap-telegram-monitor");
+  if (!host) return;
+  const runtime = state.runtimeStatus;
+  if (!runtime?.readiness) {
+    host.className = "opsmap-tg-monitor is-unknown";
+    host.innerHTML = '<strong>Telegram-посты</strong><span>Recovery ledger пока не загружен.</span>';
+    return;
+  }
+  const readiness = runtime.readiness || {};
+  const catchup = readiness.catchup || {};
+  const counters = readiness.counters || {};
+  const completed = Number(catchup.sources_completed || 0);
+  const total = Number(catchup.sources_total || 0);
+  const processingResidual = Number(catchup.processing_residual || 0);
+  const readResidual = Number(catchup.ack_residual || 0);
+  const posts = Number(counters.posts_processed_24h || 0);
+  const recovered = Number(counters.recovery_unread_processed || 0);
+  const pendingSources = Array.isArray(catchup.pending_sources) ? catchup.pending_sources : [];
+  const catchupActive = total > 0 && (completed < total || processingResidual > 0 || readResidual > 0);
+  const mode = catchupActive ? "realtime + догон" : "realtime";
+  const windowMark = readiness.complete_window ? "" : "*";
+  const modeDetail = catchupActive
+    ? "Новые посты принимает Telegram NewMessage. Recovery отдельно идёт от старых к новым до зафиксированного target каждого event-чата."
+    : "Новые посты принимает Telegram NewMessage; завершённые источники остаются под cursor-контролем.";
+  const pendingHtml = pendingSources.length
+    ? `<details class="opsmap-tg-pending"><summary>Не завершены: ${pendingSources.length}</summary><p>${pendingSources.map(escapeHtml).join(" · ")}</p></details>`
+    : '<p class="opsmap-tg-complete">Все обязательные event-чаты завершили текущий recovery-cycle.</p>';
+  host.className = `opsmap-tg-monitor ${catchupActive ? "is-catching-up" : "is-realtime"}`;
+  host.innerHTML = `
+    <div class="opsmap-tg-head">
+      <div><span>Telegram · посты</span><strong>Монитор event-чатов</strong></div>
+      <b>${escapeHtml(mode)}</b>
+    </div>
+    <p class="opsmap-tg-method"><span>Как смотрит</span>${escapeHtml(modeDetail)}</p>
+    <div class="opsmap-tg-stats">
+      <div><span>Источники</span><strong>${formatNumber(completed)} / ${formatNumber(total)}</strong></div>
+      <div><span>Обработано · 24ч</span><strong>${formatNumber(posts)}${windowMark}</strong></div>
+      <div><span>После восстановления</span><strong>${formatNumber(recovered)}</strong></div>
+    </div>
+    <div class="opsmap-tg-residuals">
+      <span>Ждут обработки: <strong>${formatNumber(processingResidual)}</strong></span>
+      <span>Ждут read-ack: <strong>${formatNumber(readResidual)}</strong></span>
+    </div>
+    ${pendingHtml}
+    <p class="opsmap-tg-proof">Увиден ≠ обработан ≠ прочитан. Питч считается доставленным только по provider delivery receipt.</p>`;
+}
+
+async function refreshOpsmapTelegramMonitor(force = false) {
+  const now = Date.now();
+  if (state.opsTelegramLoading) return;
+  if (!force && state.runtimeStatus && now - state.runtimeStatusRefreshedAt < 20000) {
+    renderOpsmapTelegramMonitor();
+    return;
+  }
+  state.opsTelegramLoading = true;
+  try {
+    state.runtimeStatus = await apiGet(API.runtimeStatus);
+    state.runtimeStatusRefreshedAt = Date.now();
+    renderRuntimeStatus();
+  } catch (_error) {
+    renderOpsmapTelegramMonitor();
+  } finally {
+    state.opsTelegramLoading = false;
+  }
+}
+
+function renderOpsmapLiveOps() {
+  const list = byId("opsmap-live-list");
+  const statusEl = byId("opsmap-live-status");
+  if (!list) return;
+  const data = state.opsLiveOps;
+  if (!data) {
+    list.innerHTML = '<div class="opsmap-live-empty">Загрузка операций…</div>';
+    if (statusEl) statusEl.textContent = "";
+    return;
+  }
+  const selectedId = state.opsSelectedOperation?.operation_id;
+  const allOps = (data.operations || []).slice(0, 200);
+  const ops = allOps.filter(opsIsActionableOperation).sort((left, right) => {
+    const selectedRank = Number(right.operation_id === selectedId) - Number(left.operation_id === selectedId);
+    if (selectedRank) return selectedRank;
+    return Number(right.status === "active") - Number(left.status === "active");
+  });
+  const serverBlocked = Number(
+    data.watermarks?.timeline?.blocked_without_context
+    || data.watermarks?.timeline?.blocked_without_business_context
+    || data.blocked_without_context_count
+    || 0
+  );
+  const excludedAuditRows = allOps.length - ops.length;
+  const classifications = Number(data.watermarks?.timeline?.classification_count || 0);
+  const classificationLabel = classifications ? ` · классификаций отдельно: ${classifications}` : "";
+  const blockedLabel = serverBlocked ? ` · до AI заблокировано без контакта/мероприятия: ${serverBlocked}` : "";
+  const excludedLabel = excludedAuditRows ? ` · скрыто непривязанных записей аудита: ${excludedAuditRows}` : "";
+  if (!ops.length) {
+    list.innerHTML = '<div class="opsmap-live-empty"><strong>Нет рабочих операций с подтверждённым контактом и мероприятием</strong><span>Непривязанные записи исключены из рабочего списка; их прошлые расходы, если они были, остаются в аудите.</span></div>';
+    if (statusEl) statusEl.textContent = `0 рабочих операций${blockedLabel}${excludedLabel}${classificationLabel} · окно ${data.watermarks?.timeline?.window_s || "—"}с`;
+    return;
+  }
+  if (statusEl) statusEl.textContent = `${ops.length} рабочих операций${blockedLabel}${excludedLabel}${classificationLabel} · окно ${data.watermarks?.timeline?.window_s || "—"}с`;
+  list.innerHTML = ops.map((op) => {
+    const status = OPS_STATUS_LABEL[op.status] || op.status;
+    const lead = OPS_LEAD_LABEL[op.lead?.state] || OPS_LEAD_LABEL.unlinked;
+    const leadHelp = opsLeadHelp(op);
+    const selected = state.opsSelectedOperation?.operation_id === op.operation_id;
+    const when = op.started_at ? flowFormatTime(op.started_at) : "—";
+    const headline = opsOperationHeadline(op);
+    const result = opsResultLabel(op);
+    const effectState = op.result?.effect_state || (op.status === "active" ? "working" : "proposal_ready");
+    return `
+      <article class="opsmap-live-card ${selected ? "is-active" : ""} is-effect-${escapeHtml(effectState)}" tabindex="0" role="button" data-op-id="${escapeHtml(op.operation_id)}" aria-label="${escapeHtml(`${headline}. ${result}`)}">
+        <div class="opsmap-live-top">
+          <span class="opsmap-live-status-pill">${escapeHtml(status)}</span>
+          <span class="opsmap-live-when">${escapeHtml(when)}</span>
+        </div>
+        <h3>${escapeHtml(headline)}</h3>
+        ${renderOpsmapLiveIdentity(op)}
+        <div class="opsmap-live-model"><span>Модель</span><strong>${escapeHtml(opsPrimaryModelLabel(op))}</strong><b>${escapeHtml(formatOpsTokens(op.tokens))}</b></div>
+        <div class="opsmap-live-chips">
+          <span class="opsmap-live-effect is-${escapeHtml(effectState)}">${escapeHtml(OPS_EFFECT_LABEL[effectState] || status)}</span>
+          <span class="opsmap-live-lead ${lead.className}">${escapeHtml(lead.text)}${op.lead?.state === "ambiguous" ? ` · ${op.lead.candidate_refs.length}` : ""}</span>
+          <span class="opsmap-live-help" tabindex="0" role="img" aria-label="${escapeHtml(leadHelp)}" data-tooltip="${escapeHtml(leadHelp)}">?</span>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+async function refreshOpsmapLiveOps(force = false) {
+  const now = Date.now();
+  if (state.opsLiveOpsLoading) return;
+  if (!force && state.opsLiveOpsRefreshedAt && now - state.opsLiveOpsRefreshedAt < 3000) return;
+  state.opsLiveOpsLoading = true;
+  const statusEl = byId("opsmap-live-status");
+  if (statusEl) statusEl.textContent = "Обновление…";
+  try {
+    const params = new URLSearchParams({ window_s: "3000", limit: "200", actionable_only: "1" });
+    const envelope = await apiGet(`${window.API_OPSMAP_LIVE_OPS || "/api/opsmap/live-operations"}?${params.toString()}`);
+    state.opsLiveOps = envelope.data || {};
+    state.opsLiveOpsRefreshedAt = Date.now();
+    renderOpsmapLiveOps();
+    const operations = opsActionableOperations(state.opsLiveOps);
+    const selected = operations.find((item) => item.operation_id === state.opsSelectedOperation?.operation_id);
+    if (selected) {
+      state.opsSelectedOperation = selected;
+      renderOpsmapOperationJourney(selected);
+    } else {
+      const live = operations.find((item) => item.status === "active") || operations[0];
+      if (live) {
+        await selectLiveOperation(live);
+      } else if (state.opsSelectedOperation) {
+        clearLiveTrace();
+      } else {
+        renderOpsmapHumanOverview();
+      }
+    }
+  } catch (error) {
+    if (statusEl) statusEl.textContent = `live-ops недоступны: ${escapeHtml(error.message)}`;
+  } finally {
+    state.opsLiveOpsLoading = false;
+  }
+}
+
+function startOpsmapLivePolling() {
+  stopOpsmapLivePolling();
+  refreshOpsmapLiveOps(true);
+  refreshOpsmapTelegramMonitor(true);
+  state.opsLiveOpsInterval = window.setInterval(() => {
+    if (state.activeView === "opsmap") {
+      refreshOpsmapLiveOps();
+      refreshOpsmapTelegramMonitor();
+    }
+  }, 4000);
+}
+
+function stopOpsmapLivePolling() {
+  if (state.opsLiveOpsInterval) {
+    window.clearInterval(state.opsLiveOpsInterval);
+    state.opsLiveOpsInterval = null;
+  }
+}
+
+async function selectLiveOperation(op) {
+  if (!opsIsActionableOperation(op)) return;
+  state.opsSelectedOperation = op;
+  renderOpsmapLiveOps();
+  renderOpsmapOperationJourney(op);
+  const header = byId("opsmap-trace-header");
+  const title = byId("opsmap-trace-title");
+  if (op.process_node_id && state.opsMapSvg) {
+    state.opsMapSvg.activeNodeId = op.process_node_id;
+    state.opsMapSvg.focusNode(op.process_node_id);
+    state.opsMapSvg.render();
+  }
+  if (op.lead?.state === "exact" && op.lead.trace_ref) {
+    state.opsTraceRef = op.lead.trace_ref;
+    if (header) header.hidden = false;
+    if (title) title.innerHTML = `<strong>${escapeHtml(opsOperationHeadline(op))}</strong><span> · ${escapeHtml(op.lead.trace_ref)} · ${escapeHtml(formatOpsTokens(op.tokens))}</span>`;
+    try {
+      await state.opsMapSvg.loadTrace(op.lead.trace_ref);
+    } catch (err) {
+      if (title) title.innerHTML += ` <span class="flow-warning">трасса не загружена: ${escapeHtml(err.message)}</span>`;
+    }
+  } else {
+    state.opsTraceRef = null;
+    if (state.opsMapSvg) state.opsMapSvg.clearTrace();
+    if (header) header.hidden = false;
+    const reason = op.lead?.state === "ambiguous"
+      ? "нужно выбрать конкретную карточку"
+      : "связь с карточкой пока не доказана";
+    if (title) title.innerHTML = `<strong>${escapeHtml(opsOperationHeadline(op))}</strong><span> · ${escapeHtml(reason)}</span>`;
+  }
+}
+
+function clearLiveTrace() {
+  state.opsSelectedOperation = null;
+  state.opsTraceRef = null;
+  if (state.opsMapSvg) {
+    state.opsMapSvg.activeNodeId = null;
+    state.opsMapSvg.clearTrace();
+  }
+  const header = byId("opsmap-trace-header");
+  if (header) header.hidden = true;
+  renderOpsmapHumanOverview();
+  setOpsmapTechnicalVisible(true);
+  renderOpsmapLiveOps();
+}
+
+async function refreshOpsmap(force = false) {
+  const now = Date.now();
+  if (state.opsLoading) return;
+  if (!force && state.opsRefreshedAt && now - state.opsRefreshedAt < 60000) return;
+  state.opsLoading = true;
+  byId("opsFreshness").textContent = "Обновление…";
+  const params = new URLSearchParams({ contour: state.opsContour, period_days: String(state.opsPeriod) });
+  try {
+    state.opsmap = await apiGet(`${API.opsmap}?${params.toString()}`);
+    state.opsDisabled = false;
+    state.opsRefreshedAt = Date.now();
+    state.opsSelected = null;
+    renderOpsmap();
+  } catch (error) {
+    if (error.status === 404) {
+      state.opsmap = null;
+      renderOpsmapDisabled("LCB_OPSMAP_ENABLED не установлен; endpoint отвечает 404 по дизайну.");
+    } else {
+      byId("opsFreshness").textContent = "OpsMap недоступна";
+      byId("opsMapCanvas").innerHTML = `<div class="flow-error"><strong>Не удалось собрать OpsMap</strong><span>${escapeHtml(error.message)}</span></div>`;
+    }
+  } finally {
+    state.opsLoading = false;
+  }
+}
+
+async function opsRevealPii(nodeId) {
+  let token = window.sessionStorage.getItem("opsmapAdminToken") || "";
+  if (!token) {
+    token = window.prompt("X-Admin-Token (раскрытие PII пишется в audit):", "");
+    if (!token) return;
+    window.sessionStorage.setItem("opsmapAdminToken", token);
+  }
+  const target = byId("opsRevealed");
+  if (target) target.textContent = "Запрос раскрытия…";
+  try {
+    const response = await fetch(API.opsmapReveal, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json", "X-Admin-Token": token },
+      body: JSON.stringify({ node_id: nodeId }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 403) window.sessionStorage.removeItem("opsmapAdminToken");
+      throw new Error(payload.error || `HTTP ${response.status}`);
+    }
+    const node = payload.node || {};
+    const facts = Object.entries(node.facts || {})
+      .map(([key, value]) => `<div class="ops-fact"><span>${escapeHtml(key)}</span><code>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : String(value))}</code></div>`)
+      .join("");
+    if (target) {
+      target.innerHTML = `<div class="ops-revealed-box"><h3>PII раскрыта · записано в audit</h3>
+        <div class="ops-fact"><span>label</span><code>${escapeHtml(node.label || "")}</code></div>${facts}</div>`;
+    }
+  } catch (error) {
+    if (target) target.innerHTML = `<div class="flow-warning"><b>!</b><span>Раскрытие не выполнено: ${escapeHtml(error.message)}</span></div>`;
+  }
+}
+
 function changePromoFilters(changes) {
   Object.assign(state.promoFilters, changes, { page: changes.page || 1 });
   state.promoRefreshedAt = 0;
@@ -3596,19 +4972,25 @@ async function refreshAll(force = false) {
   byId("refreshButton").disabled = true;
   setConnection("loading", "Обновление");
   try {
-    const results = await Promise.allSettled([
+    // Sequential groups to avoid overwhelming the single-threaded Flask dev server
+    // and to prevent net::ERR_EMPTY_RESPONSE on high parallelism.
+    const [healthResult, autonomyResult, summaryResult, runtimeStatusResult] = await Promise.allSettled([
       apiGet(API.health),
       apiGet(API.autonomy),
       apiGet(API.summary),
       apiGet(`${API.runtimeStatus}${force ? "?force=1" : ""}`),
+    ]);
+    const [feesResult, costumesResult, threadsResult] = await Promise.allSettled([
       apiGet(API.fees),
       apiGet(API.costumes),
       apiGet(`${API.threads}?limit=200`),
+    ]);
+    const [coordinationResult, workResult, operationsResult] = await Promise.allSettled([
       apiGet(API.coordinationCases),
       apiGet(API.work),
       apiGet(API.operations),
     ]);
-    const [healthResult, autonomyResult, summaryResult, runtimeStatusResult, feesResult, costumesResult, threadsResult, coordinationResult, workResult, operationsResult] = results;
+    const results = [healthResult, autonomyResult, summaryResult, runtimeStatusResult, feesResult, costumesResult, threadsResult, coordinationResult, workResult, operationsResult];
     if (healthResult.status !== "fulfilled" || threadsResult.status !== "fulfilled") {
       const failure = healthResult.status === "rejected" ? healthResult.reason : threadsResult.reason;
       throw failure instanceof Error ? failure : new Error(String(failure || "Core read failed"));
@@ -3616,7 +4998,10 @@ async function refreshAll(force = false) {
     const health = healthResult.value;
     const threadsPayload = threadsResult.value;
     state.health = health;
-    if (runtimeStatusResult.status === "fulfilled") state.runtimeStatus = runtimeStatusResult.value;
+    if (runtimeStatusResult.status === "fulfilled") {
+      state.runtimeStatus = runtimeStatusResult.value;
+      state.runtimeStatusRefreshedAt = Date.now();
+    }
     if (autonomyResult.status === "fulfilled") state.autonomy = autonomyResult.value;
     if (summaryResult.status === "fulfilled") state.summary = summaryResult.value;
     if (feesResult.status === "fulfilled") state.fees = feesResult.value;
@@ -3655,7 +5040,7 @@ async function refreshAll(force = false) {
       health.ok ? "ok" : "error",
       health.ok ? (partial ? "Core доступен · часть данных" : "Core доступен") : "Core неполон",
     );
-    if (state.selectedEventId) openEvent(state.selectedEventId, false);
+    if (state.selectedEventId) await openEvent(state.selectedEventId, false);
   } catch (error) {
     setConnection("error", "Core недоступен");
     setRuntimeChip("runtimeProcesses", "unknown", "Core недоступен — статус процессов не обновлён");
@@ -3671,7 +5056,10 @@ async function refreshAll(force = false) {
 
 function bindEvents() {
   document.querySelectorAll(".tab-button").forEach((button) => {
-    button.addEventListener("click", () => { location.hash = button.dataset.view; });
+    button.addEventListener("click", () => {
+      if (Date.now() < navSuppressClickUntil) return;
+      location.hash = button.dataset.view;
+    });
   });
   document.querySelectorAll("[data-chat-folder]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -3775,8 +5163,92 @@ function bindEvents() {
     }, 140);
   });
   byId("flowReload").addEventListener("click", () => refreshFlow(true));
-  byId("flowMapCanvas").addEventListener("click", (event) => {
-    const node = event.target.closest("[data-flow-node]");
+  byId("opsContour").addEventListener("change", (event) => {
+    state.opsContour = event.target.value || "all";
+    state.opsRefreshedAt = 0;
+    refreshOpsmap(true);
+  });
+  byId("opsPeriod").addEventListener("change", (event) => {
+    state.opsPeriod = Number(event.target.value || 90);
+    state.opsRefreshedAt = 0;
+    refreshOpsmap(true);
+  });
+  byId("opsEvidence").addEventListener("change", async (event) => {
+    state.opsEvidence = event.target.value;
+    state.opsSelected = null;
+    await renderOpsmap();
+  });
+  byId("opsStopped").addEventListener("change", async (event) => {
+    state.opsStopped = event.target.value;
+    state.opsSelected = null;
+    await renderOpsmap();
+  });
+  byId("opsDepth").addEventListener("change", async (event) => {
+    state.opsDepth = event.target.value || "node";
+    state.opsSelected = null;
+    await renderOpsmapMap();
+  });
+  byId("opsMode").addEventListener("change", async (event) => {
+    state.opsMode = event.target.value || "all";
+    state.opsSelected = null;
+    await renderOpsmapMap();
+  });
+  let opsSearchTimer;
+  byId("opsSearch").addEventListener("input", (event) => {
+    window.clearTimeout(opsSearchTimer);
+    opsSearchTimer = window.setTimeout(async () => {
+      state.opsQuery = event.target.value.trim();
+      state.opsSelected = null;
+      await renderOpsmapMap();
+    }, 140);
+  });
+  byId("opsReload").addEventListener("click", () => {
+    refreshOpsmap(true);
+    refreshOpsmapLiveOps(true);
+  });
+  byId("opsmap-live-list").addEventListener("click", async (event) => {
+    const contact = event.target.closest("[data-opsmap-operation-id]");
+    if (contact) {
+      event.stopPropagation();
+      await openOpsmapConversation(contact.dataset.opsmapOperationId);
+      return;
+    }
+    const card = event.target.closest("[data-op-id]");
+    if (!card) return;
+    const opId = card.dataset.opId;
+    const op = (state.opsLiveOps?.operations || []).find((item) => item.operation_id === opId);
+    if (op) await selectLiveOperation(op);
+  });
+  byId("opsmap-human-journey").addEventListener("click", async (event) => {
+    const contact = event.target.closest("[data-opsmap-operation-id]");
+    if (!contact) return;
+    await openOpsmapConversation(contact.dataset.opsmapOperationId);
+  });
+  byId("opsmap-live-list").addEventListener("keydown", async (event) => {
+    if (!['Enter', ' '].includes(event.key)) return;
+    const card = event.target.closest("[data-op-id]");
+    if (!card) return;
+    event.preventDefault();
+    const op = (state.opsLiveOps?.operations || []).find((item) => item.operation_id === card.dataset.opId);
+    if (op) await selectLiveOperation(op);
+  });
+  byId("opsmap-tech-toggle").addEventListener("click", () => {
+    setOpsmapTechnicalVisible(!state.opsTechnicalVisible);
+  });
+  byId("opsmap-trace-close").addEventListener("click", clearLiveTrace);
+  document.addEventListener("keydown", async (ev) => {
+    if (ev.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes(ev.target.tagName)) {
+      ev.preventDefault();
+      const input = byId("opsmap-lead-q");
+      if (input && state.opsMapSvg) {
+        byId("opsMode").value = "lead";
+        state.opsMode = "lead";
+        await renderOpsmapMap();
+        input.focus();
+      }
+    }
+  });
+  byId("flowMapCanvas").addEventListener("click", (event) => {    const node = event.target.closest("[data-flow-node]");
     if (node) {
       state.flowSelected = { kind: "node", key: node.dataset.flowNode };
       renderFlow();
@@ -3796,6 +5268,15 @@ function bindEvents() {
     renderFlowDetail();
   });
   byId("sessionsProjectFilter").addEventListener("change", refreshSessions);
+  byId("arbitrFilters").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-arbitr-group]");
+    if (!button) return;
+    arbitrContactGroup = button.dataset.arbitrGroup || "clients";
+    byId("arbitrFilters").querySelectorAll("[data-arbitr-group]").forEach((item) => {
+      item.classList.toggle("is-selected", item === button);
+    });
+    renderArbitr();
+  });
   byId("eventBack").addEventListener("click", closeEvent);
   byId("chatBack").addEventListener("click", () => {
     byId("conversation").classList.remove("is-open");
@@ -3913,6 +5394,7 @@ function bindEvents() {
 
 const savedTheme = localStorage.getItem("lcb_core_theme");
 if (savedTheme === "dark" || savedTheme === "light") document.documentElement.dataset.theme = savedTheme;
+initNavLayout();
 bindEvents();
 route();
 refreshAll();
@@ -3940,18 +5422,64 @@ window.setInterval(syncActiveThread, 5000);
    журнал вердиктов остаются у legacy-владельца — бэкенд проксирует
    /api/arbitr/* на 8878 (тот же паттерн, что «Токены»). */
 
+/* Словари ниже переводят машинные коды в живые фразы. 25.08 (Михаил): карточка
+   из голых кодов («blocker», «уже материализовано», кресты осей) нечитаема —
+   решение принять невозможно. Каждый код обязан иметь фразу-объяснение;
+   новый код без перевода покажется как есть — это сигнал дополнить словарь. */
 const ARBITR_DECISION_RU = {
-  blocked: "заблокировано",
-  no_business_intent: "не бизнес-запрос",
-  already_materialized: "уже материализовано",
-  propose_create_opportunity: "создать сделку",
-  propose_draft: "черновик ответа",
-  hold: "пауза",
-  noop: "без действия",
+  blocked: "остановился — нужен человек",
+  no_business_intent: "не видит бизнес-запроса",
+  already_materialized: "запрос уже оформлен раньше",
+  propose_create_opportunity: "предлагает завести сделку",
+  propose_draft: "предлагает черновик ответа",
+  hold: "отложил и ждёт",
+  noop: "решил ничего не делать",
+};
+const ARBITR_DECISION_EXPLAIN_RU = {
+  blocked: "дальше сам не идёт: по его правилам здесь требуется решение оператора",
+  no_business_intent: "считает, что это не запрос на выступление/услугу, поэтому никаких действий не планирует",
+  already_materialized: "считает, что по этому запросу карточка/сделка уже создана раньше, повторного действия не нужно",
+  propose_create_opportunity: "видит новый бизнес-запрос и завёл бы карточку сделки",
+  propose_draft: "подготовил бы ответ клиенту (без отправки)",
+  hold: "сознательно ждёт (условие/срок), вернётся позже",
+  noop: "прочитал и решил, что отвечать/заводить ничего не нужно",
+};
+const ARBITR_INTENT_RU = {
+  event_inquiry: "запрос на мероприятие",
+  small_talk: "просто разговор",
+  price_request: "вопрос цены",
+  no_business_intent: "без бизнес-запроса",
+  vendor_coordination: "координация с подрядчиком",
+  booking_request: "бронирование",
+  team_coordination: "координация команды",
+  payment_coordination: "про оплату",
+  technical_coordination: "техвопросы/райдер",
+  contract_coordination: "про договор",
+};
+const ARBITR_REL_RU = {
+  client_organizer: "клиент-организатор",
+  client_private: "частный клиент",
+  client_agency: "агентство",
+  vendor_performer: "исполнитель/подрядчик",
+  lcb_team_member: "участник команды",
+  venue_rep: "представитель площадки",
+  personal: "личный контакт",
+  unknown_review: "роль не определена",
+};
+const ARBITR_BLOCKER_RU = {
+  role_resolution_required: "не смог определить роль контакта — нужен человек",
+  non_commercial_relationship: "контакт не коммерческий — правила запрещают автодействия",
+  commercial_identity_missing: "не нашёл, к какому клиенту/сделке привязать",
+  legacy_transient_result: "старый пайплайн дал временный сбой, результата нет",
+};
+const ARBITR_CLASSIFICATION_RU = {
+  blocker: "критичное расхождение",
+  mismatch: "расхождение",
+  match: "совпадение",
 };
 const ARBITR_AXES_RU = {
-  relationship: "отношения", intent: "намерение", action: "действие",
-  subject: "субъект", money_contract: "деньги", external_effect: "внеш. эффект",
+  relationship: "кто этот контакт", intent: "чего он хочет", action: "что делать",
+  subject: "о чём речь", money_contract: "деньги/договор", external_effect: "внешний эффект",
 };
 const ARBITR_VERDICTS = [
   ["old", "Старый прав"],
@@ -3959,6 +5487,14 @@ const ARBITR_VERDICTS = [
   ["both_ok", "Оба ок"],
   ["both_bad", "Оба плохо"],
 ];
+const ARBITR_VERDICT_RU = {
+  old: "старый прав", core: "Core прав", both_ok: "оба ок", both_bad: "оба плохо",
+};
+const ARBITR_GROUPS_RU = {
+  clients: "Клиенты", musicians: "Музыканты", contractors: "Подрядчики",
+  team: "Команда", personal: "Личное", unknown: "Не определено", all: "Все",
+};
+let arbitrContactGroup = "clients";
 
 function arbitrWhen(epoch) {
   if (!epoch) return "—";
@@ -3972,12 +5508,19 @@ function arbitrWhen(epoch) {
 
 function arbitrEngineHtml(decision, label, pillClass) {
   const d = decision || {};
-  const meta = [d.intent_kind, d.relationship].filter(Boolean).join(" · ");
+  const who = ARBITR_REL_RU[d.relationship] || d.relationship;
+  const what = ARBITR_INTENT_RU[d.intent_kind] || d.intent_kind;
+  const reading = [who && `это ${who}`, what && `тема: ${what}`].filter(Boolean).join(", ");
+  const explain = ARBITR_DECISION_EXPLAIN_RU[d.decision] || "";
+  const blockerText = d.blocker
+    ? (ARBITR_BLOCKER_RU[d.blocker] || String(d.blocker))
+    : "";
   return `<div class="arbitr-engine">
     <div class="arbitr-engine-head"><span class="pill ${pillClass}">${escapeHtml(label)}</span>
-      <strong>${escapeHtml(ARBITR_DECISION_RU[d.decision] || d.decision || "—")}</strong></div>
-    ${meta ? `<div class="mtext">${escapeHtml(meta)}</div>` : ""}
-    ${d.blocker ? `<div class="arbitr-blocker"><span class="pill danger">${escapeHtml(String(d.blocker).slice(0, 60))}</span></div>` : ""}
+      <strong>${escapeHtml(ARBITR_DECISION_RU[d.decision] || d.decision || "решение не получено")}</strong></div>
+    ${reading ? `<div class="mtext">Как понял сообщение: ${escapeHtml(reading)}</div>` : ""}
+    ${explain ? `<div class="mtext arbitr-explain">${escapeHtml(explain)}</div>` : ""}
+    ${blockerText ? `<div class="arbitr-blocker mtext">⛔ ${escapeHtml(blockerText)}</div>` : ""}
   </div>`;
 }
 
@@ -3985,22 +5528,40 @@ function arbitrCardHtml(card) {
   const classPill = card.classification === "blocker" ? "danger"
     : card.classification === "mismatch" ? "hold" : "ok";
   const body = String((card.message || {}).body || "").replace(/\s+/g, " ").trim();
-  const axes = Object.entries(card.axes || {}).map(([axis, ok]) =>
-    `<span class="pill ${ok ? "ok" : "danger"}">${ok ? "✓" : "✗"} ${escapeHtml(ARBITR_AXES_RU[axis] || axis)}</span>`).join(" ");
+  const disagreed = Object.entries(card.axes || {})
+    .filter(([, ok]) => !ok)
+    .map(([axis]) => ARBITR_AXES_RU[axis] || axis);
+  const axes = disagreed.length
+    ? `Версии разошлись в: <strong>${disagreed.map(escapeHtml).join(", ")}</strong>`
+    : "По всем осям сравнения версии совпали";
   const actions = card.verdict
-    ? `<p class="mtext">Вердикт: ${escapeHtml(card.verdict)}</p>`
-    : `<div class="arbitr-actions">${ARBITR_VERDICTS.map(([value, label]) =>
+    ? `<p class="mtext">Твой вердикт: ${escapeHtml(ARBITR_VERDICT_RU[card.verdict] || card.verdict)}</p>`
+    : `<div class="arbitr-actions"><span class="mtext">Кто оценил ситуацию верно?</span>${ARBITR_VERDICTS.map(([value, label]) =>
         `<button class="text-button" type="button" data-verdict="${value}">${label}</button>`).join("")}</div>`;
   return `<section class="band-section arbitr-card" data-comparison="${escapeHtml(card.comparison_id)}">
-    <div class="section-head"><span class="pill ${classPill}">${escapeHtml(card.classification || "?")}</span>
-      <span class="arbitr-when">${arbitrWhen(card.compared_at_epoch)}</span></div>
-    <p class="arbitr-msg">${escapeHtml(body.slice(0, 240) || "входящее без текста")}</p>
+    <div class="section-head"><span class="pill ${classPill}">${escapeHtml(ARBITR_CLASSIFICATION_RU[card.classification] || card.classification || "?")}</span>
+      <span class="arbitr-when">входящее от ${arbitrWhen((card.message || {}).at_epoch || card.compared_at_epoch)}</span></div>
+    <p class="arbitr-msg">Клиентское сообщение: «${escapeHtml(body.slice(0, 240) || "текст недоступен — см. контекст диалога выше")}»</p>
     <div class="arbitr-engines">
-      ${arbitrEngineHtml(card.legacy, "старый", "technical")}
-      ${arbitrEngineHtml(card.core, "Core", "ok")}
+      ${arbitrEngineHtml(card.legacy, "Старый (v1)", "technical")}
+      ${arbitrEngineHtml(card.core, "Core (v2)", "ok")}
     </div>
-    <div class="arbitr-axes">${axes}</div>
+    <div class="arbitr-axes mtext">${axes}</div>
     ${actions}
+  </section>`;
+}
+
+function arbitrThreadHtml(thread) {
+  const history = (thread.history || []).map((message) => {
+    const direction = message.direction === "outbound" ? "Исходящее" : "Входящее";
+    const body = String(message.body || "").replace(/\s+/g, " ").trim() || "[медиа без текста]";
+    return `<p class="arbitr-history-message is-${escapeHtml(message.direction || "inbound")}"><b>${direction}</b> · ${escapeHtml(body)}</p>`;
+  }).join("") || '<p class="mtext">История сообщения недоступна.</p>';
+  return `<section class="arbitr-thread" data-arbitr-thread="${escapeHtml(thread.thread_id)}">
+    <div class="arbitr-thread-head"><div><span class="pill technical">${escapeHtml(ARBITR_GROUPS_RU[thread.contact_group] || thread.contact_group || "Контакт")}</span>
+      <h2>${escapeHtml(thread.contact_name || "Контакт")}</h2></div><span class="mtext">${(thread.cards || []).length} сравн.</span></div>
+    <details class="arbitr-history" open><summary>Контекст диалога · последние ${Math.min((thread.history || []).length, 12)} сообщений</summary>${history}</details>
+    <div class="arbitr-thread-cards">${(thread.cards || []).map(arbitrCardHtml).join("")}</div>
   </section>`;
 }
 
@@ -4026,26 +5587,26 @@ async function renderArbitr() {
   cardsBox.innerHTML = '<div class="empty-state">Загрузка…</div>';
   let queue;
   try {
-    queue = await apiGet("/api/arbitr/queue?limit=20");
+    queue = await apiGet(`/api/arbitr/queue?limit=20&contact_group=${encodeURIComponent(arbitrContactGroup)}`);
   } catch (error) {
     cardsBox.innerHTML = `<div class="empty-state"><strong>Очередь недоступна</strong>${escapeHtml(String(error.message || error))}</div>`;
     return;
   }
-  const cards = queue.cards || [];
-  if (!cards.length) {
+  const threads = queue.threads || [];
+  if (!threads.length) {
     // Пустой экран обязан объяснять причину живыми числами из диагностики,
     // а не догадкой (прецедент 25.07 в первой версии экрана).
     const dg = queue.diagnostics || {};
     const why = dg.blockers && Object.keys(dg.blockers).length
       ? Object.entries(dg.blockers).map(([reason, count]) => `${reason}: ${count}`).join(" · ")
       : "причина не определена";
-    cardsBox.innerHTML = `<div class="empty-state"><strong>Сравнений в очереди нет</strong>
+    cardsBox.innerHTML = `<div class="empty-state"><strong>Сравнений для «${escapeHtml(ARBITR_GROUPS_RU[arbitrContactGroup] || arbitrContactGroup)}» в очереди нет</strong>
       Что мешает сейчас: ${escapeHtml(why)}.<br>
       Разобрано ядром ${dg.interpreted ?? "?"} · результат старого есть у ${dg.with_legacy_result ?? "?"} ·
       пересечение ${dg.ready ?? "?"} из ${dg.inbound ?? "?"} входящих.</div>`;
     return;
   }
-  cardsBox.innerHTML = cards.map(arbitrCardHtml).join("");
+  cardsBox.innerHTML = threads.map(arbitrThreadHtml).join("");
   cardsBox.querySelectorAll("[data-comparison]").forEach((card) => {
     card.querySelectorAll("button[data-verdict]").forEach((button) => {
       button.addEventListener("click", () =>
