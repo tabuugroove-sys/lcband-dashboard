@@ -5538,8 +5538,13 @@ function arbitrCardHtml(card) {
     ? `<p class="mtext">Твой вердикт: ${escapeHtml(ARBITR_VERDICT_RU[card.verdict] || card.verdict)}</p>`
     : `<div class="arbitr-actions"><span class="mtext">Кто оценил ситуацию верно?</span>${ARBITR_VERDICTS.map(([value, label]) =>
         `<button class="text-button" type="button" data-verdict="${value}">${label}</button>`).join("")}</div>`;
+  const threadId = (card.message || {}).thread_id || "";
+  const contact = card.contact_name
+    ? `<button class="text-button arbitr-contact" type="button" data-arbitr-open="${escapeHtml(threadId)}" title="Открыть переписку">${escapeHtml(card.contact_name)} ↗</button>`
+    : "";
   return `<section class="band-section arbitr-card" data-comparison="${escapeHtml(card.comparison_id)}">
     <div class="section-head"><span class="pill ${classPill}">${escapeHtml(ARBITR_CLASSIFICATION_RU[card.classification] || card.classification || "?")}</span>
+      ${contact}
       <span class="arbitr-when">входящее от ${arbitrWhen((card.message || {}).at_epoch || card.compared_at_epoch)}</span></div>
     <p class="arbitr-msg">Клиентское сообщение: «${escapeHtml(body.slice(0, 240) || "текст недоступен — см. контекст диалога выше")}»</p>
     <div class="arbitr-engines">
@@ -5559,9 +5564,10 @@ function arbitrThreadHtml(thread) {
   }).join("") || '<p class="mtext">История сообщения недоступна.</p>';
   return `<section class="arbitr-thread" data-arbitr-thread="${escapeHtml(thread.thread_id)}">
     <div class="arbitr-thread-head"><div><span class="pill technical">${escapeHtml(ARBITR_GROUPS_RU[thread.contact_group] || thread.contact_group || "Контакт")}</span>
-      <h2>${escapeHtml(thread.contact_name || "Контакт")}</h2></div><span class="mtext">${(thread.cards || []).length} сравн.</span></div>
+      <h2><button class="arbitr-contact-title" type="button" data-arbitr-open="${escapeHtml(thread.thread_id)}" title="Открыть переписку в Чатах">${escapeHtml(thread.contact_name || "Контакт")} ↗</button></h2></div>
+      <span class="mtext">${(thread.cards || []).length} сравн.</span></div>
     <details class="arbitr-history" open><summary>Контекст диалога · последние ${Math.min((thread.history || []).length, 12)} сообщений</summary>${history}</details>
-    <div class="arbitr-thread-cards">${(thread.cards || []).map(arbitrCardHtml).join("")}</div>
+    <div class="arbitr-thread-cards">${(thread.cards || []).map((card) => arbitrCardHtml({ ...card, contact_name: thread.contact_name })).join("")}</div>
   </section>`;
 }
 
@@ -5611,6 +5617,14 @@ async function renderArbitr() {
     card.querySelectorAll("button[data-verdict]").forEach((button) => {
       button.addEventListener("click", () =>
         submitArbitrVerdict(card, card.dataset.comparison, button.dataset.verdict));
+    });
+  });
+  cardsBox.querySelectorAll("button[data-arbitr-open]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const threadId = button.dataset.arbitrOpen;
+      if (!threadId) { toast("Тред для этой карточки не определён"); return; }
+      await setView("chats");
+      openThread(threadId, true);
     });
   });
 }

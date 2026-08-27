@@ -1938,3 +1938,6 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .arbitr-explain { margin-top: 4px; }
 .arbitr-blocker { color: var(--danger, #b3261e); }
 .arbitr-actions { align-items: center; }
+.arbitr-contact { margin-left: 2px; }
+.arbitr-contact-title { border: 0; background: none; padding: 0; font: inherit; color: var(--accent); cursor: pointer; }
+.arbitr-contact-title:hover { text-decoration: underline; }
