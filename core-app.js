@@ -651,6 +651,7 @@ function readinessChipState(status) {
 }
 
 const READINESS_REASON_TEXT = Object.freeze({
+  production_preflight_blocked: "Критический процесс не запущен: production preflight обнаружил незакоммиченные или непроверяемые runtime-файлы.",
   private_dm_recovery_unproven: "Event Chats восстановлены, но исторический догон личных Telegram DM намеренно отключён. Новые DM продолжают поступать через NewMessage; полная recovery-проверка всей системы поэтому не заявляется.",
   telegram_private_dm_catchup_disabled: "Исторический догон личных Telegram DM отключён; это ограничение покрытия, а не остановка Event Chats.",
   v1_offline: "Критические процессы V1 не работают.",
@@ -661,7 +662,11 @@ const READINESS_REASON_TEXT = Object.freeze({
 function runtimeReadinessReason(readiness) {
   const codes = [...(readiness.reason_codes || []), ...(readiness.not_covered || [])];
   const translated = [...new Set(codes)].map((code) => READINESS_REASON_TEXT[code] || `Неподтверждённая граница: ${code}`);
-  if (translated.length) return translated.join(" ");
+  const blockers = (readiness.blockers || []).map((blocker) => {
+    const files = (blocker.dirty_entries || []).join(", ");
+    return `${blocker.label || "Процесс"}: ${blocker.reason || blocker.code || "запуск заблокирован"}${files ? ` Файлы: ${files}.` : ""}`;
+  });
+  if (blockers.length || translated.length) return [...blockers, ...translated].join(" ");
   if (String(readiness.state || "") === "FULLY_READY") {
     return "Все обязательные для текущего контура источники перечислены; processing/read residual равны нулю.";
   }
@@ -672,6 +677,7 @@ function renderRuntimeExplanation() {
   const runtime = state.runtimeStatus || {};
   const processes = runtime.processes || {};
   const readiness = runtime.readiness || {};
+  const runtimeBlockers = readiness.blockers || runtime.processes?.blockers || [];
   const running = Number(processes.running || 0);
   const stopped = Number(processes.stopped || 0);
   const stoppedNames = (processes.items || [])
@@ -689,11 +695,14 @@ function renderRuntimeExplanation() {
     ? "launchctl недоступен — список постоянных процессов не подтверждён."
     : `Считаются только KeepAlive LaunchAgents, то есть реальные долгоживущие PID. Задачи по расписанию и AI-purpose из «Токенов» сюда не входят.`
       + `${stoppedNames.length ? ` Остановлены: ${stoppedNames.join(", ")}.` : ""}`
-      + `${ignored.length ? ` Выведенные из эксплуатации plist исключены: ${ignored.join(", ")}.` : ""}`;
+      + `${ignored.length ? ` Выведенные из эксплуатации plist исключены: ${ignored.join(", ")}.` : ""}`
+      + `${runtimeBlockers.length ? ` Блокировки запуска: ${runtimeBlockers.map((item) => item.reason || item.code).join(" · ")}.` : ""}`;
   const readinessState = String(readiness.state || "DEGRADED");
-  reasonTitle.textContent = readinessState === "FULLY_READY" ? "Почему система готова" : "Почему статус частичный";
+  reasonTitle.textContent = runtimeBlockers.length
+    ? "Почему запуск заблокирован"
+    : readinessState === "FULLY_READY" ? "Почему система готова" : "Почему статус частичный";
   reasonText.textContent = runtimeReadinessReason(readiness);
-  pill.textContent = readinessStatusLabel(readinessState);
+  pill.textContent = runtimeBlockers.length ? "Заблокирована" : readinessStatusLabel(readinessState);
   pill.className = `pill ${readinessState === "FULLY_READY" ? "ok" : "hold"}`;
 }
 
@@ -738,16 +747,20 @@ function renderRuntimeStatus() {
       .forEach((id) => setRuntimeChip(id, "unknown", "Нет данных: backend ещё не перезапущен с recovery ledger"));
   }
   const readiness = runtime.readiness || {};
+  const runtimeBlockers = readiness.blockers || runtime.processes?.blockers || [];
   const catchup = readiness.catchup || {};
   const counters = readiness.counters || {};
   const readinessState = String(readiness.state || "DEGRADED");
-  if (runtime.readiness) byId("runtimeReadinessLabel").textContent = readinessStatusLabel(readinessState);
+  if (runtime.readiness) byId("runtimeReadinessLabel").textContent = runtimeBlockers.length
+    ? "Заблокирована"
+    : readinessStatusLabel(readinessState);
   if (runtime.readiness) setRuntimeChip(
     "runtimeReadiness",
     readinessChipState(readinessState),
     `${readinessStatusLabel(readinessState)} · контур ${readiness.scope || "не подтверждён"}`
       + `${readiness.full_system ? "" : " · полная система не доказана"}`
-      + `${(readiness.reason_codes || []).length ? ` · ${readiness.reason_codes.join(", ")}` : ""}`,
+      + `${(readiness.reason_codes || []).length ? ` · ${readiness.reason_codes.join(", ")}` : ""}`
+      + `${runtimeBlockers.length ? ` · блокировки: ${runtimeBlockers.map((item) => item.label).join(", ")}` : ""}`,
   );
   const completedSources = Number(catchup.sources_completed || 0);
   const totalSources = Number(catchup.sources_total || 0);
@@ -787,11 +800,16 @@ function renderRuntimeStatus() {
   const processes = runtime.processes || {};
   byId("runtimeRunning").textContent = Number.isFinite(Number(processes.running)) ? String(processes.running) : "—";
   byId("runtimeStopped").textContent = Number.isFinite(Number(processes.stopped)) ? String(processes.stopped) : "—";
-  const processState = processes.error ? "unknown" : Number(processes.stopped) > 0 ? "degraded" : "online";
+  const processBlockers = processes.blockers || [];
+  const processState = processes.error ? "unknown" : processBlockers.length ? "offline" : Number(processes.stopped) > 0 ? "degraded" : "online";
   const stoppedNames = (processes.items || [])
     .filter((item) => item.state === "stopped")
     .map((item) => item.name || item.label);
   const ignoredRetired = (processes.ignored_retired || []).map((item) => item.label);
+  const blockerDetails = processBlockers.map((item) => {
+    const files = (item.dirty_entries || []).join(", ");
+    return `${item.label}: ${item.reason}${files ? ` Файлы: ${files}` : ""}`;
+  });
   setRuntimeChip(
     "runtimeProcesses",
     processState,
@@ -800,6 +818,7 @@ function renderRuntimeStatus() {
       : `${processes.running || 0} KeepAlive LaunchAgents работают, ${processes.stopped || 0} остановлены.`
         + `${stoppedNames.length ? ` Остановлены: ${stoppedNames.join(", ")}.` : ""}`
         + `${ignoredRetired.length ? ` Retired исключены: ${ignoredRetired.join(", ")}.` : ""}`
+        + `${blockerDetails.length ? ` Блокировки запуска: ${blockerDetails.join(" · ")}.` : ""}`
         + " AI-purpose из меню «Токены» не являются отдельными PID.",
   );
 
