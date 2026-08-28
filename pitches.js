@@ -308,10 +308,16 @@
         var cases = node.querySelector(".problems");
         cases.hidden = false;
         problems.forEach(function (pr) { cases.appendChild(renderProblem(pr)); });
-        // «Что мы делаем» — отдельный контейнер рядом с карточкой, справа
+      }
+      // «Что мы делаем» — отдельный контейнер рядом с карточкой: виден при
+      // проблемах И когда по контакту просто идёт работа («отправили КП»)
+      var fw = p.fix_work;
+      var hasWork = fw && (((fw.sessions || []).length) ||
+                           ((fw.ledger || []).length));
+      if (problems.length || hasWork) {
         var aside = node.querySelector(".fixwork");
         aside.hidden = false;
-        renderFixWork(aside.querySelector(".fixwork-items"), p.fix_work);
+        renderFixWork(aside.querySelector(".fixwork-items"), fw);
       }
       feed.appendChild(node);
     });
