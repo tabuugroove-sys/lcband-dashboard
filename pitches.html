@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LCB 2.0 · Питчи</title>
+<link rel="stylesheet" href="/pitches.css?v=1">
+</head>
+<body>
+<header class="topbar">
+  <a class="back" href="/core-app.html">← LCB 2.0</a>
+  <h1>Питчи · live</h1>
+  <div class="controls">
+    <select id="hours">
+      <option value="24">24 часа</option>
+      <option value="72">3 дня</option>
+      <option value="168" selected>7 дней</option>
+      <option value="336">14 дней</option>
+      <option value="720">30 дней</option>
+    </select>
+    <select id="filter">
+      <option value="">все питчи</option>
+      <option value="__problems__">только с проблемами</option>
+      <option value="cold_proposal">холодный питч LCB</option>
+      <option value="solo_clarify">solo-уточнение</option>
+      <option value="abstract_clarify">уточняющий вопрос</option>
+      <option value="broker_first_contact">брокер: первый контакт</option>
+    </select>
+    <label class="auto"><input type="checkbox" id="auto" checked> авто 15с</label>
+    <button id="refresh">Обновить</button>
+  </div>
+</header>
+<div class="meta-line" id="metaLine">Загрузка…</div>
+<div class="note" id="note" hidden></div>
+<main id="feed" class="feed"></main>
+<template id="rowTpl">
+  <article class="pitch">
+    <div class="pitch-head">
+      <span class="when"></span>
+      <span class="chat"></span>
+      <a class="target" target="_blank" rel="noopener"></a>
+      <span class="chip type"></span>
+      <span class="chip order" hidden></span>
+      <span class="chip problem-flag" hidden></span>
+    </div>
+    <div class="cols">
+      <section class="col">
+        <div class="col-label">Исходный пост</div>
+        <div class="text src-text"></div>
+        <div class="src-meta"></div>
+      </section>
+      <section class="col">
+        <div class="col-label">Агент отправил</div>
+        <div class="text out-text"></div>
+        <div class="chips out-chips">
+          <span class="chip models" hidden></span>
+        </div>
+      </section>
+    </div>
+    <div class="problems" hidden></div>
+  </article>
+</template>
+<script src="/pitches.js?v=1"></script>
+</body>
+</html>
