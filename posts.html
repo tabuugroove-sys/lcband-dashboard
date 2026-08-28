@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LCB 2.0 · Посты</title>
+<link rel="stylesheet" href="/posts.css?v=1">
+</head>
+<body>
+<header class="topbar">
+  <a class="back" href="/core-app.html">← LCB 2.0</a>
+  <h1>Посты · live</h1>
+  <div class="controls">
+    <select id="hours">
+      <option value="6">6 часов</option>
+      <option value="24" selected>24 часа</option>
+      <option value="72">3 дня</option>
+      <option value="168">7 дней</option>
+    </select>
+    <select id="cat">
+      <option value="">все категории</option>
+      <option value="music_band">LCB кавер-бэнд</option>
+      <option value="solo_musician">соло</option>
+      <option value="drum_show">drum-show</option>
+      <option value="broker_request">брокер</option>
+      <option value="abstract">уточнение</option>
+      <option value="skip">не лид</option>
+      <option value="classifier_down">ждёт классификатор</option>
+      <option value="__none__">без вердикта</option>
+    </select>
+    <label class="auto"><input type="checkbox" id="auto" checked> авто 10с</label>
+    <button id="refresh">Обновить</button>
+  </div>
+</header>
+<div class="meta-line" id="metaLine">Загрузка…</div>
+<div class="v2note" id="v2note" hidden></div>
+<main id="feed" class="feed"></main>
+<template id="rowTpl">
+  <article class="post">
+    <div class="post-head">
+      <span class="when"></span>
+      <span class="chat"></span>
+      <a class="sender" target="_blank" rel="noopener"></a>
+    </div>
+    <div class="text"></div>
+    <div class="verdicts">
+      <span class="vlabel">V1</span>
+      <span class="chip cat"></span>
+      <span class="chip mode"></span>
+      <span class="vlabel">V2</span>
+      <span class="chip v2"></span>
+      <span class="chip order" hidden></span>
+    </div>
+  </article>
+</template>
+<script src="/posts.js?v=1"></script>
+</body>
+</html>
