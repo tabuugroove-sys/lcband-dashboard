@@ -47,9 +47,13 @@
       node.querySelector(".when").textContent = fmtWhen(p.ts);
       node.querySelector(".chat").textContent = p.chat || "—";
       var sender = node.querySelector(".sender");
-      if (p.sender) {
-        sender.textContent = "@" + String(p.sender).replace(/^@/, "");
-        sender.href = "https://t.me/" + String(p.sender).replace(/^@/, "");
+      var s = String(p.sender || "").replace(/^@/, "");
+      if (/^[A-Za-z0-9_]{3,32}$/.test(s)) {
+        sender.textContent = "@" + s;
+        sender.href = "https://t.me/" + s;
+      } else if (s) {
+        sender.textContent = s;          // display-имя без username — не ссылка
+        sender.removeAttribute("href");
       } else {
         sender.textContent = "без username";
         sender.removeAttribute("href");
