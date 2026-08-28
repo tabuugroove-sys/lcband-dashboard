@@ -84,8 +84,9 @@ body {
 .chip.presend-adapt { background: var(--warn); color: var(--warn-ink); }
 .chip.presend-skip { background: var(--down); color: var(--down-ink); }
 .chip.problem-flag { background: var(--down); color: var(--down-ink); font-weight: 700; }
+/* правый контейнер — всегда прямо напротив кейса, и на узких экранах тоже */
 .problems { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 42%); gap: 8px; align-items: start; }
-@media (max-width: 760px) { .problems { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .problems { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .cases { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .fixwork { background: var(--srcbox); border: 1px solid var(--accent); border-radius: 10px; padding: 8px 10px; min-width: 0; }
 .fixwork-items { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
@@ -96,7 +97,9 @@ body {
 .fw-live .fw-state { color: var(--accent); }
 .fw-chg .fw-state { color: var(--accent); font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
 .fw-meta { color: var(--dim); }
+.fw-tldr { font-size: 13px; font-weight: 600; margin-top: 2px; word-break: break-word; }
 .fw-title { font-size: 13px; margin-top: 2px; word-break: break-word; }
+.fw-title-dim { color: var(--dim); font-size: 12px; }
 .fw-empty { color: var(--dim); font-size: 12px; font-style: italic; }
 /* источник эскалации кодируется тоном фона (как chip/note в posts.css) */
 .problem { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--srcbox); }

@@ -186,9 +186,16 @@
       meta.textContent = (s.source || "") + " · " + fmtWhen(s.last_activity);
       head.appendChild(meta);
       item.appendChild(head);
+      if (s.tldr) {
+        // «что-то происходит по исправлению» → сюда падает TLDR отчёта
+        var tl = document.createElement("div");
+        tl.className = "fw-tldr";
+        tl.textContent = "TLDR: " + s.tldr;
+        item.appendChild(tl);
+      }
       if (s.title) {
         var t = document.createElement("div");
-        t.className = "fw-title";
+        t.className = s.tldr ? "fw-title fw-title-dim" : "fw-title";
         t.textContent = s.title;
         item.appendChild(t);
       }
