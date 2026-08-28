@@ -10,6 +10,7 @@
   var hoursSel = document.getElementById("hours");
   var catSel = document.getElementById("cat");
   var autoCb = document.getElementById("auto");
+  var archiveCb = document.getElementById("archive");
   var refreshBtn = document.getElementById("refresh");
   var timer = null;
   var lastPosts = [];
@@ -96,7 +97,8 @@
 
   function load() {
     var hours = hoursSel.value || "24";
-    fetch("/api/app/posts_live?hours=" + encodeURIComponent(hours))
+    fetch("/api/app/posts_live?hours=" + encodeURIComponent(hours) +
+          (archiveCb.checked ? "&include_archive=1" : ""))
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || data.ok !== true) {
@@ -108,8 +110,9 @@
         var withVerdict = lastPosts.filter(function (p) {
           return p.v1 && p.v1.verdict;
         }).length;
-        metaLine.textContent = "Постов за " + data.hours + "ч: " +
-          lastPosts.length + " · с вердиктом: " + withVerdict +
+        metaLine.textContent = "Live: агент изучил за " + data.hours + "ч: " +
+          (data.journal_entries || 0) + " · в ленте: " + lastPosts.length +
+          " · с вердиктом: " + withVerdict +
           " · обновлено " + fmtWhen(data.generated_at);
         if (data.v2_note) {
           v2note.hidden = false;
@@ -124,12 +127,13 @@
 
   function schedule() {
     if (timer) { clearInterval(timer); timer = null; }
-    if (autoCb.checked) { timer = setInterval(load, 10000); }
+    if (autoCb.checked) { timer = setInterval(load, 5000); }
   }
 
   hoursSel.addEventListener("change", load);
   catSel.addEventListener("change", render);
   autoCb.addEventListener("change", schedule);
+  archiveCb.addEventListener("change", load);
   refreshBtn.addEventListener("click", load);
   load();
   schedule();
