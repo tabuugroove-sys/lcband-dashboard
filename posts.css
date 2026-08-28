@@ -74,6 +74,7 @@ body {
 .chip.mode-escalated { background: var(--warn); color: var(--warn-ink); }
 .chip.mode-classifier_down { background: var(--down); color: var(--down-ink); }
 .chip.v2 { border: 1px dashed var(--line); background: transparent; color: var(--dim); }
+.chip.models { border: 1px solid var(--line); background: transparent; color: var(--dim); font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
 .chip.state-pre-journal { opacity: .55; }
 .chip.state-pending { background: var(--warn); color: var(--warn-ink); }
 .chip.cat-duplicate { opacity: .65; }

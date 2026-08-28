@@ -89,6 +89,11 @@
       } else {
         modeChip.textContent = "режим: —";
       }
+      var modelsChip = node.querySelector(".chip.models");
+      if (v1.models && v1.models.length) {
+        modelsChip.hidden = false;
+        modelsChip.textContent = "🧠 " + v1.models.join(" → ");
+      }
       node.querySelector(".chip.v2").textContent = p.v2 ? p.v2 : "—";
       var orderChip = node.querySelector(".chip.order");
       if (p.order_status) {
