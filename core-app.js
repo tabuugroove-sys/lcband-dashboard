@@ -23,6 +23,7 @@ const API = Object.freeze({
   leadFlow: "/api/app/lead_flow",
   opsmap: "/api/app/opsmap",
   opsmapReveal: "/api/app/opsmap/reveal",
+  proposalJobs: "/api/core/proposal_jobs",
 });
 
 // OpsMap Phase 2 lead-mode surface. Used by opsmap.js; explicit references keep
@@ -56,6 +57,7 @@ const state = {
   work: null,
   operations: null,
   leadFlow: null,
+  proposals: null,
   activeView: "calendar",
   flowPeriod: 90,
   flowSource: "",
@@ -242,7 +244,7 @@ const byId = (id) => document.getElementById(id);
 const NAV_LAYOUT_KEY = "lcb_core_nav_layout_v1";
 const DEFAULT_NAV_LAYOUT = Object.freeze({
   primary: ["calendar", "chats", "flow", "opsmap", "today", "promo", "costumes", "operations", "arbitr"],
-  secondary: ["system", "fees", "tokens", "loopguard", "broadcast", "sessions"],
+  secondary: ["system", "fees", "tokens", "loopguard", "broadcast", "sessions", "proposals"],
 });
 let navDrag = null;
 let navDropCommitted = false;
@@ -978,6 +980,7 @@ async function setView(view) {
   if (view === "operations") window.CoreParity?.activate("overview");
   if (view === "broadcast") renderBroadcast();
   if (view === "sessions") refreshSessions();
+  if (view === "proposals") refreshProposals();
   if (view === "arbitr") renderArbitr();
 }
 
@@ -996,7 +999,7 @@ async function route() {
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "flow", "opsmap", "today", "system", "tokens", "loopguard", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "arbitr"].includes(name)
+  const view = ["calendar", "chats", "flow", "opsmap", "today", "system", "tokens", "loopguard", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "proposals", "arbitr"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";
@@ -3517,6 +3520,103 @@ function renderSessions() {
         </div>
       </div>
     </article>`).join("") || '<div class="empty-state">Под выбранные фильтры веток нет.</div>';
+}
+
+// ── Экран «КП» — client proposal jobs (CHG-20260828-016) ────────────────────
+const PROPOSAL_STAGE_LABELS = {
+  detected: ["hold", "обнаружено"],
+  grounding: ["hold", "сбор фактов"],
+  clarification_required: ["hold", "нужны уточнения"],
+  facts_ready: ["ok", "факты готовы (shadow)"],
+  price_approval_required: ["hold", "нужна цена от оператора"],
+  commercial_ready: ["ok", "готово к рендеру"],
+  rendering: ["hold", "рендер PDF"],
+  render_failed: ["danger", "рендер упал"],
+  materials_missing: ["danger", "ассеты не сходятся с manifest"],
+  qa_failed: ["danger", "QA не пройден"],
+  qa_passed: ["ok", "QA пройден"],
+  approval_required: ["hold", "ждёт кнопку оператора"],
+  auto_delivery_eligible: ["ok", "готово к авто-отправке"],
+  queued: ["hold", "команда в очереди"],
+  claimed: ["hold", "владелец доставки взял"],
+  delivered: ["ok", "доставлено (receipt есть)"],
+  reconciled: ["ok", "доставлено и сверено"],
+  delivered_unreconciled: ["hold", "receipt есть, проекции догоняют"],
+  provider_unknown: ["danger", "исход неизвестен — только reconcile, НЕ переотправлять"],
+  presend_review_failed: ["danger", "presend review отклонил"],
+  queue_failed: ["danger", "очередь отклонила"],
+  delivery_owner_unavailable: ["danger", "delivery owner недоступен"],
+  production_preflight_failed: ["danger", "preflight (грязное дерево)"],
+  blocked: ["danger", "заблокировано"],
+  cancelled: ["hold", "отменено"],
+};
+
+function proposalStagePill(status) {
+  const [tone, label] = PROPOSAL_STAGE_LABELS[status] || ["hold", status || "?"];
+  return `<span class="pill ${tone === "danger" ? "hold" : tone}">${escapeHtml(label)}</span>`;
+}
+
+async function refreshProposals() {
+  try {
+    const payload = await apiGet(`${API.proposalJobs}?limit=50`);
+    state.proposals = payload;
+    renderProposals();
+  } catch (error) {
+    byId("proposalsCountPill").textContent = "Недоступно";
+    byId("proposalsList").innerHTML = `<div class="empty-state">КП-задания не загружены: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderProposals() {
+  const payload = state.proposals || {};
+  const jobs = payload.jobs || [];
+  byId("proposalsCountPill").textContent = `${payload.count ?? jobs.length} заданий`;
+  const attention = jobs.filter((job) => (PROPOSAL_STAGE_LABELS[job.status] || ["hold"])[0] !== "ok").length;
+  setBadge("navProposalsCount", attention);
+  byId("proposalsList").innerHTML = jobs.map((job) => {
+    const brief = job.brief || {};
+    const artifact = job.artifact;
+    const delivery = job.delivery;
+    let receiptLine = "";
+    if (delivery) {
+      let ids = [];
+      try { ids = JSON.parse(delivery.provider_message_ids || "[]"); } catch (e) { ids = []; }
+      const receiptOk = ids.length > 0;
+      receiptLine = `<div class="session-summary-row ${receiptOk ? "is-solution" : "is-problem"}">
+        <span class="session-summary-label">Доставка</span>
+        <p>${escapeHtml(delivery.mode || "")} · ${escapeHtml(delivery.status || "")}${receiptOk ? ` · provider msg ${escapeHtml(ids.join(", "))}` : " · provider receipt отсутствует"}${delivery.error ? ` · ${escapeHtml(delivery.error)}` : ""}</p>
+      </div>`;
+    }
+    const factLine = [
+      brief.event_date || "дата?",
+      brief.start_time && brief.end_time ? `${brief.start_time}–${brief.end_time}` : "",
+      brief.duration_minutes ? `${brief.duration_minutes} мин` : "",
+      brief.price_rub ? `${brief.price_rub} ₽ (${brief.price_source || "?"})` : "цена не назначена",
+      brief.equipment_profile || "",
+      brief.format ? `${brief.format}${brief.format_certainty === "inferred" ? " (предположение)" : ""}` : "",
+    ].filter(Boolean).join(" · ");
+    return `
+    <article class="session-branch">
+      <div class="session-branch-head">
+        <span class="session-folder-mark" aria-hidden="true">▤</span>
+        <strong>@${escapeHtml(job.recipient_username || String(job.recipient_peer_id || "?"))}</strong>
+        <span class="pill ok">${escapeHtml(job.artist_id || "")}</span>
+        ${proposalStagePill(job.status)}
+        <span class="session-time">${escapeHtml(new Date((job.updated_at || 0) * 1000).toLocaleString("ru-RU"))}</span>
+      </div>
+      <div class="session-summary">
+        <div class="session-summary-row is-problem">
+          <span class="session-summary-label">Факты</span>
+          <p>${escapeHtml(factLine)}${job.status_reason ? ` — ${escapeHtml(job.status_reason)}` : ""}</p>
+        </div>
+        ${artifact ? `<div class="session-summary-row is-solution">
+          <span class="session-summary-label">PDF</span>
+          <p>${escapeHtml((artifact.pdf_path || "").split("/").pop() || "")} · QA ${escapeHtml(artifact.qa_status || "?")} · ${escapeHtml(String(artifact.page_count || 0))} стр · sha ${escapeHtml((artifact.pdf_sha256 || "").slice(0, 12))}…</p>
+        </div>` : ""}
+        ${receiptLine}
+      </div>
+    </article>`;
+  }).join("") || '<div class="empty-state">КП-заданий пока нет. Создать: client_proposal_agent.py create/facts/process.</div>';
 }
 
 function costumeStatusLabel(status) {

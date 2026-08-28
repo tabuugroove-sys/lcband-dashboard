@@ -107,6 +107,7 @@
         <button class="tab-button" data-view="loopguard"><span class="tab-icon" aria-hidden="true">⛔<span class="tab-badge" id="navLoopGuardCount" hidden></span></span>Loop-Guard</button>
         <button class="tab-button" data-view="broadcast"><span class="tab-icon" aria-hidden="true">✈</span>Рассылка</button>
         <button class="tab-button" data-view="sessions"><span class="tab-icon" aria-hidden="true">⌗</span>Сессии</button>
+        <button class="tab-button" data-view="proposals"><span class="tab-icon" aria-hidden="true">▤<span class="tab-badge" id="navProposalsCount" hidden></span></span>КП</button>
       </div>
     </section>
   </nav>
@@ -775,6 +776,14 @@
         </section>
       </section>
 
+      <section class="screen" id="screen-proposals">
+        <div class="page-head"><div><p class="eyebrow">Client Proposal Agent</p><h1>КП-задания</h1></div><span class="pill" id="proposalsCountPill">Загрузка…</span></div>
+        <section class="band-section">
+          <div class="section-head"><h2>PDF-предложения клиентам</h2><span>факты → рендер → QA → доставка · provider receipt = доставлено</span></div>
+          <div id="proposalsList" aria-live="polite"><div class="empty-state">Загрузка…</div></div>
+        </section>
+      </section>
+
     </main>
   </div>
 
@@ -792,6 +801,6 @@
   </dialog>
   <script src="core-parity.js"></script>
   <script src="opsmap.js?v=20260825-005"></script>
-  <script src="core-app.js?v=20260826-001"></script>
+  <script src="core-app.js?v=20260828-016"></script>
 </body>
 </html>
