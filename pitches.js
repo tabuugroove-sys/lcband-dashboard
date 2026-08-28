@@ -212,7 +212,8 @@
         srcMeta.textContent = [
           src.chat || p.chat || "",
           src.ts ? fmtWhen(src.ts) : "",
-          src.origin === "orders" ? "из карточки заказа" : ""
+          src.origin === "orders" ? "из карточки заказа" :
+            src.origin === "classify_journal" ? "из журнала классификации" : ""
         ].filter(Boolean).join(" · ");
       } else {
         srcMeta.textContent = p.chat ? "чат: " + p.chat : "";
