@@ -305,11 +305,13 @@
       });
 
       if (problems.length) {
-        var pbox = node.querySelector(".problems");
-        pbox.hidden = false;
-        var cases = pbox.querySelector(".cases");
+        var cases = node.querySelector(".problems");
+        cases.hidden = false;
         problems.forEach(function (pr) { cases.appendChild(renderProblem(pr)); });
-        renderFixWork(pbox.querySelector(".fixwork-items"), p.fix_work);
+        // «Что мы делаем» — отдельный контейнер рядом с карточкой, справа
+        var aside = node.querySelector(".fixwork");
+        aside.hidden = false;
+        renderFixWork(aside.querySelector(".fixwork-items"), p.fix_work);
       }
       feed.appendChild(node);
     });

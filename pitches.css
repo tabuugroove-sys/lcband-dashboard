@@ -51,7 +51,11 @@ body {
   margin: 0 16px 6px; padding: 6px 10px; font-size: 12px;
   background: var(--warn); color: var(--warn-ink); border-radius: 8px;
 }
-.feed { padding: 0 16px 40px; display: flex; flex-direction: column; gap: 12px; max-width: 1080px; }
+.feed { padding: 0 16px 40px; display: flex; flex-direction: column; gap: 12px; max-width: 1520px; }
+/* карточка кейса — большая, «Что мы делаем» — отдельный контейнер
+   поменьше рядом справа, в свободном пространстве экрана */
+.pitch-row { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 10px; align-items: start; }
+@media (max-width: 980px) { .pitch-row { grid-template-columns: 1fr; } }
 .pitch {
   background: var(--card); border: 1px solid var(--line);
   border-radius: 12px; padding: 10px 14px;
@@ -85,9 +89,7 @@ body {
 .chip.presend-skip { background: var(--down); color: var(--down-ink); }
 .chip.problem-flag { background: var(--down); color: var(--down-ink); font-weight: 700; }
 /* правый контейнер — всегда прямо напротив кейса, и на узких экранах тоже */
-/* основной кейс — большой, «Что мы делаем» рядышком справа — поменьше */
-.problems { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 30%); gap: 8px; align-items: start; }
-@media (max-width: 760px) { .problems { grid-template-columns: minmax(0, 1fr) minmax(0, 38%); } }
+.problems { margin-top: 10px; }
 .cases { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .fixwork { background: var(--srcbox); border: 1px solid var(--accent); border-radius: 10px; padding: 7px 9px; min-width: 0; font-size: 12px; }
 .fixwork .fw-tldr, .fixwork .fw-title { font-size: 12px; }
