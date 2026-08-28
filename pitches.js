@@ -158,6 +158,67 @@
     return box;
   }
 
+  function renderFixWork(box, fw) {
+    // справа от кейса: как решается архитектура проблемы — рабочие сессии
+    // (Claude/Codex, где контакт назван человеком) + решения в change ledger
+    box.textContent = "";
+    var sessions = (fw && fw.sessions) || [];
+    var ledger = (fw && fw.ledger) || [];
+    if (!sessions.length && !ledger.length) {
+      var none = document.createElement("div");
+      none.className = "fw-empty";
+      none.textContent = "работа по кейсу ещё не привязана: " +
+        "сессии и change ledger не упоминают контакт";
+      box.appendChild(none);
+      return;
+    }
+    sessions.forEach(function (s) {
+      var item = document.createElement("div");
+      item.className = "fw-item" + (s.live ? " fw-live" : "");
+      var head = document.createElement("div");
+      head.className = "fw-head";
+      var state = document.createElement("span");
+      state.className = "fw-state";
+      state.textContent = s.live ? "🟢 сессия идёт сейчас" : "сессия завершена";
+      head.appendChild(state);
+      var meta = document.createElement("span");
+      meta.className = "fw-meta";
+      meta.textContent = (s.source || "") + " · " + fmtWhen(s.last_activity);
+      head.appendChild(meta);
+      item.appendChild(head);
+      if (s.title) {
+        var t = document.createElement("div");
+        t.className = "fw-title";
+        t.textContent = s.title;
+        item.appendChild(t);
+      }
+      box.appendChild(item);
+    });
+    ledger.forEach(function (l) {
+      var item = document.createElement("div");
+      item.className = "fw-item fw-chg";
+      var head = document.createElement("div");
+      head.className = "fw-head";
+      var state = document.createElement("span");
+      state.className = "fw-state";
+      state.textContent = "решение в ledger: " + (l.id || "");
+      head.appendChild(state);
+      var meta = document.createElement("span");
+      meta.className = "fw-meta";
+      meta.textContent = [l.status, l.deployment_status]
+        .filter(Boolean).join(" · ");
+      head.appendChild(meta);
+      item.appendChild(head);
+      if (l.title) {
+        var t = document.createElement("div");
+        t.className = "fw-title";
+        t.textContent = l.title;
+        item.appendChild(t);
+      }
+      box.appendChild(item);
+    });
+  }
+
   function render() {
     var f = filterSel.value;
     var shown = lastPitches.filter(function (p) {
@@ -239,7 +300,9 @@
       if (problems.length) {
         var pbox = node.querySelector(".problems");
         pbox.hidden = false;
-        problems.forEach(function (pr) { pbox.appendChild(renderProblem(pr)); });
+        var cases = pbox.querySelector(".cases");
+        problems.forEach(function (pr) { cases.appendChild(renderProblem(pr)); });
+        renderFixWork(pbox.querySelector(".fixwork-items"), p.fix_work);
       }
       feed.appendChild(node);
     });
