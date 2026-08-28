@@ -66,8 +66,12 @@
       if (v1.verdict) {
         catChip.textContent = v1.category || v1.verdict;
         catChip.classList.add("cat-" + v1.verdict);
+      } else if (v1.state === "pre_journal") {
+        catChip.textContent = "архив: до журнала вердиктов";
+        catChip.classList.add("state-pre-journal");
       } else {
-        catChip.textContent = "вердикта нет";
+        catChip.textContent = "в обработке…";
+        catChip.classList.add("state-pending");
       }
       var modeChip = node.querySelector(".chip.mode");
       if (v1.mode) {
