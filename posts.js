@@ -30,6 +30,95 @@
     } catch (e) { return iso; }
   }
 
+  function tribrainRow(container, label, text, cls) {
+    if (!text) return;
+    var wrap = document.createElement("div");
+    wrap.className = "tribrain-row" + (cls ? " " + cls : "");
+    var lab = document.createElement("span");
+    lab.className = "tribrain-label";
+    lab.textContent = label;
+    wrap.appendChild(lab);
+    var body = document.createElement("span");
+    body.className = "tribrain-body";
+    body.textContent = text;
+    wrap.appendChild(body);
+    container.appendChild(wrap);
+  }
+
+  function tribrainList(container, label, items) {
+    if (!items || !items.length) return;
+    var wrap = document.createElement("div");
+    wrap.className = "tribrain-row";
+    var lab = document.createElement("span");
+    lab.className = "tribrain-label";
+    lab.textContent = label;
+    wrap.appendChild(lab);
+    var list = document.createElement("ul");
+    list.className = "tribrain-list";
+    items.forEach(function (item) {
+      var li = document.createElement("li");
+      li.textContent = item;
+      list.appendChild(li);
+    });
+    wrap.appendChild(list);
+    container.appendChild(wrap);
+  }
+
+  // pitch.tribrain_verdict — уже распарсенный объект с сервера
+  // (issue_fix_runner._parse_final_verdict бьёт по ПОЛНОМУ, ещё не
+  // обрезанному summary; tribrain_summary в ответе API обрезан до 1500
+  // символов и часто рвёт JSON на середине — им для парсинга не пользуемся,
+  // только как fallback-текст, если структурного вердикта вообще нет).
+  function renderTribrainVerdict(container, v, fallbackText) {
+    if (!v || typeof v !== "object" || !Object.keys(v).length) {
+      var raw = document.createElement("div");
+      raw.className = "tribrain-raw";
+      raw.textContent = fallbackText || "";
+      container.appendChild(raw);
+      return;
+    }
+    tribrainRow(container, "Что произошло", v.case_read);
+    var shr = v.should_have_replied;
+    var shrLabel = shr === true ? "питч был нужен"
+      : shr === false ? "питч был не нужен" : "неоднозначно";
+    tribrainRow(container, shrLabel, v.should_have_replied_why);
+    if (v.root_cause_established) {
+      tribrainRow(container, "Причина", v.root_cause, "tribrain-ok");
+    } else {
+      tribrainRow(container, "Причина НЕ установлена", v.root_cause, "tribrain-warn");
+      tribrainList(container, "Не хватило данных", v.missing_data);
+    }
+    if (v.fixes && v.fixes.length) {
+      tribrainList(container, "Предложенные правки (" + v.fixes.length + ")",
+        v.fixes.map(function (fx) {
+          return (fx.title || "") + (fx.change ? " — " + fx.change : "");
+        }));
+    }
+    tribrainRow(container, "Как проверить", v.evidence_check);
+  }
+
+  function renderTribrainBlock(container, pitch) {
+    container.textContent = "";
+    var tStatus = TRIBRAIN_STATUS_RU[pitch.tribrain_status] || pitch.tribrain_status;
+    var head = document.createElement("div");
+    head.className = "tribrain-head";
+    head.textContent = "🧩 TriBrain — " + tStatus;
+    container.appendChild(head);
+    if (pitch.tribrain_status === "done") {
+      renderTribrainVerdict(container, pitch.tribrain_verdict, pitch.tribrain_summary);
+    } else if (pitch.tribrain_status === "failed" && pitch.tribrain_summary) {
+      var errEl = document.createElement("div");
+      errEl.className = "tribrain-raw";
+      errEl.textContent = pitch.tribrain_summary;
+      container.appendChild(errEl);
+    } else if (pitch.tribrain_status !== "done") {
+      var note = document.createElement("div");
+      note.className = "tribrain-note";
+      note.textContent = "решение (внедрить/нет) придёт в бот";
+      container.appendChild(note);
+    }
+  }
+
   function render() {
     var cat = catSel.value;
     var shown = lastPosts.filter(function (p) {
@@ -128,15 +217,7 @@
           pitchReason.textContent = "Почему: " + reason;
           if (pitch.tribrain_status) {
             pitchTribrain.hidden = false;
-            var tStatus = TRIBRAIN_STATUS_RU[pitch.tribrain_status] || pitch.tribrain_status;
-            if (pitch.tribrain_status === "done" && pitch.tribrain_summary) {
-              pitchTribrain.textContent = "🧩 TriBrain: " + pitch.tribrain_summary;
-            } else if (pitch.tribrain_status === "failed" && pitch.tribrain_summary) {
-              pitchTribrain.textContent = "🧩 TriBrain: " + tStatus + " — " + pitch.tribrain_summary;
-            } else {
-              pitchTribrain.textContent = "🧩 TriBrain " + tStatus +
-                " — решение (внедрить/нет) придёт в бот";
-            }
+            renderTribrainBlock(pitchTribrain, pitch);
           }
         } else {
           pitchStatus.textContent = "— нет адресата";

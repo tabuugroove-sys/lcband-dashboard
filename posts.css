@@ -76,8 +76,19 @@ body {
 .post-pitch .pitch-reason { margin-top: 0; font-size: 12px; color: var(--dim); }
 .pitch-tribrain {
   margin-top: 2px; font-size: 12px; color: var(--broker-ink);
-  background: var(--broker); padding: 5px 8px; border-radius: 8px;
+  background: var(--broker); padding: 8px 10px; border-radius: 8px;
+  display: flex; flex-direction: column; gap: 6px;
 }
+.tribrain-head { font-weight: 700; }
+.tribrain-row { display: flex; flex-direction: column; gap: 1px; }
+.tribrain-label { font-size: 10px; font-weight: 700; text-transform: uppercase; opacity: .75; }
+.tribrain-body { white-space: pre-wrap; word-break: break-word; }
+.tribrain-row.tribrain-warn .tribrain-body { color: var(--down-ink); }
+.tribrain-row.tribrain-ok .tribrain-body { color: var(--band-ink); }
+.tribrain-list { margin: 0; padding-left: 16px; }
+.tribrain-list li { margin: 2px 0; }
+.tribrain-raw { white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+.tribrain-note { opacity: .85; }
 .post-head { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
 .post-head .chat { font-weight: 600; }
 .sender { color: var(--accent); text-decoration: none; }
