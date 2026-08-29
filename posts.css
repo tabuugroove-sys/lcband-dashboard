@@ -49,7 +49,7 @@ body {
   margin: 0 16px 6px; padding: 6px 10px; font-size: 12px;
   background: var(--warn); color: var(--warn-ink); border-radius: 8px;
 }
-.feed { padding: 0 16px 40px; display: flex; flex-direction: column; gap: 10px; max-width: 1180px; }
+.feed { padding: 0 16px 40px; display: flex; flex-direction: column; gap: 10px; max-width: 1370px; }
 .post {
   background: var(--card); border: 1px solid var(--line);
   border-radius: 12px; padding: 10px 14px;
@@ -57,7 +57,7 @@ body {
 }
 .post-main { flex: 1 1 auto; min-width: 0; }
 .post-pitch {
-  flex: 0 0 190px; border-left: 1px solid var(--line);
+  flex: 0 0 380px; border-left: 1px solid var(--line);
   padding-left: 14px; display: flex; flex-direction: column; gap: 6px;
 }
 @media (max-width: 640px) {
