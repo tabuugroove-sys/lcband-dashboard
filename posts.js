@@ -154,7 +154,12 @@
 
   function load() {
     var hours = hoursSel.value || "24";
+    var cat = catSel.value || "";
+    // категория уходит на сервер: фильтр обязан отсекать ДО среза по limit,
+    // иначе на busy-чатах старый реальный лид выбранной категории тонет
+    // среди свежего шума ещё до того, как дойдёт до этого фильтра
     fetch("/api/app/posts_live?hours=" + encodeURIComponent(hours) +
+          (cat ? "&cat=" + encodeURIComponent(cat) : "") +
           (archiveCb.checked ? "&include_archive=1" : ""))
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -188,7 +193,7 @@
   }
 
   hoursSel.addEventListener("change", load);
-  catSel.addEventListener("change", render);
+  catSel.addEventListener("change", load);
   autoCb.addEventListener("change", schedule);
   archiveCb.addEventListener("change", load);
   refreshBtn.addEventListener("click", load);
