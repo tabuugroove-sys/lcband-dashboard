@@ -100,6 +100,30 @@
         orderChip.hidden = false;
         orderChip.textContent = "заказ: " + p.order_status;
       }
+      var pitchChip = node.querySelector(".chip.pitch");
+      var pitchReason = node.querySelector(".pitch-reason");
+      var pitch = p.pitch || {};
+      if (pitch.sent === true) {
+        pitchChip.textContent = "✅ отправлен" +
+          (pitch.type_label ? " · " + pitch.type_label : "");
+        pitchChip.classList.add("pitch-sent");
+        pitchChip.title = pitch.ts ? "Отправлен " + fmtWhen(pitch.ts) : "";
+      } else if (pitch.sent === false) {
+        pitchChip.textContent = "❌ не отправлен";
+        pitchChip.classList.add("pitch-not-sent");
+        var reason = pitch.reason || "причина не зафиксирована";
+        pitchChip.title = reason;
+        pitchReason.hidden = false;
+        pitchReason.textContent = "Почему: " + reason;
+      } else {
+        pitchChip.textContent = "—";
+        pitchChip.classList.add("pitch-unknown");
+        if (pitch.reason) {
+          pitchChip.title = pitch.reason;
+          pitchReason.hidden = false;
+          pitchReason.textContent = "Почему: " + pitch.reason;
+        }
+      }
       feed.appendChild(node);
     });
   }

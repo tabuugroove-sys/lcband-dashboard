@@ -79,4 +79,8 @@ body {
 .chip.state-pending { background: var(--warn); color: var(--warn-ink); }
 .chip.cat-duplicate { opacity: .65; }
 .chip.order { border: 1px solid var(--accent); background: transparent; color: var(--accent); }
+.chip.pitch-sent { background: var(--band); color: var(--band-ink); font-weight: 600; }
+.chip.pitch-not-sent { background: var(--down); color: var(--down-ink); font-weight: 600; }
+.chip.pitch-unknown { border: 1px dashed var(--line); background: transparent; color: var(--dim); }
+.pitch-reason { margin-top: 4px; font-size: 12px; color: var(--dim); }
 .empty { color: var(--dim); padding: 30px 0; text-align: center; }
