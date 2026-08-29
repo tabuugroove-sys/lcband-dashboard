@@ -74,6 +74,10 @@ body {
 .pitch-status.pitch-not-sent { background: var(--down); color: var(--down-ink); }
 .pitch-status.pitch-unknown { border: 1px dashed var(--line); background: transparent; color: var(--dim); }
 .post-pitch .pitch-reason { margin-top: 0; font-size: 12px; color: var(--dim); }
+.pitch-tribrain {
+  margin-top: 2px; font-size: 12px; color: var(--broker-ink);
+  background: var(--broker); padding: 5px 8px; border-radius: 8px;
+}
 .post-head { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
 .post-head .chat { font-weight: 600; }
 .sender { color: var(--accent); text-decoration: none; }

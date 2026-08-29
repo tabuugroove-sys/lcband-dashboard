@@ -14,6 +14,10 @@
   var refreshBtn = document.getElementById("refresh");
   var timer = null;
   var lastPosts = [];
+  var TRIBRAIN_STATUS_RU = {
+    queued: "в очереди на разбор", running: "разбирает…",
+    done: "разбор готов", failed: "разбор не удался"
+  };
 
   function fmtWhen(iso) {
     if (!iso) return "—";
@@ -102,6 +106,7 @@
       }
       var pitchStatus = node.querySelector(".pitch-status");
       var pitchReason = node.querySelector(".pitch-reason");
+      var pitchTribrain = node.querySelector(".pitch-tribrain");
       if (!("pitch" in p)) {
         // старый бэкенд ещё не отдаёт поле pitch — не путать с «не отправлен»
         pitchStatus.textContent = "нет данных";
@@ -121,6 +126,18 @@
           pitchStatus.title = reason;
           pitchReason.hidden = false;
           pitchReason.textContent = "Почему: " + reason;
+          if (pitch.tribrain_status) {
+            pitchTribrain.hidden = false;
+            var tStatus = TRIBRAIN_STATUS_RU[pitch.tribrain_status] || pitch.tribrain_status;
+            if (pitch.tribrain_status === "done" && pitch.tribrain_summary) {
+              pitchTribrain.textContent = "🧩 TriBrain: " + pitch.tribrain_summary;
+            } else if (pitch.tribrain_status === "failed" && pitch.tribrain_summary) {
+              pitchTribrain.textContent = "🧩 TriBrain: " + tStatus + " — " + pitch.tribrain_summary;
+            } else {
+              pitchTribrain.textContent = "🧩 TriBrain " + tStatus +
+                " — решение (внедрить/нет) придёт в бот";
+            }
+          }
         } else {
           pitchStatus.textContent = "— нет адресата";
           pitchStatus.classList.add("pitch-unknown");
