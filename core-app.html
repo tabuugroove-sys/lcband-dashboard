@@ -108,6 +108,7 @@
         <button class="tab-button" data-view="broadcast"><span class="tab-icon" aria-hidden="true">✈</span>Рассылка</button>
         <button class="tab-button" data-view="sessions"><span class="tab-icon" aria-hidden="true">⌗</span>Сессии</button>
         <button class="tab-button" data-view="proposals"><span class="tab-icon" aria-hidden="true">▤<span class="tab-badge" id="navProposalsCount" hidden></span></span>КП</button>
+        <button class="tab-button" data-view="contractors"><span class="tab-icon" aria-hidden="true">☍</span>Подрядчики</button>
       </div>
     </section>
   </nav>
@@ -782,6 +783,29 @@
           <div class="section-head"><h2>PDF-предложения клиентам</h2><span>факты → рендер → QA → доставка · provider receipt = доставлено</span></div>
           <div id="proposalsList" aria-live="polite"><div class="empty-state">Загрузка…</div></div>
         </section>
+        <section class="band-section">
+          <div class="section-head"><h2>Все КП-файлы (архив)</h2><span id="proposalArchivePill">Загрузка…</span></div>
+          <p class="promo-source-note">Агентские PDF + найденные вручную предложения (<code>broker_promo/&lt;категория&gt;/&lt;подрядчик&gt;/generated/*.pdf</code>). Открывается в новой вкладке.</p>
+          <div class="promo-grid" id="proposalArchiveList" aria-live="polite"><div class="empty-state">Загрузка…</div></div>
+        </section>
+      </section>
+
+      <section class="screen" id="screen-contractors">
+        <div class="page-head"><div><p class="eyebrow">Broker roster</p><h1>Подрядчики</h1></div><span class="pill" id="contractorsCountPill">Загрузка…</span></div>
+        <section class="band-section">
+          <div class="section-head"><h2>Весь ростер по категориям</h2><span>roster + материализованная медиа-статистика</span></div>
+          <div class="promo-controls" aria-label="Фильтры подрядчиков">
+            <label class="promo-select-label" for="contractorsCategory">
+              <span>Категория</span>
+              <select id="contractorsCategory"><option value="">Все категории</option></select>
+            </label>
+            <label class="promo-select-label" for="contractorsQuery">
+              <span>Поиск</span>
+              <input id="contractorsQuery" type="search" placeholder="Имя или @username">
+            </label>
+          </div>
+          <div class="promo-grid" id="contractorsList" aria-live="polite"><div class="empty-state">Загрузка…</div></div>
+        </section>
       </section>
 
     </main>
@@ -801,6 +825,6 @@
   </dialog>
   <script src="core-parity.js"></script>
   <script src="opsmap.js?v=20260825-005"></script>
-  <script src="core-app.js?v=20260828-016"></script>
+  <script src="core-app.js?v=20260828-026"></script>
 </body>
 </html>

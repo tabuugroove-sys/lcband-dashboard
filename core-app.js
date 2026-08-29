@@ -24,6 +24,9 @@ const API = Object.freeze({
   opsmap: "/api/app/opsmap",
   opsmapReveal: "/api/app/opsmap/reveal",
   proposalJobs: "/api/core/proposal_jobs",
+  proposalArchive: "/api/core/proposal_archive",
+  proposalArchiveFile: "/api/core/proposal_archive/file",
+  contractors: "/api/core/contractors",
 });
 
 // OpsMap Phase 2 lead-mode surface. Used by opsmap.js; explicit references keep
@@ -58,6 +61,9 @@ const state = {
   operations: null,
   leadFlow: null,
   proposals: null,
+  proposalArchive: null,
+  contractors: null,
+  contractorsFilters: { category: "", q: "" },
   activeView: "calendar",
   flowPeriod: 90,
   flowSource: "",
@@ -980,7 +986,11 @@ async function setView(view) {
   if (view === "operations") window.CoreParity?.activate("overview");
   if (view === "broadcast") renderBroadcast();
   if (view === "sessions") refreshSessions();
-  if (view === "proposals") refreshProposals();
+  if (view === "proposals") {
+    refreshProposals();
+    refreshProposalArchive();
+  }
+  if (view === "contractors") refreshContractors();
   if (view === "arbitr") renderArbitr();
 }
 
@@ -999,7 +1009,7 @@ async function route() {
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "flow", "opsmap", "today", "system", "tokens", "loopguard", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "proposals", "arbitr"].includes(name)
+  const view = ["calendar", "chats", "flow", "opsmap", "today", "system", "tokens", "loopguard", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "proposals", "contractors", "arbitr"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";
@@ -3611,12 +3621,97 @@ function renderProposals() {
         </div>
         ${artifact ? `<div class="session-summary-row is-solution">
           <span class="session-summary-label">PDF</span>
-          <p>${escapeHtml((artifact.pdf_path || "").split("/").pop() || "")} · QA ${escapeHtml(artifact.qa_status || "?")} · ${escapeHtml(String(artifact.page_count || 0))} стр · sha ${escapeHtml((artifact.pdf_sha256 || "").slice(0, 12))}…</p>
+          <p>${escapeHtml((artifact.pdf_path || "").split("/").pop() || "")} · QA ${escapeHtml(artifact.qa_status || "?")} · ${escapeHtml(String(artifact.page_count || 0))} стр · sha ${escapeHtml((artifact.pdf_sha256 || "").slice(0, 12))}…${artifact.pdf_sha256 ? ` · <a href="${API.proposalArchiveFile}/${escapeHtml(artifact.pdf_sha256)}" target="_blank" rel="noopener noreferrer">открыть PDF ↗</a>` : ""}</p>
         </div>` : ""}
         ${receiptLine}
       </div>
     </article>`;
   }).join("") || '<div class="empty-state">КП-заданий пока нет. Создать: client_proposal_agent.py create/facts/process.</div>';
+}
+
+async function refreshProposalArchive() {
+  try {
+    const payload = await apiGet(`${API.proposalArchive}?limit=200`);
+    state.proposalArchive = payload;
+    renderProposalArchive();
+  } catch (error) {
+    byId("proposalArchivePill").textContent = "Недоступно";
+    byId("proposalArchiveList").innerHTML = `<div class="empty-state">Архив КП не загружен: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderProposalArchive() {
+  const payload = state.proposalArchive || {};
+  const items = payload.items || [];
+  byId("proposalArchivePill").textContent = payload.ok === false
+    ? "Недоступно"
+    : `${payload.count ?? items.length} файлов (${payload.agent_count ?? 0} агент · ${payload.manual_count ?? 0} вручную)`;
+  byId("proposalArchiveList").innerHTML = items.map((item) => {
+    const isAgent = item.source === "agent";
+    const title = isAgent
+      ? `${item.artist_id || "?"} · @${item.recipient_username || item.job_id || "?"}`
+      : `${item.category || "?"} · ${item.vendor_username || "?"}`;
+    const meta = isAgent
+      ? [item.status, item.qa_status ? `QA ${item.qa_status}` : "", item.delivery_status ? `доставка: ${item.delivery_status}` : "", item.updated_at ? new Date(item.updated_at * 1000).toLocaleDateString("ru-RU") : ""].filter(Boolean).join(" · ")
+      : [item.file_name, item.size_bytes ? `${Math.round(item.size_bytes / 1024)} КБ` : "", item.modified_at ? new Date(item.modified_at).toLocaleDateString("ru-RU") : ""].filter(Boolean).join(" · ");
+    return `
+    <article class="promo-card">
+      <div class="promo-card-top">
+        <strong>${escapeHtml(title)}</strong>
+        <span class="pill ${isAgent ? "ok" : "hold"}">${isAgent ? "агент" : "вручную"}</span>
+      </div>
+      <p class="promo-card-meta">${escapeHtml(meta)}</p>
+      ${item.sha256 ? `<a class="promo-action drive" href="${API.proposalArchiveFile}/${escapeHtml(item.sha256)}" target="_blank" rel="noopener noreferrer">↗ Открыть PDF</a>` : '<span class="promo-card-meta">PDF ещё не создан</span>'}
+    </article>`;
+  }).join("") || '<div class="empty-state">Ни агентских, ни ручных КП-файлов не найдено.</div>';
+}
+
+async function refreshContractors() {
+  try {
+    const params = new URLSearchParams();
+    if (state.contractorsFilters.category) params.set("category", state.contractorsFilters.category);
+    if (state.contractorsFilters.q) params.set("q", state.contractorsFilters.q);
+    const payload = await apiGet(`${API.contractors}?${params.toString()}`);
+    state.contractors = payload;
+    renderContractors();
+  } catch (error) {
+    byId("contractorsCountPill").textContent = "Недоступно";
+    byId("contractorsList").innerHTML = `<div class="empty-state">Ростер не загружен: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderContractors() {
+  const payload = state.contractors || {};
+  const rows = payload.contractors || [];
+  byId("contractorsCountPill").textContent = payload.ok === false ? "Недоступно" : `${payload.count ?? rows.length} подрядчиков`;
+
+  const select = byId("contractorsCategory");
+  if (select && select.dataset.populated !== "1" && (payload.categories || []).length) {
+    select.innerHTML = '<option value="">Все категории</option>' + payload.categories.map((cat) => `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}</option>`).join("");
+    select.dataset.populated = "1";
+  }
+
+  byId("contractorsList").innerHTML = rows.map((row) => {
+    const media = row.media || {};
+    const mediaLine = media.has_media
+      ? `медиа: ${media.local_files} файлов, ${media.videos} видео, ${media.images} фото`
+      : "медиа не материализовано";
+    const priceLine = row.standard_price_rub
+      ? `стандартный пакет: ${row.standard_price_rub.toLocaleString("ru-RU")} ₽`
+      : (row.rate_quote || "цена не зафиксирована");
+    const promoLink = row.standard_promo || row.promo_url;
+    return `
+    <article class="promo-card">
+      <div class="promo-card-top">
+        <strong>${escapeHtml(row.name || row.username || "?")}</strong>
+        <span class="pill hold">${escapeHtml(row.category)}</span>
+      </div>
+      <p class="promo-card-meta">@${escapeHtml(row.username || "?")} · ${escapeHtml(row.geo || "гео?")} · ${escapeHtml(row.channel || "")}</p>
+      <p class="promo-card-meta">${escapeHtml(priceLine)}</p>
+      <p class="promo-card-meta">${escapeHtml(mediaLine)}${row.last_contact ? ` · последний контакт ${escapeHtml(row.last_contact)}` : ""}</p>
+      ${promoLink ? `<a class="promo-action drive" href="${escapeHtml(promoLink)}" target="_blank" rel="noopener noreferrer">↗ Промо</a>` : ""}
+    </article>`;
+  }).join("") || '<div class="empty-state">Подрядчиков по этому фильтру не найдено.</div>';
 }
 
 function costumeStatusLabel(status) {
@@ -5449,6 +5544,16 @@ function bindEvents() {
   });
   byId("promoNext").addEventListener("click", () => {
     changePromoFilters({ page: state.promoFilters.page + 1 });
+  });
+  byId("contractorsCategory").addEventListener("change", (event) => {
+    state.contractorsFilters.category = event.target.value;
+    refreshContractors();
+  });
+  let contractorsQueryTimer = null;
+  byId("contractorsQuery").addEventListener("input", (event) => {
+    state.contractorsFilters.q = event.target.value;
+    clearTimeout(contractorsQueryTimer);
+    contractorsQueryTimer = setTimeout(refreshContractors, 300);
   });
   byId("refreshButton").addEventListener("click", async () => {
     await refreshAll(true);
