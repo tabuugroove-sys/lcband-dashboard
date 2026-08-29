@@ -373,6 +373,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   color: var(--brass);
   font-size: 12px;
 }
+.shadow-strip.is-actionable {
+  cursor: pointer;
+}
+.shadow-strip.is-actionable:focus-visible {
+  outline: 2px solid var(--pine);
+  outline-offset: -2px;
+}
 .pill {
   display: inline-flex;
   align-items: center;

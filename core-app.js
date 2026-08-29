@@ -667,9 +667,21 @@ const READINESS_REASON_TEXT = Object.freeze({
   v1_unknown: "launchctl не подтвердил состояние критических процессов V1.",
 });
 
+function ownerHeartbeatStaleText(owner) {
+  const label = owner?.label || "процесс-владелец";
+  const age = Number(owner?.heartbeat_age_seconds);
+  const threshold = Number(owner?.stale_after_seconds);
+  const ageText = Number.isFinite(age) ? `${Math.round(age / 60)} мин` : "неизвестно сколько";
+  const thresholdText = Number.isFinite(threshold) ? `${Math.round(threshold / 60)} мин` : "порога";
+  return `${label} не присылал heartbeat ${ageText} (порог ${thresholdText}) — процесс числится запущенным в launchctl, но неизвестно, обрабатывает ли он события. Проверить лог агента и, если завис, перезапустить.`;
+}
+
 function runtimeReadinessReason(readiness) {
   const codes = [...(readiness.reason_codes || []), ...(readiness.not_covered || [])];
-  const translated = [...new Set(codes)].map((code) => READINESS_REASON_TEXT[code] || `Неподтверждённая граница: ${code}`);
+  const translated = [...new Set(codes)].map((code) => {
+    if (code === "owner_heartbeat_stale") return ownerHeartbeatStaleText(readiness.owner);
+    return READINESS_REASON_TEXT[code] || `Неподтверждённая граница: ${code}`;
+  });
   const blockers = (readiness.blockers || []).map((blocker) => {
     const files = (blocker.dirty_entries || []).join(", ");
     return `${blocker.label || "Процесс"}: ${blocker.reason || blocker.code || "запуск заблокирован"}${files ? ` Файлы: ${files}.` : ""}`;
@@ -2264,12 +2276,14 @@ function renderSystem() {
   const autonomy = state.autonomy || {};
   const telegramOwner = health.telegram_delivery_owner || {};
   const autonomyConfig = AUTONOMY_MODES[autonomy.mode] || AUTONOMY_MODES.approval_required;
+  const autonomyBlocker = autonomyBlockerText(autonomy);
   const rows = [
     ["Runtime", health.runtime_mode || "unknown"],
     ["Legacy fallback", health.legacy_fallback ? "включён" : "нет"],
     ["Черновики V2", health.draft_write_enabled ? "включены" : "выключены"],
     ["Отправка", health.send_enabled ? "включена" : "выключена"],
     ["Core автоотправка", health.agent_send_enabled ? "включена" : "НЕ ЗАПУЩЕНА"],
+    ...(!health.agent_send_enabled && autonomyBlocker ? [["Почему выключена", autonomyBlocker]] : []),
     ["Режим общения", autonomyConfig.label],
     ["Telegram transport", autonomy.transport_mode || health.telegram_transport_mode || "hold"],
     ["Telegram owner", telegramOwner.available
@@ -5574,6 +5588,7 @@ function bindEvents() {
   };
   bindRuntimeShortcut("runtimeReadiness", () => { location.hash = "system"; });
   bindRuntimeShortcut("runtimeProcesses", openRuntimeControls);
+  bindRuntimeShortcut("shadowStrip", () => { location.hash = "system"; });
   byId("runtimeOpenControls")?.addEventListener("click", openRuntimeControls);
   byId("runtimeRefreshStatus")?.addEventListener("click", () => refreshAll(true));
   byId("autonomyButton").addEventListener("click", (event) => {

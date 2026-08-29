@@ -7,7 +7,7 @@
   <title>LCB 2.0</title>
   <link rel="icon" type="image/png" href="app-icon-192.png">
   <link rel="apple-touch-icon" href="app-icon-180.png">
-  <link rel="stylesheet" href="core-app.css?v=20260826-001">
+  <link rel="stylesheet" href="core-app.css?v=20260829-011">
   <link rel="stylesheet" href="opsmap.css?v=20260825-010-1">
 </head>
 <body>
@@ -114,7 +114,7 @@
   </nav>
 
   <div class="workspace">
-    <div class="shadow-strip" id="shadowStrip">
+    <div class="shadow-strip is-actionable" id="shadowStrip" role="button" tabindex="0" aria-label="Открыть объяснение автоотправки">
       <span id="shadowStripText"><strong>LC Band 2.0</strong> · shadow-writer создаёт черновики · отправка только вручную · автоответы HOLD</span>
       <span class="pill hold" id="shadowStripPill">SEND HOLD</span>
     </div>
@@ -477,25 +477,25 @@
 
       <section class="screen" id="screen-system">
         <div class="page-head"><div><p class="eyebrow">LC Band 2.0</p><h1>Система</h1></div><span class="pill" id="systemHealthPill">Проверка</span></div>
-        <section class="system-band">
-          <div><h2>Новый Core работает отдельно</h2><p>Приложение читает каноническую Core DB без legacy fallback. Отдельный shadow-writer записывает только черновики; он не меняет unread и не имеет доступа к транспортам мессенджеров.</p></div>
-          <div class="system-state" id="systemState"></div>
-        </section>
         <section class="runtime-explainer" aria-labelledby="runtimeExplainerTitle">
           <header>
-            <div><p class="eyebrow">Как читать верхнюю строку</p><h2 id="runtimeExplainerTitle">Процессы, AI-маршруты и готовность — разные вещи</h2></div>
+            <div><p class="eyebrow">Почему статус наверху не «полностью готова»</p><h2 id="runtimeExplainerTitle">Процессы, AI-маршруты и готовность — разные вещи</h2></div>
             <span class="pill" id="runtimeExplainerState">Проверка</span>
           </header>
           <div class="runtime-explainer-grid">
+            <article><strong id="runtimeReadinessReasonTitle">Почему статус частичный</strong><p id="runtimeReadinessReasonText">Загрузка recovery evidence…</p></article>
             <article><strong id="runtimeProcessScopeTitle">Постоянные процессы</strong><p id="runtimeProcessScopeText">Загрузка live launchd inventory…</p></article>
             <article><strong>Почему в «Токенах» больше 100</strong><p>Там перечислены логические AI-purpose: генерация, ревью, broker, классификация и другие маршруты моделей. Они запускаются внутри небольшого числа macOS-процессов и не являются отдельными PID.</p></article>
-            <article><strong id="runtimeReadinessReasonTitle">Почему статус частичный</strong><p id="runtimeReadinessReasonText">Загрузка recovery evidence…</p></article>
           </div>
           <div class="runtime-explainer-actions">
             <button class="text-button" type="button" id="runtimeOpenControls">Открыть Операции → Процессы</button>
             <button class="text-button" type="button" id="runtimeRefreshStatus">Обновить статус</button>
             <span>Для перезапуска: operator-login → отметить точные labels → «Перезапустить выбранные» → подтвердить действие.</span>
           </div>
+        </section>
+        <section class="system-band">
+          <div><h2>Новый Core работает отдельно</h2><p>Приложение читает каноническую Core DB без legacy fallback. Отдельный shadow-writer записывает только черновики; он не меняет unread и не имеет доступа к транспортам мессенджеров.</p></div>
+          <div class="system-state" id="systemState"></div>
         </section>
         <div class="system-columns">
           <section class="band-section"><div class="section-head"><h2>Данные</h2></div><dl class="definition-list" id="schemaDetails"></dl></section>
@@ -825,6 +825,6 @@
   </dialog>
   <script src="core-parity.js"></script>
   <script src="opsmap.js?v=20260825-005"></script>
-  <script src="core-app.js?v=20260828-026"></script>
+  <script src="core-app.js?v=20260829-011"></script>
 </body>
 </html>
