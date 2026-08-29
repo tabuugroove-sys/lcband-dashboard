@@ -100,28 +100,35 @@
         orderChip.hidden = false;
         orderChip.textContent = "заказ: " + p.order_status;
       }
-      var pitchChip = node.querySelector(".chip.pitch");
+      var pitchStatus = node.querySelector(".pitch-status");
       var pitchReason = node.querySelector(".pitch-reason");
-      var pitch = p.pitch || {};
-      if (pitch.sent === true) {
-        pitchChip.textContent = "✅ отправлен" +
-          (pitch.type_label ? " · " + pitch.type_label : "");
-        pitchChip.classList.add("pitch-sent");
-        pitchChip.title = pitch.ts ? "Отправлен " + fmtWhen(pitch.ts) : "";
-      } else if (pitch.sent === false) {
-        pitchChip.textContent = "❌ не отправлен";
-        pitchChip.classList.add("pitch-not-sent");
-        var reason = pitch.reason || "причина не зафиксирована";
-        pitchChip.title = reason;
-        pitchReason.hidden = false;
-        pitchReason.textContent = "Почему: " + reason;
+      if (!("pitch" in p)) {
+        // старый бэкенд ещё не отдаёт поле pitch — не путать с «не отправлен»
+        pitchStatus.textContent = "нет данных";
+        pitchStatus.classList.add("pitch-unknown");
+        pitchStatus.title = "Бэкенд не обновлён: поле pitch отсутствует в ответе API";
       } else {
-        pitchChip.textContent = "—";
-        pitchChip.classList.add("pitch-unknown");
-        if (pitch.reason) {
-          pitchChip.title = pitch.reason;
+        var pitch = p.pitch || {};
+        if (pitch.sent === true) {
+          pitchStatus.textContent = "✅ отправлен" +
+            (pitch.type_label ? " · " + pitch.type_label : "");
+          pitchStatus.classList.add("pitch-sent");
+          pitchStatus.title = pitch.ts ? "Отправлен " + fmtWhen(pitch.ts) : "";
+        } else if (pitch.sent === false) {
+          pitchStatus.textContent = "❌ не отправлен";
+          pitchStatus.classList.add("pitch-not-sent");
+          var reason = pitch.reason || "причина не зафиксирована";
+          pitchStatus.title = reason;
           pitchReason.hidden = false;
-          pitchReason.textContent = "Почему: " + pitch.reason;
+          pitchReason.textContent = "Почему: " + reason;
+        } else {
+          pitchStatus.textContent = "— нет адресата";
+          pitchStatus.classList.add("pitch-unknown");
+          if (pitch.reason) {
+            pitchStatus.title = pitch.reason;
+            pitchReason.hidden = false;
+            pitchReason.textContent = "Почему: " + pitch.reason;
+          }
         }
       }
       feed.appendChild(node);

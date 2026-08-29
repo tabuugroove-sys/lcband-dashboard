@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LCB 2.0 · Посты</title>
-<link rel="stylesheet" href="/posts.css?v=6">
+<link rel="stylesheet" href="/posts.css?v=7">
 </head>
 <body>
 <header class="topbar">
@@ -38,26 +38,30 @@
 <main id="feed" class="feed"></main>
 <template id="rowTpl">
   <article class="post">
-    <div class="post-head">
-      <span class="when"></span>
-      <span class="chat"></span>
-      <a class="sender" target="_blank" rel="noopener"></a>
+    <div class="post-main">
+      <div class="post-head">
+        <span class="when"></span>
+        <span class="chat"></span>
+        <a class="sender" target="_blank" rel="noopener"></a>
+      </div>
+      <div class="text"></div>
+      <div class="verdicts">
+        <span class="vlabel">V1</span>
+        <span class="chip cat"></span>
+        <span class="chip mode"></span>
+        <span class="chip models" hidden></span>
+        <span class="vlabel">V2</span>
+        <span class="chip v2"></span>
+        <span class="chip order" hidden></span>
+      </div>
     </div>
-    <div class="text"></div>
-    <div class="verdicts">
-      <span class="vlabel">V1</span>
-      <span class="chip cat"></span>
-      <span class="chip mode"></span>
-      <span class="chip models" hidden></span>
-      <span class="vlabel">V2</span>
-      <span class="chip v2"></span>
-      <span class="chip order" hidden></span>
-      <span class="vlabel">Питч</span>
-      <span class="chip pitch" tabindex="0"></span>
-    </div>
-    <div class="pitch-reason" hidden></div>
+    <aside class="post-pitch">
+      <div class="pitch-title">Питч</div>
+      <div class="pitch-status" tabindex="0"></div>
+      <div class="pitch-reason" hidden></div>
+    </aside>
   </article>
 </template>
-<script src="/posts.js?v=6"></script>
+<script src="/posts.js?v=7"></script>
 </body>
 </html>
