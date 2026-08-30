@@ -103,21 +103,28 @@ const state = {
   channelThreadsPending: {}, // channel → true, пока летит запрос
   query: "",
   promoFilters: { q: "", category: "", status: "all", page: 1 },
+  // По умолчанию видно обе линии бизнеса и всю живую воронку; скрыта только
+  // отмена. Прежний набор прятал 1271 запись из 1319 и весь брокер целиком —
+  // экран выглядел пустым, хотя заявки были на месте.
   calendarFilters: {
     lcb: true,
-    broker: false,
+    broker: true,
     performed: false,
-    content_pending: false,
+    content_pending: true,
     content_received: false,
     prepayment: true,
     contract: true,
     confirmed: true,
     negotiating: true,
-    lead: false,
-    followup_waiting: false,
-    followup_cold: false,
+    interest: true,
+    lead: true,
+    pitched: true,
+    followup_waiting: true,
+    followup_cold: true,
     cancelled: false,
   },
+  funnelError: "",
+  readMarksMigrated: false,
   month: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   loading: false,
   calendarLoading: false,
@@ -182,6 +189,9 @@ function autonomyBlockerText(autonomy) {
     .join("; ");
 }
 
+// Словарь стадий один на всё приложение: им владеет funnel_owner.py, календарь
+// и чаты только показывают его по-разному. Держать здесь второй набор ключей
+// значило бы снова развести воронку на две.
 const CALENDAR_STAGE_LABELS = Object.freeze({
   performed: "Состоялось",
   content_pending: "Фото/видео запросить",
@@ -190,8 +200,10 @@ const CALENDAR_STAGE_LABELS = Object.freeze({
   contract: "Договор",
   confirmed: "Подтверждено",
   negotiating: "Отвечает / в работе",
+  interest: "Интерес",
   followup_waiting: "Ждём ответа",
   followup_cold: "Не отвечает",
+  pitched: "Отправили питч",
   lead: "Новая заявка",
   cancelled: "Отмена",
 });
@@ -1059,28 +1071,32 @@ function calendarEvents() {
   });
 }
 
+const CALENDAR_LINE_FILTERS = Object.freeze(["lcb", "broker"]);
+const CALENDAR_STAGE_FILTERS = Object.freeze(Object.keys(CALENDAR_STAGE_LABELS));
+
 function calendarEventMatchesFilters(event) {
   const filters = state.calendarFilters;
+  if (event.is_technical) return false;
+
+  // Линия бизнеса и стадия — две независимые группы галочек, а не одно
+  // условие через И. Пустая группа означает «по этой группе не ограничиваем»,
+  // а не «не показывать ничего»: раньше «Снять все» + одна галочка «Broker»
+  // давали пустой экран при 318 брокерских записях, и то же самое получалось
+  // от одной галочки «Новая заявка».
+  const selectedLines = CALENDAR_LINE_FILTERS.filter((key) => filters[key]);
   const businessLine = String(event.business_line || "").toLowerCase();
-  const selectedBusinessLines = [
-    filters.lcb ? "lcb" : null,
-    filters.broker ? "broker" : null,
-  ].filter(Boolean);
+  if (selectedLines.length && !selectedLines.includes(businessLine)) return false;
 
-  // The calendar has two business lines. Selecting another line expands the
-  // result set; requests/jobs are records inside a line, not extra filters.
-  if (event.is_technical || !selectedBusinessLines.includes(businessLine)) return false;
-
+  const selectedStages = CALENDAR_STAGE_FILTERS.filter((key) => filters[key]);
+  if (!selectedStages.length) return true;
   const cancelled = Boolean(
     event.cancelled
       || event.lifecycle === "cancelled"
       || event.occurrence_status === "cancelled"
       || event.funnel_stage === "cancelled"
   );
-  if (cancelled && !filters.cancelled) return false;
-  const funnelStage = eventFunnelStage(event);
-  if (funnelStage && filters[funnelStage] === false) return false;
-  return true;
+  if (cancelled) return Boolean(filters.cancelled);
+  return selectedStages.includes(eventFunnelStage(event));
 }
 
 function eventFunnelStage(event) {
@@ -1114,6 +1130,8 @@ function syncCalendarFilterControls() {
     filterStageContract: "contract",
     filterStageConfirmed: "confirmed",
     filterStageNegotiating: "negotiating",
+    filterStageInterest: "interest",
+    filterStagePitched: "pitched",
     filterStageLead: "lead",
     filterStageFollowupWaiting: "followup_waiting",
     filterStageFollowupCold: "followup_cold",
@@ -1280,21 +1298,67 @@ function hotThreadIds() {
   return ids;
 }
 
+// Прочитанность держит сервер (`/api/core/threads/read`), а тред приносит
+// `unread_count` вместе со списком. Раньше это был набор id в localStorage:
+// он не переживал ни другое окно, ни очистку данных сайта, у отметки не было
+// времени — открыл тред один раз, и новые входящие уже никогда не поднимали
+// его обратно, — а хвост в 1000 записей вытеснял старые отметки при 978
+// тредах. Ключ ниже остался ровно для одноразового переезда старых отметок.
 const READ_THREADS_KEY = "lcb_core_read_threads";
 
-function readThreadIds() {
+// Все треды, которые приложение сейчас держит: общая свежая выборка плюс
+// выборки папок-каналов. Нужен, чтобы отметка прочтения и перенос старых
+// отметок работали и в папке канала, а не только в общем списке.
+function allKnownThreads() {
+  return [
+    ...(state.threads || []),
+    ...Object.values(state.channelThreads || {}).flatMap((entry) => entry.rows || []),
+  ];
+}
+
+function threadIsUnread(thread) {
+  return Number(thread?.unread_count || 0) > 0;
+}
+
+async function markThreadRead(threadId, lastSeenEpoch) {
+  if (!threadId || !lastSeenEpoch) return;
+  const thread = allKnownThreads().find((item) => item.thread_id === threadId);
+  if (thread) {
+    thread.unread_count = 0;
+    thread.last_seen_epoch = lastSeenEpoch;
+  }
   try {
-    const value = JSON.parse(localStorage.getItem(READ_THREADS_KEY) || "[]");
-    return new Set(Array.isArray(value) ? value.map(String) : []);
+    await apiPost("/api/core/threads/read", {
+      thread_id: threadId,
+      last_seen_epoch: lastSeenEpoch,
+    });
   } catch (_) {
-    return new Set();
+    // Отметка не критична для чтения: список перечитается и покажет правду.
   }
 }
 
-function markThreadReadLocally(threadId) {
-  const ids = readThreadIds();
-  ids.add(String(threadId));
-  localStorage.setItem(READ_THREADS_KEY, JSON.stringify([...ids].slice(-1000)));
+// Старые отметки браузера переносим один раз, иначе в день перехода все
+// давно прочитанные треды разом снова станут синими.
+async function migrateLocalReadMarks() {
+  let ids = [];
+  try {
+    const value = JSON.parse(localStorage.getItem(READ_THREADS_KEY) || "[]");
+    ids = Array.isArray(value) ? value.map(String) : [];
+  } catch (_) {
+    ids = [];
+  }
+  if (!ids.length) return;
+  const known = new Map(allKnownThreads().map((item) => [item.thread_id, item]));
+  const threads = ids
+    .map((id) => known.get(id))
+    .filter((item) => item && item.last_message_epoch)
+    .map((item) => ({ thread_id: item.thread_id, last_seen_epoch: item.last_message_epoch }));
+  try {
+    if (threads.length) await apiPost("/api/core/threads/read", { threads });
+    localStorage.removeItem(READ_THREADS_KEY);
+  } catch (_) {
+    // Не удалось — попробуем в следующий раз, ключ остаётся на месте.
+  }
 }
 
 function isSentTodayMoscow(thread) {
@@ -1307,16 +1371,37 @@ function isSentTodayMoscow(thread) {
   return day.format(new Date(Number(outboundEpoch) * 1000)) === day.format(new Date());
 }
 
+// Имя, под которым тред известен воронке. API тредов отдаёт `handle`; поля
+// `username` в нём нет вовсе, а `display_name` — это имя человека, а не логин.
+// Пока искали по ним, совпадений не было ни одного и вся воронка была пустой.
+function threadHandleKeys(thread) {
+  return [thread?.handle, thread?.username, thread?.peer_external_id]
+    .map((value) => String(value || "").replace(/^@/, "").trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function threadFunnelStage(thread) {
-  const uname = String(thread?.username || thread?.display_name || "").replace(/^@/, "").toLowerCase();
   const fv = state.funnelView || {};
-  if (uname && fv.lcb_stage_by_user && fv.lcb_stage_by_user[uname]) return fv.lcb_stage_by_user[uname];
+  for (const key of threadHandleKeys(thread)) {
+    if (fv.lcb_stage_by_user && fv.lcb_stage_by_user[key]) return fv.lcb_stage_by_user[key];
+  }
   return String(thread?.funnel_stage || "");
 }
 
+function threadBrokerStage(thread) {
+  const map = (state.funnelView || {}).broker_stage_by_user || {};
+  for (const key of threadHandleKeys(thread)) {
+    if (map[key]) return map[key];
+  }
+  return "";
+}
+
 function threadAttention(thread) {
-  const uname = String(thread?.username || thread?.display_name || "").replace(/^@/, "").toLowerCase();
-  return uname ? ((state.funnelView || {}).attention || {})[uname] : null;
+  const attention = (state.funnelView || {}).attention || {};
+  for (const key of threadHandleKeys(thread)) {
+    if (attention[key]) return attention[key];
+  }
+  return null;
 }
 
 
@@ -1379,12 +1464,12 @@ function threadMatchesFolder(thread, folder) {
     return Boolean(item && (item.participants || []).some((link) => link.thread_id === thread.thread_id));
   }
   if (folder.startsWith("funnel:")) return threadFunnelStage(thread) === folder.slice(7);
-  if (folder.startsWith("broker:")) {
-    const uname = String(thread?.username || thread?.display_name || "").replace(/^@/, "").toLowerCase();
-    return Boolean(uname && ((state.funnelView || {}).broker_stage_by_user || {})[uname] === folder.slice(7));
-  }
+  if (folder.startsWith("broker:")) return threadBrokerStage(thread) === folder.slice(7);
   if (folder === "hot") return hotThreadIds().has(thread.thread_id);
-  if (folder === "new") return !readThreadIds().has(thread.thread_id) && thread.last_direction !== "outbound";
+  // Папка «Новые» — это бакет нераспознанных собеседников, и считается она тем
+  // же предикатом, что её бейдж (общая ветка ниже). Непрочитанность живёт в
+  // фильтре статуса: пока это было одно слово на два разных факта, число над
+  // списком не совпадало с самим списком.
   if (folder === "technical") return isTechnicalThread(thread);
   return thread.business_bucket === folder;
 }
@@ -1395,10 +1480,17 @@ function chatStatusSets() {
   // «покликай эти три фильтра, они не соотносятся с воронкой»).
   const inFolder = threadSource().filter((thread) => threadMatchesFolder(thread, state.chatFolder));
   const business = inFolder.filter((thread) => !isTechnicalThread(thread));
-  const read = readThreadIds();
+  const hot = hotThreadIds();
   return {
-    unread: new Set(business.filter((thread) => thread.last_direction !== "outbound" && !read.has(thread.thread_id)).map((thread) => thread.thread_id)),
-    pending: hotThreadIds(),
+    // Непрочитано — это «Михаил ещё не видел эти входящие», и снимает отметку
+    // только человек, открывший тред. Прежняя формула гасила непрочитанность
+    // ответом агента: автоответчик написал — тред исчез из счётчика, хотя
+    // Михаил его не открывал.
+    unread: new Set(business.filter(threadIsUnread).map((thread) => thread.thread_id)),
+    // «Ждут подтверждения» обязаны считаться внутри папки, как и остальные:
+    // глобальный набор показывал одно и то же число в любой папке, а список
+    // после клика мог оказаться пустым.
+    pending: new Set(business.filter((thread) => hot.has(thread.thread_id)).map((thread) => thread.thread_id)),
     sent: new Set(business.filter(isSentTodayMoscow).map((thread) => thread.thread_id)),
   };
 }
@@ -1480,20 +1572,13 @@ function renderThreadFolders() {
     ? state.funnelView.lcb_folders
     : (state.funnelFolders && state.funnelFolders.length)
     ? state.funnelFolders
-    : [
-        { key: "interest", label: "Интерес" },
-        { key: "negotiating", label: "Переговоры" },
-        { key: "prepayment", label: "Ждём предоплату" },
-        { key: "won", label: "Оплатили" },
-        { key: "followup", label: "Follow-up" },
-        { key: "aftercare", label: "Отзыв/контент" },
-      ];
+    : [];
   const funnelCounts = new Map();
   state.threads.forEach((thread) => {
     const stage = threadFunnelStage(thread);
     if (stage) funnelCounts.set(stage, (funnelCounts.get(stage) || 0) + 1);
   });
-  byId("funnelFolders").innerHTML = funnelSpec
+  const funnelHtml = funnelSpec
     .filter((item) => (item.count || funnelCounts.get(item.key) || 0) > 0)
     .map((item) => {
       const folder = `funnel:${item.key}`;
@@ -1501,6 +1586,14 @@ function renderThreadFolders() {
       return `<button class="funnel-folder ${folder === state.chatFolder ? "is-active" : ""}" data-funnel-folder="${escapeHtml(folder)}"><span class="folder-icon">₽</span><span class="folder-label">${escapeHtml(item.label)}</span><b>${formatNumber(count)}</b></button>`;
     })
     .join("");
+  // Пустая воронка — всегда чей-то сбой, а не «нет лидов». Молчаливая пустота
+  // читается как «в CRM никого нет» и скрывает отвалившийся источник.
+  byId("funnelFolders").innerHTML = funnelHtml
+    || `<div class="funnel-folder-empty">${escapeHtml(
+      state.funnelError
+        ? `Воронка не загрузилась: ${state.funnelError}`
+        : "Воронка пуста: ни один контакт CRM не попал в стадию."
+    )}</div>`;
   byId("funnelFolders").querySelectorAll("[data-funnel-folder]").forEach((button) => {
     button.addEventListener("click", () => {
       state.chatFolder = button.dataset.funnelFolder;
@@ -1514,7 +1607,12 @@ function renderThreadFolders() {
     brokerBox.innerHTML = brokerSpec.map((item) => {
       const folder = `broker:${item.key}`;
       return `<button class="funnel-folder ${folder === state.chatFolder ? "is-active" : ""}" data-broker-folder="${escapeHtml(folder)}"><span class="folder-icon">◆</span><span class="folder-label">${escapeHtml(item.label)}</span><b>${formatNumber(item.count)}</b></button>`;
-    }).join("");
+    }).join("")
+      || `<div class="funnel-folder-empty">${escapeHtml(
+        state.funnelError
+          ? `Воронка брокера не загрузилась: ${state.funnelError}`
+          : "Брокерских заявок в воронке нет."
+      )}</div>`;
     brokerBox.querySelectorAll("[data-broker-folder]").forEach((button) => {
       button.addEventListener("click", () => {
         state.chatFolder = button.dataset.brokerFolder;
@@ -1586,9 +1684,22 @@ function clearSelectedConversation() {
 
 function renderThreads() {
   if (!state.funnelView || Date.now() - (state.funnelViewAt || 0) > 120000) {
+    // Воронку берём у её владельца в Core. Раньше единственным источником был
+    // прокси на legacy-бэкенд: пока тот занят своей выгрузкой, он отдаёт 503,
+    // и обе панели воронки молча пустели — при том что данные лежат локально.
+    // Детали внимания (тишина, следующее касание) остаются у legacy и теперь
+    // только дополняют картину: их недоступность воронку больше не гасит.
+    state.funnelViewAt = Date.now();
+    apiGet("/api/core/funnel").then((fv) => {
+      state.funnelView = { ...(state.funnelView || {}), ...fv };
+      state.funnelError = "";
+      renderThreadFolders();
+    }).catch((error) => {
+      state.funnelError = error.message || "воронка недоступна";
+      renderThreadFolders();
+    });
     apiGet("/api/app/funnel_view").then((fv) => {
-      state.funnelView = fv;
-      state.funnelViewAt = Date.now();
+      state.funnelView = { ...(state.funnelView || {}), attention: fv.attention || {} };
       renderThreadFolders();
     }).catch(() => {});
   }
@@ -1737,7 +1848,6 @@ async function openThread(threadId, updateHash = true, options = {}) {
     byId("contactDatesPanel").open = false;
     byId("contactDatesCount").textContent = "";
     byId("contactDatesList").innerHTML = "";
-    markThreadReadLocally(threadId);
     renderThreads();
     const selectedThread = state.threads.find((item) => item.thread_id === threadId)
       || Object.values(state.channelThreads)
@@ -1761,6 +1871,17 @@ async function openThread(threadId, updateHash = true, options = {}) {
       { signal: controller.signal },
     );
     if (state.selectedThreadId !== threadId) return;
+    // Отметку ставим ПОСЛЕ того, как переписка реально пришла, и по времени
+    // самого свежего показанного сообщения. Раньше она ставилась до запроса:
+    // при таймауте в 20 секунд тред считался прочитанным, хотя человек не
+    // увидел ни одной строки. Фоновое обновление тред не «читает».
+    if (!background) {
+      const newest = (payload.messages || []).reduce(
+        (top, message) => Math.max(top, Number(message.sent_at_epoch) || 0),
+        0,
+      );
+      if (newest) markThreadRead(threadId, newest);
+    }
     const fingerprint = threadPayloadFingerprint(payload);
     if (background && fingerprint === state.activeThreadFingerprint) return;
     state.activeThreadFingerprint = fingerprint;
@@ -5245,6 +5366,12 @@ async function refreshAll(force = false) {
       state.costumesRefreshedAt = Date.now();
     }
     state.threads = threadsPayload.threads || [];
+    // Один раз переносим отметки прочтения, оставшиеся в браузере от прежнего
+    // localStorage-стора, — иначе в день перехода все они пропадут разом.
+    if (!state.readMarksMigrated) {
+      state.readMarksMigrated = true;
+      migrateLocalReadMarks();
+    }
     if (state.selectedThreadId) {
       const refreshedThread = state.threads.find(
         (item) => item.thread_id === state.selectedThreadId,
@@ -5360,6 +5487,8 @@ function bindEvents() {
     filterStageContract: "contract",
     filterStageConfirmed: "confirmed",
     filterStageNegotiating: "negotiating",
+    filterStageInterest: "interest",
+    filterStagePitched: "pitched",
     filterStageLead: "lead",
     filterStageFollowupWaiting: "followup_waiting",
     filterStageFollowupCold: "followup_cold",

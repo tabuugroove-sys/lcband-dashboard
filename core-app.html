@@ -7,7 +7,7 @@
   <title>LCB 2.0</title>
   <link rel="icon" type="image/png" href="app-icon-192.png">
   <link rel="apple-touch-icon" href="app-icon-180.png">
-  <link rel="stylesheet" href="core-app.css?v=20260829-012">
+  <link rel="stylesheet" href="core-app.css?v=20260829-013">
   <link rel="stylesheet" href="opsmap.css?v=20260825-010-1">
 </head>
 <body>
@@ -131,10 +131,10 @@
           </div>
           <div class="calendar-filterbar" aria-label="Фильтры календаря">
             <label><input id="filterLcb" type="checkbox" checked> LCBand</label>
-            <label><input id="filterBroker" type="checkbox"> Broker</label>
+            <label><input id="filterBroker" type="checkbox" checked> Broker</label>
             <span class="calendar-filter-actions">
               <button class="text-button" id="calendarSelectAll" type="button">Выбрать все</button>
-              <button class="text-button" id="calendarClearAll" type="button">Снять все</button>
+              <button class="text-button" id="calendarClearAll" type="button" title="Снять галочки: пустая группа больше ничего не ограничивает">Снять все</button>
             </span>
           </div>
           <div class="calendar-stage-filterbar" aria-label="Этапы воронки">
@@ -146,9 +146,11 @@
             <label class="stage-filter contract"><input id="filterStageContract" type="checkbox" checked> Договор</label>
             <label class="stage-filter confirmed"><input id="filterStageConfirmed" type="checkbox" checked> Подтверждено</label>
             <label class="stage-filter negotiating"><input id="filterStageNegotiating" type="checkbox" checked> Отвечает / в работе</label>
-            <label class="stage-filter lead"><input id="filterStageLead" type="checkbox"> Новая заявка</label>
-            <label class="stage-filter followup-waiting"><input id="filterStageFollowupWaiting" type="checkbox"> Ждём ответа</label>
-            <label class="stage-filter followup-cold"><input id="filterStageFollowupCold" type="checkbox"> Не отвечает</label>
+            <label class="stage-filter interest"><input id="filterStageInterest" type="checkbox" checked> Интерес</label>
+            <label class="stage-filter lead"><input id="filterStageLead" type="checkbox" checked> Новая заявка</label>
+            <label class="stage-filter pitched"><input id="filterStagePitched" type="checkbox" checked> Отправили питч</label>
+            <label class="stage-filter followup-waiting"><input id="filterStageFollowupWaiting" type="checkbox" checked> Ждём ответа</label>
+            <label class="stage-filter followup-cold"><input id="filterStageFollowupCold" type="checkbox" checked> Не отвечает</label>
             <label class="stage-filter cancelled"><input id="filterCancelled" type="checkbox"> Отмена</label>
           </div>
           <div class="calendar-legend" aria-label="Обозначения цветов">
@@ -159,7 +161,9 @@
             <span class="legend-item contract"><i></i>Договор</span>
             <span class="legend-item confirmed"><i></i>Подтверждено</span>
             <span class="legend-item negotiating"><i></i>Отвечает / в работе</span>
+            <span class="legend-item interest"><i></i>Интерес</span>
             <span class="legend-item lead"><i></i>Новая заявка</span>
+            <span class="legend-item pitched"><i></i>Отправили питч</span>
             <span class="legend-item followup-waiting"><i></i>Ждём ответа</span>
             <span class="legend-item followup-cold"><i></i>Не отвечает</span>
             <span class="legend-item cancelled"><i></i>Отмена</span>
@@ -833,6 +837,6 @@
   </dialog>
   <script src="core-parity.js"></script>
   <script src="opsmap.js?v=20260825-005"></script>
-  <script src="core-app.js?v=20260829-012"></script>
+  <script src="core-app.js?v=20260829-013"></script>
 </body>
 </html>

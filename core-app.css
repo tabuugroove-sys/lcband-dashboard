@@ -460,6 +460,8 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .legend-item.contract i { background: #c77722; }
 .legend-item.confirmed i { background: #c39b23; }
 .legend-item.negotiating i { background: #4f8f68; }
+.legend-item.interest i { background: #59a07c; }
+.legend-item.pitched i { background: #8fbf9c; }
 .legend-item.lead i { background: #2f8f72; }
 .legend-item.followup-waiting i { background: #78a875; }
 .legend-item.followup-cold i { background: #a3bda1; }
@@ -503,12 +505,15 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .event-chip.funnel-contract { background: #c77722; color: white; }
 .event-chip.funnel-confirmed { background: #c39b23; color: white; }
 .event-chip.funnel-negotiating { background: #4f8f68; color: white; }
+.event-chip.funnel-interest { background: #59a07c; color: white; }
+.event-chip.funnel-pitched { background: #8fbf9c; color: #22392b; }
 .event-chip.funnel-lead { background: #2f8f72; color: white; }
 .event-chip.funnel-followup-waiting { background: #78a875; color: white; }
 .event-chip.funnel-followup-cold { background: #a3bda1; color: #263a29; }
 .event-chip.funnel-cancelled { background: #b8bec2; color: #586067; text-decoration: line-through; }
 .event-chip.technical { background: var(--frame); color: var(--muted); }
 .event-chip.request { opacity: .78; }
+.funnel-folder-empty { padding: 8px 12px; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .calendar-empty-note { padding: 34px 18px; text-align: center; color: var(--muted); }
 .undated-calendar { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
 .undated-calendar summary { padding: 11px 14px; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
@@ -632,6 +637,8 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .contact-date-stage.funnel-contract { background: #c77722; }
 .contact-date-stage.funnel-confirmed { background: #c39b23; }
 .contact-date-stage.funnel-negotiating { background: #4f8f68; }
+.contact-date-stage.funnel-interest { background: #59a07c; }
+.contact-date-stage.funnel-pitched { background: #8fbf9c; color: #22392b; }
 .contact-date-stage.funnel-lead { background: #2f8f72; }
 .contact-date-stage.funnel-followup-waiting { background: #78a875; }
 .contact-date-stage.funnel-followup-cold { background: #a3bda1; color: #24382b; }
