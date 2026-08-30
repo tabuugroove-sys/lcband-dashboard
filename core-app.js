@@ -125,6 +125,8 @@ const state = {
   },
   funnelError: "",
   readMarksMigrated: false,
+  threadsTotal: 0,
+  threadsTruncated: false,
   month: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   loading: false,
   calendarLoading: false,
@@ -1443,7 +1445,12 @@ function ensureChannelThreads(channel) {
   state.channelThreadsPending[channel] = true;
   apiGet(`${API.threads}?limit=1000&channel=${encodeURIComponent(channel)}`)
     .then((payload) => {
-      state.channelThreads[channel] = { rows: payload.threads || [], at: Date.now() };
+      state.channelThreads[channel] = {
+        rows: payload.threads || [],
+        at: Date.now(),
+        total: Number(payload.total || 0),
+        truncated: Boolean(payload.truncated),
+      };
       delete state.channelThreadsPending[channel];
       if (effectiveChannel() === channel) renderThreads();
       else renderThreadFolders(); // бейдж папки честный и без захода в неё
@@ -1454,6 +1461,17 @@ function ensureChannelThreads(channel) {
 function threadSource() {
   const channel = effectiveChannel();
   return (channel && channelRows(channel)) || state.threads;
+}
+
+// Откуда взят текущий список и обрезан ли он сервером.
+function threadSourceMeta() {
+  const channel = effectiveChannel();
+  const entry = channel ? state.channelThreads[channel] : null;
+  if (entry) return { total: entry.total || 0, truncated: Boolean(entry.truncated) };
+  return {
+    total: Number(state.threadsTotal || 0),
+    truncated: Boolean(state.threadsTruncated),
+  };
 }
 
 function threadMatchesFolder(thread, folder) {
@@ -1718,7 +1736,13 @@ function renderThreads() {
   ) {
     clearSelectedConversation();
   }
-  byId("threadTotal").textContent = `${threads.length} тредов`;
+  // Число над списком не должно врать: выборка обрезана лимитом сервера, и
+  // молчаливая обрезка читается как «это всё, что есть». У tg и vk по ~3000
+  // тредов, а приходит максимум 1000.
+  const source = threadSourceMeta();
+  byId("threadTotal").textContent = source.truncated
+    ? `${threads.length} тредов · показаны свежие, всего ${formatNumber(source.total)}`
+    : `${threads.length} тредов`;
   byId("threadList").innerHTML = threads.length ? threads.map((thread) => {
     const name = threadTitle(thread);
     const coordination = coordinationContextForThread(thread.thread_id);
@@ -5366,6 +5390,8 @@ async function refreshAll(force = false) {
       state.costumesRefreshedAt = Date.now();
     }
     state.threads = threadsPayload.threads || [];
+    state.threadsTotal = Number(threadsPayload.total || 0);
+    state.threadsTruncated = Boolean(threadsPayload.truncated);
     // Один раз переносим отметки прочтения, оставшиеся в браузере от прежнего
     // localStorage-стора, — иначе в день перехода все они пропадут разом.
     if (!state.readMarksMigrated) {
