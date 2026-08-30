@@ -249,7 +249,7 @@ const byId = (id) => document.getElementById(id);
 
 const NAV_LAYOUT_KEY = "lcb_core_nav_layout_v1";
 const DEFAULT_NAV_LAYOUT = Object.freeze({
-  primary: ["calendar", "chats", "flow", "opsmap", "today", "promo", "costumes", "operations", "arbitr"],
+  primary: ["calendar", "chats", "flow", "opsmap", "posts", "pitches", "today", "promo", "costumes", "operations", "arbitr"],
   secondary: ["system", "fees", "tokens", "loopguard", "broadcast", "sessions", "proposals"],
 });
 let navDrag = null;
@@ -1004,6 +1004,13 @@ async function setView(view) {
   }
   if (view === "contractors") refreshContractors();
   if (view === "arbitr") renderArbitr();
+  if (view === "posts") loadFrameOnce("postsFrame", "/posts.html");
+  if (view === "pitches") loadFrameOnce("pitchesFrame", "/pitches.html");
+}
+
+function loadFrameOnce(iframeId, src) {
+  const frame = byId(iframeId);
+  if (frame && !frame.src.endsWith(src)) frame.src = src;
 }
 
 async function route() {
@@ -1021,7 +1028,7 @@ async function route() {
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "flow", "opsmap", "today", "system", "tokens", "loopguard", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "proposals", "contractors", "arbitr"].includes(name)
+  const view = ["calendar", "chats", "flow", "opsmap", "posts", "pitches", "today", "system", "tokens", "loopguard", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "proposals", "contractors", "arbitr"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";

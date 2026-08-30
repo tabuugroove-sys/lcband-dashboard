@@ -7,7 +7,7 @@
   <title>LCB 2.0</title>
   <link rel="icon" type="image/png" href="app-icon-192.png">
   <link rel="apple-touch-icon" href="app-icon-180.png">
-  <link rel="stylesheet" href="core-app.css?v=20260829-011">
+  <link rel="stylesheet" href="core-app.css?v=20260829-012">
   <link rel="stylesheet" href="opsmap.css?v=20260825-010-1">
 </head>
 <body>
@@ -88,8 +88,8 @@
         <button class="tab-button" data-view="chats"><span class="tab-icon" aria-hidden="true">✉<span class="tab-badge" id="navChatsCount" hidden></span></span>Чаты</button>
         <button class="tab-button" data-view="flow"><span class="tab-icon" aria-hidden="true">⌁</span>Карта лидов</button>
         <button class="tab-button" data-view="opsmap"><span class="tab-icon" aria-hidden="true">⬡</span>OpsMap</button>
-        <a class="tab-button" href="/posts.html"><span class="tab-icon" aria-hidden="true">📡</span>Посты</a>
-        <a class="tab-button" href="/pitches.html"><span class="tab-icon" aria-hidden="true">🎯</span>Питчи</a>
+        <button class="tab-button" data-view="posts"><span class="tab-icon" aria-hidden="true">📡</span>Посты</button>
+        <button class="tab-button" data-view="pitches"><span class="tab-icon" aria-hidden="true">🎯</span>Питчи</button>
         <button class="tab-button" data-view="today"><span class="tab-icon" aria-hidden="true">☉<span class="tab-badge brass" id="navTodayCount" hidden></span></span>Сегодня</button>
         <button class="tab-button" data-view="promo"><span class="tab-icon" aria-hidden="true">▤</span>Промо</button>
         <button class="tab-button" data-view="costumes"><span class="tab-icon" aria-hidden="true">♢</span>Костюмы</button>
@@ -294,6 +294,14 @@
             </div>
           </section>
         </div>
+      </section>
+
+      <section class="screen screen-frame" id="screen-posts">
+        <iframe id="postsFrame" title="Посты" loading="lazy"></iframe>
+      </section>
+
+      <section class="screen screen-frame" id="screen-pitches">
+        <iframe id="pitchesFrame" title="Питчи" loading="lazy"></iframe>
       </section>
 
       <section class="screen" id="screen-today">
@@ -825,6 +833,6 @@
   </dialog>
   <script src="core-parity.js"></script>
   <script src="opsmap.js?v=20260825-005"></script>
-  <script src="core-app.js?v=20260829-011"></script>
+  <script src="core-app.js?v=20260829-012"></script>
 </body>
 </html>
