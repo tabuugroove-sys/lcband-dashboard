@@ -1219,12 +1219,16 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 
 /* Папки воронки продаж: те стадии, по которым реально ходим (статусы CRM). */
 .funnel-folders { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
-.funnel-folders:not(:empty)::before {
-  content: "Воронка";
-  font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
-  opacity: .55; padding: 6px 8px 2px;
-}
 .funnel-folder { display: flex; align-items: center; gap: 8px; width: 100%; }
+/* Число у стадии — это «сколько тут контактов», а не уведомление. Синий кружок
+   в приложении означает ровно одно: непрочитанное. Пока стадии рисовались тем
+   же кружком, «Переговоры 25» читалось как 25 непрочитанных сообщений. */
+.chat-folders .funnel-folder b {
+  position: static; min-width: 0; height: auto; padding: 0;
+  border-radius: 0; background: transparent; color: var(--muted);
+  font-size: 10.5px; font-weight: 600; line-height: 1.2;
+}
+.chat-folders .funnel-folder.is-active b { color: var(--pine); }
 
 /* Экран «Токены» (Михаил 25.07) */
 .mtext { color: var(--muted); font-size: 13px; margin: 4px 0 10px; }
