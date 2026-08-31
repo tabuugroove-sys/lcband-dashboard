@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ru" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>LCBand · Атлас решений</title>
+  <script src="_theme.js"></script>
+  <script src="_nav.js"></script>
+  <link rel="stylesheet" href="architecture-graph.css">
+</head>
+<body>
+  <main class="atlas-page" id="atlas-app">
+    <header class="atlas-masthead">
+      <div class="atlas-title-block">
+        <p class="eyebrow"><span class="serial-mark">LCB / X-RAY</span> карта кода и решений</p>
+        <h1>Атлас системы</h1>
+        <p class="deck">
+          Иерархический срез проекта и доказанный путь конкретного лида.
+          Статический граф кода не считается фактом выполнения.
+        </p>
+      </div>
+      <div class="index-readout" aria-label="Состояние индекса кода">
+        <div class="readout-state">
+          <span class="state-lamp is-loading" id="index-lamp" aria-hidden="true"></span>
+          <div>
+            <span class="readout-label">CODE INDEX</span>
+            <strong id="index-state">подключение…</strong>
+          </div>
+        </div>
+        <dl class="index-counters">
+          <div><dt>узлы</dt><dd id="index-nodes">—</dd></div>
+          <div><dt>связи</dt><dd id="index-edges">—</dd></div>
+          <div><dt>срез</dt><dd id="slice-count">—</dd></div>
+        </dl>
+      </div>
+    </header>
+
+    <section class="lens-bar" aria-label="Режим просмотра">
+      <div class="lens-switch" role="group" aria-label="Выберите линзу">
+        <button class="lens-button is-active" id="lens-architecture" type="button" aria-pressed="true">
+          <span class="lens-index">01</span>
+          <span><strong>Архитектура</strong><small>категории → кластеры → символы</small></span>
+        </button>
+        <button class="lens-button" id="lens-case" type="button" aria-pressed="false">
+          <span class="lens-index">02</span>
+          <span><strong>Путь лида</strong><small>решение → причина → результат</small></span>
+        </button>
+      </div>
+      <p class="view-disclaimer" id="view-disclaimer">
+        Сейчас показаны отношения в индексированном исходном коде, а не живой runtime-trace.
+      </p>
+    </section>
+
+    <nav class="breadcrumbs" id="breadcrumbs" aria-label="Путь по атласу">
+      <button type="button" data-crumb="0" aria-current="page">LCBand</button>
+    </nav>
+
+    <section class="atlas-workspace">
+      <aside class="control-rail" aria-label="Навигация и поиск">
+        <section class="rail-section architecture-controls" id="architecture-controls">
+          <div class="section-heading">
+            <span>Карта</span>
+            <small>структурный срез</small>
+          </div>
+          <form class="search-box" id="symbol-search-form" role="search">
+            <label for="symbol-search">Функция, класс или файл</label>
+            <div class="search-line">
+              <input id="symbol-search" name="q" type="search" minlength="2" maxlength="120"
+                     autocomplete="off" spellcheck="false" placeholder="find_matching_vendors">
+              <button type="submit" aria-label="Искать символ">↵</button>
+            </div>
+            <p class="microcopy">Поиск идёт по индексу. На холст попадает только ограниченный релевантный срез.</p>
+          </form>
+          <div class="rail-list" id="cluster-list" aria-label="Архитектурные кластеры"></div>
+          <div class="rail-list search-results" id="symbol-results" aria-live="polite"></div>
+        </section>
+
+        <section class="rail-section case-controls" id="case-controls" hidden>
+          <div class="section-heading">
+            <span>Расследование</span>
+            <small>по записанным данным</small>
+          </div>
+          <form class="search-box" id="case-search-form" role="search">
+            <label for="case-search">Лид, @handle или номер заказа</label>
+            <div class="search-line">
+              <input id="case-search" name="q" type="search" minlength="2" maxlength="120"
+                     autocomplete="off" spellcheck="false" placeholder="@handle / order id">
+              <button type="submit" aria-label="Найти путь">↵</button>
+            </div>
+            <p class="microcopy">Если источник не сохранил решение или причину, атлас покажет пробел, а не догадку.</p>
+          </form>
+          <button class="example-case" id="example-case" type="button">
+            <span class="example-stamp">ПРИМЕР</span>
+            <strong>Почему выбрали не тех музыкантов?</strong>
+            <small>broker:99eeb75f6a · баян / аккордеон</small>
+          </button>
+          <div class="rail-list search-results" id="case-results" aria-live="polite"></div>
+        </section>
+
+        <section class="rail-section rail-key">
+          <div class="section-heading"><span>Как читать</span></div>
+          <p><kbd>клик</kbd> открыть кластер или трассу</p>
+          <p><kbd>колесо</kbd> приблизить</p>
+          <p><kbd>drag</kbd> переместить карту</p>
+          <p><kbd>Esc</kbd> снять выделение</p>
+        </section>
+      </aside>
+
+      <section class="graph-panel" aria-label="Интерактивный граф">
+        <header class="graph-toolbar">
+          <div>
+            <span class="graph-kicker" id="graph-kicker">ОБЗОР / УРОВЕНЬ 0</span>
+            <h2 id="graph-title">Архитектурные категории LCBand</h2>
+          </div>
+          <div class="viewport-controls" role="group" aria-label="Масштаб графа">
+            <button id="zoom-out" type="button" title="Уменьшить" aria-label="Уменьшить масштаб">−</button>
+            <button id="zoom-reset" type="button" title="Вернуть масштаб">100</button>
+            <button id="zoom-in" type="button" title="Увеличить" aria-label="Увеличить масштаб">+</button>
+            <button id="zoom-fit" type="button" title="Вместить граф">FIT</button>
+          </div>
+        </header>
+
+        <div class="graph-status" id="graph-status" aria-live="polite">
+          <span class="activity-mark" aria-hidden="true"></span>
+          <span>Загружаю карту…</span>
+        </div>
+
+        <div class="graph-viewport" id="graph-viewport">
+          <svg id="atlas-svg" class="atlas-svg" viewBox="0 0 1600 920" role="img"
+               aria-labelledby="graph-title graph-description" tabindex="0">
+            <desc id="graph-description">Интерактивная схема архитектурных кластеров и решений LCBand.</desc>
+            <defs>
+              <pattern id="micro-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+                <path d="M 32 0 L 0 0 0 32" class="micro-grid-line"></path>
+              </pattern>
+              <marker id="arrow-code" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-code"></path>
+              </marker>
+              <marker id="arrow-recorded" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-recorded"></path>
+              </marker>
+              <marker id="arrow-policy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-policy"></path>
+              </marker>
+              <marker id="arrow-inferred" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-inferred"></path>
+              </marker>
+              <filter id="node-shadow" x="-30%" y="-30%" width="160%" height="160%">
+                <feDropShadow dx="0" dy="8" stdDeviation="9" flood-opacity=".13"></feDropShadow>
+              </filter>
+            </defs>
+            <rect class="graph-grid" width="1600" height="920" fill="url(#micro-grid)"></rect>
+            <g id="graph-camera"></g>
+          </svg>
+          <div class="graph-empty" id="graph-empty" hidden>
+            <span class="empty-cross">×</span>
+            <strong>В этом срезе нет узлов</strong>
+            <p>Измените запрос или вернитесь на уровень выше.</p>
+          </div>
+          <div class="slice-note" id="slice-note">ленивая выборка · не все 43 тысячи узлов одновременно</div>
+        </div>
+
+        <footer class="graph-legend" aria-label="Легенда типов доказательств">
+          <span class="legend-title">ТИП СВЯЗИ</span>
+          <span><i class="legend-line is-recorded"></i> записанный факт</span>
+          <span><i class="legend-line is-code"></i> статический код</span>
+          <span><i class="legend-line is-policy"></i> правило / политика</span>
+          <span><i class="legend-line is-inferred"></i> вывод</span>
+          <span><i class="legend-gap"></i> пробел доказательств</span>
+        </footer>
+      </section>
+
+      <aside class="evidence-panel" aria-label="Объяснение выбранного узла">
+        <header class="evidence-head">
+          <span class="evidence-counter" id="evidence-counter">00</span>
+          <div>
+            <p id="evidence-kind">ИНСПЕКТОР</p>
+            <h2 id="evidence-title">Выберите узел</h2>
+          </div>
+        </header>
+        <p class="evidence-summary" id="evidence-summary">
+          Нажмите на категорию, чтобы открыть кластер. В режиме «Путь лида» здесь появятся актор, решение, причина и источник каждого шага.
+        </p>
+        <dl class="fact-grid" id="fact-grid"></dl>
+        <div class="evidence-action" id="evidence-action" hidden>
+          <button type="button" id="open-selected">Открыть трассу <span>→</span></button>
+        </div>
+        <section class="decision-section" id="decision-section" hidden>
+          <h3>Цепочка решений</h3>
+          <ol class="decision-timeline" id="decision-timeline"></ol>
+        </section>
+        <section class="gap-section" id="gap-section" hidden>
+          <h3>Пробелы доказательств</h3>
+          <ul id="gap-list"></ul>
+        </section>
+        <footer class="evidence-foot">
+          <span class="provenance-chip" id="provenance-chip">нет выбора</span>
+          <p id="provenance-note">Любая незафиксированная причинность помечается отдельно.</p>
+        </footer>
+      </aside>
+    </section>
+  </main>
+
+  <noscript>Для интерактивной карты нужен JavaScript.</noscript>
+  <script src="auth-fetch.js"></script>
+  <script src="architecture-graph.js"></script>
+</body>
+</html>
