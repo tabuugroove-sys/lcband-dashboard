@@ -12,6 +12,24 @@
     casesSearch: (query) => `/api/architecture-graph/cases/search?q=${encodeURIComponent(query)}`,
     caseTrace: (ref) => `/api/architecture-graph/cases/${encodeURIComponent(ref)}/trace`,
   };
+  const EVENT_CHAT_CLASSIFIER_CONTEXT = [
+    {
+      id: "policy:event-chat-classifier-decision-harness",
+      label: "Event-chat · стабильный decision harness",
+      type: "decision policy",
+      evidence_kind: "policy",
+      qualified_name: "lcb_runtime_rules._EVENT_CHAT_CLASSIFIER_DECISION_HARNESS",
+      summary: "Стабильные правила verdict/JSON отделены от сведений о текущем call graph.",
+    },
+    {
+      id: "policy:event-chat-classifier-graph-evidence",
+      label: "Event-chat · кэшированный TriBrain graph pack",
+      type: "routing policy",
+      evidence_kind: "policy",
+      qualified_name: "event_chat_graph_context.get_event_chat_graph_evidence",
+      summary: "MiniMax/Kimi получают bounded production-only graph evidence: process cache около 30 минут, stale last-good при ошибке refresh и явный unavailable без остановки классификации.",
+    },
+  ];
 
   const dom = {};
   const state = {
@@ -19,6 +37,7 @@
     overview: null,
     stack: [],
     operation: 0,
+    busy: false,
     selected: null,
     selectedAction: null,
   };
@@ -53,6 +72,12 @@
   function formatNumber(value) {
     const number = toFiniteNumber(value);
     return number === null ? "—" : new Intl.NumberFormat("ru-RU").format(number);
+  }
+
+  function formatPercent(value) {
+    const number = toFiniteNumber(value);
+    if (number === null) return "—";
+    return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 }).format(number)}%`;
   }
 
   function formatDate(value) {
@@ -221,10 +246,11 @@
   }
 
   function uniqueNodes(rawNodes, fallbackKind) {
+    const source = asArray(rawNodes);
     const nodes = [];
     const ids = new Set();
     const aliases = new Map();
-    asArray(rawNodes).slice(0, MAX_SLICE_NODES).forEach((raw, index) => {
+    source.slice(0, MAX_SLICE_NODES).forEach((raw, index) => {
       const node = normalizeNode(raw, index, fallbackKind);
       let id = node.id;
       let suffix = 2;
@@ -240,7 +266,48 @@
         if (alias !== undefined && alias !== null && String(alias)) aliases.set(String(alias), node.id);
       });
     });
-    return { nodes, aliases };
+    return {
+      nodes,
+      aliases,
+      sourceCount: source.length,
+      truncated: source.length > MAX_SLICE_NODES,
+    };
+  }
+
+  function normalizedPercent(value, isRatio = false) {
+    const number = toFiniteNumber(value);
+    if (number === null) return null;
+    return clamp(isRatio ? number * 100 : number, 0, 100);
+  }
+
+  function normalizeCoverage(data, index) {
+    const raw = firstDefined(data, ["coverage", "cluster_coverage", "mapping_coverage"], null);
+    if (raw === null || raw === undefined || raw === "") return null;
+    const value = raw && typeof raw === "object" ? raw : { assigned_pct: raw };
+    const indexNodes = firstDefined(index, ["node_count", "nodes", "total_nodes", "nodes_count"], null);
+    const totalNodes = toFiniteNumber(firstDefined(value, ["total_nodes", "total", "node_count"], indexNodes));
+    let assignedNodes = toFiniteNumber(firstDefined(value, ["assigned_nodes", "assigned", "covered_nodes", "mapped_nodes"], null));
+    let unassignedNodes = firstDefined(value, ["unassigned_nodes", "unassigned", "unmapped_nodes"], null);
+    if (Array.isArray(unassignedNodes)) unassignedNodes = unassignedNodes.length;
+    unassignedNodes = toFiniteNumber(unassignedNodes);
+    const explicitPercent = firstDefined(value, ["assigned_pct", "coverage_pct", "percent"], null);
+    let assignedPct = explicitPercent === null || explicitPercent === undefined
+      ? normalizedPercent(firstDefined(value, ["ratio"], null), true)
+      : normalizedPercent(explicitPercent);
+    if (assignedNodes === null && totalNodes !== null && unassignedNodes !== null) assignedNodes = Math.max(0, totalNodes - unassignedNodes);
+    if (unassignedNodes === null && totalNodes !== null && assignedNodes !== null) unassignedNodes = Math.max(0, totalNodes - assignedNodes);
+    if (assignedPct === null && totalNodes && assignedNodes !== null) assignedPct = clamp((assignedNodes / totalNodes) * 100, 0, 100);
+    if (totalNodes === null && assignedNodes === null && unassignedNodes === null && assignedPct === null) return null;
+    return {
+      totalNodes,
+      assignedNodes,
+      unassignedNodes,
+      unclassifiedNodes: toFiniteNumber(firstDefined(value, ["unclassified_nodes", "unknown_nodes"], null)),
+      pathlessNodes: toFiniteNumber(firstDefined(value, ["pathless_nodes", "nodes_without_file"], null)),
+      assignedPct,
+      method: textValue(firstDefined(value, ["method", "assignment_method", "source"], ""), 120),
+      complete: firstDefined(value, ["complete", "is_complete"], null),
+    };
   }
 
   function normalizePath(rawPath) {
@@ -309,10 +376,10 @@
     if (!path.length) {
       path = nodes.filter((node) => node.pathIndex !== null).sort((a, b) => a.pathIndex - b.pathIndex).map((node) => node.id);
     }
-    const pathSet = new Set(path);
+    const pathPairs = new Set(path.slice(1).map((target, index) => `${path[index]}\u0000${target}`));
     validEdges.forEach((edge) => {
       if (!edge.isPath && path.length > 1) {
-        edge.isPath = pathSet.has(edge.source) && pathSet.has(edge.target);
+        edge.isPath = pathPairs.has(`${edge.source}\u0000${edge.target}`);
       }
     });
 
@@ -345,29 +412,56 @@
       });
     }
     const timelineRaw = firstDefined(data, ["timeline", "decisions", "steps", "events"], []);
-    const timeline = asArray(timelineRaw).map((item, index) => normalizeNode(item, index, options.caseMode ? "recorded" : fallbackKind));
+    const timeline = asArray(timelineRaw).map((item, index) => normalizeNode(item, index, fallbackKind));
 
-    if (options.caseMode && !path.length) {
-      nodes.forEach((node, index) => {
-        if (node.kind !== "gap") {
-          node.pathIndex = node.pathIndex === null ? index : node.pathIndex;
-          path.push(node.id);
-        }
-      });
-      validEdges.forEach((edge) => { edge.isPath = edge.kind !== "gap"; });
-    }
+    const resolvedTimeline = timeline.length
+      ? timeline
+      : nodes.filter((node) => /decision|gate|selection|classification|route|candidate|receipt|request/i.test(node.type));
+
+    const rawSlice = firstDefined(data, ["slice"], {});
+    const slice = rawSlice && typeof rawSlice === "object" ? rawSlice : {};
+    const declaredNodeTotal = toFiniteNumber(firstDefined(
+      slice,
+      ["total_nodes", "total"],
+      firstDefined(data, ["total_nodes", "nodes_total", "total"], unique.sourceCount),
+    ));
+    const timelineTotal = toFiniteNumber(firstDefined(
+      data,
+      ["timeline_total", "total_timeline", "decision_total", "event_total"],
+      resolvedTimeline.length,
+    ));
+    const nodeTruncated = unique.truncated
+      || Boolean(firstDefined(slice, ["truncated", "has_more"], false))
+      || Boolean(firstDefined(data, ["truncated", "has_more"], false))
+      || (declaredNodeTotal !== null && declaredNodeTotal > nodes.length);
+    const timelineTruncated = resolvedTimeline.length > 36
+      || Boolean(firstDefined(data, ["timeline_has_more", "decisions_has_more", "events_has_more"], false))
+      || (timelineTotal !== null && timelineTotal > Math.min(resolvedTimeline.length, 36));
 
     return {
       nodes,
       edges: validEdges,
       path,
       gaps,
-      timeline: timeline.length ? timeline : nodes.filter((node) => /decision|gate|selection|classification|route|candidate|receipt|request/i.test(node.type)),
+      timeline: resolvedTimeline,
       title: textValue(firstDefined(data, ["title", "label", "case_label", "symbol"], options.title || ""), 260),
       summary: textValue(firstDefined(data, ["summary", "explanation", "reason", "description"], "")),
       meta: data,
       layout: options.layout || (options.caseMode ? "timeline" : "flow"),
       viewType: options.viewType || "graph",
+      truncation: {
+        nodeTruncated,
+        shownNodes: nodes.length,
+        totalNodes: Math.max(nodes.length, declaredNodeTotal === null ? unique.sourceCount : declaredNodeTotal),
+        fileTruncated: Boolean(firstDefined(slice, ["file_truncated", "files_has_more"], false)),
+        shownFiles: toFiniteNumber(firstDefined(slice, ["shown_files"], null)),
+        totalFiles: toFiniteNumber(firstDefined(slice, ["total_files"], null)),
+        representedGraphNodes: toFiniteNumber(firstDefined(slice, ["represented_graph_nodes", "represented_nodes"], null)),
+        graphNodesTotal: toFiniteNumber(firstDefined(slice, ["graph_nodes_total", "indexed_nodes_total"], null)),
+        timelineTruncated,
+        shownTimeline: Math.min(resolvedTimeline.length, 36),
+        totalTimeline: Math.max(resolvedTimeline.length, timelineTotal === null ? resolvedTimeline.length : timelineTotal),
+      },
     };
   }
 
@@ -393,11 +487,17 @@
       node.clusterId = textValue(firstDefined(item, ["id", "cluster_id", "slug", "community_id"], node.id), 160);
       node.id = `cluster:${node.clusterId}`;
       node.type = textValue(firstDefined(item, ["type", "category", "cluster_type"], "architecture cluster"), 80);
+      node.fileCount = toFiniteNumber(firstDefined(item, ["file_count", "files_count", "files"], null));
+      const explicitCoverage = firstDefined(item, ["coverage_pct", "assigned_pct", "percent"], null);
+      node.coveragePct = explicitCoverage === null || explicitCoverage === undefined
+        ? normalizedPercent(firstDefined(item, ["ratio", "coverage_ratio", "coverage"], null), true)
+        : normalizedPercent(explicitCoverage);
       return node;
     });
 
     let nodes;
     let edges;
+    let fallbackTruncation = null;
     if (clusters.length) {
       const root = normalizeNode({
         id: "architecture-root",
@@ -430,8 +530,11 @@
       const graph = normalizeGraph(data, { layout: "overview", viewType: "overview" });
       nodes = graph.nodes;
       edges = graph.edges;
+      fallbackTruncation = graph.truncation;
     }
 
+    const coverage = normalizeCoverage(data, index);
+    const declaredClusterTotal = toFiniteNumber(firstDefined(data, ["cluster_total", "clusters_total", "total_clusters"], rawClusters.length));
     return {
       nodes,
       edges,
@@ -443,8 +546,19 @@
       meta: data,
       index,
       clusters,
+      coverage,
       layout: "overview",
       viewType: "overview",
+      truncation: fallbackTruncation || {
+        nodeTruncated: rawClusters.length > clusters.length
+          || Boolean(firstDefined(data, ["has_more", "clusters_has_more"], false))
+          || (declaredClusterTotal !== null && declaredClusterTotal > clusters.length),
+        shownNodes: nodes.length,
+        totalNodes: Math.max(nodes.length, (declaredClusterTotal === null ? rawClusters.length : declaredClusterTotal) + (clusters.length ? 1 : 0)),
+        timelineTruncated: false,
+        shownTimeline: 0,
+        totalTimeline: 0,
+      },
     };
   }
 
@@ -487,8 +601,32 @@
         }
       });
     }
+    if (clusterId === "decision_ai") {
+      const nodeIds = new Set(graph.nodes.map((node) => node.id));
+      EVENT_CHAT_CLASSIFIER_CONTEXT.forEach((rawNode, index) => {
+        if (nodeIds.has(rawNode.id)) return;
+        const node = normalizeNode(rawNode, graph.nodes.length + index, "policy");
+        graph.nodes.push(node);
+        nodeIds.add(node.id);
+        graph.edges.push({
+          id: `event-chat-context-${index}`,
+          source: rootId,
+          target: node.id,
+          kind: "policy",
+          label: "SUPPLIES_CONTEXT",
+          isPath: false,
+          raw: {},
+        });
+      });
+    }
     graph.title = resolvedLabel || clusterLabel || clusterId;
     graph.clusterId = clusterId;
+    graph.coverage = normalizeCoverage(data, {});
+    graph.topFiles = asArray(firstDefined(data, ["top_files", "files"], [])).slice(0, 12).map((item) => {
+      if (!item || typeof item !== "object") return textValue(item, 240);
+      return textValue(firstDefined(item, ["file_path", "path", "name", "label", "id"], ""), 240);
+    }).filter(Boolean);
+    if (graph.truncation) graph.truncation.shownNodes = graph.nodes.length;
     return graph;
   }
 
@@ -496,16 +634,28 @@
     const data = unwrap(payload);
     let raw = firstDefined(data, ["results", "matches", type === "case" ? "cases" : "symbols", "items"], []);
     if (!Array.isArray(raw) && Array.isArray(payload)) raw = payload;
-    return asArray(raw).slice(0, 60).map((item, index) => {
+    const rawItems = asArray(raw);
+    const items = rawItems.slice(0, 60).map((item, index) => {
       const node = normalizeNode(item, index, type === "case" ? "recorded" : "code_graph");
       if (type === "case") {
         node.caseRef = textValue(firstDefined(item, ["ref", "case_ref", "order_ref", "id", "order_id"], node.id), 180);
       }
       return node;
     });
+    const total = toFiniteNumber(firstDefined(data, ["total", "total_count", "count"], rawItems.length));
+    const hasMore = Boolean(firstDefined(data, ["has_more", "more", "truncated"], false))
+      || rawItems.length > items.length
+      || (total !== null && total > items.length);
+    return {
+      items,
+      total: Math.max(items.length, total === null ? rawItems.length : total),
+      hasMore,
+      truncated: hasMore,
+    };
   }
 
-  function resultsGraph(results, type, query) {
+  function resultsGraph(resultSet, type, query) {
+    const results = resultSet.items;
     const root = normalizeNode({
       id: `${type}-search-root`,
       label: `«${query}»`,
@@ -513,7 +663,7 @@
       kind: type === "case" ? "recorded" : "code_graph",
       is_root: true,
       count: results.length,
-      summary: `Найдено: ${results.length}`,
+      summary: `Показано: ${results.length} из ${formatNumber(resultSet.total)}`,
     }, 0, type === "case" ? "recorded" : "code_graph");
     const nodes = [root, ...results];
     const edges = results.map((result, index) => ({
@@ -536,6 +686,17 @@
       meta: {},
       layout: "flow",
       viewType: type === "case" ? "case-results" : "search-results",
+      truncation: {
+        nodeTruncated: resultSet.truncated,
+        shownNodes: nodes.length,
+        totalNodes: resultSet.total + 1,
+        shownItems: results.length,
+        totalItems: resultSet.total,
+        hasMore: resultSet.hasMore,
+        timelineTruncated: false,
+        shownTimeline: 0,
+        totalTimeline: 0,
+      },
     };
   }
 
@@ -804,7 +965,7 @@
         title.appendChild(tspan);
       });
       const subtitle = createSvg("text", { class: "node-subtitle", x: 15, y: pos.height - 10 });
-      subtitle.textContent = `${textValue(node.type, 24)} · ${kindLabel(node.kind)}`;
+      subtitle.textContent = `${textValue(node.type, 14)} · ${textValue(kindLabel(node.kind), 16)}`;
       group.append(card, stripe, nodeIndex, title, subtitle);
       if (node.count !== null) {
         const count = createSvg("text", { class: "node-count", x: pos.width - 12, y: 18 });
@@ -849,7 +1010,7 @@
     }
 
     _canActivate(node) {
-      return Boolean((this.data && this.data.viewType === "overview" && node.clusterId) || node.qualifiedName || node.caseRef);
+      return canActivateNode(node, this.data);
     }
 
     select(nodeId) {
@@ -859,27 +1020,157 @@
         const node = this.data.nodes[index];
         element.classList.toggle("is-selected", Boolean(node && node.id === nodeId));
       });
+      if (dom.compactGraphList) {
+        dom.compactGraphList.querySelectorAll(".compact-node").forEach((element) => {
+          element.classList.toggle("is-selected", element.dataset.nodeId === String(nodeId || ""));
+        });
+      }
     }
   }
 
   function splitLabel(value, maxChars) {
     const text = textValue(value, 100).trim();
     if (text.length <= maxChars) return [text];
-    const words = text.split(/\s+/);
-    if (words.length === 1) return [`${text.slice(0, maxChars - 1)}…`];
-    const lines = [""];
-    words.forEach((word) => {
-      const current = lines[lines.length - 1];
-      const candidate = current ? `${current} ${word}` : word;
-      if (candidate.length <= maxChars || !current) lines[lines.length - 1] = candidate;
-      else if (lines.length < 2) lines.push(word);
-    });
-    if (lines.length > 1 && lines[1].length > maxChars) lines[1] = `${lines[1].slice(0, maxChars - 1)}…`;
-    const joined = lines.join(" ");
-    if (joined.length < text.length && lines.length > 1 && !lines[1].endsWith("…")) {
-      lines[1] = `${lines[1].slice(0, Math.max(1, maxChars - 1))}…`;
+    const firstWindow = text.slice(0, maxChars + 1);
+    let firstCut = firstWindow.lastIndexOf(" ");
+    if (firstCut < Math.floor(maxChars * .55)) firstCut = maxChars;
+    const firstLine = text.slice(0, firstCut).trim();
+    const remaining = text.slice(firstCut).trim();
+    if (!remaining) return [firstLine];
+    const secondLine = remaining.length <= maxChars
+      ? remaining
+      : `${remaining.slice(0, Math.max(1, maxChars - 1)).trimEnd()}…`;
+    return [firstLine.slice(0, maxChars), secondLine];
+  }
+
+  function canActivateNode(node, data) {
+    if (!node || !data) return false;
+    if (data.viewType === "overview" && node.clusterId) return true;
+    if (node.caseRef && data.viewType !== "case-trace") return true;
+    if (!node.qualifiedName) return false;
+    return !(data.viewType === "symbol-trace" && data.path && data.path[0] === node.id);
+  }
+
+  function compactSections(data) {
+    const byId = new Map(data.nodes.map((node) => [node.id, node]));
+    const used = new Set();
+    const take = (nodes) => {
+      const selected = [];
+      nodes.forEach((node) => {
+        if (!node || used.has(node.id)) return;
+        used.add(node.id);
+        selected.push(node);
+      });
+      return selected;
+    };
+    const roots = take(data.nodes.filter((node) => node.isRoot));
+    const pathNodes = take(data.path.map((id) => byId.get(id)).filter(Boolean));
+    const remaining = () => data.nodes.filter((node) => !used.has(node.id));
+
+    if (data.viewType === "cluster") {
+      const communities = take(remaining().filter((node) => /community/i.test(node.type)));
+      const symbols = take(remaining().filter((node) => Boolean(node.qualifiedName)));
+      const files = take(remaining().filter((node) => /file/i.test(node.type) || firstDefined(node.raw, ["file_path"], "")));
+      const gaps = take(remaining().filter((node) => node.kind === "gap"));
+      const other = take(remaining());
+      return [
+        { label: "Логика кластера", nodes: [...roots, ...pathNodes], connect: true },
+        { label: "Algorithmic communities", nodes: communities, connect: false },
+        { label: "Символы · можно раскрыть", nodes: symbols, connect: false },
+        { label: "Файловый срез · агрегаты", nodes: files, connect: false },
+        { label: "Пробелы доказательств", nodes: gaps, connect: false },
+        { label: "Другие узлы", nodes: other, connect: false },
+      ].filter((section) => section.nodes.length);
     }
-    return lines.slice(0, 2);
+
+    if (data.viewType === "case-trace") {
+      const gaps = take(remaining().filter((node) => node.kind === "gap"));
+      const branches = take(remaining());
+      return [
+        { label: "Основная доказанная цепочка", nodes: pathNodes, connect: true },
+        { label: "Ветви решений и кандидатов", nodes: branches, connect: false },
+        { label: "Пробелы доказательств", nodes: gaps, connect: false },
+      ].filter((section) => section.nodes.length);
+    }
+
+    return [{ label: "Текущий срез", nodes: [...roots, ...pathNodes, ...take(remaining())], connect: pathNodes.length > 1 }];
+  }
+
+  function renderCompactGraph(data) {
+    dom.compactGraphList.replaceChildren();
+    if (!data.nodes.length) return;
+    let displayIndex = 0;
+    compactSections(data).forEach((section) => {
+      dom.compactGraphList.appendChild(createElement("li", "compact-section", section.label));
+      section.nodes.forEach((node, index) => {
+        displayIndex += 1;
+        const next = section.nodes[index + 1];
+        const outgoing = next
+          ? data.edges.find((edge) => edge.source === node.id && edge.target === next.id)
+          : null;
+        const incoming = index > 0
+          ? data.edges.find((edge) => edge.source === section.nodes[index - 1].id && edge.target === node.id)
+          : null;
+        const hasPathNext = Boolean(section.connect && outgoing);
+        const item = createElement(
+          "li",
+          `compact-node kind-${safeClass(node.kind)}${section.connect ? " is-path" : ""}${hasPathNext ? " has-path-next" : ""}`,
+        );
+        item.dataset.nodeId = node.id;
+        const button = createElement("button", "compact-node-button");
+        button.type = "button";
+        const canOpen = canActivateNode(node, data);
+        button.setAttribute("aria-label", `${canOpen ? "Открыть" : "Выбрать"}: ${node.label}. ${node.type}. ${kindLabel(node.kind)}.`);
+        const number = createElement("span", "compact-node-index", String(displayIndex).padStart(2, "0"));
+        const copy = createElement("span", "compact-node-copy");
+        const relation = incoming && incoming.label ? ` · ← ${incoming.label}` : "";
+        copy.append(
+          createElement("strong", "", node.label),
+          createElement("small", "", `${node.type} · ${kindLabel(node.kind)}${relation}`),
+        );
+        const reason = textValue(firstDefined(node.raw, ["reason", "reason_code", "decision", "action", "summary", "description"], node.summary), 260);
+        if (reason) copy.appendChild(createElement("span", "compact-node-reason", reason));
+        const kind = createElement("span", "compact-node-kind", canOpen ? "ОТКРЫТЬ ↗" : kindLabel(node.kind));
+        button.append(number, copy, kind);
+        button.addEventListener("click", () => {
+          graph.select(node.id);
+          inspectNode(node, data);
+          if (canOpen) activateNode(node, data);
+        });
+        item.appendChild(button);
+        dom.compactGraphList.appendChild(item);
+      });
+    });
+  }
+
+  function renderTruncation(data) {
+    const meta = data.truncation || {};
+    const messages = [];
+    if (meta.nodeTruncated) {
+      if (meta.totalItems !== undefined) {
+        messages.push(`Результаты ограничены: показано ${formatNumber(meta.shownItems)} из ${formatNumber(meta.totalItems)}${meta.hasMore ? "; API сообщает о продолжении" : ""}.`);
+      } else {
+        const noun = data.viewType === "case-trace" ? "Путь показан не полностью" : "Срез графа ограничен";
+        const exact = meta.totalNodes > meta.shownNodes
+          ? `: ${formatNumber(meta.shownNodes)} из ${formatNumber(meta.totalNodes)} узлов.`
+          : ": API сообщает, что за показанным срезом есть продолжение.";
+        messages.push(`${noun}${exact}`);
+      }
+    }
+    if (meta.fileTruncated) {
+      const filePart = meta.totalFiles !== null && meta.shownFiles !== null
+        ? `${formatNumber(meta.shownFiles)} из ${formatNumber(meta.totalFiles)} файлов`
+        : `${formatNumber(meta.shownFiles || 0)} файлов; полный file inventory недоступен`;
+      const nodePart = meta.graphNodesTotal !== null
+        ? ` представляют ${formatNumber(meta.representedGraphNodes || 0)} из ${formatNumber(meta.graphNodesTotal)} индексных узлов`
+        : "";
+      messages.push(`Файловый срез ограничен: ${filePart}${nodePart}.`);
+    }
+    if (meta.timelineTruncated) {
+      messages.push(`Цепочка решений ниже ограничена: ${formatNumber(meta.shownTimeline)} из ${formatNumber(meta.totalTimeline)} шагов.`);
+    }
+    dom.truncationNotice.textContent = messages.join(" ");
+    dom.truncationNotice.hidden = messages.length === 0;
   }
 
   function setGraphStatus(message, kind = "ready") {
@@ -888,7 +1179,10 @@
   }
 
   function setBusy(isBusy) {
+    state.busy = isBusy;
     dom.app.classList.toggle("is-busy", isBusy);
+    dom.app.setAttribute("aria-busy", String(isBusy));
+    dom.graphPanel.setAttribute("aria-busy", String(isBusy));
     if (isBusy) setGraphStatus("Запрашиваю доказательства и строю ограниченный срез…", "loading");
   }
 
@@ -906,9 +1200,22 @@
     dom.graphTitle.textContent = options.title || data.title || "Атлас системы";
     dom.graphKicker.textContent = options.kicker || "СИСТЕМНЫЙ СРЕЗ";
     dom.sliceCount.textContent = formatNumber(data.nodes.length);
-    dom.sliceNote.textContent = `ленивая выборка · ${data.nodes.length} из ${formatNumber(getIndexCount("nodes"))} узлов`;
+    const sliceTotal = data.truncation && data.truncation.totalNodes;
+    const fileSlice = data.truncation && data.truncation.graphNodesTotal !== null
+      ? `${formatNumber(data.truncation.shownFiles || 0)} файлов представляют ${formatNumber(data.truncation.representedGraphNodes || 0)} из ${formatNumber(data.truncation.graphNodesTotal)} индексных узлов`
+      : "";
+    dom.sliceNote.textContent = data.viewType === "overview"
+      ? `обзор · ${Math.max(0, data.nodes.length - (data.nodes.some((node) => node.isRoot) ? 1 : 0))} кластеров · индекс ${formatNumber(getIndexCount("nodes"))} узлов`
+      : data.viewType === "cluster" && fileSlice
+        ? `агрегированный срез · ${fileSlice}`
+        : data.viewType === "case-trace"
+          ? `восстановленный путь · ${data.nodes.length}${sliceTotal && sliceTotal > data.nodes.length ? ` из ${formatNumber(sliceTotal)}` : ""} узлов`
+          : `ленивая выборка · ${data.nodes.length} из ${formatNumber(sliceTotal || getIndexCount("nodes"))} узлов`;
+    renderCompactGraph(data);
+    renderTruncation(data);
     if (!data.nodes.length) {
       graph.setData(data);
+      renderContext(data);
       setEmpty(true, options.emptyTitle, options.emptyDetail);
       setGraphStatus(options.emptyDetail || "Нет данных для текущего среза", "ready");
       return;
@@ -940,6 +1247,28 @@
     else dom.indexState.textContent = `${rawStatus || "подключён"}${updated ? ` · ${formatDate(updated)}` : ""}`;
     dom.indexNodes.textContent = formatNumber(overview ? getIndexCount("nodes") : null);
     dom.indexEdges.textContent = formatNumber(overview ? getIndexCount("edges") : null);
+    updateCoverageReadout(overview);
+  }
+
+  function updateCoverageReadout(overview) {
+    const coverage = overview && overview.coverage;
+    if (!coverage) {
+      dom.coverageReadout.hidden = true;
+      dom.coverageValue.textContent = "—";
+      dom.unassignedValue.textContent = "";
+      return;
+    }
+    dom.coverageReadout.hidden = false;
+    dom.coverageValue.textContent = coverage.assignedPct !== null
+      ? formatPercent(coverage.assignedPct)
+      : `${formatNumber(coverage.assignedNodes)} / ${formatNumber(coverage.totalNodes)}`;
+    const details = [];
+    if (coverage.unassignedNodes !== null) details.push(`не назначено: ${formatNumber(coverage.unassignedNodes)}`);
+    if (coverage.unclassifiedNodes !== null) details.push(`без владельца: ${formatNumber(coverage.unclassifiedNodes)}`);
+    if (coverage.pathlessNodes !== null) details.push(`без file_path: ${formatNumber(coverage.pathlessNodes)}`);
+    if (coverage.method) details.push(`метод: ${coverage.method}`);
+    if (coverage.complete === false) details.push("расчёт неполный");
+    dom.unassignedValue.textContent = details.join(" · ");
   }
 
   function cacheOverview(payload) {
@@ -968,10 +1297,12 @@
       button.type = "button";
       const number = createElement("span", "rail-item-index", String(index + 1).padStart(2, "0"));
       const copy = createElement("span", "rail-item-copy");
-      copy.append(
-        createElement("strong", "", cluster.label),
-        createElement("small", "", textValue(firstDefined(cluster.raw, ["packages", "package", "description"], cluster.type), 90)),
-      );
+      const clusterMeta = [
+        textValue(firstDefined(cluster.raw, ["packages", "package", "description"], cluster.type), 90),
+        cluster.fileCount === null ? "" : `файлов: ${formatNumber(cluster.fileCount)}`,
+        cluster.coveragePct === null ? "" : `покрытие: ${formatPercent(cluster.coveragePct)}`,
+      ].filter(Boolean).join(" · ");
+      copy.append(createElement("strong", "", cluster.label), createElement("small", "", clusterMeta));
       const count = createElement("span", "rail-item-count", cluster.count === null ? "↗" : formatNumber(cluster.count));
       button.append(number, copy, count);
       button.addEventListener("click", () => loadCluster(cluster.clusterId, cluster.label));
@@ -979,7 +1310,8 @@
     });
   }
 
-  function renderResults(container, results, type) {
+  function renderResults(container, resultSet, type) {
+    const results = resultSet.items;
     container.replaceChildren();
     if (!results.length) {
       container.appendChild(createElement("p", "rail-message", "Совпадений не найдено."));
@@ -1002,13 +1334,27 @@
       });
       container.appendChild(button);
     });
+    if (resultSet.truncated) {
+      const note = createElement(
+        "p",
+        "rail-message",
+        `Показано ${formatNumber(results.length)} из ${formatNumber(resultSet.total)}. Список имеет продолжение.`,
+      );
+      note.setAttribute("role", "status");
+      container.appendChild(note);
+    }
   }
 
-  function pushView(entry, replace = false) {
+  function focusGraphHeading() {
+    window.requestAnimationFrame(() => dom.graphTitle.focus({ preventScroll: false }));
+  }
+
+  function pushView(entry, replace = false, focusView = false) {
     if (replace) state.stack = [entry];
     else state.stack.push(entry);
     renderBreadcrumbs();
     showStackEntry(entry);
+    if (focusView) focusGraphHeading();
   }
 
   function showStackEntry(entry) {
@@ -1036,11 +1382,15 @@
       const button = createElement("button", "", entry.label);
       button.type = "button";
       button.dataset.crumb = String(index);
-      if (index === state.stack.length - 1) button.setAttribute("aria-current", "page");
+      if (index === state.stack.length - 1) {
+        button.setAttribute("aria-current", "page");
+        button.disabled = true;
+      }
       else button.addEventListener("click", () => {
         state.stack = state.stack.slice(0, index + 1);
         renderBreadcrumbs();
         showStackEntry(state.stack[index]);
+        focusGraphHeading();
       });
       dom.breadcrumbs.appendChild(button);
     });
@@ -1090,6 +1440,13 @@
     appendFact("Оценка", raw.score !== undefined ? `${raw.score}/10` : "");
     appendFact("Время", firstDefined(raw, ["timestamp", "created_at", "event_at", "occurred_at", "updated_at", "at"], ""));
     appendFact("Узлов", node.count === null ? "" : formatNumber(node.count));
+    appendFact("Файлов", node.fileCount === null || node.fileCount === undefined ? firstDefined(raw, ["file_count", "files_count"], "") : formatNumber(node.fileCount));
+    appendFact("Покрытие", node.coveragePct === null || node.coveragePct === undefined ? firstDefined(raw, ["coverage_pct", "assigned_pct"], "") : formatPercent(node.coveragePct));
+    if (node.isRoot && data.coverage) {
+      appendFact("Назначено", data.coverage.assignedNodes === null ? "" : `${formatNumber(data.coverage.assignedNodes)} из ${formatNumber(data.coverage.totalNodes)}`);
+      appendFact("Не назначено", data.coverage.unassignedNodes === null ? "" : formatNumber(data.coverage.unassignedNodes));
+    }
+    if (node.isRoot && data.topFiles && data.topFiles.length) appendFact("Главные файлы", data.topFiles);
     dom.provenanceChip.className = `provenance-chip kind-${safeClass(node.kind)}`;
     dom.provenanceChip.textContent = kindLabel(node.kind);
     dom.provenanceNote.textContent = node.kind === "code_graph"
@@ -1103,13 +1460,7 @@
             : "Для этого перехода не хватает доказательства.";
 
     state.selectedAction = null;
-    if (data.viewType === "overview" && node.clusterId) {
-      state.selectedAction = () => loadCluster(node.clusterId, node.label);
-    } else if (node.qualifiedName && !["symbol-trace", "case-trace"].includes(data.viewType)) {
-      state.selectedAction = () => loadSymbolTrace(node.qualifiedName, node.label);
-    } else if (node.caseRef && data.viewType === "case-results") {
-      state.selectedAction = () => loadCaseTrace(node.caseRef, node.label);
-    }
+    if (canActivateNode(node, data)) state.selectedAction = () => activateNode(node, data);
     dom.evidenceAction.hidden = !state.selectedAction;
   }
 
@@ -1119,17 +1470,30 @@
     if (timeline.length) {
       timeline.slice(0, 36).forEach((step) => {
         const item = createElement("li", `kind-${safeClass(step.kind)}`);
+        const button = createElement("button", "timeline-button");
+        button.type = "button";
         const reason = firstDefined(step.raw, ["reason", "reason_code", "explanation", "status", "source"], step.type);
-        item.append(createElement("strong", "", step.label), createElement("small", "", textValue(reason, 180)));
-        item.addEventListener("click", () => {
+        button.append(createElement("strong", "", step.label), createElement("small", "", textValue(reason, 180)));
+        button.addEventListener("click", () => {
           const graphNode = data.nodes.find((node) => node.id === step.id || node.label === step.label);
           if (graphNode) {
             graph.select(graphNode.id);
             inspectNode(graphNode, data);
           }
         });
+        item.appendChild(button);
         dom.timeline.appendChild(item);
       });
+      const truncation = data.truncation || {};
+      if (truncation.timelineTruncated) {
+        const item = createElement(
+          "li",
+          "timeline-truncation",
+          `Показано ${formatNumber(truncation.shownTimeline)} из ${formatNumber(truncation.totalTimeline)} шагов. Путь продолжается за пределами этого среза.`,
+        );
+        item.setAttribute("role", "status");
+        dom.timeline.appendChild(item);
+      }
       dom.decisionSection.hidden = false;
     } else {
       dom.decisionSection.hidden = true;
@@ -1144,7 +1508,7 @@
     }
   }
 
-  async function loadOverview() {
+  async function loadOverview(focusAfter = false) {
     const operation = ++state.operation;
     setBusy(true);
     try {
@@ -1161,7 +1525,7 @@
         title: overview.title,
         kicker: "ОБЗОР / УРОВЕНЬ 0",
         data: overview,
-      }, true);
+      }, true, focusAfter);
     } catch (error) {
       if (operation !== state.operation) return;
       const cached = readCachedOverview();
@@ -1170,13 +1534,13 @@
         state.overview = overview;
         updateIndexReadout(overview, "stale");
         renderClusterList(overview.clusters);
-        pushView({ type: "overview", label: "LCBand", title: overview.title, kicker: "ОБЗОР / КЭШ", data: overview }, true);
+        pushView({ type: "overview", label: "LCBand", title: overview.title, kicker: "ОБЗОР / КЭШ", data: overview }, true, focusAfter);
         setGraphStatus(`Источник недоступен. Показан сохранённый срез от ${formatDate(cached.savedAt)}.`, "error");
       } else {
         updateIndexReadout(null, "error");
         renderClusterList([]);
         const empty = { nodes: [], edges: [], path: [], gaps: [], timeline: [], title: "Архитектура недоступна", summary: "", meta: {}, layout: "flow", viewType: "overview" };
-        pushView({ type: "overview", label: "LCBand", title: "Архитектура недоступна", kicker: "ОШИБКА ИСТОЧНИКА", data: empty }, true);
+        pushView({ type: "overview", label: "LCBand", title: "Архитектура недоступна", kicker: "ОШИБКА ИСТОЧНИКА", data: empty }, true, focusAfter);
         setEmpty(true, "Не удалось открыть индекс", error.message);
         setGraphStatus(`Ошибка: ${error.message}`, "error");
       }
@@ -1199,7 +1563,7 @@
         title: data.title,
         kicker: "КЛАСТЕР / УРОВЕНЬ 1",
         data,
-      });
+      }, false, true);
     } catch (error) {
       if (operation === state.operation) setGraphStatus(`Не удалось открыть кластер: ${error.message}`, "error");
     } finally {
@@ -1214,10 +1578,10 @@
     try {
       const payload = await fetchJson(API.search(query));
       if (operation !== state.operation) return;
-      const results = normalizeResults(payload, "symbol");
-      renderResults(dom.symbolResults, results, "symbol");
-      const data = resultsGraph(results, "symbol", query);
-      pushView({ type: "search-results", label: `Поиск: ${query}`, title: data.title, kicker: "ИНДЕКС / РЕЗУЛЬТАТЫ", data });
+      const resultSet = normalizeResults(payload, "symbol");
+      renderResults(dom.symbolResults, resultSet, "symbol");
+      const data = resultsGraph(resultSet, "symbol", query);
+      pushView({ type: "search-results", label: `Поиск: ${query}`, title: data.title, kicker: "ИНДЕКС / РЕЗУЛЬТАТЫ", data }, false, true);
     } catch (error) {
       if (operation !== state.operation) return;
       dom.symbolResults.replaceChildren(createElement("p", "rail-message is-error", error.message));
@@ -1236,7 +1600,7 @@
       if (operation !== state.operation) return;
       const data = normalizeGraph(payload, { layout: "flow", viewType: "symbol-trace", title: label || symbol });
       data.title = data.title || label || symbol;
-      pushView({ type: "symbol-trace", label: label || symbol, title: data.title, kicker: "СИМВОЛ / ВХОДЫ И ВЫХОДЫ", data });
+      pushView({ type: "symbol-trace", label: label || symbol, title: data.title, kicker: "СИМВОЛ / ВХОДЫ И ВЫХОДЫ", data }, false, true);
     } catch (error) {
       if (operation === state.operation) setGraphStatus(`Не удалось построить трассу символа: ${error.message}`, "error");
     } finally {
@@ -1251,10 +1615,10 @@
     try {
       const payload = await fetchJson(API.casesSearch(query));
       if (operation !== state.operation) return;
-      const results = normalizeResults(payload, "case");
-      renderResults(dom.caseResults, results, "case");
-      const data = resultsGraph(results, "case", query);
-      pushView({ type: "case-results", label: `Поиск: ${query}`, title: data.title, kicker: "РАССЛЕДОВАНИЕ / КАНДИДАТЫ", data });
+      const resultSet = normalizeResults(payload, "case");
+      renderResults(dom.caseResults, resultSet, "case");
+      const data = resultsGraph(resultSet, "case", query);
+      pushView({ type: "case-results", label: `Поиск: ${query}`, title: data.title, kicker: "РАССЛЕДОВАНИЕ / КАНДИДАТЫ", data }, false, true);
     } catch (error) {
       if (operation !== state.operation) return;
       dom.caseResults.replaceChildren(createElement("p", "rail-message is-error", error.message));
@@ -1272,9 +1636,9 @@
     try {
       const payload = await fetchJson(API.caseTrace(ref));
       if (operation !== state.operation) return;
-      const data = normalizeGraph(payload, { layout: "timeline", viewType: "case-trace", caseMode: true, fallbackKind: "recorded", title: label || ref });
+      const data = normalizeGraph(payload, { layout: "timeline", viewType: "case-trace", caseMode: true, fallbackKind: "gap", title: label || ref });
       data.title = data.title || label || ref;
-      pushView({ type: "case-trace", label: label || ref, title: data.title, kicker: "ПУТЬ ЛИДА / ДОКАЗАТЕЛЬСТВА", data });
+      pushView({ type: "case-trace", label: label || ref, title: data.title, kicker: "ПУТЬ ЛИДА / ДОКАЗАТЕЛЬСТВА", data }, false, true);
       if (data.nodes.length) inspectNode(data.nodes[0], data);
     } catch (error) {
       if (operation === state.operation) {
@@ -1304,12 +1668,12 @@
     if (architecture) {
       if (state.overview) {
         renderClusterList(state.overview.clusters);
-        pushView({ type: "overview", label: "LCBand", title: state.overview.title, kicker: "ОБЗОР / УРОВЕНЬ 0", data: state.overview }, true);
+        pushView({ type: "overview", label: "LCBand", title: state.overview.title, kicker: "ОБЗОР / УРОВЕНЬ 0", data: state.overview }, true, true);
       } else {
-        loadOverview();
+        loadOverview(true);
       }
     } else {
-      pushView({ type: "case-home", label: "Путь лида", title: "Найдите лид или заказ", kicker: "РАССЛЕДОВАНИЕ / ВХОД", data: null }, true);
+      pushView({ type: "case-home", label: "Путь лида", title: "Найдите лид или заказ", kicker: "РАССЛЕДОВАНИЕ / ВХОД", data: null }, true, true);
     }
   }
 
@@ -1322,11 +1686,16 @@
 
   function collectDom() {
     dom.app = byId("atlas-app");
+    dom.workspace = document.querySelector(".atlas-workspace");
+    dom.graphPanel = byId("graph-panel");
     dom.indexLamp = byId("index-lamp");
     dom.indexState = byId("index-state");
     dom.indexNodes = byId("index-nodes");
     dom.indexEdges = byId("index-edges");
     dom.sliceCount = byId("slice-count");
+    dom.coverageReadout = byId("coverage-readout");
+    dom.coverageValue = byId("coverage-value");
+    dom.unassignedValue = byId("unassigned-value");
     dom.lensArchitecture = byId("lens-architecture");
     dom.lensCase = byId("lens-case");
     dom.disclaimer = byId("view-disclaimer");
@@ -1339,8 +1708,11 @@
     dom.graphTitle = byId("graph-title");
     dom.graphKicker = byId("graph-kicker");
     dom.graphStatus = byId("graph-status");
+    dom.truncationNotice = byId("truncation-notice");
     dom.graphEmpty = byId("graph-empty");
     dom.sliceNote = byId("slice-note");
+    dom.compactGraph = byId("compact-graph");
+    dom.compactGraphList = byId("compact-graph-list");
     dom.zoomReset = byId("zoom-reset");
     dom.evidenceCounter = byId("evidence-counter");
     dom.evidenceKind = byId("evidence-kind");
@@ -1354,23 +1726,60 @@
     dom.gapList = byId("gap-list");
     dom.provenanceChip = byId("provenance-chip");
     dom.provenanceNote = byId("provenance-note");
+    dom.symbolSearch = byId("symbol-search");
+    dom.symbolSearchError = byId("symbol-search-error");
+    dom.caseSearch = byId("case-search");
+    dom.caseSearchError = byId("case-search-error");
   }
 
   let graph;
 
   function wireEvents() {
+    const blockWhileBusy = (event) => {
+      if (!state.busy) return;
+      if (event.type === "click" || event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    };
+    dom.app.addEventListener("click", blockWhileBusy, true);
+    dom.app.addEventListener("keydown", blockWhileBusy, true);
+
+    const validateSearch = (input, errorElement, noun) => {
+      const query = input.value.trim();
+      if (query.length >= 2) {
+        errorElement.hidden = true;
+        errorElement.textContent = "";
+        input.removeAttribute("aria-invalid");
+        return query;
+      }
+      errorElement.textContent = `Введите ${noun}: минимум 2 символа.`;
+      errorElement.hidden = false;
+      input.setAttribute("aria-invalid", "true");
+      input.focus();
+      return "";
+    };
+    const clearSearchError = (input, errorElement) => {
+      if (input.value.trim().length < 2) return;
+      errorElement.hidden = true;
+      errorElement.textContent = "";
+      input.removeAttribute("aria-invalid");
+    };
+
     dom.lensArchitecture.addEventListener("click", () => setLens("architecture"));
     dom.lensCase.addEventListener("click", () => setLens("case"));
     byId("symbol-search-form").addEventListener("submit", (event) => {
       event.preventDefault();
-      const query = byId("symbol-search").value.trim();
-      if (query.length >= 2) searchSymbols(query);
+      const query = validateSearch(dom.symbolSearch, dom.symbolSearchError, "имя символа");
+      if (query) searchSymbols(query);
     });
     byId("case-search-form").addEventListener("submit", (event) => {
       event.preventDefault();
-      const query = byId("case-search").value.trim();
-      if (query.length >= 2) searchCases(query);
+      const query = validateSearch(dom.caseSearch, dom.caseSearchError, "@handle или идентификатор");
+      if (query) searchCases(query);
     });
+    dom.symbolSearch.addEventListener("input", () => clearSearchError(dom.symbolSearch, dom.symbolSearchError));
+    dom.caseSearch.addEventListener("input", () => clearSearchError(dom.caseSearch, dom.caseSearchError));
     byId("example-case").addEventListener("click", () => loadCaseTrace("broker:99eeb75f6a", "Баян / аккордеон · 99eeb75f6a"));
     byId("open-selected").addEventListener("click", () => {
       if (state.selectedAction) state.selectedAction();
