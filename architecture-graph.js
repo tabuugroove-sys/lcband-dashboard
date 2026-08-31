@@ -234,11 +234,12 @@
     const item = raw && typeof raw === "object" ? raw : {};
     const relation = textValue(firstDefined(item, ["relation", "edge_type", "type", "label", "kind"], ""), 100);
     const provenance = firstDefined(item, ["evidence_kind", "provenance", "evidence_type", "fact_type"], "");
+    const explicitKind = firstDefined(item, ["kind"], "");
     return {
       id: normalizeId(firstDefined(item, ["id", "edge_id"], ""), `edge-${index}`),
       source: normalizeId(firstDefined(item, ["source", "from", "source_id", "caller", "start"], ""), ""),
       target: normalizeId(firstDefined(item, ["target", "to", "target_id", "callee", "end"], ""), ""),
-      kind: canonicalKind(provenance || relation, fallbackKind),
+      kind: canonicalKind(provenance || explicitKind || relation, fallbackKind),
       label: relation,
       isPath: Boolean(item.is_path || item.on_path || item.highlighted || item.active),
       raw: item,
