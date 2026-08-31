@@ -566,6 +566,12 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .chat-folders .folder-label { max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-folders b { position: absolute; top: 3px; left: calc(50% + 11px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--blue); color: white; font-size: 10px; font-weight: 600; line-height: 16px; text-align: center; }
 .chat-folders b:empty, .chat-folders b[data-empty="true"] { display: none; }
+/* Размер папки — обычное число под названием. Синяя точка в углу означает
+   только непрочитанное: любой человек читает её как уведомление, и пока
+   там стоял размер папки, «Новые 179» выглядело как 179 непрочитанных. */
+.chat-folders .folder-size { color: var(--muted); font-size: 9.5px; line-height: 1.1; opacity: .75; }
+.chat-folders .folder-size:empty { display: none; }
+.chat-folders button.is-active .folder-size { color: var(--pine); opacity: .9; }
 .coordination-folders { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--line); }
 .chat-folders .coordination-folder .folder-label { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: normal; word-break: normal; }
 .chat-folders .coordination-folder .folder-icon { color: var(--brass-fill); }

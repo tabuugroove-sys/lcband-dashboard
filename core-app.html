@@ -7,7 +7,7 @@
   <title>LCB 2.0</title>
   <link rel="icon" type="image/png" href="app-icon-192.png">
   <link rel="apple-touch-icon" href="app-icon-180.png">
-  <link rel="stylesheet" href="core-app.css?v=20260829-014">
+  <link rel="stylesheet" href="core-app.css?v=20260830-001">
   <link rel="stylesheet" href="opsmap.css?v=20260825-010-1">
 </head>
 <body>
@@ -210,16 +210,16 @@
       <section class="screen chats-screen" id="screen-chats">
         <div class="chat-shell">
           <aside class="chat-folders" aria-label="Папки чатов">
-            <button data-chat-folder="hot"><span class="folder-icon">🔥</span><span class="folder-label">Горячие</span><b id="folderHot">0</b></button>
-            <button data-chat-folder="new"><span class="folder-icon">✨</span><span class="folder-label">Новые</span><b id="folderNew">0</b></button>
-            <button class="is-active" data-chat-folder="all"><span class="folder-icon">👥</span><span class="folder-label">Все Core</span><b id="folderAll">0</b></button>
-            <button data-chat-folder="lcb"><span class="folder-icon">LC</span><span class="folder-label">Все LCB</span><b id="folderLcb">0</b></button>
-            <button data-chat-folder="wa"><span class="folder-icon">💬</span><span class="folder-label">WhatsApp</span><b id="folderWa">0</b></button>
-            <button data-chat-folder="team"><span class="folder-icon">🎤</span><span class="folder-label">Команда</span><b id="folderTeam">0</b></button>
-            <button data-chat-folder="technical"><span class="folder-icon">⚙</span><span class="folder-label">Технические</span><b id="folderTechnical">0</b></button>
-            <button data-chat-folder="personal"><span class="folder-icon">👤</span><span class="folder-label">Личные</span><b id="folderPersonal">0</b></button>
-            <button data-chat-folder="musicians"><span class="folder-icon">🎸</span><span class="folder-label">Музыканты</span><b id="folderMusicians">0</b></button>
-            <button data-chat-folder="broker"><span class="folder-icon">🤝</span><span class="folder-label">Брокер</span><b id="folderBroker">0</b></button>
+            <button data-chat-folder="hot"><span class="folder-icon">🔥</span><span class="folder-label">Горячие</span><small class="folder-size" id="sizeHot"></small><b id="folderHot">0</b></button>
+            <button data-chat-folder="new"><span class="folder-icon">✨</span><span class="folder-label">Новые</span><small class="folder-size" id="sizeNew"></small><b id="folderNew">0</b></button>
+            <button class="is-active" data-chat-folder="all"><span class="folder-icon">👥</span><span class="folder-label">Все Core</span><small class="folder-size" id="sizeAll"></small><b id="folderAll">0</b></button>
+            <button data-chat-folder="lcb"><span class="folder-icon">LC</span><span class="folder-label">Все LCB</span><small class="folder-size" id="sizeLcb"></small><b id="folderLcb">0</b></button>
+            <button data-chat-folder="wa"><span class="folder-icon">💬</span><span class="folder-label">WhatsApp</span><small class="folder-size" id="sizeWa"></small><b id="folderWa">0</b></button>
+            <button data-chat-folder="team"><span class="folder-icon">🎤</span><span class="folder-label">Команда</span><small class="folder-size" id="sizeTeam"></small><b id="folderTeam">0</b></button>
+            <button data-chat-folder="technical"><span class="folder-icon">⚙</span><span class="folder-label">Технические</span><small class="folder-size" id="sizeTechnical"></small><b id="folderTechnical">0</b></button>
+            <button data-chat-folder="personal"><span class="folder-icon">👤</span><span class="folder-label">Личные</span><small class="folder-size" id="sizePersonal"></small><b id="folderPersonal">0</b></button>
+            <button data-chat-folder="musicians"><span class="folder-icon">🎸</span><span class="folder-label">Музыканты</span><small class="folder-size" id="sizeMusicians"></small><b id="folderMusicians">0</b></button>
+            <button data-chat-folder="broker"><span class="folder-icon">🤝</span><span class="folder-label">Брокер</span><small class="folder-size" id="sizeBroker"></small><b id="folderBroker">0</b></button>
             <p class="folder-group-title">Воронка LC Band</p>
             <div class="funnel-folders" id="funnelFolders" aria-label="Воронка LC Band"></div>
             <p class="folder-group-title">Воронка брокера</p>
@@ -837,6 +837,6 @@
   </dialog>
   <script src="core-parity.js"></script>
   <script src="opsmap.js?v=20260825-005"></script>
-  <script src="core-app.js?v=20260829-014"></script>
+  <script src="core-app.js?v=20260830-001"></script>
 </body>
 </html>

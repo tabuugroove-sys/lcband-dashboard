@@ -1564,25 +1564,38 @@ function renderThreadFolders() {
   const business = state.threads.filter((thread) => !isTechnicalThread(thread));
   const technical = state.threads.filter(isTechnicalThread);
   const hot = hotThreadIds();
-  const counts = {
-    All: business.length,
-    New: business.filter((thread) => thread.business_bucket === "new").length,
-    Hot: business.filter((thread) => hot.has(thread.thread_id)).length,
-    Lcb: business.filter((thread) => thread.business_bucket === "lcb").length,
-    Team: business.filter((thread) => thread.business_bucket === "team").length,
-    Technical: technical.length,
-    Personal: business.filter((thread) => thread.business_bucket === "personal").length,
-    Musicians: business.filter((thread) => thread.business_bucket === "musicians").length,
-    Broker: business.filter((thread) => thread.business_bucket === "broker").length,
+  const groups = {
+    All: business,
+    New: business.filter((thread) => thread.business_bucket === "new"),
+    Hot: business.filter((thread) => hot.has(thread.thread_id)),
+    Lcb: business.filter((thread) => thread.business_bucket === "lcb"),
+    Team: business.filter((thread) => thread.business_bucket === "team"),
+    Technical: technical,
+    Personal: business.filter((thread) => thread.business_bucket === "personal"),
+    Musicians: business.filter((thread) => thread.business_bucket === "musicians"),
+    Broker: business.filter((thread) => thread.business_bucket === "broker"),
     // счёт по своей выборке канала: иначе цифра показывала бы только тех,
     // кто попал в свежие 200 общего списка (29 вместо 135, кейс 04.08)
     Wa: (channelRows("wa") || business)
-      .filter((thread) => thread.channel === "wa" && !isTechnicalThread(thread)).length,
+      .filter((thread) => thread.channel === "wa" && !isTechnicalThread(thread)),
   };
-  Object.entries(counts).forEach(([key, value]) => {
+  // Синяя точка в углу папки — только непрочитанное. Раньше там стоял РАЗМЕР
+  // папки, и «Новые 179» читалось как 179 непрочитанных уведомлений, хотя это
+  // 179 нераспознанных собеседников. Размер остался — обычным числом под
+  // названием, где он ни на что не похож.
+  Object.entries(groups).forEach(([key, rows]) => {
     const badge = byId(`folder${key}`);
-    badge.textContent = formatNumber(value);
-    badge.hidden = Number(value) === 0;
+    const unread = rows.filter(threadIsUnread).length;
+    badge.textContent = formatNumber(unread);
+    badge.hidden = unread === 0;
+    const size = byId(`size${key}`);
+    if (size) size.textContent = rows.length ? formatNumber(rows.length) : "";
+    const button = badge.closest("[data-chat-folder]");
+    if (button) {
+      button.title = unread
+        ? `${formatNumber(unread)} непрочитано · всего ${formatNumber(rows.length)}`
+        : `Непрочитанного нет · всего ${formatNumber(rows.length)}`;
+    }
   });
   // Папки воронки — те, по которым мы реально ходим (статусы CRM), а не идеальная
   // схема: пустых стадий на экране быть не должно.
@@ -5327,7 +5340,14 @@ function updateCounts() {
     + (work.drafts || []).filter((item) => !item.review_verdict).length
     + (work.approvals || []).filter((item) => item.active).length;
   setBadge("navTodayCount", today);
-  setBadge("navChatsCount", 0);
+  // Значок на «Чатах» — непрочитанное, а не число тредов. Он был захардкожен в
+  // ноль, то есть не значил ничего.
+  setBadge(
+    "navChatsCount",
+    (state.threads || []).filter(
+      (thread) => !isTechnicalThread(thread) && threadIsUnread(thread),
+    ).length,
+  );
 }
 
 async function refreshCalendar(force = false) {
