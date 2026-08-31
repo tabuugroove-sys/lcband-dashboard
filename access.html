@@ -4,33 +4,36 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0a0a12">
-  <title>LCB Dashboard — вход</title>
+  <title>LCB Dashboard</title>
+  <script>
+    // CHG-20260829-016: раньше здесь был выбор из двух входов — локальный и
+    // Tailscale. Вариант через Tailscale не работал: демон запущен как
+    // --tun=userspace-networking, поэтому имена *.ts.net на рабочем Mac не
+    // резолвятся, а других устройств в tailnet нет. Лишний экран убран,
+    // сразу уходим на локальный backend.
+    location.replace("http://127.0.0.1:8878/");
+  </script>
   <style>
     :root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 0,#24203a 0,#0a0a12 52%);color:#e2e8f0}
-    main{width:min(680px,100%);padding:32px;border:1px solid #2b2940;border-radius:18px;background:rgba(16,16,27,.94);box-shadow:0 24px 80px #0008}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 0,#24203a 0,#0a0a12 52%);color:#e2e8f0}
+    main{width:min(520px,100%);padding:32px;border:1px solid #2b2940;border-radius:18px;background:rgba(16,16,27,.94);box-shadow:0 24px 80px #0008;text-align:center}
     .eyebrow{color:#f5c518;font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:12px}
-    h1{margin:10px 0 8px;font-size:clamp(28px,6vw,44px)}p{color:#9aa4b6;line-height:1.55;margin:0 0 24px}
-    .routes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.route{display:block;padding:18px;border:1px solid #35324b;border-radius:13px;text-decoration:none;color:#fff;background:#171624;transition:.15s transform,.15s border-color}.route:hover{transform:translateY(-2px);border-color:#f5c518}.route b{display:block;margin-bottom:6px;font-size:17px}.route span{color:#8d97aa;font-size:13px;line-height:1.4}.primary{background:#f5c518;color:#18140a;border-color:#f5c518}.primary span{color:#5d4b00}
+    h1{margin:10px 0 8px;font-size:clamp(22px,5vw,30px)}
+    p{color:#9aa4b6;line-height:1.55;margin:0 0 22px}
+    a.route{display:inline-block;padding:16px 22px;border-radius:13px;text-decoration:none;font-weight:700;background:#f5c518;color:#18140a;border:1px solid #f5c518}
+    a.route:hover{transform:translateY(-2px)}
     .note{margin-top:22px;padding-top:18px;border-top:1px solid #272538;color:#697386;font-size:12px}
-    @media(max-width:560px){main{padding:24px}.routes{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
+  <!-- Виден только если браузер по какой-то причине не выполнил переход выше. -->
   <main>
     <div class="eyebrow">LCB Dashboard</div>
-    <h1>Выберите безопасный вход</h1>
-    <p>Живые данные больше не публикуются через GitHub Pages. На рабочем Mac открывайте локальный backend; с другого авторизованного устройства — приватный адрес Tailscale.</p>
-    <div class="routes">
-      <a class="route primary" href="http://127.0.0.1:8878/">
-        <b>На этом Mac →</b>
-        <span>Основной рабочий вход. Backend должен быть запущен на Mac.</span>
-      </a>
-      <a class="route" href="https://macbook-pro-1111.tail44e2e6.ts.net/">
-        <b>Через Tailscale →</b>
-        <span>Для устройств, подключённых к tailnet tabuugroove.</span>
-      </a>
-    </div>
+    <h1>Открываю дашборд…</h1>
+    <p>Если ничего не произошло — нажми кнопку. Дашборд работает на этом Mac,
+       backend должен быть запущен.</p>
+    <a class="route" href="http://127.0.0.1:8878/">Открыть дашборд →</a>
     <div class="note">Публичная страница не получает API URL, токены или данные клиентов.</div>
   </main>
 </body>
