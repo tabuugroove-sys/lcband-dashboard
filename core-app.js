@@ -866,7 +866,7 @@ function renderRuntimeStatus() {
   // сервере называется репликой: чип про её свежесть, а не про то, где принято
   // решение. Пока оба назывались V2, «Решение V2» в переписке читалось как
   // «решил сервер», хотя решает локальный shadow-writer.
-  setRuntimeChip("runtimeV2", v2.status, `Копия ядра на сервере: ${runtimeAgeLabel(v2.replica_age_seconds)}; режим ${v2.runtime_mode || "не подтверждён"}. Решения принимает ядро на этом маке.`);
+  setRuntimeChip("runtimeV2", v2.status, `LCB CRM 2 (209.126.1.234): ${runtimeAgeLabel(v2.replica_age_seconds)}; режим ${v2.runtime_mode || "не подтверждён"}. Решения принимает ядро на этом маке.`);
 
   const ssh = runtime.ssh || {};
   byId("runtimeSshLabel").textContent = runtimeStatusLabel(ssh.status);
@@ -5457,7 +5457,7 @@ async function refreshAll(force = false) {
     setConnection("error", "Core недоступен");
     setRuntimeChip("runtimeProcesses", "unknown", "Core недоступен — статус процессов не обновлён");
     setRuntimeChip("runtimeV1", "unknown", "Core недоступен — статус локальных агентов не обновлён");
-    setRuntimeChip("runtimeV2", "unknown", "Core недоступен — свежесть серверной реплики не обновлена");
+    setRuntimeChip("runtimeV2", "unknown", "Core недоступен — свежесть LCB CRM 2 не обновлена");
     setRuntimeChip("runtimeSsh", "unknown", "Core недоступен — SSH не проверен");
     toast(`Не удалось прочитать Core: ${error.message}`);
   } finally {
