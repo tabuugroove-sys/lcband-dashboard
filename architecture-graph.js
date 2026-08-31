@@ -376,12 +376,29 @@
     if (!path.length) {
       path = nodes.filter((node) => node.pathIndex !== null).sort((a, b) => a.pathIndex - b.pathIndex).map((node) => node.id);
     }
-    const pathPairs = new Set(path.slice(1).map((target, index) => `${path[index]}\u0000${target}`));
+    const edgeByPair = new Map(validEdges.map((edge) => [`${edge.source}\u0000${edge.target}`, edge]));
+    const normalizeTracePath = (rawPath) => normalizePath(rawPath)
+      .map((id) => aliases.get(String(id)) || id)
+      .filter((id) => validIds.has(id));
+    const rawPaths = asArray(firstDefined(data, ["paths", "recorded_paths", "branch_paths"], []));
+    let paths = rawPaths.map(normalizeTracePath).filter((tracePath) => tracePath.length > 1);
+    if (!paths.length && path.length) paths = [path];
+    const isVerifiedPath = (tracePath) => tracePath.length > 0
+      && (!options.caseMode || tracePath.every((id) => (nodes.find((node) => node.id === id) || {}).kind === "recorded"))
+      && tracePath.slice(1).every((target, index) => {
+        const edge = edgeByPair.get(`${tracePath[index]}\u0000${target}`);
+        return Boolean(edge && (!options.caseMode || edge.kind === "recorded"));
+      });
+    paths = paths.filter(isVerifiedPath);
+    if (options.caseMode && !isVerifiedPath(path)) path = [];
+    const verifiedPairs = new Set(
+      paths.flatMap((tracePath) => tracePath.slice(1).map((target, index) => `${tracePath[index]}\u0000${target}`)),
+    );
     validEdges.forEach((edge) => {
-      if (!edge.isPath && path.length > 1) {
-        edge.isPath = pathPairs.has(`${edge.source}\u0000${edge.target}`);
-      }
+      const verified = verifiedPairs.has(`${edge.source}\u0000${edge.target}`);
+      edge.isPath = options.caseMode ? verified : (edge.isPath || verified);
     });
+    const highlightedNodeIds = Array.from(new Set(paths.flat()));
 
     const gaps = normalizeGaps(firstDefined(data, ["evidence_gaps", "gaps", "missing_evidence"], []));
     if (options.caseMode && gaps.length && !nodes.some((node) => node.kind === "gap")) {
@@ -442,6 +459,8 @@
       nodes,
       edges: validEdges,
       path,
+      paths,
+      highlightedNodeIds,
       gaps,
       timeline: resolvedTimeline,
       title: textValue(firstDefined(data, ["title", "label", "case_label", "symbol"], options.title || ""), 260),
@@ -857,7 +876,10 @@
     _layoutTimeline(data) {
       const positions = new Map();
       const byId = new Map(data.nodes.map((node) => [node.id, node]));
-      let ordered = data.path.map((id) => byId.get(id)).filter(Boolean);
+      let ordered = [...(data.path || []), ...(data.highlightedNodeIds || [])]
+        .map((id) => byId.get(id))
+        .filter(Boolean);
+      ordered = Array.from(new Map(ordered.map((node) => [node.id, node])).values());
       const orderedIds = new Set(ordered.map((node) => node.id));
       const rest = data.nodes.filter((node) => !orderedIds.has(node.id));
       if (!ordered.length) ordered = data.nodes.filter((node) => node.kind !== "gap");
@@ -914,7 +936,7 @@
     _render() {
       this.camera.replaceChildren();
       if (!this.data.nodes.length) return;
-      const pathNodes = new Set(this.data.path);
+      const pathNodes = new Set(this.data.highlightedNodeIds || this.data.path);
       const hasPath = pathNodes.size > 0;
       const edgeGroup = createSvg("g", { class: "edge-layer" });
       this.data.edges.forEach((edge) => {
@@ -1084,11 +1106,21 @@
     }
 
     if (data.viewType === "case-trace") {
+      const mainKey = (data.path || []).join("\u0000");
+      const branchSections = (data.paths || [])
+        .filter((tracePath) => tracePath.join("\u0000") !== mainKey)
+        .map((tracePath, index) => {
+          const branchNodes = tracePath.map((id) => byId.get(id)).filter(Boolean);
+          branchNodes.forEach((node) => used.add(node.id));
+          return { label: `Записанная ветвь ${String(index + 1).padStart(2, "0")}`, nodes: branchNodes, connect: true };
+        })
+        .filter((section) => section.nodes.length > 1);
       const gaps = take(remaining().filter((node) => node.kind === "gap"));
       const branches = take(remaining());
       return [
         { label: "Основная доказанная цепочка", nodes: pathNodes, connect: true },
-        { label: "Ветви решений и кандидатов", nodes: branches, connect: false },
+        ...branchSections,
+        { label: "Контекст без линейной связи", nodes: branches, connect: false },
         { label: "Пробелы доказательств", nodes: gaps, connect: false },
       ].filter((section) => section.nodes.length);
     }
