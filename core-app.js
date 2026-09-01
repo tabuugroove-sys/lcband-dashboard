@@ -56,6 +56,8 @@ const state = {
   costumes: { musicians: [], stats: { total: 0, with_size: 0, with_costumes: 0, needs_confirmation: 0 } },
   calendar: { events: [], business_events: 0, technical_events: 0, model_ready: false },
   threads: [],
+  offeredDates: [],
+  contactDatesMonth: "",
   coordinationCases: [],
   work: null,
   operations: null,
@@ -1842,6 +1844,76 @@ function restoreComposerSnapshot(payload, snapshot) {
   if (snapshot.focused) byId("manualSendText").focus({ preventScroll: true });
 }
 
+function contactDatesMonthKey(eventDate) {
+  return String(eventDate || "").slice(0, 7);
+}
+
+function contactDatesMonthLabel(key) {
+  const [year, month] = key.split("-").map(Number);
+  if (!year || !month) return key;
+  const label = new Intl.DateTimeFormat("ru-RU", { month: "long", timeZone: "UTC" })
+    .format(new Date(Date.UTC(year, month - 1, 1)));
+  const withYear = year === new Date().getFullYear() ? label : `${label} ${year}`;
+  return withYear.charAt(0).toUpperCase() + withYear.slice(1);
+}
+
+function renderContactDates() {
+  const items = state.offeredDates || [];
+  const panel = byId("contactDatesPanel");
+  const monthsEl = byId("contactDatesMonths");
+  const listEl = byId("contactDatesList");
+  if (!items.length) {
+    panel.hidden = true;
+    panel.open = false;
+    byId("contactDatesCount").textContent = "";
+    monthsEl.innerHTML = "";
+    listEl.innerHTML = "";
+    return;
+  }
+  const future = items.filter((item) => !item.is_past);
+  const past = items.filter((item) => item.is_past);
+  const monthKeys = [...new Set(future.map((item) => contactDatesMonthKey(item.event_date)))].sort();
+  const tabs = monthKeys.map((key) => ({ key, label: contactDatesMonthLabel(key) }));
+  if (past.length) tabs.push({ key: "past", label: "Прошедшие" });
+  if (!tabs.some((tab) => tab.key === state.contactDatesMonth)) {
+    state.contactDatesMonth = tabs[0].key;
+  }
+  const active = state.contactDatesMonth;
+  const participatingCount = items.filter((item) => item.participates !== false).length;
+  panel.hidden = false;
+  panel.open = true;
+  byId("contactDatesCount").textContent = `· участвует в ${participatingCount}`;
+  monthsEl.innerHTML = tabs.map((tab) => (
+    `<button type="button" class="contact-dates-month-btn${tab.key === active ? " is-active" : ""}" data-dates-month="${escapeHtml(tab.key)}">${escapeHtml(tab.label)}</button>`
+  )).join("");
+  monthsEl.onclick = (event) => {
+    const button = event.target.closest("[data-dates-month]");
+    if (!button) return;
+    state.contactDatesMonth = button.dataset.datesMonth;
+    renderContactDates();
+  };
+  const row = (item) => {
+    const source = [
+      item.business_line === "broker" ? "Broker" : "LCBand",
+      item.title,
+    ].filter(Boolean).join(" · ");
+    const stateClass = item.participates === false ? " not-participating" : "";
+    return `<div class="contact-date-row${stateClass}"><div class="contact-date-main"><strong>${escapeHtml(formatEventDate(item.event_date))}</strong><small title="${escapeHtml(source)}">${escapeHtml(source)}</small></div><span class="contact-date-stage funnel-${escapeHtml(String(item.funnel_stage || "").replaceAll("_", "-"))}">${escapeHtml(item.funnel_stage_label || "")}</span></div>`;
+  };
+  let html = "";
+  if (active === "past") {
+    html = past.map(row).join("");
+  } else {
+    const monthItems = future.filter((item) => contactDatesMonthKey(item.event_date) === active);
+    const mine = monthItems.filter((item) => item.participates !== false);
+    const others = monthItems.filter((item) => item.participates === false);
+    if (mine.length) html += `<div class="contact-dates-group">Участвует · ${mine.length}</div>${mine.map(row).join("")}`;
+    if (others.length) html += `<div class="contact-dates-group">Не участвует · ${others.length}</div>${others.map(row).join("")}`;
+    if (!html) html = '<div class="contact-dates-empty">Нет событий в этом месяце</div>';
+  }
+  listEl.innerHTML = html;
+}
+
 async function openThread(threadId, updateHash = true, options = {}) {
   const background = Boolean(options.background);
   if (background && (
@@ -1885,10 +1957,9 @@ async function openThread(threadId, updateHash = true, options = {}) {
     byId("initialRequestPanel").open = false;
     byId("initialRequestText").textContent = "";
     byId("initialRequestMeta").textContent = "";
-    byId("contactDatesPanel").hidden = true;
-    byId("contactDatesPanel").open = false;
-    byId("contactDatesCount").textContent = "";
-    byId("contactDatesList").innerHTML = "";
+    state.offeredDates = [];
+    state.contactDatesMonth = "";
+    renderContactDates();
     renderThreads();
     const selectedThread = state.threads.find((item) => item.thread_id === threadId)
       || Object.values(state.channelThreads)
@@ -1953,19 +2024,8 @@ async function openThread(threadId, updateHash = true, options = {}) {
       byId("initialRequestText").textContent = initialRequest.text;
       byId("initialRequestMeta").textContent = `Первое входящее · ${formatDate(initialRequest.started_at_epoch)} · сообщений: ${(initialRequest.message_ids || []).length}`;
     }
-    const offeredDates = payload.offered_dates || [];
-    if (offeredDates.length) {
-      byId("contactDatesPanel").hidden = false;
-      byId("contactDatesPanel").open = true;
-      byId("contactDatesCount").textContent = `· ${offeredDates.length}`;
-      byId("contactDatesList").innerHTML = offeredDates.map((item) => {
-        const source = [
-          item.business_line === "broker" ? "Broker" : "LCBand",
-          item.title,
-        ].filter(Boolean).join(" · ");
-        return `<div class="contact-date-row"><div class="contact-date-main"><strong>${escapeHtml(formatEventDate(item.event_date))}</strong><small title="${escapeHtml(source)}">${escapeHtml(source)}</small></div><span class="contact-date-stage funnel-${escapeHtml(item.funnel_stage.replaceAll("_", "-"))}">${escapeHtml(item.funnel_stage_label)}</span></div>`;
-      }).join("");
-    }
+    state.offeredDates = payload.offered_dates || [];
+    renderContactDates();
     let previousDay = "";
     const historyHtml = (payload.messages || []).map((message) => {
       const day = dateKey(message.sent_at_epoch);
@@ -5181,7 +5241,7 @@ async function refreshOpsmapLiveOps(force = false) {
   const statusEl = byId("opsmap-live-status");
   if (statusEl) statusEl.textContent = "Обновление…";
   try {
-    const params = new URLSearchParams({ window_s: "3000", limit: "200", actionable_only: "1" });
+    const params = new URLSearchParams({ window_s: "30000", limit: "200", actionable_only: "1" });
     const envelope = await apiGet(`${window.API_OPSMAP_LIVE_OPS || "/api/opsmap/live-operations"}?${params.toString()}`);
     state.opsLiveOps = envelope.data || {};
     state.opsLiveOpsRefreshedAt = Date.now();
