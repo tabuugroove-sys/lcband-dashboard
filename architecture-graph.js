@@ -29,6 +29,22 @@
       qualified_name: "event_chat_graph_context.get_event_chat_graph_evidence",
       summary: "MiniMax/Kimi получают bounded production-only graph evidence: process cache около 30 минут, stale last-good при ошибке refresh и явный unavailable без остановки классификации.",
     },
+    {
+      id: "policy:event-chat-pitch-source-scope",
+      label: "Event-chat · exact-post pitch ledger",
+      type: "delivery policy",
+      evidence_kind: "policy",
+      qualified_name: "event_chat_pitch_attempts.PitchAttemptStore",
+      summary: "Питч привязан к chat/message/sender, numeric target и purpose; retryable, terminal, pending, unknown и delivered хранятся раздельно.",
+    },
+    {
+      id: "policy:event-chat-pitch-receipt-boundary",
+      label: "Event-chat · approval → receipt",
+      type: "delivery boundary",
+      evidence_kind: "policy",
+      qualified_name: "telegram_delivery_queue.build_immutable_payload",
+      summary: "Event-chat producer создаёт только approval. Source scope запечатан в delivery command; delivered требует provider receipt и canonical outbound message_event.",
+    },
   ];
 
   const dom = {};

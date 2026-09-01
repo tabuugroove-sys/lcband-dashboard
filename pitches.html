@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LCB 2.0 · Питчи</title>
-<link rel="stylesheet" href="/pitches.css?v=7">
+<link rel="stylesheet" href="/pitches.css?v=9">
 </head>
 <body>
 <header class="topbar">
@@ -20,6 +20,7 @@
     </select>
     <select id="filter">
       <option value="">все питчи</option>
+      <option value="__unsent__">только неотправленные</option>
       <option value="__problems__">только с проблемами</option>
       <option value="cold_proposal">холодный питч LCB</option>
       <option value="solo_clarify">solo-уточнение</option>
@@ -41,6 +42,7 @@
       <span class="chat"></span>
       <a class="target" target="_blank" rel="noopener"></a>
       <span class="chip type"></span>
+      <span class="chip delivery" hidden></span>
       <span class="chip order" hidden></span>
       <span class="chip problem-flag" hidden></span>
     </div>
@@ -51,13 +53,14 @@
         <div class="src-meta"></div>
       </section>
       <section class="col">
-        <div class="col-label">Агент отправил</div>
+        <div class="col-label out-label">Агент отправил</div>
         <div class="text out-text"></div>
         <div class="chips out-chips">
           <span class="chip models" hidden></span>
         </div>
       </section>
     </div>
+    <div class="warm-actions" hidden></div>
     <div class="problems cases" hidden></div>
   </article>
   <aside class="fixwork" hidden>
@@ -66,6 +69,6 @@
   </aside>
   </div>
 </template>
-<script src="/pitches.js?v=8"></script>
+<script src="/pitches.js?v=10"></script>
 </body>
 </html>

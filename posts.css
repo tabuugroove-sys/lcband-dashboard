@@ -72,6 +72,11 @@ body {
 }
 .pitch-status.pitch-sent { background: var(--band); color: var(--band-ink); }
 .pitch-status.pitch-not-sent { background: var(--down); color: var(--down-ink); }
+.pitch-status.pitch-pending { background: var(--solo); color: var(--solo-ink); }
+.pitch-status.pitch-queued { background: var(--band); color: var(--band-ink); }
+.pitch-status.pitch-reconcile { background: var(--down); color: var(--down-ink); }
+.pitch-status.pitch-retryable { background: var(--warn); color: var(--warn-ink); }
+.pitch-status.pitch-neutral { background: var(--skip); color: var(--skip-ink); }
 .pitch-status.pitch-unknown { border: 1px dashed var(--line); background: transparent; color: var(--dim); }
 .post-pitch .pitch-reason { margin-top: 0; font-size: 12px; color: var(--dim); }
 .pitch-tribrain {

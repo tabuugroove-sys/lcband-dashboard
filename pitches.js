@@ -1,4 +1,4 @@
-/* LCB 2.0 «Питчи» — live-поток отправленных питчей (CHG-20260828-011).
+/* LCB 2.0 «Питчи» — отправленные + pending delivery-gap (CHG-20260828-023).
    Данные: /api/app/pitches_live (прокси :8880 → dashboard_backend :8878).
    CSP: никаких inline-стилей — только классы и textContent. */
 (function () {
@@ -17,7 +17,8 @@
   var PROBLEM_BADGES = {
     urgent: "🔴 ургент-бот",
     digest: "📮 notify-digest",
-    send_block: "⛔ send-блок"
+    send_block: "⛔ send-блок",
+    delivery_gap: "⏳ не отправлен"
   };
   var KIND_LABELS = {
     ignored_client_reply: "клиент остался без ответа (SLA)",
@@ -39,7 +40,10 @@
     media_sourcing_fail: "sourcing упал",
     role_mismatch: "зачем агент писал (роль)",
     tech_question: "вопрос состава",
-    call_reminder_final: "созвон закрыт как пропущенный"
+    call_reminder_final: "созвон закрыт как пропущенный",
+    pitch_pending_review_not_dispatched: "драфт не дошёл до отправки",
+    legacy_pitch_missing_source_scope: "legacy draft без exact source — HOLD",
+    warm_review_context_required: "нужен контекст прежней переписки"
   };
   var PRESEND_LABELS = { ok: "ok", send: "ok", adapt: "adapt", skip: "skip",
                          escalate_to_opus: "эскалация" };
@@ -129,12 +133,17 @@
             : "Почему не справился сам",
           p.attempt_detail);
     }
-    if (p.src === "urgent") {
+    if (p.src === "urgent" || p.src === "delivery_gap") {
       row(box, p.mechanic && p.mechanic.indexOf("нет") === 0
             ? "p-no-mech" : "",
           "Механика восстановления", p.mechanic);
       row(box, "", "Containment", p.containment);
       row(box, "", "Сигнатура", p.root_signature);
+      if (p.src === "delivery_gap") {
+        row(box, "", "Approval ID", p.approval_id);
+        row(box, "", "Transport blocker", p.transport_block_reason);
+        row(box, "", "Возраст, ч", p.age_hours);
+      }
       if (p.tribrain_summary) {
         var det = document.createElement("details");
         det.className = "p-tribrain";
@@ -226,11 +235,160 @@
     });
   }
 
+  function postJson(url, payload) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok || !data || data.ok !== true) {
+          throw new Error((data && data.error) || ("HTTP " + response.status));
+        }
+        return data;
+      });
+    });
+  }
+
+  function pauseAutoRefresh() {
+    if (autoCb.checked) {
+      autoCb.checked = false;
+      schedule();
+    }
+  }
+
+  function renderWarmActions(box, pitch) {
+    box.hidden = false;
+    box.textContent = "";
+
+    var title = document.createElement("div");
+    title.className = "warm-title";
+    title.textContent = "Тёплый контакт: task нельзя отправить напрямую";
+    box.appendChild(title);
+
+    var hint = document.createElement("div");
+    hint.className = "warm-hint";
+    hint.textContent = "Откройте Telegram-историю, вставьте релевантный контекст " +
+      "и подготовьте новый ответ. Кнопка создаст отдельный approval без отправки.";
+    box.appendChild(hint);
+
+    var context = document.createElement("textarea");
+    context.className = "warm-input";
+    context.rows = 5;
+    context.placeholder = "Контекст прежней переписки (обязательно)";
+    context.addEventListener("focus", pauseAutoRefresh);
+    box.appendChild(context);
+
+    var draft = document.createElement("textarea");
+    draft.className = "warm-input";
+    draft.rows = 5;
+    draft.placeholder = "Новый контекстный текст питча (обязательно)";
+    draft.addEventListener("focus", pauseAutoRefresh);
+    box.appendChild(draft);
+
+    var controls = document.createElement("div");
+    controls.className = "warm-controls";
+    var materialize = document.createElement("button");
+    materialize.type = "button";
+    materialize.className = "warm-primary";
+    materialize.textContent = "Создать контекстный approval";
+    controls.appendChild(materialize);
+
+    var reissueLabel = document.createElement("label");
+    reissueLabel.className = "warm-reissue";
+    var reissue = document.createElement("input");
+    reissue.type = "checkbox";
+    reissueLabel.appendChild(reissue);
+    reissueLabel.appendChild(document.createTextNode(
+      " safe reissue, только если прежний child terminal и command отсутствует"));
+    controls.appendChild(reissueLabel);
+    box.appendChild(controls);
+
+    var resolutionRow = document.createElement("div");
+    resolutionRow.className = "warm-controls";
+    var resolution = document.createElement("select");
+    [
+      ["not_relevant", "не актуально"],
+      ["no_outreach", "не писать"],
+      ["handled_manually", "обработано вручную"],
+      ["duplicate", "дубликат"],
+      ["superseded", "заменено новым кейсом"]
+    ].forEach(function (item) {
+      var option = document.createElement("option");
+      option.value = item[0];
+      option.textContent = item[1];
+      resolution.appendChild(option);
+    });
+    resolutionRow.appendChild(resolution);
+    var resolveButton = document.createElement("button");
+    resolveButton.type = "button";
+    resolveButton.className = "warm-secondary";
+    resolveButton.textContent = "Закрыть без outreach";
+    resolutionRow.appendChild(resolveButton);
+    box.appendChild(resolutionRow);
+
+    var status = document.createElement("div");
+    status.className = "warm-status";
+    box.appendChild(status);
+
+    materialize.addEventListener("click", function () {
+      var exactContext = context.value.trim();
+      var exactDraft = draft.value.trim();
+      if (!exactContext || !exactDraft) {
+        status.textContent = "Нужны и история, и новый текст.";
+        status.className = "warm-status is-error";
+        return;
+      }
+      materialize.disabled = true;
+      status.className = "warm-status";
+      status.textContent = "Сохраняю approval…";
+      postJson("/api/app/pitches_live/warm_materialize", {
+        warm_task_id: pitch.approval_id,
+        context_text: exactContext,
+        draft_text: exactDraft,
+        original_text: (pitch.source_post && pitch.source_post.text) || "",
+        allow_terminal_reissue: reissue.checked === true
+      }).then(function (data) {
+        status.className = "warm-status is-ok";
+        status.textContent = "Создан approval " + data.approval_id +
+          ". Отправки не было.";
+        window.setTimeout(load, 900);
+      }).catch(function (error) {
+        status.className = "warm-status is-error";
+        status.textContent = "Не создано: " + error.message;
+      }).finally(function () {
+        materialize.disabled = false;
+      });
+    });
+
+    resolveButton.addEventListener("click", function () {
+      if (!window.confirm("Закрыть warm-task без отправки сообщения?")) return;
+      resolveButton.disabled = true;
+      status.className = "warm-status";
+      status.textContent = "Закрываю task…";
+      postJson("/api/app/pitches_live/warm_resolve", {
+        warm_task_id: pitch.approval_id,
+        resolution: resolution.value,
+        note: "explicit dashboard decision"
+      }).then(function () {
+        status.className = "warm-status is-ok";
+        status.textContent = "Task закрыт без outreach.";
+        window.setTimeout(load, 900);
+      }).catch(function (error) {
+        status.className = "warm-status is-error";
+        status.textContent = "Не закрыто: " + error.message;
+      }).finally(function () {
+        resolveButton.disabled = false;
+      });
+    });
+  }
+
   function render() {
     var f = filterSel.value;
     var shown = lastPitches.filter(function (p) {
       if (!f) return true;
       if (f === "__problems__") return (p.problems || []).length > 0;
+      if (f === "__unsent__") return p.sent === false;
       return p.type === f;
     });
     feed.textContent = "";
@@ -244,6 +402,7 @@
     shown.forEach(function (p) {
       var node = tpl.content.cloneNode(true);
       var art = node.querySelector(".pitch");
+      if (p.sent === false) art.classList.add("pending-delivery");
       node.querySelector(".when").textContent = fmtWhen(p.ts);
       node.querySelector(".chat").textContent = p.chat || "—";
       var target = node.querySelector(".target");
@@ -258,6 +417,18 @@
       var typeChip = node.querySelector(".chip.type");
       typeChip.textContent = p.type_label || p.type || "—";
       if (p.type) typeChip.classList.add("type-" + p.type);
+      var deliveryChip = node.querySelector(".chip.delivery");
+      deliveryChip.hidden = false;
+      if (p.sent === false) {
+        deliveryChip.textContent = "⏳ не отправлено · " +
+          (p.delivery_state || "pending_review");
+        deliveryChip.classList.add("pending");
+        node.querySelector(".out-label").textContent =
+          "Агент подготовил — не отправлено";
+      } else {
+        deliveryChip.textContent = "✓ отправлено";
+        deliveryChip.classList.add("sent");
+      }
       var orderChip = node.querySelector(".chip.order");
       if (p.order_status) {
         orderChip.hidden = false;
@@ -271,6 +442,10 @@
         flag.textContent = "⚠ проблем: " + problems.length;
         art.classList.add("has-problems");
       }
+      if (p.delivery_state === "warm_review_pending" &&
+          p.review_task_only === true && p.approval_id) {
+        renderWarmActions(node.querySelector(".warm-actions"), p);
+      }
 
       var src = p.source_post;
       clampable(node.querySelector(".src-text"), src && src.text,
@@ -281,7 +456,8 @@
           src.chat || p.chat || "",
           src.ts ? fmtWhen(src.ts) : "",
           src.origin === "orders" ? "из карточки заказа" :
-            src.origin === "classify_journal" ? "из журнала классификации" : ""
+            src.origin === "classify_journal" ? "из журнала классификации" :
+            src.origin === "pending_approval" ? "из очереди approval" : ""
         ].filter(Boolean).join(" · ");
       } else {
         srcMeta.textContent = p.chat ? "чат: " + p.chat : "";
@@ -336,7 +512,8 @@
         lastPitches = data.pitches || [];
         var c = data.counts || {};
         metaLine.textContent = "Live: отправлено за " + data.hours + "ч: " +
-          (c.sent || 0) + " · с проблемами: " + (c.with_problems || 0) +
+          (c.sent || 0) + " · не отправлено: " + (c.pending || 0) +
+          " · с проблемами: " + (c.with_problems || 0) +
           " (эскалаций: " + (c.problems || 0) + ")" +
           " · обновлено " + fmtWhen(data.generated_at);
         if (data.note) {

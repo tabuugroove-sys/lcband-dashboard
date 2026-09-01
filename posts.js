@@ -204,13 +204,48 @@
       } else {
         var pitch = p.pitch || {};
         if (pitch.sent === true) {
-          pitchStatus.textContent = "✅ отправлен" +
+          pitchStatus.textContent = "✅ доставлен · receipt проверен" +
             (pitch.type_label ? " · " + pitch.type_label : "");
           pitchStatus.classList.add("pitch-sent");
           pitchStatus.title = pitch.ts ? "Отправлен " + fmtWhen(pitch.ts) : "";
         } else if (pitch.sent === false) {
-          pitchStatus.textContent = "❌ не отправлен";
-          pitchStatus.classList.add("pitch-not-sent");
+          var state = pitch.state || "";
+          var stateLabels = {
+            pending_review: "🟡 ждёт approval",
+            warm_review_pending: "🟡 warm review-задача",
+            approved: "🟠 одобрен, команды ещё нет",
+            queued: "🔵 в delivery queue",
+            delivery_unknown: "🔴 delivery unknown · HOLD",
+            delivered_unreconciled: "🟠 receipt без canonical event",
+            review_retryable: "🟡 presend retryable",
+            compose_retryable: "🟡 compose retryable",
+            resolver_retryable: "🟡 resolver retryable",
+            storage_retryable: "🟡 storage retryable",
+            semantic_skip: "⚪ semantic skip",
+            recipient_policy_hold: "⚪ policy hold",
+            source_identity_hold: "⚪ source identity hold",
+            classification_conflict: "🔴 scope conflict",
+            legacy_outbound_unverified: "⚪ legacy outbound · не доказан"
+          };
+          pitchStatus.textContent = stateLabels[state] || "❌ не отправлен";
+          if (state === "pending_review" || state === "warm_review_pending" ||
+              state === "approved") {
+            pitchStatus.classList.add("pitch-pending");
+          } else if (state === "queued") {
+            pitchStatus.classList.add("pitch-queued");
+          } else if (state === "delivery_unknown" ||
+                     state === "delivered_unreconciled") {
+            pitchStatus.classList.add("pitch-reconcile");
+          } else if (state.indexOf("retryable") >= 0) {
+            pitchStatus.classList.add("pitch-retryable");
+          } else if (state === "legacy_outbound_unverified" ||
+                     state === "semantic_skip" ||
+                     state === "recipient_policy_hold" ||
+                     state === "source_identity_hold") {
+            pitchStatus.classList.add("pitch-neutral");
+          } else {
+            pitchStatus.classList.add("pitch-not-sent");
+          }
           var reason = pitch.reason || "причина не зафиксирована";
           pitchStatus.title = reason;
           pitchReason.hidden = false;
