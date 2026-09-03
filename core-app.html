@@ -95,6 +95,7 @@
         <button class="tab-button" data-view="costumes"><span class="tab-icon" aria-hidden="true">♢</span>Костюмы</button>
         <button class="tab-button" data-view="operations"><span class="tab-icon" aria-hidden="true">⌘</span>Операции</button>
         <button class="tab-button" data-view="arbitr"><span class="tab-icon" aria-hidden="true">⚖</span>Арбитраж</button>
+        <button class="tab-button" data-view="cutover"><span class="tab-icon" aria-hidden="true">⇄</span>Cutover</button>
       </div>
     </section>
     <div class="tabbar-divider" aria-hidden="true"><span>⋮⋮</span></div>
@@ -644,6 +645,46 @@
         <div id="arbitrCards"></div>
       </section>
 
+      <section class="screen" id="screen-cutover">
+        <div class="page-head">
+          <div><p class="eyebrow">LCB CRM 2 · outbound outbox</p><h1>Cutover</h1></div>
+          <div class="operator-session-state">
+            <span class="pill" id="cutoverStatePill">Проверка</span>
+            <button class="text-button" id="cutoverRefresh" type="button">Обновить</button>
+          </div>
+        </div>
+        <section class="band-section">
+          <div class="section-head"><h2>Send authority</h2><span>read-only обзор · изменение — отдельное решение владельца</span></div>
+          <div id="cutoverAuthority" aria-live="polite"><div class="empty-state"><strong>Загрузка…</strong></div></div>
+        </section>
+        <section class="band-section">
+          <div class="section-head">
+            <h2>Outbound intents</h2>
+            <div class="promo-controls" aria-label="Фильтр intents">
+              <label class="promo-select-label" for="cutoverStatusFilter">
+                <span>Статус</span>
+                <select id="cutoverStatusFilter">
+                  <option value="">Все</option>
+                  <option value="drafted">drafted</option>
+                  <option value="reviewed">reviewed</option>
+                  <option value="approved">approved</option>
+                  <option value="queued">queued</option>
+                  <option value="claimed">claimed</option>
+                  <option value="sent">sent</option>
+                  <option value="ambiguous">ambiguous</option>
+                  <option value="failed">failed</option>
+                  <option value="cancelled">cancelled</option>
+                </select>
+              </label>
+              <span id="cutoverSummary"></span>
+              <span id="cutoverRefreshedAt"></span>
+            </div>
+          </div>
+          <p class="promo-source-note">Approve переводит intent drafted/reviewed → approved (с записью в audit). Дальше approved двигает только send-gateway; из этого экрана ничего не отправляется.</p>
+          <div id="cutoverIntentsList" aria-live="polite"><div class="empty-state"><strong>Загрузка…</strong></div></div>
+        </section>
+      </section>
+
       <section class="screen" id="screen-fees">
         <div class="page-head"><div><p class="eyebrow">Внутренний каталог</p><h1>Гонорары музыкантов</h1></div><span class="pill hold" id="feesStatusPill">Требует подтверждения</span></div>
         <section class="fees-notice">
@@ -838,6 +879,6 @@
   </dialog>
   <script src="core-parity.js"></script>
   <script src="opsmap.js?v=20260825-005"></script>
-  <script src="core-app.js?v=20260901-001"></script>
+  <script src="core-app.js?v=20260903-001"></script>
 </body>
 </html>

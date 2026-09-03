@@ -27,6 +27,8 @@ const API = Object.freeze({
   proposalArchive: "/api/core/proposal_archive",
   proposalArchiveFile: "/api/core/proposal_archive/file",
   contractors: "/api/core/contractors",
+  cutoverIntents: "/api/core/cutover/intents",
+  cutoverAuthority: "/api/core/cutover/authority",
 });
 
 // OpsMap Phase 2 lead-mode surface. Used by opsmap.js; explicit references keep
@@ -96,6 +98,17 @@ const state = {
   opsTraceRef: null,
   opsTechnicalVisible: true,
   activeWorkTab: "obligations",
+  cutover: {
+    intents: [],
+    summary: null,
+    authority: null,
+    statusFilter: "",
+    loading: false,
+    approving: {},
+    refreshedAt: 0,
+    intentsError: "",
+    authorityError: "",
+  },
   selectedThreadId: "",
   selectedEventId: "",
   chatFolder: "all",
@@ -1023,6 +1036,7 @@ async function setView(view) {
     refreshProposalArchive();
   }
   if (view === "contractors") refreshContractors();
+  if (view === "cutover") refreshCutover();
   if (view === "arbitr") renderArbitr();
   if (view === "posts") loadFrameOnce("postsFrame", "/posts.html");
   if (view === "pitches") loadFrameOnce("pitchesFrame", "/pitches.html");
@@ -1048,7 +1062,7 @@ async function route() {
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "flow", "opsmap", "posts", "pitches", "today", "system", "tokens", "loopguard", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "proposals", "contractors", "arbitr"].includes(name)
+  const view = ["calendar", "chats", "flow", "opsmap", "posts", "pitches", "today", "system", "tokens", "loopguard", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "proposals", "contractors", "cutover", "arbitr"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";
@@ -2531,6 +2545,111 @@ function renderSystem() {
   byId("schemaDetails").innerHTML = details.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
   byId("systemHealthPill").textContent = health.ok ? "Core доступен" : "Core неполон";
   byId("systemHealthPill").className = `pill ${health.ok ? "ok" : "danger"}`;
+}
+
+const CUTOVER_APPROVABLE_STATUSES = new Set(["drafted", "reviewed"]);
+
+function cutoverStatusPill(status) {
+  const tone = status === "approved" ? "ok" : CUTOVER_APPROVABLE_STATUSES.has(status) ? "hold" : "technical";
+  return `<b class="pill ${tone}">${escapeHtml(status || "unknown")}</b>`;
+}
+
+function renderCutover() {
+  const cutover = state.cutover;
+  const authority = cutover.authority;
+  const authorityPanel = byId("cutoverAuthority");
+  if (authority) {
+    const killPill = `<b class="pill ${authority.kill_switch_active ? "danger" : "ok"}">${authority.kill_switch_active ? "АКТИВЕН" : "не активен"}</b>`;
+    authorityPanel.innerHTML = `
+      <div class="operations-metrics">
+        <div class="operations-metric ${authority.global_send_enabled ? "is-warn" : ""}"><span>global_send_enabled</span><strong>${authority.global_send_enabled ? "ON" : "OFF"}</strong><small>включение — только владельцем, не из UI</small></div>
+        <div class="operations-metric ${authority.kill_switch_active ? "is-warn" : ""}"><span>Kill switch</span><strong>${authority.kill_switch_active ? "ACTIVE" : "CLEAR"}</strong><small>внешний файл, read-only обзор</small></div>
+        <div class="operations-metric"><span>Allowlist чатов</span><strong>${formatNumber(authority.allowlist_count)}</strong><small>${escapeHtml(authority.allowlist.join(", ") || "пуст")}</small></div>
+        <div class="operations-metric"><span>Scopes (lease)</span><strong>${formatNumber(authority.scope_count)}</strong><small>${escapeHtml(authority.scopes.map((s) => `${s.scope_id} → ${s.owner} g${s.generation}`).join(" · ") || "нет выданных")}</small></div>
+      </div>`;
+  } else {
+    authorityPanel.innerHTML = `<div class="empty-state"><strong>Authority недоступен</strong>${escapeHtml(cutover.authorityError || "send_authority.json есть только на LCB CRM 2; на этом runtime cutover-backend не поднят.")}</div>`;
+  }
+  byId("cutoverStatePill").textContent = cutover.loading
+    ? "Загрузка…"
+    : authority
+      ? authority.kill_switch_active ? "Kill switch АКТИВЕН" : authority.global_send_enabled ? "Send ON" : "Send OFF"
+      : "Недоступен";
+  byId("cutoverStatePill").className = `pill ${authority ? (authority.kill_switch_active ? "danger" : authority.global_send_enabled ? "hold" : "ok") : "hold"}`;
+
+  const rows = cutover.intents || [];
+  byId("cutoverIntentsList").innerHTML = rows.length ? rows.map((intent) => {
+    const canApprove = CUTOVER_APPROVABLE_STATUSES.has(intent.status) && !cutover.approving[intent.intent_id];
+    const action = canApprove
+      ? `<button type="button" data-cutover-approve="${escapeHtml(intent.intent_id)}">Approve</button>`
+      : `<time>${escapeHtml((intent.updated_at || "").replace("T", " ").slice(5, 16))}</time>`;
+    return `<div class="work-row"><span>${cutoverStatusPill(intent.status)}</span><span><strong>${escapeHtml(intent.account)} · ${escapeHtml(intent.channel)}</strong><small>${escapeHtml(shortId(intent.peer_id || "", 60))}</small></span><span><strong>${escapeHtml(shortId(intent.draft_text || "", 110))}</strong><small>${escapeHtml(intent.intent_id)}</small></span>${action}</div>`;
+  }).join("") : `<div class="empty-state"><strong>Intents нет</strong>${escapeHtml(cutover.intentsError || "Outbox пуст по текущему фильтру.")}</div>`;
+  byId("cutoverIntentsList").querySelectorAll("[data-cutover-approve]").forEach((button) => {
+    button.addEventListener("click", () => approveCutoverIntent(button.dataset.cutoverApprove));
+  });
+  const summary = cutover.summary || {};
+  byId("cutoverSummary").textContent = summary.by_status
+    ? Object.entries(summary.by_status).map(([status, n]) => `${status}: ${n}`).join(" · ")
+    : "";
+  const filter = byId("cutoverStatusFilter");
+  if (filter && filter.value !== cutover.statusFilter) filter.value = cutover.statusFilter;
+  const refreshed = byId("cutoverRefreshedAt");
+  if (refreshed) refreshed.textContent = cutover.refreshedAt ? `обновлено ${formatAge((Date.now() - cutover.refreshedAt) / 1000)}` : "";
+}
+
+async function refreshCutover() {
+  const cutover = state.cutover;
+  if (cutover.loading) return;
+  cutover.loading = true;
+  renderCutover();
+  const filterQuery = cutover.statusFilter ? `&status=${encodeURIComponent(cutover.statusFilter)}` : "";
+  const [intentsResult, authorityResult] = await Promise.allSettled([
+    apiGet(`${API.cutoverIntents}?limit=100${filterQuery}`),
+    apiGet(API.cutoverAuthority),
+  ]);
+  cutover.loading = false;
+  if (intentsResult.status === "fulfilled") {
+    cutover.intents = intentsResult.value.intents || [];
+    cutover.summary = intentsResult.value.summary || null;
+    cutover.intentsError = "";
+  } else {
+    cutover.intents = [];
+    cutover.summary = null;
+    const reason = intentsResult.reason;
+    cutover.intentsError = reason && reason.status === 503
+      ? "Серверный cutover-backend недоступен на этом runtime."
+      : `Не удалось прочитать intents: ${reason?.message || reason}`;
+  }
+  if (authorityResult.status === "fulfilled") {
+    cutover.authority = authorityResult.value;
+    cutover.authorityError = "";
+  } else {
+    cutover.authority = null;
+    const reason = authorityResult.reason;
+    cutover.authorityError = reason && reason.status === 503
+      ? "send_authority.json есть только на LCB CRM 2."
+      : `Не удалось прочитать authority: ${reason?.message || reason}`;
+  }
+  cutover.refreshedAt = Date.now();
+  renderCutover();
+}
+
+async function approveCutoverIntent(intentId) {
+  const cutover = state.cutover;
+  if (cutover.approving[intentId]) return;
+  cutover.approving[intentId] = true;
+  renderCutover();
+  try {
+    await apiPost(`/api/core/cutover/intents/${encodeURIComponent(intentId)}/approve`, {});
+    toast("Intent переведён в approved. Отправки из этого экрана нет и не будет.");
+    await refreshCutover();
+  } catch (error) {
+    toast(`Approve не выполнен: ${error.message}`);
+    renderCutover();
+  } finally {
+    delete cutover.approving[intentId];
+  }
 }
 
 const TOKEN_LIMIT_PROVIDERS = ["codex", "claude", "kimi", "minimax", "antigravity"];
@@ -5875,6 +5994,11 @@ function bindEvents() {
   });
   window.addEventListener("focus", syncActiveThread);
   window.addEventListener("hashchange", route);
+  byId("cutoverStatusFilter")?.addEventListener("change", (event) => {
+    state.cutover.statusFilter = event.target.value;
+    refreshCutover();
+  });
+  byId("cutoverRefresh")?.addEventListener("click", () => refreshCutover());
 }
 
 const savedTheme = localStorage.getItem("lcb_core_theme");
@@ -5900,6 +6024,10 @@ window.setInterval(() => {
 window.setInterval(() => {
   if (state.activeView === "flow") refreshFlow();
 }, 90000);
+// Cutover: лёгкий опрос, пока вкладка открыта. Approve вручную, отправки тут нет.
+window.setInterval(() => {
+  if (state.activeView === "cutover") refreshCutover();
+}, 60000);
 window.setInterval(syncActiveThread, 5000);
 
 /* ── Арбитраж «старый vs Core» ──────────────────────────────────────────────
