@@ -1205,6 +1205,139 @@
     };
   }
 
+  // ── Two-sided payment ledger v1 (CHG-20260903-005) ─────────────────────────
+  const PAYOUT_ROLE_LABELS = {
+    assistant: 'ассистент (платит музыкантам)',
+    director: 'директор коллектива',
+    ip_intermediary: 'ИП / посредник по оплате',
+    musician: 'музыкант',
+    contractor: 'подрядчик',
+  };
+  function roleLabel(r) { return PAYOUT_ROLE_LABELS[r] || (r || ''); }
+
+  function openPayoutModal() {
+    const ev = CURRENT_EVENT;
+    if (!ev) return;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#0d1117;border:1px solid #30363d;border-radius:10px;max-width:540px;width:100%;max-height:90vh;display:flex;flex-direction:column;color:#e6edf3;font:14px/1.5 system-ui;';
+    const today = new Date().toISOString().slice(0, 10);
+    const inp = 'width:100%;background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:8px 10px;font-size:13px;';
+    const lbl = 'display:block;font-size:11px;color:#8b949e;margin-bottom:3px;';
+    box.innerHTML = `
+      <div style="padding:14px 18px;border-bottom:1px solid #30363d;display:flex;align-items:center;gap:12px;">
+        <div style="font-size:16px;font-weight:600;color:#7ee787;flex:1">💸 Записать выплату подрядчику</div>
+        <button id="po-close" style="background:transparent;border:none;color:#e6edf3;font-size:20px;cursor:pointer;">×</button>
+      </div>
+      <div style="padding:14px 18px;display:grid;gap:10px;overflow:auto;">
+        <div style="background:rgba(88,166,255,0.10);border-left:3px solid #58a6ff;padding:8px 10px;border-radius:4px;font-size:12px;color:#c9d1d9;">
+          Кому <b>реально перевёл</b>: Ире (ассистент), Вадиму (директор), Кириллу (ИП) или музыканту напрямую.
+          Сумма — целиком на получателя; кому он раздал дальше, не фиксируем. Эту же сумму не дублируй в «Предоплата» Состава.
+        </div>
+        <div><label style="${lbl}">Получатель (@username или имя)</label><input id="po-recipient" type="text" style="${inp}" placeholder="например: Ира, @vadimnoize, Кирилл"></div>
+        <div><label style="${lbl}">Роль получателя</label>
+          <select id="po-role" style="${inp}">
+            <option value="assistant">ассистент — платит музыкантам от нас (Ира)</option>
+            <option value="director">директор коллектива (Вадим / Noize)</option>
+            <option value="ip_intermediary">ИП / посредник по оплате (Кирилл)</option>
+            <option value="musician">музыкант напрямую</option>
+            <option value="contractor">другой подрядчик</option>
+          </select></div>
+        <div style="display:flex;gap:10px;">
+          <div style="flex:1"><label style="${lbl}">Сумма, ₽</label><input id="po-amount" type="text" style="${inp}" placeholder="40000"></div>
+          <div style="flex:1"><label style="${lbl}">Дата</label><input id="po-date" type="date" style="${inp}" value="${today}"></div>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <div style="flex:1"><label style="${lbl}">Метод</label>
+            <select id="po-method" style="${inp}"><option value="нал">нал / личный перевод</option><option value="БН">безнал (р/с, ИП)</option><option value="">не указан</option></select></div>
+          <div style="flex:1"><label style="${lbl}">Статус</label>
+            <select id="po-status" style="${inp}"><option value="sent">отправлено</option><option value="expected">обещано, ещё не отправил</option></select></div>
+        </div>
+        <div id="po-expected-wrap" style="display:none"><label style="${lbl}">Обещал перевести до</label><input id="po-expected" type="date" style="${inp}"></div>
+        <div><label style="${lbl}">Заметка (необязательно)</label><input id="po-note" type="text" style="${inp}" placeholder="за что / примечание"></div>
+      </div>
+      <div style="padding:12px 18px;border-top:1px solid #30363d;display:flex;gap:8px;justify-content:flex-end;align-items:center;">
+        <span id="po-msg" style="font-size:12px;color:#6e7681;flex:1;"></span>
+        <button id="po-cancel" style="padding:7px 12px;border-radius:6px;background:transparent;color:#e6edf3;border:1px solid #30363d;cursor:pointer;font-size:13px;">Отмена</button>
+        <button id="po-save" style="padding:8px 16px;border-radius:6px;background:#3fb950;color:#0d1117;border:none;cursor:pointer;font-size:13px;font-weight:700;">Записать</button>
+      </div>`;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    const q = (id) => box.querySelector('#' + id);
+    const close = () => overlay.remove();
+    q('po-close').onclick = close;
+    q('po-cancel').onclick = close;
+    q('po-status').onchange = () => { q('po-expected-wrap').style.display = q('po-status').value === 'expected' ? '' : 'none'; };
+    q('po-recipient').focus();
+    q('po-save').onclick = async () => {
+      const recipient = q('po-recipient').value.trim();
+      const amount = parseInt(String(q('po-amount').value || '').replace(/[^\d]/g, ''), 10);
+      if (!recipient) { q('po-msg').textContent = 'укажи получателя'; return; }
+      if (!amount) { q('po-msg').textContent = 'укажи сумму'; return; }
+      const status = q('po-status').value;
+      const payload = {
+        recipient,
+        amount,
+        role: q('po-role').value,
+        date: q('po-date').value,
+        method: q('po-method').value,
+        status,
+        expected_on: status === 'expected' ? q('po-expected').value : '',
+        note: q('po-note').value.trim(),
+      };
+      q('po-save').disabled = true;
+      q('po-msg').textContent = 'записываю…';
+      try {
+        const r = await api(`/events/${ev.id}/payout`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+        if (r && r.finance) {
+          CURRENT_EVENT = r;
+          renderDetail();
+          const pr = r.payout_result || {};
+          toast(pr.added === false ? 'Выплата уже была записана (обновлена)' : `Выплата записана: ${recipient} · ${fmtRu(amount)} ₽`);
+          close();
+        } else {
+          q('po-msg').textContent = (r && r.error) || 'ошибка';
+          q('po-save').disabled = false;
+        }
+      } catch (e) {
+        q('po-msg').textContent = 'ошибка: ' + e.message;
+        q('po-save').disabled = false;
+      }
+    };
+  }
+
+  async function setAgreedTotal() {
+    const ev = CURRENT_EVENT;
+    if (!ev) return;
+    const f = ev.finance || {};
+    const cur = f.client_total ? String(Math.round(f.client_total)) : '';
+    const raw = prompt('Согласованная с клиентом сумма, ₽.\nПерекроет бюджет из заявки и запишется в «Договор → Сумма договора».', cur);
+    if (raw === null) return;
+    const amount = parseInt(String(raw).replace(/[^\d]/g, ''), 10);
+    if (!amount) { toast('Нужна сумма', 'error'); return; }
+    try {
+      const r = await api(`/events/${ev.id}/agreed_total`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({amount}),
+      });
+      if (r && r.finance) {
+        CURRENT_EVENT = r;
+        renderDetail();
+        toast(`Согласованная сумма: ${fmtRu(amount)} ₽`);
+      } else {
+        toast((r && r.error) || 'ошибка', 'error');
+      }
+    } catch (e) {
+      toast('Ошибка: ' + e.message, 'error');
+    }
+  }
+
   async function deleteEvent() {
     if (!CURRENT_EVENT) return;
     if (!confirm(`Удалить event "${CURRENT_EVENT.title}"?`)) return;
@@ -1415,6 +1548,7 @@
     const margin = marginKnown ? Number(f.margin) : 0;
     const marginPct = clientTotal && marginKnown ? Math.round((margin / clientTotal) * 100) : null;
     const fromContract = f.client_total_source === 'contract';
+    const fromAgreed = f.client_total_source === 'agreed';
 
     const hasFin = CURRENT_EVENT.finance && (clientTotal || bandTotal);
     const cells = [
@@ -1425,20 +1559,49 @@
       { label: 'Клиент ещё должен', value: hasFin ? fmtMoneyShort(f.client_remaining) : '—',
         sub: clientPaid ? `оплачено ${fmtMoneyShort(clientPaid)}` : '' },
       { label: 'Общая сумма', value: hasFin ? fmtMoneyShort(clientTotal) : '—',
-        cls: fromContract ? 'accent' : '',
-        sub: [fromContract ? '📄 по договору' : '',
+        cls: (fromContract || fromAgreed) ? 'accent' : '',
+        sub: [fromContract ? '📄 по договору' : (fromAgreed ? '🤝 согласованная' : ''),
               (clientNal && clientBn) ? `${fmtMoneyShort(clientNal)} нал · ${fmtMoneyShort(clientBn)} безнал` : '']
               .filter(Boolean).join(' · ') },
       { label: 'Маржа', value: hasFin && marginKnown ? fmtMoneyShort(margin) : '—',
         cls: marginKnown ? (margin >= 0 ? 'pos' : 'neg') : '',
         sub: hasFin && marginKnown ? (marginPct !== null ? `${marginPct}%` : '') + (kirill ? ` · ИП ${fmtMoneyShort(kirill)}` : '') : '' },
     ];
+    const payouts = Array.isArray(f.payouts) ? f.payouts : [];
+    const payoutsSent = Number(f.payouts_sent) || 0;
+    const payoutsExpected = Number(f.payouts_expected) || 0;
+    const payoutRow = (p) => {
+      const isExp = p.status === 'expected';
+      const who = escapeHtml(p.recipient_name ? `${p.recipient} · ${p.recipient_name}` : (p.recipient || '?'));
+      const role = p.role ? ` <span style="color:var(--muted)">(${escapeHtml(roleLabel(p.role))})</span>` : '';
+      const when = isExp ? `до ${escapeHtml(p.expected_on || '?')}` : escapeHtml(p.date || '');
+      const meth = p.method ? ` · ${escapeHtml(p.method)}` : '';
+      const by = p.recorded_by === 'ai' ? ' <span style="color:var(--muted)" title="извлечено AI из переписки, не подтверждено вручную">AI</span>' : '';
+      return `<div style="display:flex;gap:8px;padding:3px 0;border-top:1px solid var(--border);">
+        <span>${isExp ? '⏳' : '✅'}</span>
+        <span style="flex:1">${who}${role}</span>
+        <span style="font-weight:600">${escapeHtml(fmtMoneyShort(p.amount_rub))}</span>
+        <span style="color:var(--muted);min-width:110px;text-align:right">${when}${meth}${by}</span>
+      </div>`;
+    };
+    const payoutBlock = `
+      <div class="payout-block" style="margin-top:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--panel-2)">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:${payouts.length ? 6 : 0}px;">
+          <b>💸 Выплаты подрядчикам</b>
+          <span style="color:var(--muted)">отправлено ${escapeHtml(fmtMoneyShort(payoutsSent))}${payoutsExpected ? ` · обещано ${escapeHtml(fmtMoneyShort(payoutsExpected))}` : ''}</span>
+          <span style="margin-left:auto;display:flex;gap:6px;">
+            <button class="action-btn" onclick="openPayoutModal()" title="Записать, кому и сколько реально перевёл (Ира / Вадим / Кирилл / музыкант)">＋ Записать выплату</button>
+            <button class="action-btn" onclick="setAgreedTotal()" title="Согласованная с клиентом сумма — перекрывает бюджет из заявки">✏️ Сумма с клиентом</button>
+          </span>
+        </div>
+        ${payouts.length ? payouts.map(payoutRow).join('') : `<div style="color:var(--muted)">пока не записано — фиксируй перевод на прямого получателя (Ире, Вадиму, Кириллу, музыканту)</div>`}
+      </div>`;
     el.innerHTML = `<div class="fin-summary">` + cells.map(c => `
       <div class="fin-cell ${c.cls || ''}">
         <div class="fin-label">${escapeHtml(c.label)}</div>
         <div class="fin-value ${c.cls === 'date' ? 'date' : ''}">${escapeHtml(String(c.value))}</div>
         ${c.sub ? `<div class="fin-sub">${escapeHtml(c.sub)}</div>` : ''}
-      </div>`).join('') + `</div>`;
+      </div>`).join('') + `</div>` + payoutBlock;
   }
 
   function renderSections() {
