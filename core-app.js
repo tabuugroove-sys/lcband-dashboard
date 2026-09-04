@@ -111,6 +111,10 @@ const state = {
     // intent_id → { status: "loading"|"ok"|"not_found"|"error", items?, error? } —
     // раскрытая переписка для решения об approve; не гоняем запрос повторно.
     history: {},
+    // Тот же эндпоинт истории, но для hover-превью: общий кэш, чтобы наведение
+    // и кнопка «История» не дублировали запросы. threadLoads дедупит in-flight.
+    hoverCache: {},
+    threadLoads: {},
   },
   selectedThreadId: "",
   selectedEventId: "",
@@ -2593,19 +2597,49 @@ function renderCutover() {
       intent.contact_name && intent.contact_handle ? `@${intent.contact_handle}` : "",
       shortId(intent.peer_id || "", 60),
     ].filter(Boolean).join(" · ");
+    // Клик по имени/аватару ведёт в переписку: тот же механизм, что и клик
+    // по треду в списке чатов (route() на #chat/<thread_id> → openThread).
+    // Без thread_id клик неактивен — треда в Core ещё нет.
+    const contactName = intent.thread_id
+      ? `<button type="button" class="cutover-contact-link" data-cutover-open-thread="${escapeHtml(intent.thread_id)}" title="Открыть переписку">${escapeHtml(contactLabel)}</button>`
+      : `<strong>${escapeHtml(contactLabel)}</strong>`;
+    const avatar = `<span class="cutover-avatar" aria-hidden="true">${intent.avatar_url ? `<img src="${escapeHtml(intent.avatar_url)}" alt="" loading="lazy">` : escapeHtml(initials(contactLabel))}</span>`;
+    const funnelStage = intent.funnel_stage
+      ? `<small class="cutover-funnel" title="Стадия воронки из CRM">${escapeHtml(intent.funnel_stage_label || intent.funnel_stage)}</small>`
+      : "";
+    // Две галочки: ✓ = отправлено (есть provider_message_id), ✓✓ = доставлено —
+    // reader подтвердил сообщение в треде.
+    const delivery = intent.provider_message_id
+      ? (intent.delivery_confirmed
+        ? `<span class="cutover-delivery is-delivered" title="доставлено, подтверждено чтением треда">✓✓</span>`
+        : `<span class="cutover-delivery is-sent" title="отправлено">✓</span>`)
+      : "";
+    const timeIso = intent.status === "sent" && intent.sent_at
+      ? intent.sent_at
+      : (intent.created_at || intent.updated_at || "");
+    const timeLabel = intent.status === "sent" && intent.sent_at ? "отправлен" : "создан";
     const approve = canApprove
       ? `<button type="button" data-cutover-approve="${escapeHtml(intent.intent_id)}">Approve</button>`
-      : `<time>${escapeHtml((intent.updated_at || "").replace("T", " ").slice(5, 16))}</time>`;
+      : `<time title="${escapeHtml(`${timeLabel} ${(timeIso || "").replace("T", " ")}`)}">${escapeHtml((timeIso || "").replace("T", " ").slice(5, 16))}</time>`;
     const historyOpen = Boolean(cutover.history[intent.intent_id]);
     const action = `<span class="cutover-actions"><button type="button" class="text-button" data-cutover-history="${escapeHtml(intent.intent_id)}">${historyOpen ? "Скрыть" : "История"}</button>${approve}</span>`;
     const historyBlock = historyOpen ? renderCutoverHistory(intent, cutover.history[intent.intent_id]) : "";
-    return `<div class="work-row"><span>${cutoverStatusPill(intent.status)}</span><span><strong>${escapeHtml(contactLabel)}</strong><small>${escapeHtml(peerDetail)}</small></span><span><strong>${escapeHtml(shortId(intent.draft_text || "", 110))}</strong><small>${escapeHtml(intent.intent_id)}</small></span>${action}</div>${historyBlock}`;
+    return `<div class="work-row" data-cutover-hover-row="${escapeHtml(intent.intent_id)}"><span>${cutoverStatusPill(intent.status)}${delivery}</span><span class="cutover-contact">${avatar}<span class="cutover-contact-text" data-cutover-hover="${escapeHtml(intent.intent_id)}">${contactName}<small>${escapeHtml(peerDetail)}</small>${funnelStage}</span></span><span><strong>${escapeHtml(shortId(intent.draft_text || "", 110))}</strong><small>${escapeHtml(intent.intent_id)}</small></span>${action}</div>${historyBlock}`;
   }).join("") : `<div class="empty-state"><strong>Intents нет</strong>${escapeHtml(cutover.intentsError || "Outbox пуст по текущему фильтру.")}</div>`;
   byId("cutoverIntentsList").querySelectorAll("[data-cutover-approve]").forEach((button) => {
     button.addEventListener("click", () => approveCutoverIntent(button.dataset.cutoverApprove));
   });
   byId("cutoverIntentsList").querySelectorAll("[data-cutover-history]").forEach((button) => {
     button.addEventListener("click", () => toggleCutoverHistory(button.dataset.cutoverHistory));
+  });
+  byId("cutoverIntentsList").querySelectorAll("[data-cutover-open-thread]").forEach((button) => {
+    button.addEventListener("click", () => {
+      location.hash = `chat/${encodeURIComponent(button.dataset.cutoverOpenThread)}`;
+    });
+  });
+  byId("cutoverIntentsList").querySelectorAll("[data-cutover-hover]").forEach((cell) => {
+    cell.addEventListener("mouseenter", () => scheduleCutoverHoverPreview(cell, cell.dataset.cutoverHover));
+    cell.addEventListener("mouseleave", hideCutoverHoverPreview);
   });
   const summary = cutover.summary || {};
   byId("cutoverSummary").textContent = summary.by_status
@@ -2620,6 +2654,7 @@ function renderCutover() {
 async function refreshCutover() {
   const cutover = state.cutover;
   if (cutover.loading) return;
+  hideCutoverHoverPreview();
   cutover.loading = true;
   renderCutover();
   const filterQuery = cutover.statusFilter ? `&status=${encodeURIComponent(cutover.statusFilter)}` : "";
@@ -2689,6 +2724,35 @@ function renderCutoverHistory(intent, historyState) {
   return `<div class="cutover-thread"><div class="cutover-thread-head">Переписка · ${formatNumber(items.length)} сообщений</div><div class="cutover-thread-messages">${messagesHtml || `<div class="empty-state"><strong>Сообщений нет</strong></div>`}</div></div>`;
 }
 
+async function loadCutoverThread(intentId) {
+  // Общий загрузчик для кнопки «История» и hover-превью: один запрос на
+  // intent, результат живёт в hoverCache; in-flight запросы дедупятся.
+  const cutover = state.cutover;
+  const cached = cutover.hoverCache[intentId];
+  if (cached) return cached;
+  if (!cutover.threadLoads[intentId]) {
+    cutover.threadLoads[intentId] = apiGet(
+      `/api/core/cutover/intents/${encodeURIComponent(intentId)}/thread`,
+    )
+      .then((payload) => {
+        const entry = { status: "ok", items: payload.messages || [] };
+        cutover.hoverCache[intentId] = entry;
+        return entry;
+      })
+      .catch((error) => {
+        const entry = error && error.status === 404
+          ? { status: "not_found" }
+          : { status: "error", error: error?.message || String(error) };
+        cutover.hoverCache[intentId] = entry;
+        return entry;
+      })
+      .finally(() => {
+        delete cutover.threadLoads[intentId];
+      });
+  }
+  return cutover.threadLoads[intentId];
+}
+
 async function toggleCutoverHistory(intentId) {
   const cutover = state.cutover;
   if (cutover.history[intentId]) {
@@ -2698,15 +2762,76 @@ async function toggleCutoverHistory(intentId) {
   }
   cutover.history[intentId] = { status: "loading" };
   renderCutover();
-  try {
-    const payload = await apiGet(`/api/core/cutover/intents/${encodeURIComponent(intentId)}/thread`);
-    cutover.history[intentId] = { status: "ok", items: payload.messages || [] };
-  } catch (error) {
-    cutover.history[intentId] = error && error.status === 404
-      ? { status: "not_found" }
-      : { status: "error", error: error?.message || String(error) };
-  }
+  cutover.history[intentId] = await loadCutoverThread(intentId);
   renderCutover();
+}
+
+/* Hover-превью последних сообщений треда: дебаунс 350мс, данные из общего
+   кэша loadCutoverThread — наведение не спамит запросами. Позицию и размеры
+   ставим через el.style (CSP страницы блокирует inline style-атрибуты). */
+let cutoverHoverTimer = null;
+let cutoverHoverIntentId = "";
+
+function cutoverHoverTip() {
+  let tip = byId("cutoverHoverPreview");
+  if (!tip) {
+    tip = document.createElement("div");
+    tip.id = "cutoverHoverPreview";
+    tip.className = "cutover-hover-preview";
+    tip.hidden = true;
+    document.body.appendChild(tip);
+  }
+  return tip;
+}
+
+function hideCutoverHoverPreview() {
+  window.clearTimeout(cutoverHoverTimer);
+  cutoverHoverTimer = null;
+  cutoverHoverIntentId = "";
+  const tip = byId("cutoverHoverPreview");
+  if (tip) tip.hidden = true;
+}
+
+function scheduleCutoverHoverPreview(anchor, intentId) {
+  window.clearTimeout(cutoverHoverTimer);
+  cutoverHoverTimer = window.setTimeout(async () => {
+    cutoverHoverIntentId = intentId;
+    const entry = await loadCutoverThread(intentId);
+    if (cutoverHoverIntentId !== intentId) return;
+    showCutoverHoverPreview(anchor, intentId, entry);
+  }, 350);
+}
+
+function showCutoverHoverPreview(anchor, intentId, entry) {
+  const tip = cutoverHoverTip();
+  if (entry.status === "ok") {
+    const items = (entry.items || []).slice(-5);
+    tip.innerHTML = `<div class="cutover-hover-head">Последние ${formatNumber(items.length)} сообщений</div>`
+      + (items.length
+        ? items.map((message) => {
+          const directionLabel = message.direction === "outbound" ? "→" : "←";
+          return `<div class="cutover-hover-message ${message.direction === "outbound" ? "is-outbound" : ""}"><span class="cutover-hover-dir">${directionLabel}</span>${escapeHtml(shortId(message.body || "[медиа без текста]", 300))}</div>`;
+        }).join("")
+        : `<div class="cutover-hover-empty">Сообщений нет</div>`);
+  } else if (entry.status === "not_found") {
+    tip.innerHTML = `<div class="cutover-hover-empty">Переписка не найдена в Core</div>`;
+  } else {
+    tip.innerHTML = `<div class="cutover-hover-empty">Не удалось загрузить переписку</div>`;
+  }
+  const rect = anchor.getBoundingClientRect();
+  tip.hidden = false;
+  tip.style.left = "0px";
+  tip.style.top = "0px";
+  const tipRect = tip.getBoundingClientRect();
+  const left = Math.min(
+    Math.max(8, rect.left),
+    Math.max(8, window.innerWidth - tipRect.width - 8),
+  );
+  const top = rect.bottom + 8 + tipRect.height <= window.innerHeight
+    ? rect.bottom + 8
+    : Math.max(8, rect.top - tipRect.height - 8);
+  tip.style.left = `${Math.round(left)}px`;
+  tip.style.top = `${Math.round(top)}px`;
 }
 
 const TOKEN_LIMIT_PROVIDERS = ["codex", "claude", "kimi", "minimax", "antigravity"];
