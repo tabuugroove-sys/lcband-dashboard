@@ -108,6 +108,9 @@ const state = {
     refreshedAt: 0,
     intentsError: "",
     authorityError: "",
+    // intent_id → { status: "loading"|"ok"|"not_found"|"error", items?, error? } —
+    // раскрытая переписка для решения об approve; не гоняем запрос повторно.
+    history: {},
   },
   selectedThreadId: "",
   selectedEventId: "",
@@ -2580,13 +2583,29 @@ function renderCutover() {
   const rows = cutover.intents || [];
   byId("cutoverIntentsList").innerHTML = rows.length ? rows.map((intent) => {
     const canApprove = CUTOVER_APPROVABLE_STATUSES.has(intent.status) && !cutover.approving[intent.intent_id];
-    const action = canApprove
+    // Три уровня fallback: имя из persons → @handle из channel_identities →
+    // сырой peer_id (лид ещё не в core.db).
+    const contactLabel = intent.contact_name
+      || (intent.contact_handle ? `@${intent.contact_handle}` : "")
+      || shortId(intent.peer_id || "", 60);
+    const peerDetail = [
+      `${intent.account} · ${intent.channel}`,
+      intent.contact_name && intent.contact_handle ? `@${intent.contact_handle}` : "",
+      shortId(intent.peer_id || "", 60),
+    ].filter(Boolean).join(" · ");
+    const approve = canApprove
       ? `<button type="button" data-cutover-approve="${escapeHtml(intent.intent_id)}">Approve</button>`
       : `<time>${escapeHtml((intent.updated_at || "").replace("T", " ").slice(5, 16))}</time>`;
-    return `<div class="work-row"><span>${cutoverStatusPill(intent.status)}</span><span><strong>${escapeHtml(intent.account)} · ${escapeHtml(intent.channel)}</strong><small>${escapeHtml(shortId(intent.peer_id || "", 60))}</small></span><span><strong>${escapeHtml(shortId(intent.draft_text || "", 110))}</strong><small>${escapeHtml(intent.intent_id)}</small></span>${action}</div>`;
+    const historyOpen = Boolean(cutover.history[intent.intent_id]);
+    const action = `<span class="cutover-actions"><button type="button" class="text-button" data-cutover-history="${escapeHtml(intent.intent_id)}">${historyOpen ? "Скрыть" : "История"}</button>${approve}</span>`;
+    const historyBlock = historyOpen ? renderCutoverHistory(intent, cutover.history[intent.intent_id]) : "";
+    return `<div class="work-row"><span>${cutoverStatusPill(intent.status)}</span><span><strong>${escapeHtml(contactLabel)}</strong><small>${escapeHtml(peerDetail)}</small></span><span><strong>${escapeHtml(shortId(intent.draft_text || "", 110))}</strong><small>${escapeHtml(intent.intent_id)}</small></span>${action}</div>${historyBlock}`;
   }).join("") : `<div class="empty-state"><strong>Intents нет</strong>${escapeHtml(cutover.intentsError || "Outbox пуст по текущему фильтру.")}</div>`;
   byId("cutoverIntentsList").querySelectorAll("[data-cutover-approve]").forEach((button) => {
     button.addEventListener("click", () => approveCutoverIntent(button.dataset.cutoverApprove));
+  });
+  byId("cutoverIntentsList").querySelectorAll("[data-cutover-history]").forEach((button) => {
+    button.addEventListener("click", () => toggleCutoverHistory(button.dataset.cutoverHistory));
   });
   const summary = cutover.summary || {};
   byId("cutoverSummary").textContent = summary.by_status
@@ -2650,6 +2669,44 @@ async function approveCutoverIntent(intentId) {
   } finally {
     delete cutover.approving[intentId];
   }
+}
+
+function renderCutoverHistory(intent, historyState) {
+  if (historyState.status === "loading") {
+    return `<div class="cutover-thread"><div class="empty-state"><strong>Загрузка переписки…</strong></div></div>`;
+  }
+  if (historyState.status === "not_found") {
+    return `<div class="cutover-thread"><div class="empty-state"><strong>Переписка не найдена в Core (лид вне базы)</strong>${escapeHtml(shortId(intent.peer_id || "", 60))}</div></div>`;
+  }
+  if (historyState.status === "error") {
+    return `<div class="cutover-thread"><div class="empty-state"><strong>Не удалось загрузить переписку</strong>${escapeHtml(historyState.error || "")}</div></div>`;
+  }
+  const items = historyState.items || [];
+  const messagesHtml = items.map((message) => {
+    const directionLabel = message.direction === "outbound" ? "Исходящее" : "Входящее";
+    return `<div class="message ${message.direction === "outbound" ? "outbound" : ""}">${escapeHtml(shortId(message.body || "[медиа без текста]", 1200))}<div class="message-meta"><span>${directionLabel}</span><span>${escapeHtml(formatDate(message.sent_at_epoch))}</span></div></div>`;
+  }).join("");
+  return `<div class="cutover-thread"><div class="cutover-thread-head">Переписка · ${formatNumber(items.length)} сообщений</div><div class="cutover-thread-messages">${messagesHtml || `<div class="empty-state"><strong>Сообщений нет</strong></div>`}</div></div>`;
+}
+
+async function toggleCutoverHistory(intentId) {
+  const cutover = state.cutover;
+  if (cutover.history[intentId]) {
+    delete cutover.history[intentId];
+    renderCutover();
+    return;
+  }
+  cutover.history[intentId] = { status: "loading" };
+  renderCutover();
+  try {
+    const payload = await apiGet(`/api/core/cutover/intents/${encodeURIComponent(intentId)}/thread`);
+    cutover.history[intentId] = { status: "ok", items: payload.messages || [] };
+  } catch (error) {
+    cutover.history[intentId] = error && error.status === 404
+      ? { status: "not_found" }
+      : { status: "error", error: error?.message || String(error) };
+  }
+  renderCutover();
 }
 
 const TOKEN_LIMIT_PROVIDERS = ["codex", "claude", "kimi", "minimax", "antigravity"];
