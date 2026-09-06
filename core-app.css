@@ -849,6 +849,13 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .work-row strong, .work-row small { display: block; }
 .work-row small { margin-top: 2px; color: var(--muted); overflow-wrap: anywhere; }
 .work-state { color: var(--blue); font-size: 10px; font-weight: 750; text-transform: uppercase; }
+/* Статус по-русски занимает меньше: столбец уже общего .work-row (Михаил 06.09). */
+.work-row.cutover-row { grid-template-columns: 100px minmax(170px, 1fr) minmax(240px, 2fr) 125px; }
+.work-row .cutover-event-date { display: block; margin-top: 2px; color: var(--ink); font-size: 11px; font-weight: 600; }
+.cutover-draft { min-width: 0; }
+.work-row .cutover-trigger { display: block; margin: 0 0 4px; color: var(--muted); font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }
+.work-row .cutover-trigger span { margin-right: 6px; font-size: 9.5px; font-weight: 650; letter-spacing: 0.3px; text-transform: uppercase; }
+.work-row .cutover-trigger.is-outbound span { color: var(--blue); }
 .cutover-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
 .cutover-contact { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .cutover-avatar { width: 30px; height: 30px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; background: var(--blue-soft); color: var(--blue); font-size: 12px; font-weight: 650; }
@@ -1019,6 +1026,7 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   .operations-metrics { grid-template-columns: repeat(3, minmax(110px, 1fr)); }
   .promo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .work-row { grid-template-columns: 105px minmax(150px, 1fr) minmax(180px, 1.4fr); }
+  .work-row.cutover-row { grid-template-columns: 92px minmax(150px, 1fr) minmax(180px, 1.4fr); }
   .work-row > :last-child { display: none; }
   .undated-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -1117,6 +1125,7 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
   .event-header { display: block; }
   .event-header .pill { margin-top: 8px; }
   .work-row { grid-template-columns: 93px minmax(0, 1fr); }
+  .work-row.cutover-row { grid-template-columns: 84px minmax(0, 1fr); }
   .work-row > :nth-child(3) { display: none; }
   .promo-page-head { align-items: flex-start; flex-direction: column; }
   .promo-hero { padding: 21px 18px 15px; }

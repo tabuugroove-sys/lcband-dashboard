@@ -2555,10 +2555,55 @@ function renderSystem() {
 }
 
 const CUTOVER_APPROVABLE_STATUSES = new Set(["drafted", "reviewed"]);
+// Статусы outbox по-русски (Михаил 06.09: «на русском напишу, что это значит»).
+// Код статуса остаётся в title — по нему сверяют server-decisions.db и
+// outbox_report.py. Неизвестный код показываем как есть.
+const CUTOVER_STATUS_LABELS = {
+  drafted: "черновик",
+  reviewed: "проверен",
+  approved: "одобрен",
+  queued: "в очереди",
+  claimed: "в отправке",
+  sent: "отправлен",
+  ambiguous: "неясно",
+  failed: "ошибка",
+  cancelled: "отменён",
+};
+const CUTOVER_STATUS_HINTS = {
+  drafted: "писарь создал черновик, ждёт решения",
+  reviewed: "черновик проверен, ждёт approve",
+  approved: "одобрен; дальше двигает только send-gateway",
+  queued: "в очереди send-gateway",
+  claimed: "send-gateway взял в отправку",
+  sent: "отправлен, есть provider_message_id",
+  ambiguous: "результат отправки не подтверждён",
+  failed: "отправка не удалась",
+  cancelled: "отменён: заменён новым текстом или снят",
+};
+
+function cutoverStatusLabel(status) {
+  return CUTOVER_STATUS_LABELS[status] || status || "unknown";
+}
 
 function cutoverStatusPill(status) {
   const tone = status === "approved" ? "ok" : CUTOVER_APPROVABLE_STATUSES.has(status) ? "hold" : "technical";
-  return `<b class="pill ${tone}">${escapeHtml(status || "unknown")}</b>`;
+  const hint = CUTOVER_STATUS_HINTS[status] ? `${status} — ${CUTOVER_STATUS_HINTS[status]}` : (status || "unknown");
+  return `<b class="pill ${tone}" title="${escapeHtml(hint)}">${escapeHtml(cutoverStatusLabel(status))}</b>`;
+}
+
+// Сообщение, на которое ответил писарь (source_event_ref intent'а): мелкой
+// строкой над черновиком, чтобы было видно, на что именно стригерилась
+// система. Полный текст и время — в title.
+function cutoverTriggerHtml(intent) {
+  const trigger = intent.trigger_message;
+  if (!trigger) return "";
+  const outbound = trigger.direction === "outbound";
+  const who = outbound ? "Наше" : "Клиент";
+  const body = trigger.body || (trigger.has_media ? "[медиа без текста]" : "");
+  if (!body) return "";
+  const when = trigger.sent_at_epoch ? formatDate(trigger.sent_at_epoch) : "";
+  const label = when ? `${who} · ${when}` : who;
+  return `<small class="cutover-trigger ${outbound ? "is-outbound" : ""}" title="${escapeHtml(`${label}: ${body}`)}"><span>${escapeHtml(label)}</span>${escapeHtml(shortId(body, 140))}</small>`;
 }
 
 function renderCutover() {
@@ -2585,7 +2630,15 @@ function renderCutover() {
   byId("cutoverStatePill").className = `pill ${authority ? (authority.kill_switch_active ? "danger" : authority.global_send_enabled ? "hold" : "ok") : "hold"}`;
 
   const rows = cutover.intents || [];
-  byId("cutoverIntentsList").innerHTML = rows.length ? rows.map((intent) => {
+  const list = byId("cutoverIntentsList");
+  // Прокрутка раскрытых переписок: перерисовка (polling, approve) не должна
+  // сбивать место, где читает оператор. Скрытый экран даёт scrollHeight 0 —
+  // такие позиции не запоминаем, иначе восстановим «в начало».
+  const scrollPositions = {};
+  list.querySelectorAll("[data-cutover-thread]").forEach((el) => {
+    if (el.scrollHeight > 0) scrollPositions[el.dataset.cutoverThread] = el.scrollTop;
+  });
+  list.innerHTML = rows.length ? rows.map((intent) => {
     const canApprove = CUTOVER_APPROVABLE_STATUSES.has(intent.status) && !cutover.approving[intent.intent_id];
     // Три уровня fallback: имя из persons → @handle из channel_identities →
     // сырой peer_id (лид ещё не в core.db).
@@ -2607,6 +2660,11 @@ function renderCutover() {
     const funnelStage = intent.funnel_stage
       ? `<small class="cutover-funnel" title="Стадия воронки из CRM">${escapeHtml(intent.funnel_stage_label || intent.funnel_stage)}</small>`
       : "";
+    // Дата события из CRM — свободный текст, как записан («31.10.2026»,
+    // «5 сентября»); показываем сразу под именем, полностью — в title.
+    const eventDate = intent.event_date
+      ? `<small class="cutover-event-date" title="${escapeHtml(`Дата события из CRM: ${intent.event_date}`)}">${escapeHtml(shortId(intent.event_date, 44))}</small>`
+      : "";
     // Две галочки: ✓ = отправлено (есть provider_message_id), ✓✓ = доставлено —
     // reader подтвердил сообщение в треде.
     const delivery = intent.provider_message_id
@@ -2624,8 +2682,23 @@ function renderCutover() {
     const historyOpen = Boolean(cutover.history[intent.intent_id]);
     const action = `<span class="cutover-actions"><button type="button" class="text-button" data-cutover-history="${escapeHtml(intent.intent_id)}">${historyOpen ? "Скрыть" : "История"}</button>${approve}</span>`;
     const historyBlock = historyOpen ? renderCutoverHistory(intent, cutover.history[intent.intent_id]) : "";
-    return `<div class="work-row" data-cutover-hover-row="${escapeHtml(intent.intent_id)}"><span>${cutoverStatusPill(intent.status)}${delivery}</span><span class="cutover-contact">${avatar}<span class="cutover-contact-text" data-cutover-hover="${escapeHtml(intent.intent_id)}">${contactName}<small>${escapeHtml(peerDetail)}</small>${funnelStage}</span></span><span><strong>${escapeHtml(shortId(intent.draft_text || "", 110))}</strong><small>${escapeHtml(intent.intent_id)}</small></span>${action}</div>${historyBlock}`;
+    return `<div class="work-row cutover-row" data-cutover-hover-row="${escapeHtml(intent.intent_id)}"><span>${cutoverStatusPill(intent.status)}${delivery}</span><span class="cutover-contact">${avatar}<span class="cutover-contact-text" data-cutover-hover="${escapeHtml(intent.intent_id)}">${contactName}${eventDate}<small>${escapeHtml(peerDetail)}</small>${funnelStage}</span></span><span class="cutover-draft">${cutoverTriggerHtml(intent)}<strong>${escapeHtml(shortId(intent.draft_text || "", 110))}</strong><small>${escapeHtml(intent.intent_id)}</small></span>${action}</div>${historyBlock}`;
   }).join("") : `<div class="empty-state"><strong>Intents нет</strong>${escapeHtml(cutover.intentsError || "Outbox пуст по текущему фильтру.")}</div>`;
+  list.querySelectorAll("[data-cutover-thread]").forEach((el) => {
+    // Только что открытая история — сразу к последнему сообщению (листать
+    // вверх, а не искать конец); уже открытая — на прежнее место.
+    if (el.scrollHeight <= 0) return;
+    const intentId = el.dataset.cutoverThread;
+    const entry = cutover.history[intentId];
+    if (entry && entry.scrollToEnd) {
+      el.scrollTop = el.scrollHeight;
+      delete entry.scrollToEnd;
+    } else if (scrollPositions[intentId] !== undefined) {
+      el.scrollTop = scrollPositions[intentId];
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
+  });
   byId("cutoverIntentsList").querySelectorAll("[data-cutover-approve]").forEach((button) => {
     button.addEventListener("click", () => approveCutoverIntent(button.dataset.cutoverApprove));
   });
@@ -2643,7 +2716,7 @@ function renderCutover() {
   });
   const summary = cutover.summary || {};
   byId("cutoverSummary").textContent = summary.by_status
-    ? Object.entries(summary.by_status).map(([status, n]) => `${status}: ${n}`).join(" · ")
+    ? Object.entries(summary.by_status).map(([status, n]) => `${cutoverStatusLabel(status)}: ${n}`).join(" · ")
     : "";
   const filter = byId("cutoverStatusFilter");
   if (filter && filter.value !== cutover.statusFilter) filter.value = cutover.statusFilter;
@@ -2721,7 +2794,7 @@ function renderCutoverHistory(intent, historyState) {
     const directionLabel = message.direction === "outbound" ? "Исходящее" : "Входящее";
     return `<div class="message ${message.direction === "outbound" ? "outbound" : ""}">${escapeHtml(shortId(message.body || "[медиа без текста]", 1200))}<div class="message-meta"><span>${directionLabel}</span><span>${escapeHtml(formatDate(message.sent_at_epoch))}</span></div></div>`;
   }).join("");
-  return `<div class="cutover-thread"><div class="cutover-thread-head">Переписка · ${formatNumber(items.length)} сообщений</div><div class="cutover-thread-messages">${messagesHtml || `<div class="empty-state"><strong>Сообщений нет</strong></div>`}</div></div>`;
+  return `<div class="cutover-thread"><div class="cutover-thread-head">Переписка · ${formatNumber(items.length)} сообщений · последние внизу</div><div class="cutover-thread-messages" data-cutover-thread="${escapeHtml(intent.intent_id)}">${messagesHtml || `<div class="empty-state"><strong>Сообщений нет</strong></div>`}</div></div>`;
 }
 
 async function loadCutoverThread(intentId) {
@@ -2762,7 +2835,9 @@ async function toggleCutoverHistory(intentId) {
   }
   cutover.history[intentId] = { status: "loading" };
   renderCutover();
-  cutover.history[intentId] = await loadCutoverThread(intentId);
+  // Копия записи кэша: флаг scrollToEnd одноразовый и не должен утекать в
+  // hover-превью, которое делит тот же loadCutoverThread.
+  cutover.history[intentId] = { ...(await loadCutoverThread(intentId)), scrollToEnd: true };
   renderCutover();
 }
 

@@ -7,7 +7,7 @@
   <title>LCB 2.0</title>
   <link rel="icon" type="image/png" href="app-icon-192.png">
   <link rel="apple-touch-icon" href="app-icon-180.png">
-  <link rel="stylesheet" href="core-app.css?v=20260901-001">
+  <link rel="stylesheet" href="core-app.css?v=20260906-001">
   <link rel="stylesheet" href="opsmap.css?v=20260825-010-1">
 </head>
 <body>
@@ -665,15 +665,15 @@
                 <span>Статус</span>
                 <select id="cutoverStatusFilter">
                   <option value="">Все</option>
-                  <option value="drafted">drafted</option>
-                  <option value="reviewed">reviewed</option>
-                  <option value="approved">approved</option>
-                  <option value="queued">queued</option>
-                  <option value="claimed">claimed</option>
-                  <option value="sent">sent</option>
-                  <option value="ambiguous">ambiguous</option>
-                  <option value="failed">failed</option>
-                  <option value="cancelled">cancelled</option>
+                  <option value="drafted">черновик · drafted</option>
+                  <option value="reviewed">проверен · reviewed</option>
+                  <option value="approved">одобрен · approved</option>
+                  <option value="queued">в очереди · queued</option>
+                  <option value="claimed">в отправке · claimed</option>
+                  <option value="sent">отправлен · sent</option>
+                  <option value="ambiguous">неясно · ambiguous</option>
+                  <option value="failed">ошибка · failed</option>
+                  <option value="cancelled">отменён · cancelled</option>
                 </select>
               </label>
               <span id="cutoverSummary"></span>
@@ -879,6 +879,6 @@
   </dialog>
   <script src="core-parity.js"></script>
   <script src="opsmap.js?v=20260825-005"></script>
-  <script src="core-app.js?v=20260903-001"></script>
+  <script src="core-app.js?v=20260906-001"></script>
 </body>
 </html>
