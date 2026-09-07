@@ -105,10 +105,20 @@
     const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
     return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
   }
+  const nativeOperator = window.webkit?.messageHandlers?.lcbOperatorSession;
+  let nativeSessionRefresh = null;
   async function refreshSession() {
     try {
       const payload = await request("/api/core/operator-session");
       state.authenticated = Boolean(payload.authenticated);
+      if (!state.authenticated && nativeOperator) {
+        // The host installs an HttpOnly cookie; no secret enters the page.
+        if (!nativeSessionRefresh) {
+          nativeSessionRefresh = nativeOperator.postMessage({}).finally(() => { nativeSessionRefresh = null; });
+        }
+        await nativeSessionRefresh;
+        state.authenticated = Boolean((await request("/api/core/operator-session")).authenticated);
+      }
     } catch (_) {
       state.authenticated = false;
     }
@@ -117,6 +127,7 @@
   }
   async function mutate(path, capability, payload = {}, method = "POST") {
     if (!await refreshSession()) {
+      if (nativeOperator) throw new Error("Не удалось подключиться к службе LCB. Попробуйте сохранить ещё раз.");
       openLogin();
       throw new Error("Сначала выполните operator login");
     }
@@ -415,15 +426,17 @@
   function renderSessionState() {
     const pill = byId("operatorSessionPill");
     if (pill) {
-      pill.textContent = state.authenticated ? "Действия разблокированы" : "Только чтение";
+      pill.textContent = nativeOperator ? "Доступ владельца" : (state.authenticated ? "Действия разблокированы" : "Только чтение");
       pill.className = `pill ${state.authenticated ? "ok" : ""}`;
     }
     for (const id of ["operatorLoginButton", "broadcastLoginButton"]) {
       const button = byId(id);
+      if (button && nativeOperator) { button.hidden = true; continue; }
       if (button) button.textContent = state.authenticated ? "Завершить operator-сессию" : "Разблокировать действия";
     }
   }
   function openLogin() {
+    if (nativeOperator) return;
     byId("operatorLoginError").textContent = "";
     byId("operatorToken").value = "";
     byId("operatorDialog").showModal();

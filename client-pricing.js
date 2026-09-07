@@ -40,7 +40,7 @@
         <div class="pricing-policy"><strong>Скидка — на весь пакет</strong><span>Если не помещаемся в бюджет → вопрос в Urgent Bot с контекстом заявки.</span></div>
       </div>
       <div class="pricing-table-scroll"><table class="pricing-table"><thead><tr><th>Состав</th><th>Гонорар, ₽</th><th>Бэклайн</th><th>Пакет</th><th id="priceFloorLabel"></th></tr></thead><tbody>
-      ${d.lineups.map((r, i) => `<tr><td><strong>${r.size} артиста</strong><input required maxlength="200" aria-label="Описание состава ${i+1}" data-lineup-label="${i}" value="${esc(r.label)}"></td><td><input required aria-label="Гонорар состава ${i+1}" type="number" min="1000" max="10000000" step="1000" data-lineup-price="${i}" value="${r.client_price_rub}"></td><td id="priceBackline${i}"></td><td class="pricing-total" id="priceTotal${i}"></td><td id="priceFloor${i}"></td></tr>`).join("")}
+      ${d.lineups.map((r, i) => `<tr><td><strong>${r.size} ${r.size === 4 ? "артиста" : "артистов"}</strong><input required maxlength="200" aria-label="Описание состава ${i+1}" data-lineup-label="${i}" value="${esc(r.label)}"></td><td><input required aria-label="Гонорар состава ${i+1}" type="number" min="1000" max="10000000" step="1000" data-lineup-price="${i}" value="${r.client_price_rub}"></td><td id="priceBackline${i}"></td><td class="pricing-total" id="priceTotal${i}"></td><td id="priceFloor${i}"></td></tr>`).join("")}
       </tbody></table></div>
       <p class="pricing-caption">Наличный расчёт, без дополнительных PA / мониторов / света и выездных надбавок. Последняя колонка — предел, который не предлагается автоматически.</p>
       <details class="pricing-details" open><summary>Бэклайн и условия</summary><div class="pricing-details-grid">
