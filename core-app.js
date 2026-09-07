@@ -286,7 +286,7 @@ const byId = (id) => document.getElementById(id);
 const NAV_LAYOUT_KEY = "lcb_core_nav_layout_v1";
 const DEFAULT_NAV_LAYOUT = Object.freeze({
   primary: ["calendar", "chats", "flow", "opsmap", "posts", "pitches", "today", "promo", "costumes", "operations", "arbitr"],
-  secondary: ["system", "fees", "tokens", "loopguard", "broadcast", "sessions", "proposals"],
+  secondary: ["pricing", "system", "fees", "tokens", "loopguard", "broadcast", "sessions", "proposals"],
 });
 let navDrag = null;
 let navDropCommitted = false;
@@ -1027,6 +1027,7 @@ async function setView(view) {
   if (view === "tokens") renderTokens();
   if (view === "loopguard") renderLoopGuard();
   if (view === "fees") renderFees();
+  if (view === "pricing") await window.CorePricing?.open();
   if (view === "costumes") {
     renderCostumes();
     refreshCostumes();
@@ -1069,7 +1070,7 @@ async function route() {
     if (argument) openThread(argument, false);
     return;
   }
-  const view = ["calendar", "chats", "flow", "opsmap", "posts", "pitches", "today", "system", "tokens", "loopguard", "fees", "promo", "costumes", "operations", "broadcast", "sessions", "proposals", "contractors", "cutover", "arbitr"].includes(name)
+  const view = ["calendar", "chats", "flow", "opsmap", "posts", "pitches", "today", "system", "tokens", "loopguard", "fees", "pricing", "promo", "costumes", "operations", "broadcast", "sessions", "proposals", "contractors", "cutover", "arbitr"].includes(name)
     ? name : "calendar";
   if (view === "calendar") {
     state.selectedEventId = "";

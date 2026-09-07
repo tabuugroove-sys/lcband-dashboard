@@ -1,0 +1,28 @@
+.client-prices {max-width:1100px;margin:0 auto;color:var(--text)}
+.pricing-toolbar {display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.pricing-saved {margin-left:12px;font-size:12px;opacity:.6}
+.pricing-intro,.pricing-caption {font-size:13px;line-height:1.6;opacity:.65;margin:16px 0}
+.pricing-controls {display:grid;grid-template-columns:190px 170px 1fr;gap:16px;align-items:end;margin:24px 0}
+.client-prices label {display:flex;flex-direction:column;gap:8px;font-size:12px;font-weight:600}
+.client-prices input,.client-prices textarea {box-sizing:border-box;width:100%;font:inherit;color:inherit;border:1px solid #9a886a45;border-radius:7px;padding:9px 10px;background:transparent;outline-offset:3px}
+.client-prices input:focus,.client-prices textarea:focus {outline:2px solid #b89a64}
+.pricing-policy {padding:8px 16px;border-left:2px solid #b89a64;display:flex;flex-direction:column;gap:5px;font-size:13px}
+.pricing-policy span {opacity:.65;font-size:12px;line-height:1.5}
+.pricing-table-scroll {overflow:auto}
+.pricing-table {border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+.pricing-table th {text-align:right;padding:12px 10px;font-size:11px;font-weight:500;opacity:.65;white-space:nowrap;border-bottom:1px solid #9a886a45}
+.pricing-table td {padding:12px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid #9a886a25}
+.pricing-table th:first-child,.pricing-table td:first-child {text-align:left;min-width:280px;width:44%}
+.pricing-table td:first-child input {display:block;margin-top:4px;font-size:11px;border-color:transparent;padding:5px 0;min-width:260px}
+.pricing-table td:first-child input:focus,.pricing-table td:first-child input:hover {border-color:#9a886a45}
+.pricing-table td:nth-child(2) input {min-width:100px;max-width:125px;text-align:right;font-weight:600}
+.pricing-total {font-weight:700}
+.pricing-details {margin-top:22px;border:1px solid #9a886a35;border-radius:10px;padding:16px}
+.pricing-details summary {font-size:13px;font-weight:600;cursor:pointer}
+.pricing-details-grid {display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+.pricing-details-grid p {font-size:12px;line-height:1.6;opacity:.65}
+.pricing-wide {grid-column:1/-1}
+.pricing-flow {margin-top:20px;font-size:12px;line-height:1.6;opacity:.6}
+#pricingStatus {min-height:22px;font-size:13px}
+.client-prices .is-error,#clientPricingContent>.is-error {color:#b74c42}
+@media(max-width:700px){.pricing-controls {grid-template-columns:1fr 1fr}.pricing-policy{grid-column:1/-1}.pricing-details-grid{grid-template-columns:1fr}.pricing-saved{display:block;margin:8px 0 0}.pricing-table td,.pricing-table th{padding:10px 7px}}

@@ -8,6 +8,7 @@
   <link rel="icon" type="image/png" href="app-icon-192.png">
   <link rel="apple-touch-icon" href="app-icon-180.png">
   <link rel="stylesheet" href="core-app.css?v=20260906-001">
+  <link rel="stylesheet" href="client-pricing.css?v=20260907-007">
   <link rel="stylesheet" href="opsmap.css?v=20260825-010-1">
 </head>
 <body>
@@ -103,6 +104,7 @@
       <div class="tabbar-zone-head" id="secondaryNavLabel"><strong>Нижнее меню</strong><span>настройки и контроль</span></div>
       <div class="tabbar-items">
         <button class="tab-button" data-view="system"><span class="tab-icon" aria-hidden="true">◔</span>Система</button>
+        <button class="tab-button" data-view="pricing"><span class="tab-icon" aria-hidden="true">₽</span>Цены</button>
         <button class="tab-button" data-view="fees"><span class="tab-icon" aria-hidden="true">₽</span>Гонорары</button>
         <button class="tab-button" data-view="tokens"><span class="tab-icon" aria-hidden="true">◈</span>Токены</button>
         <button class="tab-button" data-view="loopguard"><span class="tab-icon" aria-hidden="true">⛔<span class="tab-badge" id="navLoopGuardCount" hidden></span></span>Loop-Guard</button>
@@ -770,6 +772,10 @@
         </div>
       </section>
 
+      <section class="screen" id="screen-pricing">
+        <div class="page-head"><div><p class="eyebrow">LC Band · клиентский прайс</p><h1>Цены</h1></div></div>
+        <div id="clientPricingContent" aria-live="polite">Загружаем раздел цен. Если он не появился, обновите приложение.</div>
+      </section>
       <section class="screen parity-screen" id="screen-operations">
         <div class="page-head parity-page-head">
           <div><p class="eyebrow">Legacy parity · controlled bridge</p><h1>Операционный центр</h1></div>
@@ -878,6 +884,7 @@
     </form>
   </dialog>
   <script src="core-parity.js"></script>
+  <script src="client-pricing.js?v=20260907-007"></script>
   <script src="opsmap.js?v=20260825-005"></script>
   <script src="core-app.js?v=20260906-001"></script>
 </body>

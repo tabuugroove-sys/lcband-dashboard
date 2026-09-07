@@ -209,21 +209,7 @@
   }
 
   async function renderPricing() {
-    const data = await request("/api/core/client-pricing");
-    const lineups = data.lineups || [];
-    container().innerHTML = `${head("pricing", '<span class="pill ok">LIVE CANON</span>')}
-      <div class="parity-grid">
-        ${lineups.map((item) => `<article class="parity-card parity-metric"><strong>${money(item.client_price_rub)}</strong><span>${esc(item.label)}</span><p>${item.size} человек · ${esc(item.id)}</p></article>`).join("")}
-      </div>
-      <div class="parity-grid two">
-        <article class="parity-card"><h3>Компактные форматы</h3><p><strong>${money(data.compact?.standard_rub)}</strong> — стандарт</p><p><strong>${money(data.compact?.low_budget_floor_rub)}</strong> — только при явно названном бюджете клиента</p></article>
-        <article class="parity-card"><h3>31.12 · Новый год</h3>${(data.new_year_eve?.lineups || []).map((item) => `<p><strong>${money(item.client_price_rub)}</strong> — ${esc(item.label)}</p>`).join("")}<p>БН и трансфер включены · бэклайн отдельно</p></article>
-        <article class="parity-card"><h3>Короткие слоты</h3><p>Solo: ${(data.short_slots?.solo_rub || []).map(money).join(" · ")}</p><p>Duet: ${(data.short_slots?.duet_rub || []).map(money).join(" · ")}</p></article>
-        <article class="parity-card"><h3>Оборудование</h3><p>Малое: ${money(data.equipment?.small_rub)}</p><p>Стандартный backline: ${(data.equipment?.standard_backline_rub || []).map(money).join(" · ")}</p><p>Большой: ${(data.equipment?.large_backline_rub || []).map(money).join(" · ")}</p></article>
-        <article class="parity-card"><h3>Коэффициенты</h3><p>СПб ×${esc(data.rules?.spb_travel_multiplier)} · регионы ×${esc(data.rules?.region_travel_multiplier)} · второй день ×${esc(data.rules?.second_day_multiplier)}</p><p>Безнал: ${esc(data.rules?.cashless_formula)}</p></article>
-      </div>
-      <section class="parity-card" style="margin-top:9px"><h3>Барабанное шоу</h3><div class="parity-list">${(data.drum_show || []).map((item) => `<div class="parity-row"><div><strong>${esc(item.label)}</strong><small>${esc(item.id)}</small></div><p>${esc(item.note || "Клиентский канон")}</p><strong>${money(item.client_price_rub)}</strong></div>`).join("")}</div></section>
-      <p class="parity-note">Источник: ${esc(data.source)}. Закупочные ставки музыкантов здесь намеренно не показываются.</p>`;
+    window.location.hash = "pricing";
   }
 
   async function renderBroker() {
@@ -603,5 +589,5 @@
   }
 
   bind();
-  window.CoreParity = Object.freeze({ activate, refresh, refreshSession });
+  window.CoreParity = Object.freeze({ activate, refresh, refreshSession, mutate });
 })();
