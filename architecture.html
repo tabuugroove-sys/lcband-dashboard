@@ -429,7 +429,7 @@
           </div>
           <div class="writers">
             <div class="writer lcb"><div class="wn">LCB writer</div><div class="wf">lcb_writer.py</div><div id="lcb-modes"></div></div>
-            <div class="writer broker"><div class="wn">Broker writer</div><div class="wf">broker_dialog_agent</div><div id="broker-modes"></div></div>
+            <div class="writer broker"><div class="wn">Broker writer</div><div class="wf">broker_dialog_agent</div><div id="broker-modes"></div><p>Event-пост → проверка бюджета → уточнение клиенту + запрос цены и видео подрядчикам → проверенное предложение. Ведущие и сольные вокалисты разрешены. LowCost исключён, сольная цена от 25 000 ₽; квалификация и экономика проверяются отдельно. Новый заказ и ответ подрядчика пробуждают подбор. Отправка подтверждается Telegram receipt.</p></div>
           </div>
           <div class="owner-note">После L3 → pre-send review (<code class="src-code">_presend_review_result</code> → <code class="src-code">ai_review_before_send</code>): strip contacts + exact-current payment policy без keyword/history gate. Writer создаёт только draft/intent; Telegram user-account mutation исполняет <code class="src-code">com.lcband.telegram-delivery</code> после exact approval. Форма оплаты и запрос реквизитов без суммы разрешены; каждый реальный hold получает owner + bot reason.</div>
         </div>
