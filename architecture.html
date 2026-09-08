@@ -662,7 +662,12 @@
   }
 
   const sessionWaitNode = N.find((node) => node.id === 'tgdelivery');
+  const contractorBindingNode = N.find((node) => node.f === 'contractor_dialog_agent.py');
+  if (contractorBindingNode) contractorBindingNode.why += ' CHG-20260908-009: один AI-разбор связывает текущий вопрос с карточкой и дословной цитатой последней переписки. Графовая карточка не скрывает broker-кандидатов. Без доказанной связи ответ удерживается; старый шаблон с исторической датой больше не отправляется.';
+  const pitchSlaDependencyNode = N.find((node) => node.f === 'tools/pitch_sla_watchdog.py');
+  if (pitchSlaDependencyNode) pitchSlaDependencyNode.why += ' CHG-20260908-009: ключ исходного поста читается из чистого общего модуля без загрузки отправителя и серверного прайса; разрыв pricing HTTP больше не останавливает SLA-проверку.';
   if (sessionWaitNode) {
+    sessionWaitNode.why += ' CHG-20260908-009: личная логистика музыканта по поручению владельца имеет отдельный project review: собственный исторический гонорар и рейсы требуют точных источников; групповые и broker ограничения сохраняются.';
     sessionWaitNode.why += ' Занятая tg_session сохраняет ту же команду в очереди до освобождения: lock берётся до attempt, повтор через 5 секунд, фиксированное окно ожидания 24 часа переживает перезапуск. Перед отправкой заново проверяются exact payload, получатель и отмена approval. Lock удерживается до конца транспорта; перехода на вторую сессию и повтора после начала provider effect нет.';
   }
 
