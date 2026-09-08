@@ -662,6 +662,10 @@
   }
 
   const sessionWaitNode = N.find((node) => node.id === 'tgdelivery');
+  const priceImportNode = N.find((node) => node.id === 'tgmon');
+  if (priceImportNode) priceImportNode.why += ' CHG-20260908-009: серверный прайс загружается только при составлении КП в одном snapshot. Недоступный price API удерживает цену/отправку, но не роняет импорт и чтение входящих заявок.';
+  const abstractBrokerNode = N.find((node) => node.id === 'tgmon');
+  if (abstractBrokerNode) abstractBrokerNode.why += ' CHG-20260908-009: abstract-запрос шоу идёт в source-bound broker intake для уточнения, а не в старое меню LCB/Noize; цена, промо и отправка остаются за штатными gates.';
   const contractorBindingNode = N.find((node) => node.f === 'contractor_dialog_agent.py');
   if (contractorBindingNode) contractorBindingNode.why += ' CHG-20260908-009: один AI-разбор связывает текущий вопрос с карточкой и дословной цитатой последней переписки. Графовая карточка не скрывает broker-кандидатов. Без доказанной связи ответ удерживается; старый шаблон с исторической датой больше не отправляется.';
   const pitchSlaDependencyNode = N.find((node) => node.f === 'tools/pitch_sla_watchdog.py');
