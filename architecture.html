@@ -661,6 +661,11 @@
     heartbeatWatchdogNode.why += ' Несколько component-heartbeat одного launchd label могут дать только один kickstart за проход; per-label cooldown предотвращает повторный restart churn исправного Realtime Gateway.';
   }
 
+  const sessionWaitNode = N.find((node) => node.id === 'tgdelivery');
+  if (sessionWaitNode) {
+    sessionWaitNode.why += ' Занятая tg_session сохраняет ту же команду в очереди до освобождения: lock берётся до attempt, повтор через 5 секунд, фиксированное окно ожидания 24 часа переживает перезапуск. Перед отправкой заново проверяются exact payload, получатель и отмена approval. Lock удерживается до конца транспорта; перехода на вторую сессию и повтора после начала provider effect нет.';
+  }
+
   const coreAppNode = N.find((node) => node.id === 'coreapp');
   if (coreAppNode) {
     coreAppNode.why += ' Верхний runtime header считает только действующие KeepAlive LaunchAgents и исключает retired plist; экран «Токены» показывает логические AI-purpose, а не PID. Видимое объяснение readiness переводит reason_codes и ведёт в approval-gated Операции → Процессы для точечного restart.';
