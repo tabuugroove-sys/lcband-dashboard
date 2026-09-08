@@ -37,12 +37,12 @@
       <div class="pricing-controls">
         <label>Бэклайн / артист, ₽<input required type="number" min="0" max="1000000" step="1000" data-price-field="backline_per_artist_rub" value="${d.backline_per_artist_rub}"></label>
         <label>Предел скидки, %<input required type="number" min="0" max="90" step="1" data-price-field="max_discount_pct" value="${d.max_discount_pct}"></label>
-        <div class="pricing-policy"><strong>Скидка — на весь пакет</strong><span>Если не помещаемся в бюджет → вопрос в Urgent Bot с контекстом заявки.</span></div>
+        <div class="pricing-policy"><strong>Скидка — на весь пакет</strong><span>${d.budget_shortfall_action === "discount_within_limit_else_ask_owner" ? "В пределах лимита согласование не нужно. Если и со скидкой не помещаемся → вопрос в Urgent Bot с контекстом." : "Если не помещаемся в бюджет → вопрос в Urgent Bot с контекстом заявки."}</span></div>
       </div>
       <div class="pricing-table-scroll"><table class="pricing-table"><thead><tr><th>Состав</th><th>Гонорар, ₽</th><th>Бэклайн</th><th>Пакет</th><th id="priceFloorLabel"></th></tr></thead><tbody>
       ${d.lineups.map((r, i) => `<tr><td><strong>${r.size} ${r.size === 4 ? "артиста" : "артистов"}</strong><input required maxlength="200" aria-label="Описание состава ${i+1}" data-lineup-label="${i}" value="${esc(r.label)}"></td><td><input required aria-label="Гонорар состава ${i+1}" type="number" min="1000" max="10000000" step="1000" data-lineup-price="${i}" value="${r.client_price_rub}"></td><td id="priceBackline${i}"></td><td class="pricing-total" id="priceTotal${i}"></td><td id="priceFloor${i}"></td></tr>`).join("")}
       </tbody></table></div>
-      <p class="pricing-caption">Наличный расчёт, без дополнительных PA / мониторов / света и выездных надбавок. Последняя колонка — предел, который не предлагается автоматически.</p>
+      <p class="pricing-caption">Наличный расчёт, без дополнительных PA / мониторов / света и выездных надбавок. Последняя колонка — минимальная цена пакета; используем только необходимую скидку в рамках сохранённого правила.</p>
       <details class="pricing-details" open><summary>Бэклайн и условия</summary><div class="pricing-details-grid">
         <label>Входит в бэклайн<textarea required maxlength="1000" rows="2" data-price-field="backline_includes">${esc(d.backline_includes)}</textarea></label>
         <label>Отдельно<textarea required maxlength="1000" rows="2" data-price-field="backline_excludes">${esc(d.backline_excludes)}</textarea></label>
@@ -50,7 +50,7 @@
         <label>АК внутри гонорара, %<input required type="number" min="0" max="50" step="1" data-price-field="performance_agency_pct" value="${d.performance_agency_pct}"></label>
         <p>В бэклайне АК нет. Техник и звукорежиссёр входят в пакет и не увеличивают число артистов.</p>
       </div></details>
-      <div class="pricing-flow">Запрос клиента → расчёт по канону → бюджет не сходится → Urgent Bot → решение по конкретной заявке</div>
+      <div class="pricing-flow">Запрос клиента → расчёт по канону и правилу скидки → проверка техники и состава → если разрешённого лимита недостаточно, Urgent Bot</div>
       <p id="pricingStatus" role="status" aria-live="polite"></p>
     </form>`;
     recalculate();
