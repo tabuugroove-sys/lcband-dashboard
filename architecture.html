@@ -933,7 +933,12 @@
       ['writer mode','LCB/Broker prompt mode по стадии: intake, sales, contract, production, content'],
       ['dual draft judge','primary/challenger/arbiter может заблокировать рискованный ответ'],
       ['presend review','ai_review_before_send + strip contacts + price/payment policy'],
-      ['repair once','repairable presend block переписывает и перепроверяет вместо raw send'],
+      ['repair with feedback','review → конкретные ошибки, исправления и основания → writer → полный re-review точного текста; до двух правок за проход, незавершённые замечания остаются в очереди'],
+      ['verified promo inputs','первичный LCB pitch получает канонические URL до review; общая папка не доказывает соответствие нужному составу'],
+      ['repair routing','rewrite / source_materials / owner_required / stop / retry_later; нехватка фактов не исправляется выдуманным КП, caps и delivery receipt сохраняются'],
+      ['cold queue recovery','watchdog: конкретные замечания → новое проверенное КП → отдельное поколение system cold queue только при proven_no_effect; source/peer/CRM сохраняются, Urgent один на исходный пост'],
+      ['material preparation','PRESEND_MEDIA_REQUEST обновляет каталог для исходного КП; не запускает sax fanout и не отправляет материалы отдельно. Без новых материалов — ожидание с backoff'],
+      ['local recovery boundary','автоматическое восстановление cold КП требует локального AI admission; SSH admission означает local_ai_admission_required, без обращения к серверу'],
     ]},
     { title:'Delivery / loop', color:'#1a7f37', gates:[
       ['freshness reread','последние 20 сообщений должны совпасть с source tail до отправки'],
