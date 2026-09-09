@@ -45,7 +45,7 @@
   <p class="foot" id="foot"></p>
 
 <script>
-const LABEL={have:"have",requested:"requested · waiting",missing:"NOT requested",external:"in his Drive",recruiting:"recruiting",not_required:"n/a"};
+const LABEL={have:"have",requested:"requested · waiting",missing:"not seen in checked history",unverified:"history unavailable",external:"in his Drive",recruiting:"recruiting",not_required:"n/a"};
 function cell(it){
   const s=it.status, n=it.count;
   const txt = s==="have" ? (n?`${n} ✓`:"✓") : LABEL[s]||s;
@@ -59,14 +59,14 @@ fetch('casting_status.json?t='+Date.now()).then(r=>r.json()).then(d=>{
     `<span class="pill">Members: <b>${d.members.length}</b></span>`;
   let have=0, total=0, rows="";
   d.members.forEach(m=>{
-    ["photo","video","repertoire"].forEach(k=>{ const s=m.items[k].status; if(s==="have"){have++;total++;} else if(s==="requested"||s==="missing"){total++;} });
+    ["photo","video","repertoire"].forEach(k=>{ const s=m.items[k].status; if(s==="have"){have++;total++;} else if(s==="requested"||s==="missing"||s==="unverified"){total++;} });
     rows += `<tr><td class="role">${m.role}</td><td class="name">${m.name}${m.tg?` · @${m.tg}`:''}</td>`+
             cell(m.items.video)+cell(m.items.photo)+cell(m.items.repertoire)+cell(m.items.bio)+`</tr>`;
   });
   document.getElementById('rows').innerHTML = rows;
   document.getElementById('prog').style.width = total? Math.round(100*have/total)+'%' : '0';
   document.getElementById('foot').textContent =
-    `Completeness ${have}/${total} · auto-verified against real Telegram requests · updated ${d.updated_at}`;
+    `Completeness ${have}/${total} · history: ${d.history_source||'legacy_telegram'} · checked messages only; unavailable history is marked · updated ${d.updated_at}`;
 }).catch(e=>{document.getElementById('foot').textContent='Failed to load casting_status.json: '+e;});
 </script>
 </body>

@@ -14,7 +14,17 @@
     renderingArea: "",
     pendingForce: false,
     cache: new Map(),
+    nativeApprovalOffset: 0,
+    archivedApprovalOffset: 0,
+    archivedApprovalStatus: "pending",
+    scheduledCallOffset: 0,
   };
+  const nativeRejectActionIds = new Map();
+  const agreementViews = new Map();
+  let agreementPackages = [];
+  const scheduledCallViews = new Map();
+  const scheduledCallActions = new Map();
+  const scheduledCallBusy = new Set();
 
   const AREA_META = Object.freeze({
     overview: ["Операционный обзор", "Все production-контуры и их реальные границы."],
@@ -251,7 +261,7 @@
   }
 
   async function renderLeads() {
-    const results = await Promise.allSettled([read("overview_stats"), read("inbound_funnel"), read("lead_context_audit"), read("todos"), read("classifications"), read("uncertain_leads"), read("lead_flow")]);
+    const results = await Promise.allSettled([read("overview_stats"), read("inbound_funnel"), read("lead_context_audit"), read("todos"), read("classifications"), read("uncertain_leads"), read("lead_flow"), request(`/api/core/scheduled-calls?offset=${state.scheduledCallOffset}`)]);
     const stats = settled(results[0]);
     const funnel = settled(results[1]);
     const audit = settled(results[2]);
@@ -263,6 +273,7 @@
     const flow = settled(results[6]);
     const uncertainCount = getPath(audit?.summary, "needs_attention", "uncertain") ?? getPath(uncertain, "total", "count") ?? rowsFrom(uncertain, ["items", "leads"]).length;
     container().innerHTML = `${head("leads", '<button class="parity-action" data-parity-action="refresh">↻ Live</button>')}
+      ${scheduledCallsHtml(settled(results[7]))}
       <div class="parity-grid">${metric(count(getPath(stats, "active_leads", "active", "total") || leads.length), "активных лидов")}${metric(count(uncertainCount), "требуют контекста")}${metric(count(todos.length), "TODO")}</div>
       <section class="parity-card" style="margin-top:9px"><h3>Папка Telegram</h3><form class="parity-form" id="moveLeadForm"><label><span>@username / user id</span><input name="q" required></label><label><span>Папка</span><input name="folder" required placeholder="Отмены"></label><button class="parity-primary" type="submit">Переместить</button></form></section>
       <section class="parity-card is-wide" style="margin-top:9px"><h3>Воронка</h3><div class="parity-list">${leads.slice(0, 100).map((item) => { const id = getPath(item, "id", "lead_id", "order_id") || item.__key || ""; return `<div class="parity-row"><div><strong>${esc(getPath(item, "client", "name", "username", "title") || `Лид ${id}`)}</strong><small>${esc(id)}</small></div><p>${esc(short(getPath(item, "summary", "last_message", "stage", "status") || item, 180))}</p><div class="parity-actions"><span class="pill">${esc(getPath(item, "stage", "status_group", "status") || "lead")}</span>${id ? `<button class="parity-action danger" data-parity-action="cancel-lead" data-id="${attr(id)}">Отменить</button>` : ""}</div></div>`; }).join("") || '<div class="empty-state">Лиды не найдены.</div>'}</div></section>
@@ -270,14 +281,119 @@
       ${rawCard("Классификации", classifications)}${rawCard("Lead-flow / timeline", flow)}`;
   }
 
+  function scheduledCallsHtml(payload) {
+    scheduledCallViews.clear();
+    const title = '<h3>Созвоны</h3>';
+    if (!payload || payload.__error || payload.source !== 'native_scheduled_calls' || !Array.isArray(payload.items)) {
+      return `<section class="parity-card is-wide">${title}<p>Созвоны недоступны. Проверьте доступ владельца и обновите список.</p></section>`;
+    }
+    const rows = payload.items.map(item => {
+      const entry = item.entry || {};
+      const key = JSON.stringify([item.account_id,item.call_id]);
+      scheduledCallViews.set(key,item);
+      const bound = item.source === 'native_scheduled_call' && item.status === 'open' && item.manual_resolvable === true && item.account_id && item.call_id
+        && /^[0-9a-f]{64}$/.test(item.origin_sha256 || '') && /^[0-9a-f]{64}$/.test(item.expected_envelope_sha256 || '');
+      const buttons = bound ? ['done','cancel'].map(decision => `<button class="parity-action ${decision === 'cancel' ? 'danger' : 'parity-primary'}" data-parity-action="scheduled-call-resolve" data-id="${attr(item.call_id)}" data-account="${attr(item.account_id)}" data-origin="${attr(item.origin_sha256)}" data-envelope="${attr(item.expected_envelope_sha256)}" data-decision="${decision}">${decision === 'done' ? 'Звонок состоялся' : 'Отменить звонок'}</button>`).join('') : '';
+      const stages = (item.stages || []).map(stage => {
+        const sent = stage.phase === 'sent' && Number.isInteger(stage.provider_message_id) && stage.provider_message_id > 0;
+        const status = sent ? `уведомление подтверждено, № ${stage.provider_message_id}`
+          : ['sending','ambiguous'].includes(stage.phase) ? 'результат уведомления неизвестен; повтор остановлен'
+          : stage.phase === 'skipped' ? 'окно прошло, уведомление не отправлялось' : 'уведомление удержано';
+        return `<div>${esc(stage.stage)} — ${esc(status)}</div>`;
+      }).join('');
+      const completion = item.completion ? `<p>${item.completion.kind === 'phone_call' ? 'Подтверждено событием звонка'
+        : 'Решение оператора'}${item.completion.decision ? `: ${item.completion.decision === 'cancel' ? 'отменён' : 'состоялся'}` : ''}. ${esc(item.completion.reason || '')}</p>` : '<p>Ожидает подтверждения или решения оператора.</p>';
+      return `<div class="parity-row"><div><strong>${esc(entry.client_name || entry.username || entry.contact || item.call_id)}</strong><small>Контакт из архива: ${esc(entry.username || entry.contact || 'не указан')}</small><p>Запланировано: ${esc(entry.scheduled_at || 'срок не указан')} (${esc(entry.time_precision || 'unknown')})</p><p style="white-space:pre-wrap">${esc(entry.note || '')}</p><p style="white-space:pre-wrap">${esc(entry.evidence || '')}</p>${stages}${completion}<details><summary>Исходная запись и подтверждения</summary><p>Исторические отметки, без подтверждения доставки:</p><pre>${esc(JSON.stringify(entry.stages || {},null,2))}</pre><small>Звонок: ${esc(item.call_id)} · аккаунт: ${esc(item.account_id)}<br>Источник: ${esc(item.origin_sha256)}</small></details></div><div class="parity-actions">${buttons}</div></div>`;
+    }).join('');
+    const pages = `<div class="parity-actions">${payload.offset > 0 ? `<button class="parity-action" data-parity-action="scheduled-calls-page" data-offset="${Math.max(0,payload.offset-payload.limit)}">← Назад</button>` : ''}${payload.has_more ? `<button class="parity-action" data-parity-action="scheduled-calls-page" data-offset="${payload.offset+payload.limit}">Далее →</button>` : ''}</div>`;
+    return `<section class="parity-card is-wide" style="margin-top:9px">${title}<p>Время без часового пояса указано по Москве (MSK).</p><div class="parity-list">${rows || '<div class="empty-state">Сохранённых открытых созвонов нет.</div>'}</div>${pages}</section>`;
+  }
+
+  async function resolveScheduledCall(button) {
+    const d = button.dataset;
+    const key = JSON.stringify([d.account,d.id]);
+    const item = scheduledCallViews.get(key);
+    if (!item || item.source !== 'native_scheduled_call' || item.status !== 'open' || item.manual_resolvable !== true || scheduledCallBusy.has(key)
+      || item.origin_sha256 !== d.origin || item.expected_envelope_sha256 !== d.envelope || !['done','cancel'].includes(d.decision)) return;
+    const actionKey = JSON.stringify([key,d.origin,d.envelope]);
+    let payload = scheduledCallActions.get(actionKey);
+    if (payload && payload.decision !== d.decision) return notify('Предыдущее решение ещё не подтверждено. Повторите его или обновите список.');
+    if (!payload) {
+      const reason = window.prompt(d.decision === 'done' ? 'Как подтверждено, что звонок состоялся?' : 'Причина отмены звонка', '');
+      if (!reason || !reason.trim()) return;
+      if (reason.length > 2000) return notify('Причина должна быть не длиннее 2000 символов.');
+      payload = {account_id:d.account,call_id:d.id,expected_origin_sha256:d.origin,expected_envelope_sha256:d.envelope,
+        operator_action_id:crypto.randomUUID(),decision:d.decision,reason};
+      scheduledCallActions.set(actionKey,payload);
+    }
+    scheduledCallBusy.add(key);
+    try {
+      const result = await mutate('scheduled-call/resolve','scheduled_call.resolve',payload);
+      if (result.source !== 'native_scheduled_call_operator' || result.operator_action_id !== payload.operator_action_id
+        || result.call_id !== payload.call_id || result.account_id !== payload.account_id || result.origin_sha256 !== payload.expected_origin_sha256
+        || result.decision !== payload.decision || result.external_effect_enabled !== false) throw Error('Ответ не подтверждает выбранное решение');
+      scheduledCallActions.delete(actionKey);
+      notify('Решение по звонку сохранено.');
+      if (state.activeArea === 'leads') await renderLeads();
+    } catch (error) {
+      notify(`Решение по звонку не подтверждено: ${error.message}. Повтор использует то же действие.`);
+    } finally {
+      scheduledCallBusy.delete(key);
+    }
+  }
+
   async function renderApprovals() {
-    const [payload, waPayload] = await Promise.all([read("approvals", "full=1"), read("wa_cu_queue", "status=pending_approval,queued&limit=100")]);
+    const results = await Promise.allSettled([read("approvals", `full=1&offset=${state.nativeApprovalOffset}`),
+      read("wa_cu_queue", "status=pending_approval,queued&limit=100"),
+      request(`/api/core/archived-approvals?offset=${state.archivedApprovalOffset}${state.archivedApprovalStatus === null ? "" : `&status=${encodeURIComponent(state.archivedApprovalStatus)}`}`),
+      request("/api/core/agreement-client/packages")]);
+    const payload = settled(results[0]);
+    const waPayload = settled(results[1]);
+    const archived = settled(results[2]);
+    const packagePayload = settled(results[3]);
+    agreementPackages = packagePayload.items || [];
     const approvals = rowsFrom(payload, ["approvals", "pending", "items"]);
     const waItems = rowsFrom(waPayload, ["items"]);
+    const native = payload.source === "core_native_approvals";
+    const activeKeys = new Set(approvals.map((item) => `${item.approval_id}:${item.expected_envelope_sha256}`));
+    for (const key of nativeRejectActionIds.keys()) if (!activeKeys.has(key)) nativeRejectActionIds.delete(key);
+    const approvalRows = approvals.map((item) => {
+      const id = getPath(item, "approval_id", "id") || item.__key || "";
+      const who = getPath(item, "username", "who", "client", "peer") || "Получатель";
+      const text = getPath(item, "text", "draft", "message", "body") || "";
+      const nativeBinding = native && item.source === "core_native_approval" && /^[0-9a-f]{64}$/.test(item.expected_envelope_sha256 || "");
+      const binding = nativeBinding ? ` data-native="true" data-envelope="${attr(item.expected_envelope_sha256)}"` : "";
+      const reject = !native || nativeBinding ? `<button class="parity-action danger" data-parity-action="reject-approval" data-id="${attr(id)}"${binding}>Отклонить</button>` : "<span>Обновите согласование</span>";
+      const documentActions = nativeBinding && item.agreement_client_pdf ? `<button class="parity-action" data-parity-action="view-agreement" data-id="${attr(id)}"${binding}>Открыть PDF</button><button class="parity-primary" data-parity-action="grant-agreement" data-id="${attr(id)}"${binding}>Одобрить PDF клиенту</button>` : "";
+      const documentEnvelope = item.agreement_client_pdf ? `<small>От аккаунта ${esc(item.sender_account)} · версия договора ${esc(item.agreement_material_revision)} · контекст ${esc(item.context_revision)} · PDF SHA ${esc(item.agreement_pdf_sha256)}</small>` : "";
+      const send = native ? "<span>Это решение по согласованию, без отправки сообщения.</span>" : `<button class="parity-primary" data-parity-action="send-approval" data-id="${attr(id)}" data-who="${attr(who)}">Отправить</button>`;
+      return `<div class="parity-row"><div><strong>${esc(who)}</strong><small>${esc(id)} · ${esc(item.status || "pending")}</small>${documentEnvelope}</div><p>${esc(item.agreement_client_pdf ? text : short(text, 260))}</p><div class="parity-actions">${reject}${documentActions}${send}</div></div>`;
+    }).join("");
+    const approvalEmpty = payload.__error ? `<div class="empty-state"><strong>Согласования недоступны</strong>${esc(payload.__error)}</div>` : '<div class="empty-state"><strong>Очередь пуста</strong>Нет согласований, ожидающих решения.</div>';
+    const pages = native ? `<div class="parity-actions">${payload.offset > 0 ? `<button class="parity-action" data-parity-action="native-approvals-page" data-offset="${Math.max(0, payload.offset - payload.limit)}">← Назад</button>` : ""}${payload.has_more ? `<button class="parity-action" data-parity-action="native-approvals-page" data-offset="${payload.offset + payload.limit}">Далее →</button>` : ""}</div>` : "";
     container().innerHTML = `${head("approvals", '<button class="parity-action" data-parity-action="refresh">↻ Очередь</button>')}
-      <div class="parity-grid">${metric(count(approvals.length), "в очереди", approvals.length ? "warn" : "")}${metric(count(waItems.length), "WhatsApp CU")}${metric(state.authenticated ? "READY" : "LOCKED", "delivery action gate")}</div>
-      <section class="parity-card is-wide" style="margin-top:9px"><h3>Money-intent и общие approvals</h3><div class="parity-list">${approvals.map((item) => { const id = getPath(item, "approval_id", "id") || item.__key || ""; const who = getPath(item, "username", "who", "client", "peer") || "Получатель"; const text = getPath(item, "text", "draft", "message", "body") || ""; return `<div class="parity-row"><div><strong>${esc(who)}</strong><small>${esc(id)} · ${esc(item.status || "pending")}</small></div><p>${esc(short(text, 260))}</p><div class="parity-actions"><button class="parity-action danger" data-parity-action="reject-approval" data-id="${attr(id)}">Отклонить</button><button class="parity-primary" data-parity-action="send-approval" data-id="${attr(id)}" data-who="${attr(who)}">Отправить</button></div></div>`; }).join("") || '<div class="empty-state"><strong>Очередь пуста</strong>Нет черновиков, ожидающих решения.</div>'}</div></section>
-      <section class="parity-card is-wide" style="margin-top:9px"><h3>WhatsApp Computer Use</h3><p class="parity-note">Approval для follow-up разрешает штатной очереди отправить позже, только в действующих лимитах. Это не provider receipt.</p><div class="parity-list">${waItems.map((item) => { const id = item.id || item.__key || ""; return `<div class="parity-row"><div><strong>${esc(item.name || item.contact || item.phone || "WA contact")}</strong><small>${esc(id)} · ${esc(item.status || "")}</small></div><p>${esc(short(item.text || item.message || item, 240))}</p><div class="parity-actions">${item.status === "pending_approval" ? `<button class="parity-action danger" data-parity-action="wa-cancel" data-id="${attr(id)}">Отклонить</button><button class="parity-primary" data-parity-action="wa-approve" data-id="${attr(id)}">Одобрить в очередь</button>` : `<span class="pill">${esc(item.status || "queued")}</span>`}</div></div>`; }).join("") || '<div class="empty-state">WA CU очередь пуста.</div>'}</div></section>`;
+      <div class="parity-grid">${metric(payload.__error ? "—" : count(native ? payload.total_count : approvals.length), "в очереди", approvals.length ? "warn" : "")}${metric(waPayload.__error ? "—" : count(waItems.length), "WhatsApp CU")}${metric(state.authenticated ? "READY" : "LOCKED", "delivery action gate")}</div>
+      <section class="parity-card is-wide" style="margin-top:9px"><h3>Согласования</h3><div class="parity-list">${approvalRows || approvalEmpty}</div>${pages}</section>
+      <section class="parity-card is-wide"><h3>PDF договоров клиентам</h3><p>Подготовьте точный текст, откройте PDF и отдельно одобрите отправку. Отправщик проверит документ и сохранит квитанцию Telegram.</p>${agreementPackages.map((p,index)=>`<div class="parity-row"><strong>${esc(p.client_display_name)} · ${esc(p.contract_number)}</strong><small>${esc(p.recipient)} · ${esc(p.account)} · SHA ${esc(p.pdf_sha256)}</small><button class="parity-action" data-parity-action="prepare-agreement" data-index="${index}">Подготовить клиенту</button></div>`).join("") || `<p>${esc(packagePayload.__error || "Нет готовых текущих PDF.")}</p>`}</section>
+      ${archivedApprovalsHtml(archived)}
+      <section class="parity-card is-wide" style="margin-top:9px"><h3>WhatsApp Computer Use</h3><p class="parity-note">Approval для follow-up разрешает штатной очереди отправить позже, только в действующих лимитах. Это не provider receipt.</p><div class="parity-list">${waItems.map((item) => { const id = item.id || item.__key || ""; return `<div class="parity-row"><div><strong>${esc(item.name || item.contact || item.phone || "WA contact")}</strong><small>${esc(id)} · ${esc(item.status || "")}</small></div><p>${esc(short(item.text || item.message || item, 240))}</p><div class="parity-actions">${item.status === "pending_approval" ? `<button class="parity-action danger" data-parity-action="wa-cancel" data-id="${attr(id)}">Отклонить</button><button class="parity-primary" data-parity-action="wa-approve" data-id="${attr(id)}">Одобрить в очередь</button>` : `<span class="pill">${esc(item.status || "queued")}</span>`}</div></div>`; }).join("") || (waPayload.__error ? '<div class="empty-state">WhatsApp временно недоступен.</div>' : '<div class="empty-state">WA CU очередь пуста.</div>')}</div></section>`;
+  }
+
+  function archivedApprovalsHtml(payload) {
+    if (payload.source === "not_applicable") return "";
+    const title = "Архив прежней очереди";
+    if (payload.__error || payload.source !== "archived_legacy_approvals") {
+      return `<section class="parity-card is-wide" style="margin-top:9px"><h3>${title}</h3><p>Архив недоступен. Старые записи не считаются пустой очередью.</p><small>${esc(payload.__error || "Неверный источник архива")}</small></section>`;
+    }
+    const filters = `<button class="parity-action" data-parity-action="archive-status" data-all="true">Все · ${count(payload.total_count)}</button>`
+      + Object.entries(payload.status_counts || {}).map(([status, amount]) => `<button class="parity-action" data-parity-action="archive-status" data-status="${attr(status)}">${esc(status || "Без статуса")} · ${count(amount)}</button>`).join("");
+    const rows = (payload.items || []).map(item => {
+      const name = item.first_name || item.username || item.legacy_key || item.id || `Запись ${item.archive_index + 1}`;
+      const body = item.draft || item.caption || "";
+      return `<div class="parity-row"><div><strong>${esc(name)}</strong><small>${esc(item.id || item.legacy_key || "Без ID")} · ${esc(item.status_valid ? item.status : "Статус не определён")} · ${esc(item.channel || "")}</small></div><p>${esc(short(body, 260))}</p><details><summary>Исходная запись</summary><p style="white-space:pre-wrap">${esc(body || "Текст не сохранён")}</p><small>Дата записи: ${esc(item.created_at || "не сохранена")} · ${esc(item.kind || "тип не сохранён")}${item.source_scope_key ? " · в старой записи сохранён ключ источника" : " · ключ источника не сохранён"}</small></details><span>Исторические данные · действий отправки нет.</span></div>`;
+    }).join("");
+    const pages = `<div class="parity-actions">${payload.offset > 0 ? `<button class="parity-action" data-parity-action="archive-page" data-offset="${Math.max(0, payload.offset - payload.limit)}">← Назад</button>` : ""}${payload.has_more ? `<button class="parity-action" data-parity-action="archive-page" data-offset="${payload.offset + payload.limit}">Далее →</button>` : ""}</div>`;
+    return `<section class="parity-card is-wide" style="margin-top:9px"><h3>${title}</h3><p>Снимок до переноса. Статусы сохранены как были; они не подтверждают доставку или восстановление источника. Старые записи не запускаются повторно.</p><small>Снимок: ${esc(payload.captured_at || "время не указано")} · всего ${count(payload.total_count)} · в фильтре ${count(payload.filtered_count)}${payload.invalid_count ? ` · записей с неполной структурой: ${count(payload.invalid_count)}` : ""}</small><div class="parity-actions">${filters}</div><div class="parity-list">${rows || '<div class="empty-state">В выбранном фильтре записей нет.</div>'}</div>${pages}</section>`;
   }
 
   async function renderEvents() {
@@ -486,10 +602,69 @@
   async function handleAction(button) {
     const action = button.dataset.parityAction;
     if (action === "refresh") return refresh();
+    if (action === 'scheduled-call-resolve') return resolveScheduledCall(button);
+    if (action === 'scheduled-calls-page') {
+      const offset = Number(button.dataset.offset);
+      if (!Number.isInteger(offset) || offset < 0 || offset > 1000000) return;
+      state.scheduledCallOffset = offset;
+      return renderLeads();
+    }
+    if (action === "native-approvals-page") {
+      const offset = Number(button.dataset.offset);
+      if (!Number.isInteger(offset) || offset < 0 || offset > 1000000) return;
+      state.nativeApprovalOffset = offset;
+      return renderApprovals();
+    }
+    if (action === "archive-page") {
+      const offset = Number(button.dataset.offset);
+      if (!Number.isInteger(offset) || offset < 0 || offset > 1000000) return;
+      state.archivedApprovalOffset = offset;
+      return renderApprovals();
+    }
+    if (action === "archive-status") {
+      state.archivedApprovalStatus = button.dataset.all === "true" ? null : button.dataset.status || "";
+      state.archivedApprovalOffset = 0;
+      return renderApprovals();
+    }
     if (action === "cancel-lead") return confirmed("Отменить лид", `ID ${button.dataset.id}. Отмена архивирует лид с причиной оператора.`, () => mutate("lead/cancel", "leads.cancel", { id: button.dataset.id, reason: "manual cancel from Core v2" }));
     if (action === "delete-todo") return confirmed("Убрать TODO", `${button.dataset.file} будет перемещён в recoverable /tmp backup.`, () => mutate("todos/delete", "todos.delete", { file: button.dataset.file }));
     if (action === "send-approval") return confirmed("Отправить согласованный ответ", `Получатель: ${button.dataset.who}. Это фактическая отправка с provider receipt.`, () => mutate("approval/send", "approval.send", { approval_id: button.dataset.id }));
-    if (action === "reject-approval") return confirmed("Отклонить черновик", `Approval ${button.dataset.id} не будет отправлен.`, () => mutate("approval/reject", "approval.reject", { approval_id: button.dataset.id, reason: "rejected in Core v2" }));
+    if (action === "prepare-agreement") {
+      const p = agreementPackages[Number(button.dataset.index)];
+      if (!p) return;
+      const text = window.prompt("Точный текст к PDF (до 1024 символов):", "Направляю договор на согласование.");
+      if (!text) return;
+      return confirmed("Подготовить PDF клиенту", `${p.recipient}: ${text}. Затем потребуется отдельное одобрение PDF.`, () => mutate("agreement/prepare-send", "agreement.prepare_send", {thread_id:p.thread_id,source_message_id:p.source_message_id,operator_package_id:p.operator_package_id,binding_sha256:p.binding_sha256,text}));
+    }
+    if (action === "view-agreement") {
+      const popup = window.open("", "_blank");
+      try {
+        const response = await fetch(`/api/core/agreement-client/approvals/${encodeURIComponent(button.dataset.id)}/pdf`, {credentials:"same-origin",cache:"no-store"});
+        if (!response.ok) throw new Error("Текущий PDF недоступен; обновите согласование.");
+        const token = response.headers.get("X-Core-Agreement-View");
+        if (!token || !popup) throw new Error("Разрешите открытие PDF в новой вкладке.");
+        const url = URL.createObjectURL(await response.blob());
+        popup.location = url;
+        agreementViews.set(button.dataset.id, {token,envelope:button.dataset.envelope,actionId:crypto.randomUUID()});
+        window.setTimeout(()=>URL.revokeObjectURL(url),300000);
+      } catch (error) { if(popup) popup.close(); notify(error.message); }
+      return;
+    }
+    if (action === "grant-agreement") {
+      const view = agreementViews.get(button.dataset.id);
+      if (!view || view.envelope !== button.dataset.envelope) return notify("Сначала откройте текущий PDF и проверьте документ и получателя.");
+      return confirmed("Одобрить PDF клиенту", "Разрешить отправку именно просмотренного PDF с показанным текстом и получателем после presend? Это не подпись договора и не квитанция доставки.", () => mutate("agreement/grant-send", "agreement.grant_send", {approval_id:button.dataset.id,expected_envelope_sha256:view.envelope,operator_action_id:view.actionId,reason:"Просмотрел текущий PDF и одобрил отправку клиенту",pdf_view_token:view.token}));
+    }
+    if (action === "reject-approval") {
+      const payload = { approval_id: button.dataset.id, reason: "rejected in Core v2" };
+      if (button.dataset.native === "true") {
+        const key = `${button.dataset.id}:${button.dataset.envelope}`;
+        if (!nativeRejectActionIds.has(key)) nativeRejectActionIds.set(key, crypto.randomUUID());
+        payload.expected_envelope_sha256 = button.dataset.envelope;
+        payload.operator_action_id = nativeRejectActionIds.get(key);
+      }
+      return confirmed("Отклонить согласование", `ID ${button.dataset.id}. Решение будет отклонено без отправки сообщения.`, () => mutate("approval/reject", "approval.reject", payload));
+    }
     if (action === "wa-approve") return confirmed("Одобрить WA follow-up", `${button.dataset.id}: действие переводит запись в штатную очередь. Фактическая отправка произойдёт позже только при прохождении 3/day, 72h/contact и 9–22 MSK.`, () => mutate("wa_cu_queue/approve", "approvals.wa_approve", { id: button.dataset.id, approved_by: "core_v2", note: "operator approved in Core v2" }));
     if (action === "wa-cancel") return confirmed("Отклонить WA draft", `${button.dataset.id}: черновик не будет отправлен.`, () => mutate("wa_cu_queue/cancel", "approvals.wa_cancel", { id: button.dataset.id, cancelled_by: "core_v2", reason: "operator rejected in Core v2" }));
     if (action === "delete-event") return confirmed("Удалить planning card", button.dataset.id, () => mutate(`events/${encodeURIComponent(button.dataset.id)}`, "events.delete", {}, "DELETE"));

@@ -265,6 +265,7 @@
                 <div>
                   <h2 id="conversationName">Тред</h2>
                   <p id="conversationMeta"></p>
+                  <button class="text-button" id="threadManualMode" type="button" hidden disabled></button>
                 </div>
                 <div class="role-picker" id="rolePicker">
                   <button class="pill role-pill" id="conversationRole" type="button" aria-haspopup="listbox" aria-expanded="false" title="Выбрать роль">роль не определена</button>
@@ -528,9 +529,9 @@
             <div>
               <p class="eyebrow">Закрытый маршрут · Critical Ops</p>
               <h2 id="urgentPolicyTitle">Что отправляется в Urgent Bot</h2>
-              <p>Не всё важное, а только ситуация, где активному клиенту нужен ваш немедленный выбор или обещанная передача файлов подтверждённо сорвалась.</p>
+              <p>Ваше немедленное решение по активному клиенту, исчерпанное исправление клиентского питча или подтверждённый срыв обещанной передачи файлов.</p>
             </div>
-            <span class="urgent-policy-count">5 причин</span>
+            <span class="urgent-policy-count">8 причин</span>
           </header>
           <div class="urgent-rule-grid">
             <article class="urgent-rule" data-policy-kind="active_client_call_requires_operator">
@@ -552,6 +553,18 @@
             <article class="urgent-rule" data-policy-kind="active_client_inbound_suppressed">
               <span class="urgent-rule-number">05</span>
               <div><h3>Активный клиент технически заглушён</h3><p>Кейс @zhmoks: входящее ошибочно попало в broker_public_casting_request_detect, упёрлось в лимит 10/10 и было принято за handled. Исправление: active LCB обходит casting, claim снимается, HOLD остаётся retryable, чат не помечается прочитанным.</p></div>
+            </article>
+            <article class="urgent-rule" data-policy-kind="client_pitch_repair_exhausted">
+              <span class="urgent-rule-number">06</span>
+              <div><h3>Питч не прошёл доступные исправления</h3><p>Клиентский питч или ответ о цене исчерпал разрешённые попытки исправления. Правила и цена сохраняются; требуется ваше решение, в том числе по новому лиду.</p></div>
+            </article>
+            <article class="urgent-rule" data-policy-kind="client_pitch_source_dependency">
+              <span class="urgent-rule-number">07</span>
+              <div><h3>Для питча не хватает подтверждённых данных</h3><p>Клиентский запрос подтверждён, но нельзя доказать адресата или актуальные условия сделки. Уведомление указывает причину и нужное исправление; после него система повторяет проверку.</p></div>
+            </article>
+            <article class="urgent-rule" data-policy-kind="client_budget_discount_requires_operator">
+              <span class="urgent-rule-number">08</span>
+              <div><h3>Пакет не укладывается в бюджет</h3><p>Нужно согласовать скидку или другой состав. Бот показывает исходный запрос, обычную цену с бэклайном и нехватку бюджета; ориентир скидки не применяется автоматически.</p></div>
             </article>
           </div>
           <div class="urgent-gates" aria-label="Обязательные условия Urgent Bot">

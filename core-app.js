@@ -164,6 +164,7 @@ const state = {
   dismissingDraft: false,
   assigningRole: false,
   changingAutonomy: false,
+  changingManualMode: false,
   selectedThread: null,
   selectedDraftId: "",
   savedCanonText: "",
@@ -172,6 +173,7 @@ const state = {
   threadReady: false,
   threadRequestController: null,
   activeThreadFingerprint: "",
+  manualSourceMessageId: "",
   activeThreadSyncing: false,
 };
 
@@ -466,6 +468,7 @@ function isTechnicalThread(thread) {
 
 function renderConversationRole(thread) {
   state.selectedThread = thread || null;
+  renderThreadManualMode(thread);
   const button = byId("conversationRole");
   const menu = byId("conversationRoleMenu");
   button.textContent = roleLabel(thread || {});
@@ -485,6 +488,68 @@ function renderConversationRole(thread) {
   menu.querySelectorAll("[data-role-value]").forEach((option) => {
     option.addEventListener("click", () => assignConversationRole(option.dataset.roleValue));
   });
+}
+
+const pendingManualModeActions = new Map();
+
+function renderThreadManualMode(thread) {
+  const button = byId("threadManualMode");
+  if (!button) return;
+  const control = thread?.manual_mode_control;
+  button.hidden = !control || thread?.channel !== "tg";
+  button.disabled = Boolean(!control?.ok || !control?.writable || state.changingManualMode);
+  if (!control?.ok) {
+    button.textContent = "Ручной режим недоступен";
+    button.title = "Не удалось проверить действующий режим диалога.";
+    return;
+  }
+  button.textContent = control.manual_enabled ? "Ручной режим · снять" : "Включить ручной режим";
+  button.title = control.compatibility_manual_mode
+    ? "Дополнительно действует сохранённый запрет автоматизации. Эта кнопка его не снимает."
+    : "В ручном режиме входящие и черновики сохраняются, автоматические отправки блокируются.";
+  if (control.compatibility_manual_mode) button.textContent += " · сохранённый запрет действует";
+}
+
+async function changeThreadManualMode() {
+  const thread = state.selectedThread;
+  const control = thread?.manual_mode_control;
+  if (state.changingManualMode || thread?.channel !== "tg" || !control?.ok || !control?.writable
+      || thread.thread_id !== state.selectedThreadId || !window.CoreParity?.mutate) return;
+  const enabled = !control.manual_enabled;
+  const explanation = enabled
+    ? "Включить ручной режим? Входящие и черновики сохранятся. Ожидающие автоматические отправки будут заблокированы; уже начатая отправка может иметь неизвестный результат."
+    : "Снять ручной режим? Старые заблокированные отправки не возобновятся. Все остальные ограничения отправки сохранятся.";
+  if (!window.confirm(explanation)) return;
+  const key = JSON.stringify([thread.thread_id, control.expected_envelope_sha256, enabled]);
+  let payload = pendingManualModeActions.get(key);
+  if (!payload) {
+    const reason = window.prompt("Причина изменения режима диалога:", enabled
+      ? "Перехожу к ручному управлению диалогом" : "Завершаю ручное управление диалогом");
+    if (reason === null || !reason.trim()) return;
+    if (reason.length > 2000) { toast("Причина должна быть не длиннее 2000 символов."); return; }
+    const actionId = globalThis.crypto?.randomUUID?.();
+    if (!actionId) { toast("Не удалось создать идентификатор действия."); return; }
+    payload = {thread_id: thread.thread_id, expected_revision: control.current_revision,
+      expected_envelope_sha256: control.expected_envelope_sha256, manual_enabled: enabled,
+      operator_action_id: actionId, reason};
+    pendingManualModeActions.set(key, payload);
+  }
+  state.changingManualMode = true;
+  renderThreadManualMode(thread);
+  try {
+    const result = await window.CoreParity.mutate("thread/manual-mode", "thread.manual_mode", payload);
+    pendingManualModeActions.delete(key);
+    const uncertain = result.uncertain_delivery_ids?.length || 0;
+    toast(enabled ? `Ручной режим включён.${uncertain ? ` Отправок с неопределённым результатом: ${uncertain}.` : ""}`
+      : result.effective_manual_hold ? "Ручной режим снят. Сохранённый запрет автоматизации продолжает действовать."
+        : "Ручной режим снят. Остальные ограничения отправки сохраняются.");
+    if (state.selectedThreadId === thread.thread_id) await openThread(thread.thread_id, false);
+  } catch (error) {
+    toast(`Изменение режима не подтверждено: ${error.message}`);
+  } finally {
+    state.changingManualMode = false;
+    renderThreadManualMode(state.selectedThread);
+  }
 }
 
 function closeRoleMenu() {
@@ -658,6 +723,19 @@ function deliveryErrorState(message) {
   return /(unknown|claimed|ambiguous|не подтвержд)/i.test(value)
     ? { kind: "error", text: "Доставка не подтверждена" }
     : { kind: "error", text: "Не отправлено" };
+}
+
+function manualSubmissionErrorText(message) {
+  const code = String(message || "");
+  if (/native_manual_.*reconciliation|native_manual_transport_attempt|native_manual_prior_authorization/.test(code))
+    return "Предыдущая отправка требует сверки. Повторный текст не отправлен.";
+  if (/native_manual_.*(source|context|conversation)|latest_source_not_inbound/.test(code))
+    return "Нужен актуальный подтверждённый запрос клиента. Обнови переписку и сверь текст; отправка удержана.";
+  if (/operator_draft_.*(identity|peer|role)|thread_account_scope_mismatch/.test(code))
+    return "Не подтверждены получатель или его роль клиента. Отправка удержана.";
+  if (/native_manual_submission_disabled|native_manual_explicit|runtime_role_|thread_manual_mode/.test(code))
+    return "Ручная отправка удержана настройками владельца или диалога.";
+  return code;
 }
 
 function setConnection(kind, label) {
@@ -1412,6 +1490,12 @@ function threadHandleKeys(thread) {
 
 function threadFunnelStage(thread) {
   const fv = state.funnelView || {};
+  if (["server_native", "legacy_deferred_channel"].includes(thread?.funnel_source)) {
+    return thread.funnel_business_line === "lcb" ? String(thread.funnel_stage || "") : "";
+  }
+  if (thread?.channel === "tg" && fv.source === "server_native") {
+    return String((fv.lcb_stage_by_thread || {})[thread.thread_id] || "");
+  }
   for (const key of threadHandleKeys(thread)) {
     if (fv.lcb_stage_by_user && fv.lcb_stage_by_user[key]) return fv.lcb_stage_by_user[key];
   }
@@ -1419,6 +1503,13 @@ function threadFunnelStage(thread) {
 }
 
 function threadBrokerStage(thread) {
+  const fv = state.funnelView || {};
+  if (["server_native", "legacy_deferred_channel"].includes(thread?.funnel_source)) {
+    return thread.funnel_business_line === "broker" ? String(thread.funnel_stage || "") : "";
+  }
+  if (thread?.channel === "tg" && fv.source === "server_native") {
+    return String((fv.broker_stage_by_thread || {})[thread.thread_id] || "");
+  }
   const map = (state.funnelView || {}).broker_stage_by_user || {};
   for (const key of threadHandleKeys(thread)) {
     if (map[key]) return map[key];
@@ -1427,6 +1518,8 @@ function threadBrokerStage(thread) {
 }
 
 function threadAttention(thread) {
+  if (thread?.channel === "tg" && (thread.funnel_source === "server_native"
+      || state.funnelView?.source === "server_native")) return null;
   const attention = (state.funnelView || {}).attention || {};
   for (const key of threadHandleKeys(thread)) {
     if (attention[key]) return attention[key];
@@ -1732,6 +1825,7 @@ function clearSelectedConversation() {
   state.manualDeliveryState = { kind: "idle", text: "Не отправлено" };
   state.threadReady = false;
   state.activeThreadFingerprint = "";
+  state.manualSourceMessageId = "";
   setManualSendText("");
   byId("conversationContent").hidden = true;
   byId("conversationEmpty").hidden = false;
@@ -1808,6 +1902,7 @@ function dateKey(epoch) {
 
 function threadPayloadFingerprint(payload) {
   return JSON.stringify({
+    manualMode: payload.thread?.manual_mode_control,
     messages: (payload.messages || []).map((message) => [
       message.message_id || message.provider_message_id,
       message.sent_at_epoch,
@@ -1822,6 +1917,7 @@ function threadPayloadFingerprint(payload) {
       draft.is_superseded,
       draft.is_dismissed,
       draft.is_resolved_by_outbound,
+      draft.native_manual_review,
     ]),
     scheduled: (payload.scheduled_messages || []).map((message) => [
       message.command_id,
@@ -1843,6 +1939,7 @@ function composerSnapshot() {
   return {
     text: field.value,
     selectedDraftId: state.selectedDraftId,
+    sourceMessageId: state.manualSourceMessageId,
     savedCanonText: state.savedCanonText,
     deliveryState: { ...state.manualDeliveryState },
     focused: document.activeElement === field,
@@ -1858,6 +1955,8 @@ function restoreComposerSnapshot(payload, snapshot) {
     && !draft.is_resolved_by_outbound
   ));
   state.selectedDraftId = selectedDraft ? snapshot.selectedDraftId : "";
+  // A background inbound cannot silently rebind text the operator already typed.
+  state.manualSourceMessageId = snapshot.sourceMessageId || "";
   state.savedCanonText = selectedDraft ? snapshot.savedCanonText : "";
   state.manualDeliveryState = { ...snapshot.deliveryState };
   state.composerDirty = Boolean(snapshot.text.trim());
@@ -1971,6 +2070,7 @@ async function openThread(threadId, updateHash = true, options = {}) {
     state.selectedThread = null;
     state.threadReady = false;
     state.activeThreadFingerprint = "";
+    state.manualSourceMessageId = "";
     if (switchingThread) {
       state.manualDeliveryState = { kind: "idle", text: "Не отправлено" };
     }
@@ -2019,6 +2119,13 @@ async function openThread(threadId, updateHash = true, options = {}) {
     const fingerprint = threadPayloadFingerprint(payload);
     if (background && fingerprint === state.activeThreadFingerprint) return;
     state.activeThreadFingerprint = fingerprint;
+    const latestVisibleMessage = [...(payload.messages || [])].sort((a, b) => (
+      Number(b.sent_at_epoch) - Number(a.sent_at_epoch)
+      || Number(b.recorded_at_epoch || 0) - Number(a.recorded_at_epoch || 0)
+      || String(b.message_id || "").localeCompare(String(a.message_id || ""))
+    ))[0];
+    state.manualSourceMessageId = latestVisibleMessage?.direction === "inbound"
+      ? latestVisibleMessage.message_id || "" : "";
     if (background && state.selectedDraftId && !savedComposer) {
       const selectedDraftStillActionable = (payload.drafts || []).some((draft) => (
         draft.draft_id === state.selectedDraftId
@@ -2098,7 +2205,10 @@ async function openThread(threadId, updateHash = true, options = {}) {
       // а не предложенный текст (кейс @a_aslanidi 25.07 — причина читалась как
       // черновик). Заголовок обязан называть решение своим именем.
       const cardTitle = draft.text ? "Черновик V2" : "Решение V2: не отвечать";
-      draftHtml = `<section class="draft-message ${draft.is_stale ? "is-stale" : ""}" data-draft-id="${escapeHtml(draft.draft_id)}"><div class="draft-message-head"><strong>${escapeHtml(cardTitle)}</strong><span>${escapeHtml(status)}</span></div><div class="draft-message-text">${escapeHtml(detail)}</div><div class="draft-message-foot"><small>${escapeHtml(scenario)}${violations.length ? ` · замечаний стиля: ${violations.length}` : ""}</small><span>${dismiss}${action}</span></div></section>`;
+      const manualReview = draft.native_manual_review;
+      const reviewNote = manualReview && ["blocked", "rewrite", "unavailable"].includes(manualReview.status)
+        ? `<div class="scheduled-error">Проверка: ${escapeHtml(manualReview.reason || "Требуется исправление текста")}</div>` : "";
+      draftHtml = `<section class="draft-message ${draft.is_stale ? "is-stale" : ""}" data-draft-id="${escapeHtml(draft.draft_id)}"><div class="draft-message-head"><strong>${escapeHtml(cardTitle)}</strong><span>${escapeHtml(status)}</span></div><div class="draft-message-text">${escapeHtml(detail)}</div>${reviewNote}<div class="draft-message-foot"><small>${escapeHtml(scenario)}${violations.length ? ` · замечаний стиля: ${violations.length}` : ""}</small><span>${dismiss}${action}</span></div></section>`;
     }
     byId("messageList").innerHTML = historyHtml || scheduledHtml || draftHtml
       ? `${historyHtml}${scheduledHtml}${draftHtml}`
@@ -2264,7 +2374,9 @@ function renderManualSendState() {
   renderManualDeliveryState();
   const sendChannel = manualSendChannel();
   byId("manualSendNote").textContent = enabled
-    ? state.selectedDraftId
+    ? sendChannel === "tg" && state.health?.manual_send_mode === "native_review_queue"
+      ? "Текст попадёт на проверку. Отправка подтвердится только квитанцией Telegram."
+      : state.selectedDraftId
       ? "Выбран черновик V2. Проверь текст: отправка произойдёт только после твоего нажатия."
       : sendChannel === "wa"
         ? "Ручной текст уйдёт дословно в WhatsApp через Baileys-мост и запишется в Core."
@@ -2291,22 +2403,33 @@ async function sendManualReply(event) {
   event.preventDefault();
   if (state.sending || !manualSendEnabledForThread() || !state.threadReady || !state.selectedThreadId) return;
   const field = byId("manualSendText");
-  const text = field.value.trim();
-  if (!text) return;
+  const text = field.value;
+  if (!text.trim()) return;
+  const submittedThreadId = state.selectedThreadId;
   state.sending = true;
-  setManualDeliveryState("sending", "Отправляем…");
+  setManualDeliveryState("sending", state.health?.manual_send_mode === "native_review_queue" && manualSendChannel() === "tg"
+    ? "Передаём на проверку…" : "Отправляем…");
   renderManualSendState();
   try {
     const result = await apiPost(API.send, {
-      thread_id: state.selectedThreadId,
+      thread_id: submittedThreadId,
       text,
       draft_id: state.selectedDraftId || null,
+      source_message_id: state.manualSourceMessageId || null,
     });
+    if (state.selectedThreadId !== submittedThreadId) {
+      toast(result.pending_review === true ? "Текст предыдущего диалога принят на проверку." : "Ответ предыдущего диалога обработан.");
+      await refreshAll();
+      return;
+    }
     setManualSendText("");
     state.selectedDraftId = "";
     state.savedCanonText = "";
     state.composerDirty = false;
-    if (result.scheduled === true) {
+    if (result.pending_review === true || (result.queued === true && result.sent === false)) {
+      setManualDeliveryState("queued", "На проверке · отправка ещё не подтверждена");
+      toast(result.message || "Текст принят на проверку.");
+    } else if (result.scheduled === true) {
       const sendAt = Number(result.send_at_epoch || 0);
       const sendAtLabel = sendAt
         ? new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }).format(new Date(sendAt * 1000))
@@ -2325,7 +2448,7 @@ async function sendManualReply(event) {
   } catch (error) {
     const deliveryState = deliveryErrorState(error.message);
     setManualDeliveryState(deliveryState.kind, deliveryState.text);
-    toast(error.message);
+    toast(manualSubmissionErrorText(error.message));
   } finally {
     state.sending = false;
     renderManualSendState();
@@ -6134,6 +6257,7 @@ function bindEvents() {
     location.hash = "chats";
   });
   byId("manualSendForm").addEventListener("submit", sendManualReply);
+  byId("threadManualMode")?.addEventListener("click", changeThreadManualMode);
   byId("manualSendText").addEventListener("input", () => {
     state.composerDirty = Boolean(byId("manualSendText").value.trim());
     resizeManualSendText();
