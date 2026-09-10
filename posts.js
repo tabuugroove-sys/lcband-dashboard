@@ -138,7 +138,16 @@
     shown.forEach(function (p) {
       var node = tpl.content.cloneNode(true);
       node.querySelector(".when").textContent = fmtWhen(p.ts);
-      node.querySelector(".chat").textContent = p.chat || "—";
+      var chatEl = node.querySelector(".chat");
+      chatEl.textContent = p.chat || "—";
+      if (p.source_url && /^https:\/\/t\.me\/c\/\d+\/\d+$/.test(p.source_url)) {
+        var sourceLink = document.createElement("a");
+        sourceLink.href = p.source_url;
+        sourceLink.textContent = " · исходный пост ↗";
+        sourceLink.target = "_blank";
+        sourceLink.rel = "noopener";
+        chatEl.appendChild(sourceLink);
+      }
       var sender = node.querySelector(".sender");
       var s = String(p.sender || "").replace(/^@/, "");
       if (/^[A-Za-z0-9_]{3,32}$/.test(s)) {
@@ -164,6 +173,8 @@
       if (v1.verdict) {
         catChip.textContent = v1.category || v1.verdict;
         catChip.classList.add("cat-" + v1.verdict);
+      } else if (v1.state === "native_source") {
+        catChip.textContent = "категория не проверена";
       } else if (v1.state === "pre_journal") {
         catChip.textContent = "архив: до журнала вердиктов";
         catChip.classList.add("state-pre-journal");
@@ -255,7 +266,7 @@
             renderTribrainBlock(pitchTribrain, pitch);
           }
         } else {
-          pitchStatus.textContent = "— нет адресата";
+          pitchStatus.textContent = pitch.sent === null ? "— доставка не проверена" : "— нет адресата";
           pitchStatus.classList.add("pitch-unknown");
           if (pitch.reason) {
             pitchStatus.title = pitch.reason;
@@ -292,6 +303,10 @@
           (data.journal_entries || 0) + " · в ленте: " + lastPosts.length +
           " · с вердиктом: " + withVerdict +
           " · обновлено " + fmtWhen(data.generated_at);
+        if (data.native_sources) {
+          metaLine.textContent = "Посты Core за " + data.hours + "ч: " + data.source_count +
+            " · показано: " + lastPosts.length + " · обновлено " + fmtWhen(data.generated_at);
+        }
         if (data.v2_note) {
           v2note.hidden = false;
           v2note.textContent = data.v2_note;

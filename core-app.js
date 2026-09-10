@@ -4729,7 +4729,7 @@ function flowFilteredLeads(leads = state.leadFlow?.leads || []) {
   return leads.filter((lead) => {
     if (state.flowSource && lead.lead_source?.key !== state.flowSource) return false;
     if (!query) return true;
-    return [lead.display, lead.username, lead.lead_id, lead.stage_label, lead.channel]
+    return [lead.display, lead.username, lead.lead_id, lead.stage_label, lead.channel, lead.summary, lead.source_text]
       .some((value) => String(value || "").toLocaleLowerCase("ru-RU").includes(query));
   });
 }
@@ -4762,6 +4762,29 @@ function renderFlowMetrics() {
   byId("flowCoverageRing").style.borderTopColor = pct >= 60 ? "var(--pine)" : "var(--warn)";
   byId("flowCoverageRing").querySelector("strong").textContent = `${Math.round(pct)}%`;
   byId("flowFreshness").textContent = `Обновлено ${flowFormatTime(data.generated_at)}`;
+  if (data.native_selection) {
+    byId("screen-flow").querySelector("h1").textContent = "Лиды за 24 часа";
+    byId("screen-flow").querySelector(".page-head .eyebrow").textContent = "Подборка обращений · просмотр";
+    byId("flowIntroTitle").textContent = "Обращения и исходные запросы";
+    byId("flowIntroTitle").previousElementSibling.textContent = "Серверная база";
+    byId("flowIntroTitle").nextElementSibling.textContent = "Выберите обращение слева: справа откроется полный пост и примечание из отчёта. Поиск работает по контакту и тексту запроса.";
+    byId("flowMapTitle").textContent = "Список обращений";
+    byId("flowMapTitle").previousElementSibling.textContent = "Из выбранного отчёта";
+    byId("screen-flow").querySelector(".flow-legend").hidden = true;
+    byId("flowScope").innerHTML = '<option>Все направления отчёта</option>';
+    byId("flowScope").disabled = true;
+    byId("flowPeriod").disabled = true;
+    byId("flowPeriod").innerHTML = '<option>Период отчёта</option>';
+    byId("flowPeriod").title = "Фиксированный период выбранного отчёта";
+    byId("flowCoverageRing").querySelector("strong").textContent = String(visible.length);
+    byId("flowCoverageRing").querySelector("span").textContent = "в отчёте";
+    byId("flowMetrics").innerHTML = [
+      flowMetric(visible.length, "обращений из отчёта", "is-accent"),
+      flowMetric(visible.filter((lead) => lead.source_text).length, "исходников в серверной базе"),
+      flowMetric(visible.filter((lead) => !lead.source_text).length, "требуют сверки источника", "is-warn"),
+    ].join("");
+    byId("flowFreshness").textContent = `${data.selection_title} · сверено ${flowFormatTime(data.generated_at)}`;
+  }
 }
 
 function renderFlowWarnings() {
@@ -4786,6 +4809,16 @@ function renderFlowMap() {
     return;
   }
   const visibleLeads = flowFilteredLeads();
+  if (data.native_selection) {
+    canvas.style.width = "100%";
+    canvas.style.height = "auto";
+    byId("flowMapScroll").style.maxHeight = "75vh";
+    byId("flowMapScroll").style.overflowY = "auto";
+    byId("screen-flow").querySelector(".flow-layout").style.gridTemplateColumns = "repeat(2, minmax(0, 1fr))";
+    if (!state.flowSelected && visibleLeads.length) state.flowSelected = {kind: "lead", leadId: visibleLeads[0].lead_id};
+    canvas.innerHTML = `<div class="flow-lead-list">${visibleLeads.map(flowLeadCard).join("") || '<div class="flow-no-results">По этому запросу обращений нет.</div>'}</div>`;
+    return;
+  }
   const visibleIds = new Set(visibleLeads.map((lead) => lead.lead_id));
   const nodes = data.nodes || [];
   const edges = (data.edges || []).map((edge) => ({
@@ -4840,12 +4873,13 @@ function renderFlowMap() {
 
 function flowLeadCard(lead) {
   const source = lead.lead_source?.label || "Источник не определён";
-  const status = lead.lead_status === "archived" ? "архивный" : "активный";
-  const handle = lead.username ? `@${lead.username}` : lead.lead_id;
+  const status = lead.lead_status === "review" ? "из отчёта" : lead.lead_status === "archived" ? "архивный" : "активный";
+  const handle = lead.history_state === "report_selection" ? "Обращение из отчёта" : lead.username ? `@${lead.username}` : lead.lead_id;
   return `<button class="flow-lead ${state.flowSelected?.leadId === lead.lead_id ? "is-selected" : ""}" type="button" data-flow-lead="${escapeHtml(lead.lead_id)}">
     <span class="flow-lead-top"><strong>${escapeHtml(lead.display)}</strong><em>${escapeHtml(status)}</em></span>
     <p>${escapeHtml(handle)} · ${escapeHtml(source)}</p>
-    <span class="flow-lead-badges"><span>${escapeHtml(lead.stage_label || "Стадия неизвестна")}</span>${lead.stuck ? '<span class="is-stuck">застрял</span>' : ""}<span>${escapeHtml(lead.history_state)}</span></span>
+    ${lead.summary ? `<p>${escapeHtml(lead.summary)}</p>` : ""}
+    <span class="flow-lead-badges"><span>${escapeHtml(lead.stage_label || "Стадия неизвестна")}</span>${lead.stuck ? '<span class="is-stuck">застрял</span>' : ""}${lead.history_state !== "report_selection" ? `<span>${escapeHtml(lead.history_state)}</span>` : ""}</span>
   </button>`;
 }
 
@@ -4860,8 +4894,11 @@ function renderFlowLeadDetail(lead) {
   const ageLabel = lead.days_in_stage === null ? "" : lead.days_in_stage_basis === "transition"
     ? ` · ${lead.days_in_stage} дн. на стадии`
     : ` · ${lead.days_in_stage} дн. без активности`;
-  byId("flowDetail").innerHTML = `<div class="flow-detail-head"><p class="eyebrow">${escapeHtml(lead.lead_id)}</p><h2>${escapeHtml(lead.display)}</h2><p>${escapeHtml(lead.stage_label || "Стадия неизвестна")} · ${escapeHtml(lead.lead_source?.label || "Источник неизвестен")}${ageLabel}</p></div>
+  byId("flowDetail").innerHTML = `<div class="flow-detail-head"><p class="eyebrow">${escapeHtml(lead.history_state === "report_selection" ? "Исходное обращение" : lead.lead_id)}</p><h2>${escapeHtml(lead.display)}</h2><p>${escapeHtml(lead.stage_label || "Стадия неизвестна")} · ${escapeHtml(lead.lead_source?.label || "Источник неизвестен")}${ageLabel}</p></div>
     ${lead.next_action ? `<div class="flow-warning"><b>→</b><span>${escapeHtml(lead.next_action)}</span></div>` : ""}
+    ${lead.source_url && /^https:\/\/t\.me\/c\/\d+\/\d+$/.test(lead.source_url) ? `<p><a href="${escapeHtml(lead.source_url)}" target="_blank" rel="noopener">Открыть исходный пост в Telegram</a></p>` : ""}
+    ${lead.source_text ? `<div class="flow-transition"><strong>Исходный запрос · ${escapeHtml(flowFormatTime(lead.source_date))}</strong>${lead.source_text.split("\n").map((line) => `<p>${escapeHtml(line)}</p>`).join("")}</div>` : ""}
+    ${lead.report_note ? `<div class="flow-warning"><b>i</b><span>На момент отчёта: ${escapeHtml(lead.report_note)}</span></div>` : ""}
     <div class="flow-timeline">${timeline}</div>`;
 }
 
@@ -6222,7 +6259,14 @@ function bindEvents() {
       }
     }
   });
-  byId("flowMapCanvas").addEventListener("click", (event) => {    const node = event.target.closest("[data-flow-node]");
+  byId("flowMapCanvas").addEventListener("click", (event) => {
+    const lead = event.target.closest("[data-flow-lead]");
+    if (lead) {
+      state.flowSelected = {kind: "lead", leadId: lead.dataset.flowLead};
+      renderFlow();
+      return;
+    }
+    const node = event.target.closest("[data-flow-node]");
     if (node) {
       state.flowSelected = { kind: "node", key: node.dataset.flowNode };
       renderFlow();
