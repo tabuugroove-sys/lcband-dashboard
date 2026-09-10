@@ -66,6 +66,8 @@ const state = {
   leadChatsAt: 0,
   leadChatsPending: false,
   leadChatsError: "",
+  leadProduct: "",
+  leadLowCost: "",
   selectedLeadKey: "",
   leadConversationPending: false,
   offeredDates: [],
@@ -1887,10 +1889,13 @@ function ensureLeadChats() {
 }
 
 function renderLeadChats() {
+  renderLeadFilters();
   const q = state.query.toLowerCase();
   const statuses = chatStatusSets();
   const entries = (state.leadChats?.entries || []).filter((e) =>
     (!state.channel || (e.thread?.channel || (e.contact.startsWith("VK ") ? "vk" : "tg")) === state.channel)
+    && (!state.leadProduct || (state.leadProduct === 'pending' ? e.fit?.status !== 'assessed' : e.fit?.products?.includes(state.leadProduct)))
+    && (!state.leadLowCost || (state.leadLowCost === 'unknown' ? e.fit?.low_cost_probability == null : e.fit?.low_cost_probability != null && e.fit.low_cost_probability >= 50))
     && (!state.chatStatus || (e.thread && statuses[state.chatStatus].has(e.thread.thread_id)))
     && [e.contact, e.summary, e.thread?.display_name, e.thread?.last_body].some((v) => String(v || "").toLowerCase().includes(q)));
   byId("threadTotal").textContent = state.leadChats
@@ -1900,6 +1905,7 @@ function renderLeadChats() {
     const label = entry.mirror?.uid ? (entry.mirror.error ? "Переписка · нужна повторная сверка" : "Переписка Telegram") : entry.contact.startsWith("VK ") ? "Контакт ВКонтакте" : "Ожидает сверки Telegram";
     return `<button class="thread-button ${entry.key === state.selectedLeadKey ? "is-active" : ""}" data-lead-chat="${i}"><span class="thread-avatar">${escapeHtml(entry.contact.slice(0, 2))}</span><span><span class="thread-top"><span class="thread-name">${escapeHtml(entry.contact)}</span></span><span class="thread-preview"><strong>${label}</strong></span><span class="thread-preview">${entry.source?.closed_marker ? "Закрыто · " : ""}${escapeHtml(leadAge(entry.source?.date))}</span><span class="thread-preview">${escapeHtml(entry.source?.text || entry.summary)}</span>${entry.mirror?.last_body ? `<span class="thread-preview">${escapeHtml(entry.mirror.last_body)}</span>` : ""}</span></button>`;
   }).join("") || `<div class="empty-state">${escapeHtml(state.leadChatsError || (state.leadChatsPending ? "Загружаю…" : "Контакты не найдены"))}</div>`;
+  byId('threadList').querySelectorAll('[data-lead-chat] .thread-top').forEach((node, i) => node.insertAdjacentHTML('afterend', leadFitHtml(entries[i])));
   byId("threadList").querySelectorAll("[data-lead-chat]").forEach((button) => {
     button.addEventListener("click", () => {
       const entry = entries[Number(button.dataset.leadChat)];
@@ -1911,6 +1917,34 @@ function renderLeadChats() {
       byId("conversation").classList.add("is-open");
     });
   });
+}
+
+function leadFitHtml(entry, detail = false) {
+  const fit = entry.fit;
+  if (fit?.status !== 'assessed') return '<span class="lead-fit-tags"><span>Ожидает оценки</span></span>';
+  const labels = { lcb:'LC Band', musicians:'Музыканты', broker:'Брокер' };
+  const tags = `<span class="lead-fit-tags">${fit.products.map(p => `<span>${labels[p] || escapeHtml(p)}</span>`).join('')}<b class="${fit.fit_score >= 8 ? 'fit-high' : fit.fit_score <= 3 ? 'fit-low' : ''}">Нам: ${fit.fit_score}/10</b><span class="${fit.low_cost_probability >= 50 ? 'fit-low' : ''}">Low cost: ${fit.low_cost_probability == null ? 'неизвестно' : `${fit.low_cost_probability}%`}</span></span>`;
+  return detail ? `<div class="lead-fit-detail">${tags}<p>${escapeHtml(fit.reason)}</p><p><strong>Бюджет:</strong> ${escapeHtml(fit.low_cost_reason)}</p><small>AI-оценка · ${escapeHtml(formatDate(fit.assessed_at))} · вероятность low cost — оценочная; доступность и цена ещё требуют проверки.</small></div>` : `<span title="${escapeHtml(fit.reason)}">${tags}</span>`;
+}
+
+function renderLeadFilters() {
+  let box = byId('leadProductFilters');
+  if (!box) {
+    box = document.createElement('div'); box.id = 'leadProductFilters'; box.className = 'lead-product-filters';
+    byId('threadList').before(box);
+    box.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-lead-product]');
+      if (button) { state.leadProduct = button.dataset.leadProduct; renderThreads(); }
+    });
+    box.addEventListener('change', (event) => { state.leadLowCost = event.target.value; renderThreads(); });
+  }
+  const entries = state.leadChats?.entries || [];
+  box.innerHTML = `<div role="group" aria-label="Тип заявки">${[['','Все'],['lcb','LC Band'],['musicians','Музыканты'],['broker','Брокер'],['pending','Без оценки']].map(([key,label]) => {
+    const count = entries.filter(e => !key || (key === 'pending' ? e.fit?.status !== 'assessed' : e.fit?.products?.includes(key))).length;
+    return `<button type="button" data-lead-product="${key}" aria-pressed="${state.leadProduct === key}">${label} <small>${count}</small></button>`;
+  }).join('')}</div><label>Бюджет <select aria-label="Фильтр Low cost"><option value="">Все заявки</option><option value="likely">Low cost · от 50%</option><option value="unknown">Бюджет неясен</option></select></label>`;
+  box.querySelector('select').value = state.leadLowCost;
+  box.hidden = false;
 }
 
 function leadAge(epoch) {
@@ -1954,6 +1988,7 @@ async function openLeadConversation(entry, options = {}) {
     view.innerHTML = `<div class="lead-mirror-heading"><button type="button" data-lead-back>←</button><strong>${escapeHtml(mirror?.name || entry.contact)}</strong><a href="${mirror?.uid ? `tg://user?id=${Number(mirror.uid)}` : entry.source_url}">Открыть в Telegram ↗</a><small>${escapeHtml(entry.contact)} · ${mirror?.checked ? `Сверка: ${escapeHtml(formatDate(mirror.checked))}` : "Ожидает синхронизации"}${mirror?.checked && Date.now() / 1000 - mirror.checked > 300 ? " · данные устарели" : ""}</small></div>
       <details class="lead-source-card" open><summary>Исходный запрос · <span data-source-age="${Number(source.date || 0)}">${leadAge(source.date)}</span>${source.closed_marker ? " · ЗАКРЫТО (в тексте)" : ""}${source.deleted ? " · ПОСТ УДАЛЁН" : ""}</summary><small>${escapeHtml(formatDate(source.date))}${source.edited ? ` · правка ${escapeHtml(formatDate(source.edited))}` : ""} · <a href="${entry.source_url}" target="_blank" rel="noopener noreferrer">Исходный пост ↗</a>${source.error ? " · последняя сверка поста не удалась" : ""}</small><div class="lead-source-body">${escapeHtml(source.text || "Текст исходного поста пока не получен.")}</div></details>
       ${error ? `<div class="lead-mirror-warning">${escapeHtml(error)}</div>` : ""}<div class="lead-mirror-history">${mirror?.has_older ? '<button type="button" data-lead-older>Показать предыдущие сообщения</button>' : mirror && !mirror.complete && mirror.uid ? '<small>Более ранняя история ещё подгружается…</small>' : ""}${(mirror?.messages || []).map((m) => leadMessageHtml(m, mirror)).join("") || `<div class="empty-state">${mirror?.uid && !mirror.error ? "В Telegram личная переписка пуста." : "Личная история пока не получена."}</div>`}</div>`;
+    view.querySelector('.lead-source-card').insertAdjacentHTML('beforebegin', leadFitHtml(entry, true));
     view.querySelector("[data-lead-back]").addEventListener("click", clearSelectedConversation);
     let oldest = mirror?.messages?.[0]?.id;
     view.querySelector("[data-lead-older]")?.addEventListener("click", async (event) => {
@@ -2017,6 +2052,7 @@ function renderThreads() {
   renderChatStatusFilters();
   // The report projection does not assert read/delivery state for its contacts.
   byId("filterUnread").closest(".chat-status-filters").hidden = state.chatFolder === "lead-map";
+  if (byId('leadProductFilters')) byId('leadProductFilters').hidden = state.chatFolder !== 'lead-map';
   if (state.chatFolder === "lead-map") {
     renderLeadChats();
     return;
