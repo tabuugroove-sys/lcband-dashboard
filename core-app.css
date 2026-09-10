@@ -50,6 +50,11 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+#backendSourceButton { flex: 0 0 auto; min-width: 130px; font: inherit; text-align: left; color: var(--ink); }
+.backend-source-dialog { width: min(560px, 88vw); border: 1px solid var(--line); border-radius: 16px; padding: 24px; color: var(--ink); background: var(--paper); }
+.backend-source-dialog::backdrop { background: #0005; }
+.backend-source-dialog p { line-height: 1.5; }
+.backend-source-dialog code { overflow-wrap: anywhere; font-size: 12px; }
 html, body { margin: 0; min-height: 100%; }
 body {
   background: var(--paper);

@@ -50,6 +50,10 @@ const OPSMAP_LEAD_FIELDS = Object.freeze([
 
 const state = {
   health: null,
+  backendSource: null,
+  backendSourcePending: false,
+  backendSourceAt: 0,
+  backendSourceError: "",
   runtimeStatus: null,
   autonomy: null,
   summary: null,
@@ -1036,6 +1040,23 @@ function renderAutonomy() {
   }
 }
 
+async function submitAutonomyMode(body) {
+  // Initial dashboard refresh can still be waiting for unrelated slow panels.
+  // Fetch the authentication requirement before choosing the mutation route.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  let health;
+  try { health = await apiGet(API.health, { signal: controller.signal }); }
+  finally { clearTimeout(timer); }
+  if (!health.ok) throw new Error("Core пока не подтвердил готовность. Режим не изменён.");
+  state.health = health;
+  if (health.native_operator_auth_required === true) {
+    if (!window.CoreParity?.mutate) throw new Error("Обновите Core: модуль подтверждения действий ещё не загружен.");
+    return window.CoreParity.mutate("chat/autonomy", "chat.autonomy", body);
+  }
+  return apiPost(API.autonomy, body);
+}
+
 async function setAutonomyMode(mode) {
   if (state.changingAutonomy || !AUTONOMY_MODES[mode]) return;
   state.changingAutonomy = true;
@@ -1044,7 +1065,7 @@ async function setAutonomyMode(mode) {
   const requestId = globalThis.crypto?.randomUUID?.()
     || `autonomy-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   try {
-    state.autonomy = await apiPost(API.autonomy, { mode, request_id: requestId });
+    state.autonomy = await submitAutonomyMode({ mode, request_id: requestId });
     state.health = {
       ...(state.health || {}),
       chat_autonomy_mode: state.autonomy.mode,
@@ -2201,7 +2222,8 @@ async function openThread(threadId, updateHash = true, options = {}) {
     byId("conversationContent").hidden = false;
     byId("conversationName").textContent = name;
     byId("conversationAvatar").innerHTML = avatarContent(thread, name);
-    byId("conversationMeta").textContent = `${thread.handle ? `@${thread.handle}` : thread.peer_external_id || "—"} · ${channelLabel(thread.channel)} · ${thread.current_owner || "владелец не назначен"}`;
+    const historySource = state.backendSource?.location === "server" ? "база сервера" : state.backendSource?.location === "local" ? "база Мака" : "база Core";
+    byId("conversationMeta").textContent = `${thread.handle ? `@${thread.handle}` : thread.peer_external_id || "—"} · ${channelLabel(thread.channel)} · ${historySource} · ${(payload.messages || []).length} сообщений · последнее ${formatDate(latestVisibleMessage?.sent_at_epoch)}`;
     renderConversationRole(thread);
     const initialRequest = payload.initial_request;
     if (initialRequest?.text) {
@@ -6023,7 +6045,33 @@ async function refreshCalendar(force = false) {
   }
 }
 
+function renderBackendSource() {
+  const source = state.backendSource;
+  const label = source ? ({ local: "Мак", server: "Сервер", unknown: "Не определён" })[source.location] : "Нет связи";
+  byId("backendSourceLabel").textContent = state.backendSourceError ? `${label} · нет связи` : `${label}${source ? ` · ${source.label}` : ""}`;
+  const checked = source ? formatDate(source.checked_at_epoch) : "—";
+  const latest = source ? Object.entries(source.latest_message_by_channel || {}).map(([channel, epoch]) => `${escapeHtml(channelLabel(channel))}: ${escapeHtml(formatDate(epoch))}`).join(" · ") : "—";
+  const mirror = state.calendar?.mirror_snapshot;
+  byId("backendSourceDetails").innerHTML = source
+    ? `<p><strong>Бэкенд: ${escapeHtml(label)} · ${escapeHtml(source.label)}</strong><br>Узел: ${escapeHtml(source.host)}. Проверено: ${escapeHtml(checked)}.</p><p><strong>Чаты, карта лидов и посты:</strong> база этого бэкенда.<br><code>${escapeHtml(source.database)}</code></p><p>Последние сообщения в базе: ${latest}.</p><p><strong>Календарь:</strong> ${source.calendar_is_separate ? "отдельный снимок" : "та же база Core"}.<br><code>${escapeHtml(source.calendar_database)}</code>${mirror ? `<br>Снимок активирован: ${escapeHtml(formatDate(mirror.activated_at_epoch))}.` : "<br>Свежесть снимка ещё не проверена."}</p><p>${escapeHtml(source.note)}</p>${state.backendSourceError ? "<p>Сейчас источник не отвечает; выше показана последняя успешная проверка.</p>" : ""}`
+    : "<p>Бэкенд не ответил. По адресу окна нельзя определить, на какой машине хранится база: localhost может вести через туннель.</p>";
+}
+
+function refreshBackendSource(force = false) {
+  if (state.backendSourcePending || (!force && Date.now() - state.backendSourceAt < 30000)) return;
+  state.backendSourcePending = true;
+  state.backendSourceAt = Date.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  apiGet("/api/core/data-source", { signal: controller.signal }).then((payload) => {
+    state.backendSource = payload;
+    state.backendSourceError = "";
+  }).catch((error) => { state.backendSourceError = error.message; })
+    .finally(() => { clearTimeout(timer); state.backendSourcePending = false; renderBackendSource(); });
+}
+
 async function refreshAll(force = false) {
+  refreshBackendSource(force);
   if (state.loading) return;
   state.loading = true;
   byId("refreshButton").disabled = true;
@@ -6120,6 +6168,12 @@ async function refreshAll(force = false) {
 }
 
 function bindEvents() {
+  byId("backendSourceButton").addEventListener("click", () => {
+    renderBackendSource();
+    refreshBackendSource();
+    byId("backendSourceDialog").showModal();
+  });
+  byId("backendSourceClose").addEventListener("click", () => byId("backendSourceDialog").close());
   document.querySelectorAll(".tab-button").forEach((button) => {
     button.addEventListener("click", () => {
       if (Date.now() < navSuppressClickUntil) return;
