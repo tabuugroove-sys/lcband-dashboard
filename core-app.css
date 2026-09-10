@@ -613,6 +613,8 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .thread-preview { margin-top: 3px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; }
 .conversation { min-width: 0; min-height: 0; display: flex; }
 .conversation-empty { max-width: 340px; margin: auto; padding: 24px; color: var(--muted); text-align: center; }
+.conversation-empty.lead-mirror-view { max-width: none; margin: 0; padding: 0; text-align: left; color: var(--ink); }
+.conversation-empty.lead-mirror-view p { display: block; }
 .conversation-empty strong { display: block; margin-top: 10px; color: var(--ink); }
 .conversation-empty p, .empty-icon { display: none; }
 /* Flex-столбец вместо позиционной сетки: панели («Изначальный запрос»,
@@ -2010,3 +2012,15 @@ main { max-width: 1500px; margin: 0 auto; padding: 18px 20px 48px; }
 .arbitr-contact { margin-left: 2px; }
 .arbitr-contact-title { border: 0; background: none; padding: 0; font: inherit; color: var(--accent); cursor: pointer; }
 .arbitr-contact-title:hover { text-decoration: underline; }
+.lead-mirror-view { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; text-align: left; max-width: none; width: 100%; height: 100%; min-height: 0; padding: 0; gap: 0; }
+.lead-mirror-heading { padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border-bottom: 1px solid var(--border, #dce3df); }
+.lead-mirror-heading small { flex-basis: 100%; }
+.lead-source-card { padding: 12px 20px; background: var(--surface-soft, #edf5f1); flex-shrink: 0; max-height: 38%; overflow: auto; }
+.lead-source-card summary { cursor: pointer; font-weight: 650; }
+.lead-source-body { white-space: pre-wrap; line-height: 1.5; margin-top: 10px; }
+.lead-mirror-history { overflow-y: auto; flex: 1; min-height: 120px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.lead-mirror-history .message { white-space: pre-wrap; flex-shrink: 0; max-width: 82%; align-self: flex-start; }
+.lead-mirror-history .message.outbound { align-self: flex-end; }
+.lead-mirror-heading a { margin-left: auto; }
+.lead-mirror-warning { padding: 10px 20px; background: #fff3d6; color: #73531b; }
+.mirror-media { font-size: 12px; }

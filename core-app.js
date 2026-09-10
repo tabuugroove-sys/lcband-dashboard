@@ -66,6 +66,8 @@ const state = {
   leadChatsAt: 0,
   leadChatsPending: false,
   leadChatsError: "",
+  selectedLeadKey: "",
+  leadConversationPending: false,
   offeredDates: [],
   contactDatesMonth: "",
   coordinationCases: [],
@@ -1842,6 +1844,8 @@ function renderChatStatusFilters() {
 }
 
 function clearSelectedConversation() {
+  state.selectedLeadKey = "";
+  byId("conversationEmpty").classList.remove("lead-mirror-view");
   state.threadRequestController?.abort();
   state.threadRequestController = null;
   state.selectedThreadId = "";
@@ -1870,7 +1874,11 @@ function ensureLeadChats() {
     state.leadChats = payload;
     state.leadChatsError = "";
     byId("folderLeadMap").textContent = payload.total;
-    byId("sizeLeadMap").textContent = `${payload.linked} переписок`;
+    byId("sizeLeadMap").textContent = `${payload.entries.filter((e) => e.mirror?.uid && !e.mirror.error).length} сверено в TG`;
+    if (state.selectedLeadKey) {
+      const entry = payload.entries.find((e) => e.key === state.selectedLeadKey);
+      if (entry) openLeadConversation(entry, { background: true });
+    }
   }).catch((error) => { state.leadChatsError = error.message; })
     .finally(() => {
       state.leadChatsPending = false;
@@ -1886,15 +1894,16 @@ function renderLeadChats() {
     && (!state.chatStatus || (e.thread && statuses[state.chatStatus].has(e.thread.thread_id)))
     && [e.contact, e.summary, e.thread?.display_name, e.thread?.last_body].some((v) => String(v || "").toLowerCase().includes(q)));
   byId("threadTotal").textContent = state.leadChats
-    ? `${entries.length} контактов · ${state.leadChats.linked} переписок в Core` : "Загружаю контакты…";
+    ? `${entries.length} контактов · Telegram: ${entries.filter((e) => e.mirror?.uid && !e.mirror.error).length} проверено` : "Загружаю контакты…";
   byId("threadList").innerHTML = entries.map((entry, i) => {
     const thread = entry.thread;
-    const label = thread ? "Открыть переписку" : entry.state === "ambiguous" ? "Нужно уточнить диалог" : "Переписка не найдена в Core";
-    return `<button class="thread-button ${thread?.thread_id === state.selectedThreadId ? "is-active" : ""}" data-lead-chat="${i}"><span class="thread-avatar">${escapeHtml(entry.contact.slice(0, 2))}</span><span><span class="thread-top"><span class="thread-name">${escapeHtml(entry.contact)}</span></span><span class="thread-preview"><strong>${label}</strong></span><span class="thread-preview">Из отчёта: ${escapeHtml(entry.summary)}</span>${thread ? `<span class="thread-preview">${escapeHtml(thread.last_body)}</span>` : ""}</span></button>`;
+    const label = entry.mirror?.uid ? (entry.mirror.error ? "Переписка · нужна повторная сверка" : "Переписка Telegram") : entry.contact.startsWith("VK ") ? "Контакт ВКонтакте" : "Ожидает сверки Telegram";
+    return `<button class="thread-button ${entry.key === state.selectedLeadKey ? "is-active" : ""}" data-lead-chat="${i}"><span class="thread-avatar">${escapeHtml(entry.contact.slice(0, 2))}</span><span><span class="thread-top"><span class="thread-name">${escapeHtml(entry.contact)}</span></span><span class="thread-preview"><strong>${label}</strong></span><span class="thread-preview">${entry.source?.closed_marker ? "Закрыто · " : ""}${escapeHtml(leadAge(entry.source?.date))}</span><span class="thread-preview">${escapeHtml(entry.source?.text || entry.summary)}</span>${entry.mirror?.last_body ? `<span class="thread-preview">${escapeHtml(entry.mirror.last_body)}</span>` : ""}</span></button>`;
   }).join("") || `<div class="empty-state">${escapeHtml(state.leadChatsError || (state.leadChatsPending ? "Загружаю…" : "Контакты не найдены"))}</div>`;
   byId("threadList").querySelectorAll("[data-lead-chat]").forEach((button) => {
     button.addEventListener("click", () => {
       const entry = entries[Number(button.dataset.leadChat)];
+      if (entry.key) { openLeadConversation(entry); return; }
       if (entry.thread) { openThread(entry.thread.thread_id); return; }
       clearSelectedConversation();
       byId("conversationEmpty").innerHTML = `<button type="button" data-lead-back>← К списку контактов</button><strong>${escapeHtml(entry.contact)}</strong><div>${escapeHtml(entry.summary)}</div><br><div>${entry.state === "ambiguous" ? "Найдено несколько диалогов. Требуется сверка адресата." : "В серверной базе не найдена однозначно связанная личная переписка. Это не означает, что человеку ещё не писали."}</div><br><a href="${escapeHtml(entry.source_url)}" target="_blank" rel="noopener noreferrer">Исходная заявка ↗</a>`;
@@ -1903,6 +1912,78 @@ function renderLeadChats() {
     });
   });
 }
+
+function leadAge(epoch) {
+  if (!epoch) return "время публикации неизвестно";
+  const minutes = Math.max(0, Math.floor((Date.now() / 1000 - epoch) / 60));
+  if (minutes < 60) return `${minutes} мин назад`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `${hours} ч ${minutes % 60} мин назад` : `${Math.floor(hours / 24)} д ${hours % 24} ч назад`;
+}
+
+function leadMessageHtml(message, mirror) {
+  const url = `tg://user?id=${Number(mirror.uid)}`;
+  const body = escapeHtml(message.body || "").replace(/https?:\/\/[^\s<>]+/g, (link) => `<a href="${link}" target="_blank" rel="noopener noreferrer">${link}</a>`);
+  const mediaLabels = { MessageMediaPhoto: "Фото", MessageMediaDocument: "Файл", MessageMediaContact: "Контакт", MessageMediaGeo: "Место", MessageMediaPoll: "Опрос" };
+  const mediaLabel = message.media === "MessageMediaWebPage" ? "" : mediaLabels[message.media] || (message.media ? "Вложение" : "");
+  return `<div class="message ${message.outbound ? "outbound" : ""}" data-provider-message="${Number(message.id)}">${message.reply_to ? `<small>Ответ на сообщение ${Number(message.reply_to)}</small><br>` : ""}${body}${mediaLabel ? `<p class="mirror-media">${mediaLabel} · <a href="${url}">Открыть в Telegram</a></p>` : ""}<div class="message-meta">${message.outbound ? "Исходящее · " : ""}${escapeHtml(formatDate(message.date))}${message.edited ? " · изменено" : ""}</div></div>`;
+}
+
+async function openLeadConversation(entry, options = {}) {
+  if (options.background && (state.leadConversationPending || state.selectedLeadKey !== entry.key)) return;
+  if (!options.background) {
+    clearSelectedConversation();
+    state.selectedLeadKey = entry.key;
+    byId("conversation").classList.add("is-open");
+  }
+  state.leadConversationPending = true;
+  const view = byId("conversationEmpty");
+  const previous = view.querySelector(".lead-mirror-history");
+  const nearBottom = !previous || previous.scrollHeight - previous.scrollTop - previous.clientHeight < 80;
+  const scrollTop = previous?.scrollTop || 0;
+  if (options.background && previous && !nearBottom) { state.leadConversationPending = false; return; }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const payload = await apiGet(`/api/app/lead_conversation?key=${encodeURIComponent(entry.key)}`, { signal: controller.signal });
+    if (state.selectedLeadKey !== entry.key) return;
+    const mirror = payload.mirror;
+    const source = mirror?.source?.text || mirror?.source?.deleted ? mirror.source : entry.source || {};
+    const error = mirror?.error === "vk_not_telegram" ? "Этот контакт во ВКонтакте. Личная история Telegram к нему не относится." : mirror?.error === "FloodWaitError" ? `Telegram попросил подождать. Повторная сверка после ${formatDate(mirror.retry_after)}.` : mirror?.error ? "Не удалось сверить диалог с Telegram. Повторим автоматически." : !mirror?.uid ? "Личный диалог ещё не проверен." : "";
+    view.classList.add("lead-mirror-view");
+    view.innerHTML = `<div class="lead-mirror-heading"><button type="button" data-lead-back>←</button><strong>${escapeHtml(mirror?.name || entry.contact)}</strong><a href="${mirror?.uid ? `tg://user?id=${Number(mirror.uid)}` : entry.source_url}">Открыть в Telegram ↗</a><small>${escapeHtml(entry.contact)} · ${mirror?.checked ? `Сверка: ${escapeHtml(formatDate(mirror.checked))}` : "Ожидает синхронизации"}${mirror?.checked && Date.now() / 1000 - mirror.checked > 300 ? " · данные устарели" : ""}</small></div>
+      <details class="lead-source-card" open><summary>Исходный запрос · <span data-source-age="${Number(source.date || 0)}">${leadAge(source.date)}</span>${source.closed_marker ? " · ЗАКРЫТО (в тексте)" : ""}${source.deleted ? " · ПОСТ УДАЛЁН" : ""}</summary><small>${escapeHtml(formatDate(source.date))}${source.edited ? ` · правка ${escapeHtml(formatDate(source.edited))}` : ""} · <a href="${entry.source_url}" target="_blank" rel="noopener noreferrer">Исходный пост ↗</a>${source.error ? " · последняя сверка поста не удалась" : ""}</small><div class="lead-source-body">${escapeHtml(source.text || "Текст исходного поста пока не получен.")}</div></details>
+      ${error ? `<div class="lead-mirror-warning">${escapeHtml(error)}</div>` : ""}<div class="lead-mirror-history">${mirror?.has_older ? '<button type="button" data-lead-older>Показать предыдущие сообщения</button>' : mirror && !mirror.complete && mirror.uid ? '<small>Более ранняя история ещё подгружается…</small>' : ""}${(mirror?.messages || []).map((m) => leadMessageHtml(m, mirror)).join("") || `<div class="empty-state">${mirror?.uid && !mirror.error ? "В Telegram личная переписка пуста." : "Личная история пока не получена."}</div>`}</div>`;
+    view.querySelector("[data-lead-back]").addEventListener("click", clearSelectedConversation);
+    let oldest = mirror?.messages?.[0]?.id;
+    view.querySelector("[data-lead-older]")?.addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const older = await apiGet(`/api/app/lead_conversation?key=${encodeURIComponent(entry.key)}&before=${oldest}`);
+        if (state.selectedLeadKey !== entry.key) return;
+        button.insertAdjacentHTML("afterend", (older.mirror?.messages || []).map((m) => leadMessageHtml(m, older.mirror)).join(""));
+        oldest = older.mirror?.messages?.[0]?.id || oldest;
+        if (!older.mirror?.has_older) button.remove();
+      } catch (error) { button.textContent = "Не удалось загрузить. Повторить"; }
+      finally { button.disabled = false; }
+    });
+    const history = view.querySelector(".lead-mirror-history");
+    history.scrollTop = nearBottom ? history.scrollHeight : scrollTop;
+  } catch (error) {
+    if (state.selectedLeadKey === entry.key && !options.background) {
+      view.innerHTML = '<div>Не удалось загрузить переписку. <button data-lead-retry>Повторить</button></div>';
+      view.querySelector("[data-lead-retry]").addEventListener("click", () => openLeadConversation(entry));
+    }
+  } finally {
+    clearTimeout(timer);
+    state.leadConversationPending = false;
+  }
+}
+
+setInterval(() => {
+  document.querySelectorAll("[data-source-age]").forEach((node) => { node.textContent = leadAge(Number(node.dataset.sourceAge)); });
+}, 30000);
 
 function renderThreads() {
   ensureLeadChats();
