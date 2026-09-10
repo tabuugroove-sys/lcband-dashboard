@@ -58,6 +58,10 @@ const state = {
   costumes: { musicians: [], stats: { total: 0, with_size: 0, with_costumes: 0, needs_confirmation: 0 } },
   calendar: { events: [], business_events: 0, technical_events: 0, model_ready: false },
   threads: [],
+  leadChats: null,
+  leadChatsAt: 0,
+  leadChatsPending: false,
+  leadChatsError: "",
   offeredDates: [],
   contactDatesMonth: "",
   coordinationCases: [],
@@ -1580,6 +1584,7 @@ function ensureChannelThreads(channel) {
 }
 
 function threadSource() {
+  if (state.chatFolder === "lead-map") return (state.leadChats?.entries || []).flatMap((e) => e.thread ? [e.thread] : []);
   const channel = effectiveChannel();
   return (channel && channelRows(channel)) || state.threads;
 }
@@ -1596,6 +1601,7 @@ function threadSourceMeta() {
 }
 
 function threadMatchesFolder(thread, folder) {
+  if (folder === "lead-map") return (state.leadChats?.entries || []).some((e) => e.thread?.thread_id === thread.thread_id);
   if (!folder || folder === "all") return true;
   if (CHANNEL_FOLDERS[folder]) return thread.channel === CHANNEL_FOLDERS[folder];
   if (folder.startsWith("case:")) {
@@ -1835,7 +1841,50 @@ function clearSelectedConversation() {
   if (location.hash.startsWith("#chat/")) history.replaceState(null, "", "#chats");
 }
 
+function ensureLeadChats() {
+  if (state.leadChatsPending || Date.now() - state.leadChatsAt < 30000) return;
+  state.leadChatsPending = true;
+  state.leadChatsAt = Date.now();
+  apiGet("/api/app/lead_chats").then((payload) => {
+    state.leadChats = payload;
+    state.leadChatsError = "";
+    byId("folderLeadMap").textContent = payload.total;
+    byId("sizeLeadMap").textContent = `${payload.linked} переписок`;
+  }).catch((error) => { state.leadChatsError = error.message; })
+    .finally(() => {
+      state.leadChatsPending = false;
+      if (state.chatFolder === "lead-map") renderThreads();
+    });
+}
+
+function renderLeadChats() {
+  const q = state.query.toLowerCase();
+  const statuses = chatStatusSets();
+  const entries = (state.leadChats?.entries || []).filter((e) =>
+    (!state.channel || (e.thread?.channel || (e.contact.startsWith("VK ") ? "vk" : "tg")) === state.channel)
+    && (!state.chatStatus || (e.thread && statuses[state.chatStatus].has(e.thread.thread_id)))
+    && [e.contact, e.summary, e.thread?.display_name, e.thread?.last_body].some((v) => String(v || "").toLowerCase().includes(q)));
+  byId("threadTotal").textContent = state.leadChats
+    ? `${entries.length} контактов · ${state.leadChats.linked} переписок в Core` : "Загружаю контакты…";
+  byId("threadList").innerHTML = entries.map((entry, i) => {
+    const thread = entry.thread;
+    const label = thread ? "Открыть переписку" : entry.state === "ambiguous" ? "Нужно уточнить диалог" : "Переписка не найдена в Core";
+    return `<button class="thread-button ${thread?.thread_id === state.selectedThreadId ? "is-active" : ""}" data-lead-chat="${i}"><span class="thread-avatar">${escapeHtml(entry.contact.slice(0, 2))}</span><span><span class="thread-top"><span class="thread-name">${escapeHtml(entry.contact)}</span></span><span class="thread-preview"><strong>${label}</strong></span><span class="thread-preview">Из отчёта: ${escapeHtml(entry.summary)}</span>${thread ? `<span class="thread-preview">${escapeHtml(thread.last_body)}</span>` : ""}</span></button>`;
+  }).join("") || `<div class="empty-state">${escapeHtml(state.leadChatsError || (state.leadChatsPending ? "Загружаю…" : "Контакты не найдены"))}</div>`;
+  byId("threadList").querySelectorAll("[data-lead-chat]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const entry = entries[Number(button.dataset.leadChat)];
+      if (entry.thread) { openThread(entry.thread.thread_id); return; }
+      clearSelectedConversation();
+      byId("conversationEmpty").innerHTML = `<button type="button" data-lead-back>← К списку контактов</button><strong>${escapeHtml(entry.contact)}</strong><div>${escapeHtml(entry.summary)}</div><br><div>${entry.state === "ambiguous" ? "Найдено несколько диалогов. Требуется сверка адресата." : "В серверной базе не найдена однозначно связанная личная переписка. Это не означает, что человеку ещё не писали."}</div><br><a href="${escapeHtml(entry.source_url)}" target="_blank" rel="noopener noreferrer">Исходная заявка ↗</a>`;
+      byId("conversationEmpty").querySelector("[data-lead-back]").addEventListener("click", clearSelectedConversation);
+      byId("conversation").classList.add("is-open");
+    });
+  });
+}
+
 function renderThreads() {
+  ensureLeadChats();
   if (!state.funnelView || Date.now() - (state.funnelViewAt || 0) > 120000) {
     // Воронку берём у её владельца в Core. Раньше единственным источником был
     // прокси на legacy-бэкенд: пока тот занят своей выгрузкой, он отдаёт 503,
@@ -1864,6 +1913,12 @@ function renderThreads() {
   syncChannelFilter();
   byId("chatSearch").value = state.query;
   renderChatStatusFilters();
+  // The report projection does not assert read/delivery state for its contacts.
+  byId("filterUnread").closest(".chat-status-filters").hidden = state.chatFolder === "lead-map";
+  if (state.chatFolder === "lead-map") {
+    renderLeadChats();
+    return;
+  }
   const threads = visibleThreads();
   if (
     state.selectedThreadId
@@ -2083,7 +2138,8 @@ async function openThread(threadId, updateHash = true, options = {}) {
     state.contactDatesMonth = "";
     renderContactDates();
     renderThreads();
-    const selectedThread = state.threads.find((item) => item.thread_id === threadId)
+    const selectedThread = threadSource().find((item) => item.thread_id === threadId)
+      || state.threads.find((item) => item.thread_id === threadId)
       || Object.values(state.channelThreads)
         .flatMap((entry) => entry.rows)
         .find((item) => item.thread_id === threadId)
@@ -6073,6 +6129,13 @@ function bindEvents() {
   document.querySelectorAll("[data-chat-folder]").forEach((button) => {
     button.addEventListener("click", () => {
       state.chatFolder = button.dataset.chatFolder;
+      if (state.chatFolder === "lead-map") {
+        state.query = "";
+        state.channel = "";
+        state.chatStatus = "";
+        byId("globalSearch").value = "";
+        clearSelectedConversation();
+      }
       renderThreads();
     });
   });
