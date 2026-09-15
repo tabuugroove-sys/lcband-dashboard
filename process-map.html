@@ -382,7 +382,7 @@
       {
         group:'dm', name:'IG Follow-up', label:'com.lcband.ig-followup',
         file:'ig_followup.py run', schedule:'daily 08:00',
-        why:'Re-engagement прогретых IG-лидов: DM-предложение сотрудничества (LC Band + Noize Drum) после cooldown.',
+        why:'Re-engagement прогретых IG-лидов: DM-предложение сотрудничества (LC Band + барабанное шоу CrusH) после cooldown.',
         input:'ig_story_reply_history.json (прогретые контакты)', action:'кандидаты reply_count≥5 и cooldown 14д → DM', output:'IG DM + ig_followup_sent.jsonl / ig_followup_state.json',
         logic:['источник прогрева — ig_story_responder history','кандидат: reply_count≥5 И last_reply>14д И не в state','anti-flood: max 5/день, пауза 60-180с','после DAILY_CAP exit, остаток завтра','display name = LUXURY BAND'],
       },
@@ -408,7 +408,7 @@
         file:'broker_casting.py', schedule:'каждые 30 мин',
         why:'Отдельный broker-владелец выбора подрядчика: сначала casting, потом relay.',
         input:'broker_orders.json + contractor roster/media', action:'rank top-N + assign candidate + relay', output:'client relay / contractor brief',
-        logic:['fast-path: semantic match + current client price + rights + verified fidelity assets → КП ≤15 мин, availability не блокирует','availability-obligation создаётся ДО client-send; unknown/checking явно написан в КП; unavailable/timeout → alternative/honest holding','только standalone solo sax → 3 curated Drive promos клиенту из SOLO_SAX_PRODUCT_HANDLES; это не LCB lineup recruit','sax внутри состава LCB → event_ops availability/work-offer по LCB_LINEUP_SAX_HANDLES, без client proposal','date-check solo sax только при структурной event_date; без даты подрядчику не уходит плейсхолдер вроде “дату из запроса”','drum_show contractor route строго только @vadimnoize / Noize; штатным барабанщикам заявки не уходят','drum запрос → Noize promo/price клиенту + date-check Вадиму','client budget не блокирует поиск: готовый кандидат презентуется по contractor + max(20k,30%)','если budget уже есть — он остаётся ceiling/viability signal','service-type match','media availability','quality score','lowcost simple actor/dancer tasks do not enter casting','не смешан с tg_responder'],
+        logic:['fast-path: semantic match + current client price + rights + verified fidelity assets → КП ≤15 мин, availability не блокирует','availability-obligation создаётся ДО client-send; unknown/checking явно написан в КП; unavailable/timeout → alternative/honest holding','только standalone solo sax → 3 curated Drive promos клиенту из SOLO_SAX_PRODUCT_HANDLES; это не LCB lineup recruit','sax внутри состава LCB → event_ops availability/work-offer по LCB_LINEUP_SAX_HANDLES, без client proposal','date-check solo sax только при структурной event_date; без даты подрядчику не уходит плейсхолдер вроде “дату из запроса”','drum_show contractor route: CrusH по умолчанию, Noize Drum только световые костюмы; штатным барабанщикам заявки не уходят','drum запрос → канон-цена и промо CrusH клиенту (Noize Drum — только световые костюмы) + date-check подрядчику','client budget не блокирует поиск: готовый кандидат презентуется по contractor + max(20k,30%)','если budget уже есть — он остаётся ceiling/viability signal','service-type match','media availability','quality score','lowcost simple actor/dancer tasks do not enter casting','не смешан с tg_responder'],
       },
       {
         group:'broker', name:'Broker Collect Promo', label:'com.lcband.broker-collect-promo',
