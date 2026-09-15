@@ -19,6 +19,18 @@
     done: "разбор готов", failed: "разбор не удался"
   };
 
+  function fmtDuration(seconds) {
+    if (typeof seconds !== "number" || !isFinite(seconds) || seconds < 0) return null;
+    var s = Math.round(seconds);
+    if (s < 60) return s + " сек";
+    var m = Math.round(s / 60);
+    if (m < 60) return m + " мин";
+    var h = Math.floor(m / 60), remM = m % 60;
+    if (h < 24) return remM ? h + " ч " + remM + " мин" : h + " ч";
+    var d = Math.floor(h / 24), remH = h % 24;
+    return remH ? d + " дн " + remH + " ч" : d + " дн";
+  }
+
   function fmtWhen(iso) {
     if (!iso) return "—";
     try {
@@ -215,10 +227,13 @@
       } else {
         var pitch = p.pitch || {};
         if (pitch.sent === true) {
+          var delayLabel = fmtDuration(pitch.delay_seconds);
           pitchStatus.textContent = "✅ доставлен · receipt проверен" +
+            (delayLabel ? " · пост→питч " + delayLabel : "") +
             (pitch.type_label ? " · " + pitch.type_label : "");
           pitchStatus.classList.add("pitch-sent");
-          pitchStatus.title = pitch.ts ? "Отправлен " + fmtWhen(pitch.ts) : "";
+          pitchStatus.title = pitch.ts ? "Отправлен " + fmtWhen(pitch.ts) :
+            (delayLabel ? "Задержка от поста до отправки: " + delayLabel : "");
         } else if (pitch.sent === false) {
           var state = pitch.state || "";
           var stateLabels = {
