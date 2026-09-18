@@ -796,13 +796,6 @@
         input:'VK unclear state', action:'reclassify with fresher context', output:'updated decision/state',
         logic:['не оставляет unclear навсегда','автономный recheck','не требует ручного разбора'],
       },
-      {
-        group:'infra', name:'VPS Sync', label:'com.lcband.vps-sync',
-        file:'sync_to_vps.sh', schedule:'каждые 5 мин',
-        why:'Реплицирует state + код Mac→VPS, чтобы VPS-копия dashboard/бэкенда была свежей.',
-        input:'orders.db + key JSON state + code files (*.py, configs, dashboard/, scripts/, skills/, *.md)', action:'scp state + incremental code sync', output:'VPS C:/lcband-dashboard зеркало',
-        logic:['JSON state всегда full scp','orders.db через .new + swap (stop/restart dashboard backend), только при изменении mtime','код инкрементально tar+ssh по marker (newer than last sync)','исключает sessions/secrets/.env/service_account.json/logs/тяжёлые media','set -u, partial failures OK — лог и продолжаем'],
-      },
     ];
 
     const groupMeta = {
