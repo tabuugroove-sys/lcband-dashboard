@@ -68,6 +68,7 @@ const state = {
   leadChatsError: "",
   leadProduct: "",
   leadLowCost: "",
+  leadSortBas: false,
   selectedLeadKey: "",
   leadConversationPending: false,
   offeredDates: [],
@@ -1898,6 +1899,7 @@ function renderLeadChats() {
     && (!state.leadLowCost || (state.leadLowCost === 'unknown' ? e.fit?.low_cost_probability == null : e.fit?.low_cost_probability != null && e.fit.low_cost_probability >= 50))
     && (!state.chatStatus || (e.thread && statuses[state.chatStatus].has(e.thread.thread_id)))
     && [e.contact, e.summary, e.thread?.display_name, e.thread?.last_body].some((v) => String(v || "").toLowerCase().includes(q)));
+  if (state.leadSortBas) entries.sort((a, b) => (b.bas ?? -1) - (a.bas ?? -1));
   byId("threadTotal").textContent = state.leadChats
     ? `${entries.length} контактов · Telegram: ${entries.filter((e) => e.mirror?.uid && !e.mirror.error).length} проверено` : "Загружаю контакты…";
   byId("threadList").innerHTML = entries.map((entry, i) => {
@@ -1923,7 +1925,7 @@ function leadFitHtml(entry, detail = false) {
   const fit = entry.fit;
   if (fit?.status !== 'assessed') return '<span class="lead-fit-tags"><span>Ожидает оценки</span></span>';
   const labels = { lcb:'LC Band', musicians:'Музыканты', broker:'Брокер' };
-  const tags = `<span class="lead-fit-tags">${fit.products.map(p => `<span>${labels[p] || escapeHtml(p)}</span>`).join('')}<b class="${fit.fit_score >= 8 ? 'fit-high' : fit.fit_score <= 3 ? 'fit-low' : ''}">Нам: ${fit.fit_score}/10</b><span class="${fit.low_cost_probability >= 50 ? 'fit-low' : ''}">Low cost: ${fit.low_cost_probability == null ? 'неизвестно' : `${fit.low_cost_probability}%`}</span></span>`;
+  const tags = `<span class="lead-fit-tags">${fit.products.map(p => `<span>${labels[p] || escapeHtml(p)}</span>`).join('')}<b class="${fit.fit_score >= 8 ? 'fit-high' : fit.fit_score <= 3 ? 'fit-low' : ''}">Нам: ${fit.fit_score}/10</b>${typeof fit.bas === 'number' ? `<b class="${fit.bas >= 70 ? 'fit-high' : fit.bas <= 35 ? 'fit-low' : ''}" title="Привлекательность BAS: формат 30 + бюджет 30 + срочность 15 + город 10 + бриф 15">BAS: ${fit.bas}</b>` : ''}<span class="${fit.low_cost_probability >= 50 ? 'fit-low' : ''}">Low cost: ${fit.low_cost_probability == null ? 'неизвестно' : `${fit.low_cost_probability}%`}</span></span>`;
   return detail ? `<div class="lead-fit-detail">${tags}<p>${escapeHtml(fit.reason)}</p><p><strong>Бюджет:</strong> ${escapeHtml(fit.low_cost_reason)}</p><small>AI-оценка · ${escapeHtml(formatDate(fit.assessed_at))} · вероятность low cost — оценочная; доступность и цена ещё требуют проверки.</small></div>` : `<span title="${escapeHtml(fit.reason)}">${tags}</span>`;
 }
 
@@ -1935,6 +1937,8 @@ function renderLeadFilters() {
     box.addEventListener('click', (event) => {
       const button = event.target.closest('[data-lead-product]');
       if (button) { state.leadProduct = button.dataset.leadProduct; renderThreads(); }
+      const sorter = event.target.closest('[data-lead-bas-sort]');
+      if (sorter) { state.leadSortBas = !state.leadSortBas; renderThreads(); }
     });
     box.addEventListener('change', (event) => { state.leadLowCost = event.target.value; renderThreads(); });
   }
@@ -1942,7 +1946,7 @@ function renderLeadFilters() {
   box.innerHTML = `<div role="group" aria-label="Тип заявки">${[['','Все'],['lcb','LC Band'],['musicians','Музыканты'],['broker','Брокер'],['pending','Без оценки']].map(([key,label]) => {
     const count = entries.filter(e => !key || (key === 'pending' ? e.fit?.status !== 'assessed' : e.fit?.products?.includes(key))).length;
     return `<button type="button" data-lead-product="${key}" aria-pressed="${state.leadProduct === key}">${label} <small>${count}</small></button>`;
-  }).join('')}</div><label>Бюджет <select aria-label="Фильтр Low cost"><option value="">Все заявки</option><option value="likely">Low cost · от 50%</option><option value="unknown">Бюджет неясен</option></select></label>`;
+  }).join('')}</div><label>Бюджет <select aria-label="Фильтр Low cost"><option value="">Все заявки</option><option value="likely">Low cost · от 50%</option><option value="unknown">Бюджет неясен</option></select></label><button type="button" data-lead-bas-sort aria-pressed="${state.leadSortBas}" title="Сортировка по Business Attractiveness Score: сначала самые привлекательные, без оценки — внизу">По привлекательности</button>`;
   box.querySelector('select').value = state.leadLowCost;
   box.hidden = false;
 }
